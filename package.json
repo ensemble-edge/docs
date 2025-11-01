@@ -1,0 +1,22 @@
+{
+  "name": "@ensemble-edge/docs",
+  "version": "1.0.0",
+  "description": "Ensemble platform documentation built with Mintlify",
+  "private": true,
+  "scripts": {
+    "dev": "mintlify dev",
+    "install-cli": "npm i -g mintlify"
+  },
+  "keywords": [
+    "documentation",
+    "mintlify",
+    "ensemble",
+    "edgit",
+    "conductor"
+  ],
+  "author": "Higher Order Capital",
+  "license": "MIT",
+  "devDependencies": {
+    "mintlify": "^4.0.0"
+  }
+}
