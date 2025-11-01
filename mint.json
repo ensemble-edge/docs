@@ -1,211 +1,186 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "theme": "linden",
+  "$schema": "https://mintlify.com/schema.json",
   "name": "Ensemble",
-  "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
-  },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "tabs": [
-      {
-        "tab": "Getting Started",
-        "groups": [
-          {
-            "group": "Introduction",
-            "pages": [
-              "index",
-              "getting-started/index"
-            ]
-          },
-          {
-            "group": "Quick Starts",
-            "pages": [
-              "getting-started/edgit",
-              "getting-started/conductor"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Edgit",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "edgit/overview",
-              "edgit/installation",
-              "edgit/configuration"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "edgit/guides/component-types",
-              "edgit/guides/versioning",
-              "edgit/guides/deployment",
-              "edgit/guides/troubleshooting"
-            ]
-          },
-          {
-            "group": "API Reference",
-            "pages": [
-              "edgit/api-reference/cli"
-            ]
-          },
-          {
-            "group": "Examples",
-            "pages": [
-              "edgit/examples/basic-workflow",
-              "edgit/examples/monorepo-workflow",
-              "edgit/examples/cicd-integration"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Conductor",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "conductor/overview",
-              "conductor/architecture"
-            ]
-          },
-          {
-            "group": "Agents",
-            "pages": [
-              "conductor/agents/overview"
-            ]
-          },
-          {
-            "group": "Workflows",
-            "pages": [
-              "conductor/workflows/overview"
-            ]
-          },
-          {
-            "group": "API Reference",
-            "pages": [
-              "conductor/api-reference/cli",
-              "conductor/api-reference/sdk"
-            ]
-          },
-          {
-            "group": "Deployment",
-            "pages": [
-              "conductor/deployment/overview"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Shared",
-        "groups": [
-          {
-            "group": "Common Patterns",
-            "pages": [
-              "shared/authentication",
-              "shared/error-handling",
-              "shared/data-models",
-              "shared/best-practices"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
-          {
-            "group": "REST API",
-            "pages": [
-              "api/rest/overview",
-              "api-reference/introduction",
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
-            ]
-          },
-          {
-            "group": "GraphQL API",
-            "pages": [
-              "api/graphql/overview"
-            ]
-          },
-          {
-            "group": "Webhooks",
-            "pages": [
-              "api/webhooks/overview"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "AI Tools",
-        "groups": [
-          {
-            "group": "IDE Integration",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
-            ]
-          }
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "GitHub",
-          "href": "https://github.com/ensemble-edge/edgit",
-          "icon": "github"
-        },
-        {
-          "anchor": "Community",
-          "href": "https://github.com/ensemble-edge/edgit/discussions",
-          "icon": "comments"
-        }
-      ]
-    }
-  },
   "logo": {
     "light": "/logo/light.svg",
     "dark": "/logo/dark.svg"
   },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "https://github.com/ensemble-edge/edgit/issues"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Get Started",
-      "href": "/getting-started/edgit"
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#16A34A",
+    "light": "#07C983",
+    "dark": "#15803D",
+    "anchors": {
+      "from": "#16A34A",
+      "to": "#15803D"
     }
   },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/ensemble-edge/edgit",
-      "x": "https://x.com/ensemble_edge"
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "https://github.com/ensemble-edge/edgit/issues"
     }
-  }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "/getting-started/edgit"
+  },
+  "tabs": [
+    {
+      "name": "Edgit",
+      "url": "edgit"
+    },
+    {
+      "name": "Conductor",
+      "url": "conductor"
+    },
+    {
+      "name": "Shared",
+      "url": "shared"
+    },
+    {
+      "name": "API",
+      "url": "api"
+    },
+    {
+      "name": "AI Tools",
+      "url": "ai-tools"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/ensemble-edge/edgit"
+    },
+    {
+      "name": "Community",
+      "icon": "comments",
+      "url": "https://github.com/ensemble-edge/edgit/discussions"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "index",
+        "getting-started/index",
+        "getting-started/edgit",
+        "getting-started/conductor"
+      ]
+    },
+    {
+      "group": "Edgit",
+      "pages": [
+        "edgit/overview",
+        "edgit/installation",
+        "edgit/configuration"
+      ]
+    },
+    {
+      "group": "Edgit Guides",
+      "pages": [
+        "edgit/guides/component-types",
+        "edgit/guides/versioning",
+        "edgit/guides/deployment",
+        "edgit/guides/troubleshooting"
+      ]
+    },
+    {
+      "group": "Edgit API Reference",
+      "pages": [
+        "edgit/api-reference/cli"
+      ]
+    },
+    {
+      "group": "Edgit Examples",
+      "pages": [
+        "edgit/examples/basic-workflow",
+        "edgit/examples/monorepo-workflow",
+        "edgit/examples/cicd-integration"
+      ]
+    },
+    {
+      "group": "Conductor",
+      "pages": [
+        "conductor/overview",
+        "conductor/architecture"
+      ]
+    },
+    {
+      "group": "Conductor Agents",
+      "pages": [
+        "conductor/agents/overview"
+      ]
+    },
+    {
+      "group": "Conductor Workflows",
+      "pages": [
+        "conductor/workflows/overview"
+      ]
+    },
+    {
+      "group": "Conductor API Reference",
+      "pages": [
+        "conductor/api-reference/cli",
+        "conductor/api-reference/sdk"
+      ]
+    },
+    {
+      "group": "Conductor Deployment",
+      "pages": [
+        "conductor/deployment/overview"
+      ]
+    },
+    {
+      "group": "Shared Concepts",
+      "pages": [
+        "shared/authentication",
+        "shared/error-handling",
+        "shared/data-models",
+        "shared/best-practices"
+      ]
+    },
+    {
+      "group": "REST API",
+      "pages": [
+        "api/rest/overview",
+        "api-reference/introduction",
+        "api-reference/endpoint/get",
+        "api-reference/endpoint/create",
+        "api-reference/endpoint/delete",
+        "api-reference/endpoint/webhook"
+      ]
+    },
+    {
+      "group": "GraphQL API",
+      "pages": [
+        "api/graphql/overview"
+      ]
+    },
+    {
+      "group": "Webhooks",
+      "pages": [
+        "api/webhooks/overview"
+      ]
+    },
+    {
+      "group": "AI Tool Integration",
+      "pages": [
+        "ai-tools/cursor",
+        "ai-tools/claude-code",
+        "ai-tools/windsurf"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/ensemble-edge/edgit",
+    "x": "https://x.com/ensemble_edge"
+  },
+  "redirects": [
+    {
+      "source": "/api-reference/:slug*",
+      "destination": "/api/rest/:slug*"
+    }
+  ]
 }
