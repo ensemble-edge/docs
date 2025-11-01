@@ -17,7 +17,7 @@ If you need help with Ensemble documentation, there are several ways to get supp
 
 ### Contact
 
-- **Email**: [hello@ensemble.dev](mailto:hello@ensemble.dev)
+- **Email**: [hello@ensemble.ai](mailto:hello@ensemble.ai)
 
 ## Reporting Documentation Issues
 
@@ -39,4 +39,4 @@ We welcome documentation contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) f
 
 **Do not open public GitHub issues for security vulnerabilities.**
 
-Please report security issues privately to [security@ensemble.dev](mailto:security@ensemble.dev) or see our [Security Policy](SECURITY.md).
+Please report security issues privately to [security@ensemble.ai](mailto:security@ensemble.ai) or see our [Security Policy](SECURITY.md).
