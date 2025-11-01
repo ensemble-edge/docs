@@ -1,0 +1,586 @@
+---
+title: "Configuration"
+description: "Configure Edgit environment variables, component types, and defaults"
+---
+
+> **Product**: Edgit
+> **Version**: v1.0.0
+> **Last Updated**: 2025-11-01
+
+## Overview
+
+Edgit can be configured through:
+1. **Environment variables** - For API keys and global settings
+2. **Component registry** - For component-specific metadata
+3. **Git config** - For user-specific preferences
+
+## Environment Variables
+
+### AI Configuration
+
+<ParamField path="OPENAI_API_KEY" type="string">
+  OpenAI API key for AI-powered commit messages.
+
+  ```bash
+  export OPENAI_API_KEY=sk-proj-...
+  ```
+
+  **Required for**: AI commit message generation
+
+  **Where to get**: [OpenAI Platform](https://platform.openai.com/api-keys)
+</ParamField>
+
+<ParamField path="OPENAI_MODEL" type="string" default="gpt-4">
+  OpenAI model to use for commit message generation.
+
+  ```bash
+  export OPENAI_MODEL=gpt-4-turbo
+  ```
+
+  **Options**: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
+</ParamField>
+
+<ParamField path="OPENAI_MAX_TOKENS" type="number" default="150">
+  Maximum tokens for AI-generated commit messages.
+
+  ```bash
+  export OPENAI_MAX_TOKENS=200
+  ```
+</ParamField>
+
+### Git Configuration
+
+<ParamField path="EDGIT_DIR" type="string" default=".edgit">
+  Directory name for Edgit metadata.
+
+  ```bash
+  export EDGIT_DIR=.edgit
+  ```
+
+  **Note**: Changing this requires re-initialization
+</ParamField>
+
+<ParamField path="GIT_TAG_PREFIX" type="string" default="">
+  Prefix for Git tags created by Edgit.
+
+  ```bash
+  export GIT_TAG_PREFIX=release/
+  # Creates tags like: release/component-v1.0.0
+  ```
+</ParamField>
+
+### Debug and Logging
+
+<ParamField path="EDGIT_DEBUG" type="boolean" default="false">
+  Enable debug logging.
+
+  ```bash
+  export EDGIT_DEBUG=true
+  edgit commit  # Shows detailed debug information
+  ```
+</ParamField>
+
+<ParamField path="EDGIT_LOG_LEVEL" type="string" default="info">
+  Set logging level.
+
+  ```bash
+  export EDGIT_LOG_LEVEL=debug
+  ```
+
+  **Options**: `error`, `warn`, `info`, `debug`
+</ParamField>
+
+## Configuration Files
+
+### Component Registry (`.edgit/components.json`)
+
+The component registry is the primary configuration file:
+
+```json
+{
+  "version": "1.0",
+  "components": {
+    "functions": {
+      "email-processor": {
+        "type": "function",
+        "path": "src/functions/email.ts",
+        "description": "Processes incoming emails",
+        "dependencies": ["queue-manager"],
+        "metadata": {
+          "runtime": "node18",
+          "memory": "256MB",
+          "timeout": "30s"
+        }
+      }
+    },
+    "agents": {
+      "support-agent": {
+        "type": "agent",
+        "path": "src/agents/support.ts",
+        "description": "Customer support automation",
+        "metadata": {
+          "provider": "openai",
+          "model": "gpt-4"
+        }
+      }
+    },
+    "configs": {
+      "app-config": {
+        "type": "config",
+        "path": "config/app.json",
+        "description": "Application configuration"
+      }
+    }
+  }
+}
+```
+
+### Component Properties
+
+<ResponseField name="type" type="string" required>
+  Component type: `function`, `agent`, `config`, or custom type
+</ResponseField>
+
+<ResponseField name="path" type="string" required>
+  Relative path from repository root to component file
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Human-readable description of component purpose
+</ResponseField>
+
+<ResponseField name="dependencies" type="string[]">
+  Array of component names this component depends on
+
+  ```json
+  "dependencies": ["queue-manager", "logger"]
+  ```
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Custom metadata specific to your use case
+
+  ```json
+  "metadata": {
+    "runtime": "node18",
+    "memory": "256MB",
+    "any": "custom-field"
+  }
+  ```
+</ResponseField>
+
+### Environment-Specific Configuration
+
+Use `.env` files for environment-specific settings:
+
+<CodeGroup>
+  ```bash .env.development
+  OPENAI_API_KEY=sk-dev-...
+  EDGIT_DEBUG=true
+  EDGIT_LOG_LEVEL=debug
+  ```
+
+  ```bash .env.production
+  OPENAI_API_KEY=sk-prod-...
+  EDGIT_DEBUG=false
+  EDGIT_LOG_LEVEL=error
+  ```
+</CodeGroup>
+
+Load with:
+```bash
+# Development
+source .env.development
+edgit commit
+
+# Production
+source .env.production
+edgit deploy component v1.0.0 --to production
+```
+
+## Git Configuration
+
+### User-Specific Settings
+
+Configure Edgit behavior in Git config:
+
+```bash
+# Set default component type
+git config edgit.defaultType function
+
+# Set AI provider
+git config edgit.aiProvider openai
+
+# Enable AI by default
+git config edgit.aiEnabled true
+
+# View all edgit config
+git config --list | grep edgit
+```
+
+### Repository-Specific Settings
+
+```bash
+# In repository root
+cd /path/to/project
+
+# Configure for this repo only
+git config --local edgit.defaultType agent
+git config --local edgit.tagPrefix release/
+
+# View repo-specific config
+git config --local --list | grep edgit
+```
+
+## Component Type Configuration
+
+### Built-in Types
+
+Edgit provides these built-in component types:
+
+<Tabs>
+  <Tab title="function">
+    For serverless functions, utilities, and callable code.
+
+    ```bash
+    edgit add function process-payment src/functions/payment.ts
+    ```
+
+    **Common metadata**:
+    ```json
+    {
+      "runtime": "node18",
+      "memory": "256MB",
+      "timeout": "30s",
+      "triggers": ["http", "queue"]
+    }
+    ```
+  </Tab>
+
+  <Tab title="agent">
+    For AI agents, bots, and autonomous systems.
+
+    ```bash
+    edgit add agent support-bot src/agents/support.ts
+    ```
+
+    **Common metadata**:
+    ```json
+    {
+      "provider": "openai",
+      "model": "gpt-4",
+      "maxTokens": 2000,
+      "temperature": 0.7
+    }
+    ```
+  </Tab>
+
+  <Tab title="config">
+    For configuration files and settings.
+
+    ```bash
+    edgit add config app-settings config/app.json
+    ```
+
+    **Common metadata**:
+    ```json
+    {
+      "environment": "production",
+      "format": "json",
+      "schema": "config/schema.json"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Custom Types
+
+Add custom component types by using them in `edgit add`:
+
+```bash
+# Add custom type
+edgit add workflow order-processing workflows/order.yaml
+
+# The type is automatically recognized
+edgit components list
+# Output includes: workflow/order-processing
+```
+
+Custom types appear in the registry:
+
+```json
+{
+  "components": {
+    "workflows": {
+      "order-processing": {
+        "type": "workflow",
+        "path": "workflows/order.yaml",
+        "description": "Order processing workflow"
+      }
+    }
+  }
+}
+```
+
+## AI Provider Configuration
+
+### OpenAI (Default)
+
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4
+export OPENAI_MAX_TOKENS=150
+```
+
+### Custom Providers (Coming Soon)
+
+Support for additional providers planned:
+
+```bash
+# Anthropic Claude
+export AI_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Azure OpenAI
+export AI_PROVIDER=azure
+export AZURE_OPENAI_KEY=...
+export AZURE_OPENAI_ENDPOINT=https://...
+```
+
+## Advanced Configuration
+
+### Deployment Environments
+
+Define deployment environments in your registry:
+
+```json
+{
+  "version": "1.0",
+  "environments": {
+    "development": {
+      "description": "Local development",
+      "url": "http://localhost:3000"
+    },
+    "staging": {
+      "description": "Staging environment",
+      "url": "https://staging.example.com"
+    },
+    "production": {
+      "description": "Production environment",
+      "url": "https://example.com"
+    }
+  },
+  "components": { ... }
+}
+```
+
+Use with deployment commands:
+
+```bash
+edgit deploy component v1.0.0 --to staging
+edgit deploy component v1.0.0 --to production
+```
+
+### Component Dependencies
+
+Define component dependencies to track relationships:
+
+```json
+{
+  "components": {
+    "functions": {
+      "email-processor": {
+        "type": "function",
+        "path": "src/functions/email.ts",
+        "dependencies": ["queue-manager", "logger"]
+      },
+      "queue-manager": {
+        "type": "function",
+        "path": "src/utils/queue.ts"
+      },
+      "logger": {
+        "type": "function",
+        "path": "src/utils/logger.ts"
+      }
+    }
+  }
+}
+```
+
+View dependency tree:
+
+```bash
+edgit components show email-processor
+# Output:
+# Component: email-processor
+# Dependencies:
+#   - queue-manager (v2.0.0)
+#   - logger (v1.5.0)
+```
+
+## Configuration Best Practices
+
+<AccordionGroup>
+  <Accordion icon="key" title="API Key Security">
+    **DO**:
+    - Use environment variables for API keys
+    - Add `.env` to `.gitignore`
+    - Use different keys for dev/staging/production
+    - Rotate keys regularly
+
+    **DON'T**:
+    - Commit API keys to Git
+    - Share keys in plain text
+    - Use production keys in development
+  </Accordion>
+
+  <Accordion icon="database" title="Registry Organization">
+    **DO**:
+    - Group related components
+    - Use clear, descriptive names
+    - Document component purpose
+    - Keep paths relative to repo root
+
+    **DON'T**:
+    - Use abbreviations without context
+    - Mix different naming conventions
+    - Include absolute paths
+    - Leave descriptions empty
+  </Accordion>
+
+  <Accordion icon="tag" title="Versioning Strategy">
+    **DO**:
+    - Follow semantic versioning
+    - Tag stable releases
+    - Document breaking changes
+    - Use consistent tag format
+
+    **DON'T**:
+    - Skip versions
+    - Reuse version numbers
+    - Delete published tags
+    - Use non-semantic versions
+  </Accordion>
+</AccordionGroup>
+
+## Example Configurations
+
+<CodeGroup>
+  ```json Monorepo with Functions
+  {
+    "version": "1.0",
+    "components": {
+      "functions": {
+        "auth": {
+          "type": "function",
+          "path": "packages/auth/src/index.ts",
+          "description": "Authentication service",
+          "metadata": {
+            "runtime": "node18",
+            "memory": "256MB"
+          }
+        },
+        "payments": {
+          "type": "function",
+          "path": "packages/payments/src/index.ts",
+          "description": "Payment processing",
+          "dependencies": ["auth"],
+          "metadata": {
+            "runtime": "node18",
+            "memory": "512MB"
+          }
+        }
+      }
+    }
+  }
+  ```
+
+  ```json AI Agent Library
+  {
+    "version": "1.0",
+    "components": {
+      "agents": {
+        "support": {
+          "type": "agent",
+          "path": "agents/support.ts",
+          "description": "Customer support agent",
+          "metadata": {
+            "provider": "openai",
+            "model": "gpt-4",
+            "temperature": 0.7
+          }
+        },
+        "sales": {
+          "type": "agent",
+          "path": "agents/sales.ts",
+          "description": "Sales automation agent",
+          "metadata": {
+            "provider": "openai",
+            "model": "gpt-4",
+            "temperature": 0.9
+          }
+        }
+      }
+    }
+  }
+  ```
+
+  ```json Serverless Functions
+  {
+    "version": "1.0",
+    "environments": {
+      "staging": { "url": "https://staging.workers.dev" },
+      "production": { "url": "https://workers.dev" }
+    },
+    "components": {
+      "functions": {
+        "api": {
+          "type": "function",
+          "path": "src/api.ts",
+          "description": "API handler",
+          "metadata": {
+            "platform": "cloudflare",
+            "routes": ["/api/*"]
+          }
+        }
+      }
+    }
+  }
+  ```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="CLI Reference"
+    icon="terminal"
+    href="/edgit/api-reference/cli"
+  >
+    Complete command documentation
+  </Card>
+
+  <Card
+    title="Component Types Guide"
+    icon="cube"
+    href="/edgit/guides/component-types"
+  >
+    Understanding component categories
+  </Card>
+
+  <Card
+    title="Versioning Guide"
+    icon="tag"
+    href="/edgit/guides/versioning"
+  >
+    Git tag-based semantic versioning
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="code"
+    href="/edgit/examples/basic-workflow"
+  >
+    Real-world configuration examples
+  </Card>
+</CardGroup>

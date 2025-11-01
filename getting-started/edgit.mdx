@@ -1,0 +1,363 @@
+---
+title: "Edgit Quick Start"
+description: "Get started with Git-native component versioning in 5 minutes"
+---
+
+> **Product**: Edgit
+> **Version**: v1.0.0
+> **Last Updated**: 2025-11-01
+
+## Overview
+
+This guide walks you through installing Edgit, initializing your repository, and creating your first versioned component. You'll learn the core workflow in about 5 minutes.
+
+## Prerequisites
+
+- **Node.js** v18 or higher
+- **Git** v2.30 or higher
+- An existing Git repository (or create one)
+- Basic familiarity with command line
+
+## Installation
+
+<Steps>
+  <Step title="Install Edgit CLI globally">
+    ```bash
+    npm install -g @ensemble/edgit
+    ```
+
+    Verify installation:
+    ```bash
+    edgit --version
+    # Output: edgit v1.0.0
+    ```
+  </Step>
+
+  <Step title="Navigate to your Git repository">
+    ```bash
+    cd /path/to/your/project
+    git status  # Verify you're in a Git repo
+    ```
+
+    <Tip>
+      Don't have a repository? Create one:
+      ```bash
+      mkdir my-project && cd my-project
+      git init
+      ```
+    </Tip>
+  </Step>
+
+  <Step title="Initialize Edgit">
+    ```bash
+    edgit init
+    ```
+
+    This creates `.edgit/components.json` to track your components:
+    ```json
+    {
+      "version": "1.0",
+      "components": {
+        "functions": {},
+        "agents": {},
+        "configs": {}
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Add Your First Component
+
+<Steps>
+  <Step title="Create a component file">
+    Create `src/hello.ts`:
+    ```typescript
+    export function hello(name: string): string {
+      return `Hello, ${name}!`;
+    }
+    ```
+  </Step>
+
+  <Step title="Register the component">
+    ```bash
+    edgit add function hello src/hello.ts \
+      --description "Simple greeting function"
+    ```
+
+    This updates `.edgit/components.json`:
+    ```json
+    {
+      "version": "1.0",
+      "components": {
+        "functions": {
+          "hello": {
+            "type": "function",
+            "path": "src/hello.ts",
+            "description": "Simple greeting function"
+          }
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Commit your changes">
+    ```bash
+    git add src/hello.ts .edgit/
+    edgit commit  # AI will generate a commit message
+    ```
+
+    Or provide your own message:
+    ```bash
+    edgit commit -m "feat: add hello function"
+    ```
+  </Step>
+</Steps>
+
+## Create Your First Version
+
+<Steps>
+  <Step title="Create a version tag">
+    ```bash
+    edgit tag hello v1.0.0
+    ```
+
+    This creates a Git tag: `hello-v1.0.0`
+  </Step>
+
+  <Step title="Push to remote">
+    ```bash
+    git push origin hello-v1.0.0
+    ```
+
+    Or push all tags:
+    ```bash
+    git push --tags
+    ```
+  </Step>
+
+  <Step title="View component history">
+    ```bash
+    edgit components show hello
+    ```
+
+    Output:
+    ```
+    Component: hello (function)
+    Path: src/hello.ts
+    Description: Simple greeting function
+
+    Versions:
+      v1.0.0 (2025-11-01 10:30:00) - feat: add hello function
+    ```
+  </Step>
+</Steps>
+
+## Deploy to an Environment
+
+<Steps>
+  <Step title="Mark version as deployed">
+    ```bash
+    edgit deploy hello v1.0.0 --to production
+    ```
+
+    This adds deployment metadata to the Git tag.
+  </Step>
+
+  <Step title="Check deployment status">
+    ```bash
+    edgit status hello
+    ```
+
+    Output:
+    ```
+    Component: hello (function)
+    Latest version: v1.0.0
+
+    Deployments:
+      production: v1.0.0 (deployed 2025-11-01 10:35:00)
+    ```
+  </Step>
+</Steps>
+
+## Core Commands
+
+<AccordionGroup>
+  <Accordion title="Component Management">
+    ```bash
+    # Add components
+    edgit add function <name> <path>
+    edgit add agent <name> <path>
+    edgit add config <name> <path>
+
+    # List all components
+    edgit components list
+
+    # Show component details
+    edgit components show <name>
+
+    # Remove component
+    edgit components remove <name>
+    ```
+  </Accordion>
+
+  <Accordion title="Versioning">
+    ```bash
+    # Create version tag
+    edgit tag <component> <version>
+
+    # List versions
+    edgit tag list <component>
+
+    # Delete tag (local and remote)
+    edgit tag delete <component> <version>
+    ```
+  </Accordion>
+
+  <Accordion title="Commits">
+    ```bash
+    # AI-generated message
+    edgit commit
+
+    # Manual message
+    edgit commit -m "your message"
+
+    # All standard git commit flags work
+    edgit commit -a -m "message"
+    edgit commit --amend
+    ```
+  </Accordion>
+
+  <Accordion title="Deployments">
+    ```bash
+    # Mark as deployed
+    edgit deploy <component> <version> --to <environment>
+
+    # View deployment status
+    edgit status <component>
+
+    # View all deployments
+    edgit deploy list
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Example Workflow
+
+Here's a complete workflow from development to production:
+
+```bash
+# 1. Create and register component
+echo "export const api = () => fetch('/api')" > src/api.ts
+edgit add function api src/api.ts --description "API client"
+
+# 2. Stage and commit
+git add src/api.ts .edgit/
+edgit commit  # AI generates: "feat: add API client function"
+
+# 3. Tag development version
+edgit tag api v0.1.0
+git push origin api-v0.1.0
+
+# 4. Deploy to staging
+edgit deploy api v0.1.0 --to staging
+
+# 5. Test in staging...
+# 6. Tag production version
+edgit tag api v1.0.0
+git push origin api-v1.0.0
+
+# 7. Deploy to production
+edgit deploy api v1.0.0 --to production
+
+# 8. Check status
+edgit status api
+# Output:
+# staging: v0.1.0
+# production: v1.0.0
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/edgit/configuration"
+  >
+    Configure AI providers, component types, and defaults
+  </Card>
+
+  <Card
+    title="Component Types"
+    icon="cube"
+    href="/edgit/guides/component-types"
+  >
+    Functions, agents, configs, and custom types
+  </Card>
+
+  <Card
+    title="CLI Reference"
+    icon="terminal"
+    href="/edgit/api-reference/cli"
+  >
+    Complete command documentation
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="code"
+    href="/edgit/examples/basic-workflow"
+  >
+    Real-world usage patterns
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Error: Edgit not initialized">
+    **Problem**: Running commands in non-initialized repository
+
+    **Solution**: Run `edgit init` first
+    ```bash
+    edgit init
+    git add .edgit/
+    git commit -m "chore: initialize edgit"
+    ```
+  </Accordion>
+
+  <Accordion title="Error: Not a Git repository">
+    **Problem**: Running edgit outside a Git repository
+
+    **Solution**: Initialize Git first
+    ```bash
+    git init
+    git add .
+    git commit -m "Initial commit"
+    edgit init
+    ```
+  </Accordion>
+
+  <Accordion title="AI commit messages not working">
+    **Problem**: OPENAI_API_KEY not configured
+
+    **Solution**: Set environment variable
+    ```bash
+    export OPENAI_API_KEY=sk-...
+    ```
+
+    Or create `.env` file:
+    ```
+    OPENAI_API_KEY=sk-...
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+- [Installation Guide](/edgit/installation) - Detailed setup instructions
+- [Configuration](/edgit/configuration) - Environment variables and config files
+- [Component Types](/edgit/guides/component-types) - Understanding component categories
+- [Versioning Guide](/edgit/guides/versioning) - Git tag-based semantic versioning

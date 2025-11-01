@@ -1,0 +1,471 @@
+---
+title: "Installation"
+description: "Install and configure Edgit CLI"
+---
+
+> **Product**: Edgit
+> **Version**: v1.0.0
+> **Last Updated**: 2025-11-01
+
+## Prerequisites
+
+Before installing Edgit, ensure you have:
+
+- **Node.js** v18.0.0 or higher
+- **npm** v8.0.0 or higher (comes with Node.js)
+- **Git** v2.30.0 or higher
+- A Unix-like shell (bash, zsh) or Windows PowerShell
+
+### Check Prerequisites
+
+```bash
+# Check Node.js version
+node --version
+# Required: v18.0.0 or higher
+
+# Check npm version
+npm --version
+# Required: v8.0.0 or higher
+
+# Check Git version
+git --version
+# Required: v2.30.0 or higher
+```
+
+## Installation Methods
+
+<Tabs>
+  <Tab title="npm (Global)">
+    Install Edgit globally to use it across all projects:
+
+    ```bash
+    npm install -g @ensemble/edgit
+    ```
+
+    Verify installation:
+    ```bash
+    edgit --version
+    # Output: edgit v1.0.0
+    ```
+
+    **Recommended for**: Individual developers and most use cases
+  </Tab>
+
+  <Tab title="npm (Project-Local)">
+    Install Edgit as a dev dependency in your project:
+
+    ```bash
+    cd your-project
+    npm install --save-dev @ensemble/edgit
+    ```
+
+    Use with npx:
+    ```bash
+    npx edgit --version
+    ```
+
+    Add to `package.json` scripts:
+    ```json
+    {
+      "scripts": {
+        "edgit": "edgit",
+        "component:add": "edgit add",
+        "component:tag": "edgit tag"
+      }
+    }
+    ```
+
+    **Recommended for**: Teams wanting consistent versions across all developers
+  </Tab>
+
+  <Tab title="From Source">
+    Clone and build from source:
+
+    ```bash
+    # Clone repository
+    git clone https://github.com/ensemble-edge/edgit.git
+    cd edgit
+
+    # Install dependencies
+    npm install
+
+    # Build
+    npm run build
+
+    # Link globally
+    npm link
+
+    # Verify
+    edgit --version
+    ```
+
+    **Recommended for**: Contributors and advanced users
+  </Tab>
+</Tabs>
+
+## Platform-Specific Setup
+
+<AccordionGroup>
+  <Accordion icon="apple" title="macOS">
+    ### Using Homebrew (Coming Soon)
+    ```bash
+    brew tap ensemble-edge/tap
+    brew install edgit
+    ```
+
+    ### Using npm
+    ```bash
+    npm install -g @ensemble/edgit
+    ```
+
+    ### Troubleshooting
+    If you encounter permission errors:
+    ```bash
+    # Option 1: Use nvm (recommended)
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    nvm install 18
+    npm install -g @ensemble/edgit
+
+    # Option 2: Fix npm permissions
+    mkdir ~/.npm-global
+    npm config set prefix '~/.npm-global'
+    echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc
+    source ~/.zshrc
+    npm install -g @ensemble/edgit
+    ```
+  </Accordion>
+
+  <Accordion icon="linux" title="Linux">
+    ### Using npm
+    ```bash
+    npm install -g @ensemble/edgit
+    ```
+
+    ### Using snap (Coming Soon)
+    ```bash
+    snap install edgit --classic
+    ```
+
+    ### Troubleshooting
+    If you encounter permission errors:
+    ```bash
+    # Option 1: Use nvm (recommended)
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    nvm install 18
+    npm install -g @ensemble/edgit
+
+    # Option 2: Use sudo (not recommended)
+    sudo npm install -g @ensemble/edgit
+    ```
+  </Accordion>
+
+  <Accordion icon="windows" title="Windows">
+    ### Using npm (PowerShell)
+    ```powershell
+    npm install -g @ensemble/edgit
+    ```
+
+    ### Using scoop (Coming Soon)
+    ```powershell
+    scoop bucket add ensemble https://github.com/ensemble-edge/scoop-bucket
+    scoop install edgit
+    ```
+
+    ### Troubleshooting
+    If you encounter errors related to git commands:
+    1. Ensure Git is installed: [git-scm.com](https://git-scm.com/download/win)
+    2. Restart your terminal after installing Git
+    3. Verify Git is in PATH: `git --version`
+
+    If you encounter permission errors:
+    ```powershell
+    # Run PowerShell as Administrator, then:
+    npm install -g @ensemble/edgit
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Initial Setup
+
+After installation, initialize Edgit in your repository:
+
+<Steps>
+  <Step title="Navigate to your repository">
+    ```bash
+    cd /path/to/your/project
+    ```
+
+    If you don't have a Git repository yet:
+    ```bash
+    git init
+    git add .
+    git commit -m "Initial commit"
+    ```
+  </Step>
+
+  <Step title="Initialize Edgit">
+    ```bash
+    edgit init
+    ```
+
+    This creates `.edgit/components.json`:
+    ```json
+    {
+      "version": "1.0",
+      "components": {
+        "functions": {},
+        "agents": {},
+        "configs": {}
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Commit the registry">
+    ```bash
+    git add .edgit/
+    git commit -m "chore: initialize edgit"
+    ```
+  </Step>
+
+  <Step title="Verify setup">
+    ```bash
+    edgit components list
+    # Output: No components registered yet
+    ```
+  </Step>
+</Steps>
+
+## Optional: AI Configuration
+
+To enable AI-powered commit messages, configure an OpenAI API key:
+
+<Tabs>
+  <Tab title="Environment Variable">
+    ```bash
+    # Add to ~/.zshrc, ~/.bashrc, or ~/.bash_profile
+    export OPENAI_API_KEY=sk-...
+
+    # Reload shell
+    source ~/.zshrc  # or ~/.bashrc
+    ```
+  </Tab>
+
+  <Tab title=".env File">
+    Create `.env` in your project root:
+    ```bash
+    OPENAI_API_KEY=sk-...
+    ```
+
+    Add to `.gitignore`:
+    ```bash
+    echo ".env" >> .gitignore
+    ```
+  </Tab>
+
+  <Tab title="Per-Command">
+    ```bash
+    OPENAI_API_KEY=sk-... edgit commit
+    ```
+  </Tab>
+</Tabs>
+
+Test AI integration:
+```bash
+# Make a change
+echo "export const test = () => 'hello'" > src/test.ts
+edgit add function test src/test.ts
+git add .
+
+# Let AI generate commit message
+edgit commit
+# Output: "feat(test): add test function"
+```
+
+## Updating Edgit
+
+<Tabs>
+  <Tab title="Global Installation">
+    ```bash
+    npm update -g @ensemble/edgit
+    ```
+
+    Check current version:
+    ```bash
+    edgit --version
+    ```
+  </Tab>
+
+  <Tab title="Project Installation">
+    ```bash
+    npm update @ensemble/edgit
+    ```
+
+    Or to latest version:
+    ```bash
+    npm install @ensemble/edgit@latest --save-dev
+    ```
+  </Tab>
+
+  <Tab title="From Source">
+    ```bash
+    cd /path/to/edgit
+    git pull
+    npm install
+    npm run build
+    ```
+  </Tab>
+</Tabs>
+
+## Uninstalling
+
+<Tabs>
+  <Tab title="Global Installation">
+    ```bash
+    npm uninstall -g @ensemble/edgit
+    ```
+  </Tab>
+
+  <Tab title="Project Installation">
+    ```bash
+    npm uninstall @ensemble/edgit
+    ```
+  </Tab>
+
+  <Tab title="From Source">
+    ```bash
+    npm unlink @ensemble/edgit
+    ```
+  </Tab>
+</Tabs>
+
+To completely remove Edgit from a project:
+```bash
+# Remove registry
+rm -rf .edgit/
+
+# Remove tags (optional - only if you want to remove all version history)
+git tag -l "*-v*" | xargs git tag -d
+```
+
+## Verification
+
+After installation, verify everything works:
+
+```bash
+# Check version
+edgit --version
+
+# View help
+edgit --help
+
+# Initialize test repository
+mkdir edgit-test && cd edgit-test
+git init
+edgit init
+
+# Add test component
+echo "export const test = () => 'hello'" > test.ts
+edgit add function test test.ts
+
+# List components
+edgit components list
+
+# Cleanup
+cd .. && rm -rf edgit-test
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found: edgit">
+    **Problem**: Shell can't find edgit command
+
+    **Solutions**:
+    1. Verify installation: `npm list -g @ensemble/edgit`
+    2. Check npm global bin path: `npm config get prefix`
+    3. Add to PATH:
+       ```bash
+       export PATH="$(npm config get prefix)/bin:$PATH"
+       ```
+    4. Restart terminal
+  </Accordion>
+
+  <Accordion title="EACCES permission errors">
+    **Problem**: No permission to install globally
+
+    **Solutions**:
+    1. Use nvm (recommended):
+       ```bash
+       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+       nvm install 18
+       ```
+    2. Fix npm permissions:
+       ```bash
+       mkdir ~/.npm-global
+       npm config set prefix '~/.npm-global'
+       echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+       ```
+    3. Use project-local installation instead
+  </Accordion>
+
+  <Accordion title="Git command not found">
+    **Problem**: Edgit can't find Git
+
+    **Solutions**:
+    1. Install Git: [git-scm.com](https://git-scm.com/)
+    2. Verify installation: `git --version`
+    3. Restart terminal
+    4. Check PATH includes Git
+  </Accordion>
+
+  <Accordion title="AI features not working">
+    **Problem**: AI commit messages failing
+
+    **Solutions**:
+    1. Verify API key: `echo $OPENAI_API_KEY`
+    2. Check key format: Should start with `sk-`
+    3. Test API key:
+       ```bash
+       curl https://api.openai.com/v1/models \
+         -H "Authorization: Bearer $OPENAI_API_KEY"
+       ```
+    4. Check for .env file in project root
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/getting-started/edgit"
+  >
+    Complete your first workflow in 5 minutes
+  </Card>
+
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/edgit/configuration"
+  >
+    Configure environment variables and options
+  </Card>
+
+  <Card
+    title="CLI Reference"
+    icon="terminal"
+    href="/edgit/api-reference/cli"
+  >
+    Explore all available commands
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="code"
+    href="/edgit/examples/basic-workflow"
+  >
+    See real-world usage patterns
+  </Card>
+</CardGroup>

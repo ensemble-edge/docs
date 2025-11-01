@@ -1,97 +1,177 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Ensemble Platform"
+description: "Git-native component orchestration for modern software delivery"
 ---
 
-## Setting up
+## Welcome to Ensemble
 
-Get your documentation site up and running in minutes.
+Ensemble is a platform for building, versioning, and deploying software components with Git-native workflows. Start with **Edgit** for component management, and expand to **Conductor** for advanced orchestration.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
+<CardGroup cols={2}>
   <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
+    title="Get started with Edgit"
+    icon="cube"
+    href="/getting-started/edgit"
   >
-    Edit your docs locally and preview them in real time.
+    Component registry and Git tag-based versioning
   </Card>
   <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
+    title="Conductor (Coming Soon)"
+    icon="network-wired"
+    href="/conductor/overview"
   >
-    Customize the design and colors of your site to match your brand.
+    Agent orchestration and workflow automation
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
+</CardGroup>
+
+## What is Edgit?
+
+Edgit extends Git with component-aware tooling:
+
+- **Component Registry**: Track functions, agents, and other components in your repository
+- **Git Tag Versioning**: Semantic versioning with native Git tags
+- **AI-Powered Commits**: Automatically generate descriptive commit messages
+- **Deployment Tracking**: Map versions to environments with metadata
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/edgit/installation"
   >
-    Organize your docs to help users find what they need and succeed with your product.
+    Install Edgit CLI and configure your project
   </Card>
   <Card
-    title="API documentation"
+    title="Quick Start"
+    icon="rocket"
+    href="/getting-started/edgit"
+  >
+    Initialize a repository and add your first component
+  </Card>
+  <Card
+    title="CLI Reference"
     icon="terminal"
-    href="/api-reference/introduction"
+    href="/edgit/api-reference/cli"
   >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+    Complete command-line interface documentation
   </Card>
   <Card
-    title="Code samples"
+    title="Examples"
     icon="code"
-    href="/essentials/code"
+    href="/edgit/examples/basic-workflow"
   >
-    Add sample code to demonstrate how to use your product.
+    Real-world usage patterns and workflows
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion icon="tags" title="Git Tag-Based Versioning">
+    Use native Git tags for semantic versioning. No more version bumps in package.json or separate version files.
+
+    ```bash
+    edgit tag email-agent v1.2.0
+    git push origin v1.2.0
+    ```
+  </Accordion>
+
+  <Accordion icon="brain" title="AI-Powered Commit Messages">
+    Automatically generate conventional commit messages based on component changes.
+
+    ```bash
+    edgit commit  # AI analyzes diffs and generates message
+    ```
+  </Accordion>
+
+  <Accordion icon="cube" title="Component Registry">
+    Track all components in `.edgit/components.json` with metadata, dependencies, and configuration.
+
+    ```json
+    {
+      "functions": {
+        "email-agent": {
+          "type": "function",
+          "path": "src/agents/email.ts",
+          "description": "Email processing agent"
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion icon="rocket" title="Deployment Metadata">
+    Track which versions are deployed to which environments.
+
+    ```bash
+    edgit deploy email-agent v1.2.0 --to production
+    edgit status email-agent  # Shows deployment history
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Documentation Structure
+
+<CardGroup cols={3}>
+  <Card
+    title="Getting Started"
+    icon="play"
+    href="/getting-started/index"
+  >
+    Quick start guides for all products
   </Card>
   <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
+    title="Edgit Docs"
+    icon="cube"
+    href="/edgit/overview"
   >
-    Display images and other media.
+    Component management and versioning
   </Card>
   <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
+    title="Conductor"
+    icon="network-wired"
+    href="/conductor/overview"
   >
-    Write once and reuse across your docs.
+    Orchestration platform (coming soon)
   </Card>
-</Columns>
+  <Card
+    title="Shared Concepts"
+    icon="book"
+    href="/shared/authentication"
+  >
+    Cross-product patterns and utilities
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/rest/overview"
+  >
+    REST, GraphQL, and webhook APIs
+  </Card>
+  <Card
+    title="AI Tools"
+    icon="sparkles"
+    href="/ai-tools/cursor"
+  >
+    Cursor, Claude Code, Windsurf setup
+  </Card>
+</CardGroup>
 
-## Need inspiration?
+## Community and Support
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={2}>
+  <Card
+    title="GitHub Repository"
+    icon="github"
+    href="https://github.com/ensemble-edge/edgit"
+  >
+    Source code, issues, and contributions
+  </Card>
+  <Card
+    title="Report an Issue"
+    icon="bug"
+    href="https://github.com/ensemble-edge/edgit/issues"
+  >
+    Bug reports and feature requests
+  </Card>
+</CardGroup>
