@@ -15,3 +15,8 @@ mintlify dev
 ## License
 
 MIT
+
+
+## Trademark
+
+Ensemble® is a registered trademark of Higinio O. Maycotte.
