@@ -84,9 +84,14 @@
   ],
   "navigation": [
     {
+      "group": "Introduction",
+      "pages": [
+        "index"
+      ]
+    },
+    {
       "group": "Getting Started",
       "pages": [
-        "index",
         "getting-started/index",
         "getting-started/edgit",
         "getting-started/conductor"
