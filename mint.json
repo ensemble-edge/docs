@@ -37,7 +37,7 @@
   "topbarLinks": [
     {
       "name": "Get Started",
-      "url": "/getting-started/edgit"
+      "url": "/introduction"
     },
     {
       "name": "Support",
@@ -84,9 +84,14 @@
   ],
   "navigation": [
     {
+      "group": "Introduction",
+      "pages": [
+        "introduction"
+      ]
+    },
+    {
       "group": "Getting Started",
       "pages": [
-        "index",
         "getting-started/index",
         "getting-started/edgit",
         "getting-started/conductor"
