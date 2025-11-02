@@ -2,8 +2,8 @@
   "$schema": "https://mintlify.com/schema.json",
   "name": "Ensemble",
   "logo": {
-    "light": "/logo/light.png",
-    "dark": "/logo/dark.png"
+    "light": "/logo/Ensemble - Logo Light.png",
+    "dark": "/logo/Ensemble - Logo Dark.png"
   },
   "favicon": "/favicon.png",
   "colors": {
