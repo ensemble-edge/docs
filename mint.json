@@ -5,7 +5,7 @@
     "light": "/logo/light.png",
     "dark": "/logo/dark.png"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/favicon.ico",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -16,6 +16,10 @@
     }
   },
   "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/ensemble-edge/edgit"
+    },
     {
       "name": "Support",
       "url": "https://github.com/ensemble-edge/edgit/issues"
