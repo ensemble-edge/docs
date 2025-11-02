@@ -83,12 +83,7 @@
     }
   ],
   "navigation": [
-    {
-      "group": "Introduction",
-      "pages": [
-        "index"
-      ]
-    },
+    "index",
     {
       "group": "Getting Started",
       "pages": [
