@@ -14,10 +14,6 @@
       "dark": "#1A0F4A",
       "light": "#F5F1E8"
     },
-    "text": {
-      "light": "#1A0F3C",
-      "dark": "#FFFFFF"
-    },
     "anchors": {
       "from": "#E91E8C",
       "to": "#4FD1C5"
