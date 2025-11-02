@@ -24,6 +24,16 @@
     "default": "light",
     "isHidden": false
   },
+  "font": {
+    "headings": {
+      "family": "Space Grotesk",
+      "weight": 500
+    },
+    "body": {
+      "family": "Inter",
+      "weight": 200
+    }
+  },
   "topbarLinks": [
     {
       "name": "Get Started",
