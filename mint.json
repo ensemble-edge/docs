@@ -17,8 +17,8 @@
   },
   "topbarLinks": [
     {
-      "name": "GitHub",
-      "url": "https://github.com/ensemble-edge/edgit"
+      "name": "Get Started",
+      "url": "/getting-started/edgit"
     },
     {
       "name": "Support",
@@ -26,8 +26,8 @@
     }
   ],
   "topbarCtaButton": {
-    "name": "Get Started",
-    "url": "/getting-started/edgit"
+    "type": "github",
+    "url": "https://github.com/ensemble-edge/edgit"
   },
   "tabs": [
     {
