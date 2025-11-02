@@ -58,16 +58,8 @@
       "url": "conductor"
     },
     {
-      "name": "Shared",
-      "url": "shared"
-    },
-    {
-      "name": "API",
-      "url": "api"
-    },
-    {
-      "name": "AI Tools",
-      "url": "ai-tools"
+      "name": "Cloud",
+      "url": "cloud"
     }
   ],
   "anchors": [
@@ -159,54 +151,14 @@
       ]
     },
     {
-      "group": "Shared Concepts",
+      "group": "Cloud",
       "pages": [
-        "shared/authentication",
-        "shared/error-handling",
-        "shared/data-models",
-        "shared/best-practices"
-      ]
-    },
-    {
-      "group": "REST API",
-      "pages": [
-        "api/rest/overview",
-        "api-reference/introduction",
-        "api-reference/endpoint/get",
-        "api-reference/endpoint/create",
-        "api-reference/endpoint/delete",
-        "api-reference/endpoint/webhook"
-      ]
-    },
-    {
-      "group": "GraphQL API",
-      "pages": [
-        "api/graphql/overview"
-      ]
-    },
-    {
-      "group": "Webhooks",
-      "pages": [
-        "api/webhooks/overview"
-      ]
-    },
-    {
-      "group": "AI Tool Integration",
-      "pages": [
-        "ai-tools/cursor",
-        "ai-tools/claude-code",
-        "ai-tools/windsurf"
+        "cloud/overview"
       ]
     }
   ],
   "footerSocials": {
     "github": "https://github.com/ensemble-edge/edgit",
     "x": "https://x.com/ensemble_edge"
-  },
-  "redirects": [
-    {
-      "source": "/api-reference/:slug*",
-      "destination": "/api/rest/:slug*"
-    }
-  ]
+  }
 }
