@@ -1,17 +1,558 @@
 ---
-title: "Conductor Deployment"
-description: "Deploy and operate Conductor in production"
+title: "Deployment Overview"
+description: "Deploy and operate Conductor on Cloudflare Workers"
 ---
 
-<Warning>
-  **Coming Soon** - Deployment guide will be available with Conductor v1.0.
-</Warning>
+## Overview
 
-## Planned Deployment Topics
+Conductor is built to run on Cloudflare Workers - a serverless platform that runs your code at the edge in 300+ cities worldwide. Deploy globally in minutes with zero infrastructure to manage.
 
-- Infrastructure requirements
-- Kubernetes deployment
-- Docker compose setup
-- Configuration management
-- Monitoring and observability
-- Scaling strategies
+## Key Benefits
+
+### Serverless at the Edge
+
+- **Zero Infrastructure** - No servers to manage or configure
+- **Global Distribution** - Deployed to 300+ cities automatically
+- **Instant Scaling** - Handle 0 to millions of requests seamlessly
+- **Low Latency** - Execute workflows close to your users
+
+### Integrated Platform
+
+- **Workers AI** - Built-in LLM inference with no cold starts
+- **Durable Objects** - Stateful execution and coordination
+- **KV, D1, R2** - Storage options for every use case
+- **Vectorize** - Built-in vector database for RAG
+- **AI Gateway** - Persistent caching and cost optimization
+
+### Developer Experience
+
+- **Local Development** - Full local dev environment with Wrangler
+- **Fast Deployments** - Deploy in seconds, rollback instantly
+- **Built-in Observability** - Real-time logs and analytics
+- **CI/CD Ready** - GitHub Actions integration out of the box
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  Cloudflare Edge                     │
+│                                                      │
+│  ┌──────────────────────────────────────────────┐  │
+│  │         Conductor Worker                     │  │
+│  │                                              │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐ │  │
+│  │  │ HTTP API │  │ Executor │  │ Members  │ │  │
+│  │  └──────────┘  └──────────┘  └──────────┘ │  │
+│  │                                              │  │
+│  │  ┌──────────────────────────────────────┐  │  │
+│  │  │      Cloudflare Services             │  │  │
+│  │  │  • Workers AI    • KV        • R2    │  │  │
+│  │  │  • D1            • Vectorize • DO    │  │  │
+│  │  │  • AI Gateway    • Hyperdrive        │  │  │
+│  │  └──────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+## Quick Deployment
+
+Get started in minutes:
+
+```bash
+# 1. Install dependencies
+npm install @ensemble-edge/conductor
+
+# 2. Create ensemble file
+cat > ensembles/hello.yml << EOF
+name: hello-world
+flow:
+  - member: greet
+    type: Think
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
+    input:
+      prompt: Say hello to \${input.name}
+EOF
+
+# 3. Deploy to Cloudflare
+npx wrangler login
+npx wrangler deploy
+
+# 4. Test your deployment
+curl https://your-worker.workers.dev/api/v1/execute \
+  -H "Content-Type: application/json" \
+  -d '{"ensemble": "hello-world", "input": {"name": "World"}}'
+```
+
+## Deployment Workflow
+
+### 1. Local Development
+
+Develop and test locally with full emulation:
+
+```bash
+# Start local dev server
+npm run dev
+
+# Test locally
+curl http://localhost:8787/api/v1/execute \
+  -H "Content-Type: application/json" \
+  -d '{"ensemble": "hello-world", "input": {}}'
+```
+
+### 2. Testing
+
+Run comprehensive tests before deployment:
+
+```bash
+# Unit tests
+npm test
+
+# Integration tests
+conductor test
+
+# Test with production-like setup
+npx wrangler dev --remote
+```
+
+### 3. Production Deployment
+
+Deploy to Cloudflare's global network:
+
+```bash
+# Deploy to production
+npx wrangler deploy
+
+# View deployment
+npx wrangler deployments list
+
+# Monitor logs
+npx wrangler tail
+```
+
+### 4. Monitoring
+
+Monitor performance and health:
+
+- **Real-time Logs** - `npx wrangler tail`
+- **Analytics Dashboard** - View in Cloudflare dashboard
+- **Custom Metrics** - Built-in Analytics Engine support
+- **Error Tracking** - Structured logging with context
+
+## Resource Configuration
+
+### Required Bindings
+
+Conductor requires these Cloudflare resources:
+
+**Durable Objects** (Stateful execution)
+```toml
+[[durable_objects.bindings]]
+name = "EXECUTION_STATE"
+class_name = "ExecutionState"
+
+[[durable_objects.bindings]]
+name = "HITL_STATE"
+class_name = "HITLState"
+```
+
+**Workers AI** (LLM inference)
+```toml
+[ai]
+binding = "AI"
+```
+
+### Optional Bindings
+
+Enhance functionality with additional services:
+
+**KV** (Fast caching)
+```toml
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-id"
+```
+
+**D1** (SQL database)
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "conductor-db"
+database_id = "your-db-id"
+```
+
+**R2** (Object storage)
+```toml
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "conductor-artifacts"
+```
+
+**Vectorize** (Vector database for RAG)
+```toml
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "conductor-embeddings"
+```
+
+**Hyperdrive** (External database connections)
+```toml
+[[hyperdrive]]
+binding = "PRODUCTION_DB"
+id = "your-hyperdrive-id"
+```
+
+**AI Gateway** (Persistent caching, cost optimization)
+```toml
+[ai.gateway]
+id = "my-gateway"
+cache_ttl = 3600
+```
+
+## Environment Management
+
+### Development Environment
+
+Use `.dev.vars` for local secrets:
+
+```bash
+# .dev.vars (DO NOT COMMIT)
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+```
+
+### Production Environment
+
+Set secrets via Wrangler:
+
+```bash
+# Set production secrets
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put GROQ_API_KEY
+```
+
+### Environment Variables
+
+Configure via `wrangler.toml`:
+
+```toml
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+DISABLE_LOGGING = "false"
+ALLOW_ANONYMOUS = "true"
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Deploy Conductor
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+```
+
+### GitLab CI
+
+```yaml
+deploy:
+  image: node:20
+  script:
+    - npm ci
+    - npm test
+    - npx wrangler deploy
+  only:
+    - main
+```
+
+## Custom Domains
+
+Add custom domains in the Cloudflare dashboard:
+
+1. Navigate to **Workers & Pages**
+2. Select your Worker
+3. Go to **Triggers** tab
+4. Click **Add Custom Domain**
+5. Enter your domain (e.g., `api.example.com`)
+
+Cloudflare automatically handles DNS and SSL certificates.
+
+## Monitoring & Observability
+
+### Real-time Logs
+
+```bash
+# Tail all logs
+npx wrangler tail
+
+# Filter by status
+npx wrangler tail --status error
+
+# Search logs
+npx wrangler tail --search "ensemble"
+```
+
+### Analytics Dashboard
+
+View in Cloudflare dashboard:
+- **Requests/sec** - Traffic volume
+- **Success Rate** - Error percentage
+- **Duration** - P50, P95, P99 latency
+- **CPU Time** - Execution cost
+- **Data Transfer** - Bandwidth usage
+
+### Custom Metrics
+
+Log structured events to Analytics Engine:
+
+```typescript
+// Log custom metrics
+env.ANALYTICS?.writeDataPoint({
+  blobs: ['ensemble-executed'],
+  doubles: [executionTime, cost],
+  indexes: [ensembleName]
+});
+```
+
+## Performance Optimization
+
+### Edge Caching
+
+```yaml
+# Enable member-level caching
+- member: expensive-api-call
+  cache:
+    ttl: 3600
+    key: ${input.id}
+```
+
+### AI Gateway Caching
+
+```yaml
+# Persistent LLM response caching
+config:
+  routing: cloudflare-gateway
+  cache_ttl: 86400
+```
+
+### Bundle Optimization
+
+```typescript
+// Lazy-load built-in members
+const registry = getBuiltInRegistry();
+const member = registry.create('scrape', config, env);
+```
+
+## Scaling Considerations
+
+### Automatic Scaling
+
+Cloudflare Workers scale automatically:
+- **No configuration required**
+- **0 to millions of requests** in seconds
+- **Pay-per-request pricing**
+- **No cold starts** for Workers AI
+
+### Rate Limiting
+
+Implement custom rate limiting:
+
+```typescript
+// Per-user rate limits
+const limiter = env.RATE_LIMITER.get(userId);
+await limiter.limit({ maxRequests: 100, window: 60 });
+```
+
+### Cost Optimization
+
+1. **Enable caching** - Reduce redundant executions
+2. **Use AI Gateway** - Persistent LLM caching
+3. **Optimize models** - Use smaller models when possible
+4. **Batch operations** - Group multiple requests
+5. **Monitor usage** - Track costs in dashboard
+
+## Security
+
+### Authentication
+
+```typescript
+// API key authentication
+const apiKey = request.headers.get('X-API-Key');
+if (apiKey !== env.API_KEY) {
+  return new Response('Unauthorized', { status: 401 });
+}
+```
+
+### Secrets Management
+
+- **Use Wrangler Secrets** - Never commit API keys
+- **Rotate regularly** - Update secrets periodically
+- **Scope permissions** - Use read-only keys when possible
+- **Audit access** - Track secret usage
+
+### CORS Configuration
+
+```typescript
+// Configure CORS
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://yourdomain.com',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Deployment fails**
+```bash
+# Check account and permissions
+npx wrangler whoami
+
+# Verify wrangler.toml syntax
+npx wrangler deploy --dry-run
+```
+
+**Binding not found**
+```bash
+# List available bindings
+npx wrangler kv:namespace list
+npx wrangler d1 list
+
+# Create missing binding
+npx wrangler kv:namespace create CACHE
+```
+
+**Secret not set**
+```bash
+# List secrets
+npx wrangler secret list
+
+# Set missing secret
+npx wrangler secret put API_KEY
+```
+
+**Module not found**
+```bash
+# Build before deploying
+npm run build
+npx wrangler deploy
+```
+
+### Debug Mode
+
+Enable verbose logging:
+
+```toml
+[vars]
+LOG_LEVEL = "debug"
+DISABLE_LOGGING = "false"
+```
+
+Monitor detailed logs:
+
+```bash
+npx wrangler tail --format pretty
+```
+
+## Best Practices
+
+1. **Test locally first** - Use `npm run dev` before deploying
+2. **Use staging environment** - Test in dev before production
+3. **Enable caching** - Reduce costs and improve latency
+4. **Monitor regularly** - Watch logs and analytics
+5. **Set up CI/CD** - Automate testing and deployment
+6. **Use custom domains** - Professional URLs for production
+7. **Implement rate limiting** - Protect against abuse
+8. **Rotate secrets** - Update API keys regularly
+9. **Tag releases** - Use git tags for version tracking
+10. **Document changes** - Maintain deployment logs
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/conductor/guides/deployment"
+  >
+    Complete step-by-step deployment guide
+  </Card>
+
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/conductor/deployment/configuration"
+  >
+    Configure wrangler.toml and settings
+  </Card>
+
+  <Card
+    title="Bindings"
+    icon="link"
+    href="/conductor/deployment/bindings"
+  >
+    Set up KV, D1, R2, Vectorize, and more
+  </Card>
+
+  <Card
+    title="Environment Variables"
+    icon="key"
+    href="/conductor/deployment/environment-variables"
+  >
+    Manage secrets and environment vars
+  </Card>
+
+  <Card
+    title="Testing"
+    icon="flask"
+    href="/conductor/deployment/testing"
+  >
+    Test workflows before deployment
+  </Card>
+
+  <Card
+    title="AI Providers"
+    icon="brain"
+    href="/conductor/deployment/ai-providers"
+  >
+    Configure LLM providers
+  </Card>
+
+  <Card
+    title="CI/CD Integration"
+    icon="circle-check"
+    href="/conductor/guides/ci-cd"
+  >
+    Automate deployments with CI/CD
+  </Card>
+
+  <Card
+    title="Monitoring"
+    icon="chart-line"
+    href="/conductor/guides/monitoring"
+  >
+    Monitor performance and errors
+  </Card>
+</CardGroup>
