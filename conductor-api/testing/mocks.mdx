@@ -1,16 +1,645 @@
 ---
-title: "$(basename "$file" .mdx | tr '-' ' ' | sed 's/.*/\u&/')"
-description: "API documentation"
+title: "Mocks"
+description: "Mock utilities for testing Conductor workflows"
 ---
 
 ## Overview
 
-Documentation for this API component.
+Conductor provides comprehensive mocking utilities for testing workflows without external dependencies. Mock AI providers, databases, HTTP clients, Vectorize, and Durable Objects to create isolated, fast, predictable tests.
+
+```typescript
+import {
+  mockContext,
+  mockAI,
+  mockD1,
+  mockKV,
+  mockR2
+} from '@ensemble-edge/conductor/testing';
+
+const context = mockContext({
+  input: { userId: '123' },
+  env: {
+    AI: mockAI(),
+    DB: mockD1(),
+    CACHE: mockKV()
+  }
+});
+```
+
+## Installation
+
+```bash
+npm install --save-dev @ensemble-edge/conductor
+```
+
+## Context Mocking
+
+### mockContext()
+
+Create a complete mock execution context:
+
+```typescript
+function mockContext(overrides?: Partial<MemberExecutionContext>): MemberExecutionContext
+```
+
+<ParamField path="overrides" type="object">
+  Partial context overrides
+
+  <ParamField path="overrides.input" type="unknown">
+    Mock input data
+  </ParamField>
+
+  <ParamField path="overrides.env" type="Env">
+    Mock environment bindings
+  </ParamField>
+
+  <ParamField path="overrides.ctx" type="ExecutionContext">
+    Mock execution context
+  </ParamField>
+</ParamField>
+
+**Example**:
+
+```typescript
+import { mockContext } from '@ensemble-edge/conductor/testing';
+
+const context = mockContext({
+  input: { userId: '123', action: 'update' },
+  env: {
+    DB: mockD1(),
+    CACHE: mockKV()
+  }
+});
+
+const result = await myMember.execute(context);
+```
+
+### mockEnv()
+
+Create a mock Cloudflare environment:
+
+```typescript
+function mockEnv(overrides?: Partial<Env>): Env
+```
+
+**Example**:
+
+```typescript
+const env = mockEnv({
+  AI: mockAI(),
+  DB: mockD1(),
+  CACHE: mockKV(),
+  BUCKET: mockR2(),
+  API_KEY: 'test-key'
+});
+```
+
+### mockExecutionContext()
+
+Create a mock execution context:
+
+```typescript
+function mockExecutionContext(): ExecutionContext
+```
+
+**Example**:
+
+```typescript
+const ctx = mockExecutionContext();
+
+ctx.waitUntil(someAsyncOperation());
+```
+
+## AI Mocking
+
+### mockAI()
+
+Create a mock AI binding:
+
+```typescript
+function mockAI(): Ai
+```
+
+**Example**:
+
+```typescript
+const ai = mockAI();
+
+const result = await ai.run('@cf/meta/llama-3.1-8b-instruct', {
+  prompt: 'Hello, world!'
+});
+
+console.log(result.response); // 'Mock AI response'
+```
+
+### MockAIProvider
+
+Advanced AI mocking with configurable responses:
+
+```typescript
+class MockAIProvider {
+  constructor(responses: Record<string, unknown | Error>);
+  getResponse(memberName: string): unknown | Error;
+  setResponse(memberName: string, response: unknown | Error): void;
+}
+```
+
+**Example**:
+
+```typescript
+import { MockAIProvider } from '@ensemble-edge/conductor/testing';
+
+const aiProvider = new MockAIProvider({
+  'generate-summary': { summary: 'Test summary' },
+  'generate-title': { title: 'Test Title' }
+});
+
+// Get response
+const response = aiProvider.getResponse('generate-summary');
+console.log(response.summary); // 'Test summary'
+
+// Set new response
+aiProvider.setResponse('generate-tags', {
+  tags: ['test', 'mock', 'ai']
+});
+
+// Mock error
+aiProvider.setResponse('failing-member', new Error('AI service down'));
+```
+
+## Database Mocking
+
+### mockD1()
+
+Create a mock D1 database:
+
+```typescript
+function mockD1(): D1Database
+```
+
+**Example**:
+
+```typescript
+const db = mockD1();
+
+const result = await db
+  .prepare('SELECT * FROM users WHERE id = ?')
+  .bind('123')
+  .first();
+```
+
+### MockDatabase
+
+Advanced database mocking with data manipulation:
+
+```typescript
+class MockDatabase {
+  constructor(tables?: Record<string, unknown[]>);
+  query(table: string): unknown[];
+  insert(table: string, record: unknown): void;
+  update(table: string, predicate: (record: unknown) => boolean, updates: unknown): void;
+  delete(table: string, predicate: (record: unknown) => boolean): void;
+  clear(table?: string): void;
+}
+```
+
+**Example**:
+
+```typescript
+import { MockDatabase } from '@ensemble-edge/conductor/testing';
+
+// Initialize with data
+const db = new MockDatabase({
+  users: [
+    { id: 1, email: 'alice@example.com', name: 'Alice' },
+    { id: 2, email: 'bob@example.com', name: 'Bob' }
+  ],
+  orders: []
+});
+
+// Query
+const users = db.query('users');
+console.log(users.length); // 2
+
+// Insert
+db.insert('orders', {
+  id: 'ORD-1',
+  userId: 1,
+  total: 99.99
+});
+
+// Update
+db.update(
+  'users',
+  (user) => user.id === 1,
+  { name: 'Alice Updated' }
+);
+
+// Delete
+db.delete('users', (user) => user.id === 2);
+
+// Clear table
+db.clear('orders');
+
+// Clear all tables
+db.clear();
+```
+
+## KV Mocking
+
+### mockKV()
+
+Create a mock KV namespace:
+
+```typescript
+function mockKV(): KVNamespace
+```
+
+**Example**:
+
+```typescript
+const kv = mockKV();
+
+// Put
+await kv.put('user:123', JSON.stringify({ name: 'Alice' }));
+
+// Get
+const value = await kv.get('user:123');
+console.log(JSON.parse(value).name); // 'Alice'
+
+// Delete
+await kv.delete('user:123');
+
+// List
+const keys = await kv.list();
+console.log(keys.keys); // []
+```
+
+## R2 Mocking
+
+### mockR2()
+
+Create a mock R2 bucket:
+
+```typescript
+function mockR2(): R2Bucket
+```
+
+**Example**:
+
+```typescript
+const bucket = mockR2();
+
+// Put object
+await bucket.put('files/document.txt', 'File content');
+
+// Get object
+const object = await bucket.get('files/document.txt');
+const text = await object.text();
+console.log(text); // 'File content'
+
+// Get as JSON
+await bucket.put('data/config.json', JSON.stringify({ key: 'value' }));
+const config = await bucket.get('data/config.json');
+const data = await config.json();
+console.log(data.key); // 'value'
+
+// Delete
+await bucket.delete('files/document.txt');
+
+// List
+const list = await bucket.list();
+console.log(list.objects.length);
+```
+
+## HTTP Mocking
+
+### MockHTTPClient
+
+Mock external HTTP/API calls:
+
+```typescript
+class MockHTTPClient {
+  constructor(routes?: Record<string, unknown>);
+  async fetch(url: string): Promise<unknown>;
+  setRoute(url: string, response: unknown | Error): void;
+  clearRoutes(): void;
+}
+```
+
+**Example**:
+
+```typescript
+import { MockHTTPClient } from '@ensemble-edge/conductor/testing';
+
+const http = new MockHTTPClient({
+  'https://api.stripe.com/v1/charges': {
+    id: 'ch_test',
+    status: 'succeeded',
+    amount: 9999
+  },
+  'https://api.weather.com/forecast': {
+    temperature: 72,
+    condition: 'sunny'
+  }
+});
+
+// Fetch
+const charge = await http.fetch('https://api.stripe.com/v1/charges');
+console.log(charge.status); // 'succeeded'
+
+// Set new route
+http.setRoute('https://api.example.com/data', { result: 'success' });
+
+// Mock error
+http.setRoute('https://api.example.com/error', new Error('Service unavailable'));
+
+// Clear all routes
+http.clearRoutes();
+```
+
+## Vectorize Mocking
+
+### MockVectorize
+
+Mock Vectorize vector database:
+
+```typescript
+class MockVectorize {
+  constructor(collections?: Record<string, VectorSearchResult[]>);
+  query(query: number[] | string, options?: { topK?: number; namespace?: string }): VectorSearchResult[];
+  insert(namespace: string, documents: Array<{ id: string; metadata: Record<string, unknown> }>): void;
+  clear(namespace?: string): void;
+}
+```
+
+**Example**:
+
+```typescript
+import { MockVectorize } from '@ensemble-edge/conductor/testing';
+
+const vectorize = new MockVectorize({
+  'knowledge-base': [
+    { id: 'doc1', score: 0.95, metadata: { title: 'Introduction' } },
+    { id: 'doc2', score: 0.87, metadata: { title: 'Getting Started' } }
+  ]
+});
+
+// Query
+const results = vectorize.query('search query', {
+  namespace: 'knowledge-base',
+  topK: 5
+});
+
+console.log(results.length); // 2
+console.log(results[0].metadata.title); // 'Introduction'
+
+// Insert
+vectorize.insert('knowledge-base', [
+  { id: 'doc3', metadata: { title: 'Advanced Topics' } }
+]);
+
+// Clear namespace
+vectorize.clear('knowledge-base');
+
+// Clear all
+vectorize.clear();
+```
+
+## Durable Objects Mocking
+
+### MockDurableObject
+
+Mock Durable Object state:
+
+```typescript
+class MockDurableObject<T = unknown> {
+  constructor(state?: T);
+  getState(): T;
+  setState(state: T): void;
+  reset(initialState: T): void;
+}
+```
+
+**Example**:
+
+```typescript
+import { MockDurableObject } from '@ensemble-edge/conductor/testing';
+
+interface CounterState {
+  count: number;
+  lastUpdated: number;
+}
+
+const counter = new MockDurableObject<CounterState>({
+  count: 0,
+  lastUpdated: Date.now()
+});
+
+// Get state
+const state = counter.getState();
+console.log(state.count); // 0
+
+// Update state
+counter.setState({
+  count: state.count + 1,
+  lastUpdated: Date.now()
+});
+
+// Reset
+counter.reset({ count: 0, lastUpdated: Date.now() });
+```
+
+## Utility Functions
+
+### spy()
+
+Simple spy function for tracking calls:
+
+```typescript
+function spy<T extends (...args: unknown[]) => unknown>(fn: T): T & { calls: unknown[][] }
+```
+
+**Example**:
+
+```typescript
+import { spy } from '@ensemble-edge/conductor/testing';
+
+const myFunction = spy((x: number, y: number) => x + y);
+
+myFunction(2, 3); // 5
+myFunction(10, 20); // 30
+
+console.log(myFunction.calls);
+// [[2, 3], [10, 20]]
+
+expect(myFunction.calls).toHaveLength(2);
+expect(myFunction.calls[0]).toEqual([2, 3]);
+```
+
+## Testing Patterns
+
+### Basic Mocking
+
+```typescript
+import { TestConductor, mockAI, mockD1 } from '@ensemble-edge/conductor/testing';
+
+it('executes with mocks', async () => {
+  const conductor = await TestConductor.create({
+    env: {
+      AI: mockAI(),
+      DB: mockD1()
+    }
+  });
+
+  const result = await conductor.executeEnsemble('test-ensemble', {
+    input: 'test'
+  });
+
+  expect(result.success).toBe(true);
+});
+```
+
+### Advanced AI Mocking
+
+```typescript
+import { MockAIProvider } from '@ensemble-edge/conductor/testing';
+
+it('handles different AI responses', async () => {
+  const ai = new MockAIProvider({
+    'summarize': { summary: 'Test summary' },
+    'categorize': { category: 'Technology' },
+    'sentiment': { sentiment: 'positive', score: 0.89 }
+  });
+
+  const conductor = await TestConductor.create({
+    mocks: { ai }
+  });
+
+  const result = await conductor.executeEnsemble('content-analysis', {
+    text: 'Sample text'
+  });
+
+  expect(result.output.summary).toBe('Test summary');
+  expect(result.output.category).toBe('Technology');
+});
+```
+
+### Database State Testing
+
+```typescript
+import { MockDatabase } from '@ensemble-edge/conductor/testing';
+
+it('modifies database correctly', async () => {
+  const db = new MockDatabase({
+    users: [{ id: 1, credits: 100 }]
+  });
+
+  const conductor = await TestConductor.create({
+    mocks: { database: db }
+  });
+
+  await conductor.executeEnsemble('deduct-credits', {
+    userId: 1,
+    amount: 25
+  });
+
+  const users = db.query('users');
+  expect(users[0].credits).toBe(75);
+});
+```
+
+### HTTP API Mocking
+
+```typescript
+import { MockHTTPClient } from '@ensemble-edge/conductor/testing';
+
+it('calls external APIs', async () => {
+  const http = new MockHTTPClient({
+    'https://api.stripe.com/v1/charges': {
+      id: 'ch_test',
+      status: 'succeeded'
+    }
+  });
+
+  const conductor = await TestConductor.create({
+    mocks: { http }
+  });
+
+  const result = await conductor.executeEnsemble('process-payment', {
+    amount: 9999
+  });
+
+  expect(result.output.paymentId).toBe('ch_test');
+});
+```
+
+### Error Simulation
+
+```typescript
+it('handles service failures', async () => {
+  const http = new MockHTTPClient();
+  http.setRoute(
+    'https://api.example.com/data',
+    new Error('Service unavailable')
+  );
+
+  const conductor = await TestConductor.create({
+    mocks: { http }
+  });
+
+  const result = await conductor.executeEnsemble('fetch-data', {});
+
+  expect(result.success).toBe(false);
+  expect(result.error?.message).toContain('Service unavailable');
+});
+```
+
+## Best Practices
+
+1. **Use appropriate mocks** - Choose the right mock for each dependency
+2. **Initialize with data** - Pre-populate mocks with realistic test data
+3. **Test error paths** - Mock failures to test error handling
+4. **Verify interactions** - Check what was called on mocks
+5. **Clean up** - Reset mocks between tests
+6. **Use spy functions** - Track function calls
+7. **Mock external services** - Never make real API calls in tests
+8. **Keep mocks simple** - Don't over-engineer mock implementations
+9. **Test with realistic data** - Use production-like test data
+10. **Document mock behavior** - Comment complex mock setups
 
 ## Related Documentation
 
 <CardGroup cols={2}>
-  <Card title="Overview" icon="book" href="/conductor-api/overview">
-    API overview
+  <Card
+    title="TestConductor"
+    icon="flask"
+    href="/conductor-api/testing/test-conductor"
+  >
+    Testing helper class
+  </Card>
+
+  <Card
+    title="Custom Matchers"
+    icon="check"
+    href="/conductor-api/testing/matchers"
+  >
+    Vitest matchers
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="book"
+    href="/conductor/guides/testing"
+  >
+    Complete testing guide
+  </Card>
+
+  <Card
+    title="Member Testing"
+    icon="cube"
+    href="/conductor/guides/testing-members"
+  >
+    Test individual members
   </Card>
 </CardGroup>
