@@ -1,0 +1,589 @@
+---
+title: "Execution API"
+description: "Execute ensembles and manage workflow execution"
+api: "POST https://your-worker.workers.dev/api/v1/execute"
+---
+
+## Execute Ensemble
+
+<ParamField path="ensemble" type="string" required>
+  Name of the ensemble to execute
+</ParamField>
+
+<ParamField body="input" type="object">
+  Input data for the ensemble
+</ParamField>
+
+<ParamField body="async" type="boolean" default="false">
+  Execute asynchronously and return execution ID immediately
+</ParamField>
+
+<ParamField body="timeout" type="number" default="30000">
+  Maximum execution time in milliseconds
+</ParamField>
+
+<ParamField body="stream" type="boolean" default="false">
+  Stream execution progress via Server-Sent Events
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Unique execution identifier
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Execution status: `completed`, `failed`, `running`, `waiting_for_input`
+</ResponseField>
+
+<ResponseField name="output" type="object">
+  Ensemble output data (if completed)
+</ResponseField>
+
+<ResponseField name="error" type="object">
+  Error details (if failed)
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  Execution time in milliseconds
+</ResponseField>
+
+<ResponseField name="timestamp" type="number">
+  Unix timestamp of execution start
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://your-worker.workers.dev/api/v1/execute \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ensemble": "order-processing",
+    "input": {
+      "orderId": "ORD-123",
+      "customerId": "CUST-456"
+    }
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://your-worker.workers.dev/api/v1/execute', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    ensemble: 'order-processing',
+    input: {
+      orderId: 'ORD-123',
+      customerId: 'CUST-456'
+    }
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://your-worker.workers.dev/api/v1/execute',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'ensemble': 'order-processing',
+        'input': {
+            'orderId': 'ORD-123',
+            'customerId': 'CUST-456'
+        }
+    }
+)
+
+result = response.json()
+print(result)
+```
+
+```typescript TypeScript (SDK)
+import { ConductorClient } from '@ensemble-edge/conductor/sdk';
+
+const client = new ConductorClient({
+  baseURL: 'https://your-worker.workers.dev',
+  apiKey: process.env.CONDUCTOR_API_KEY
+});
+
+const result = await client.execute({
+  ensemble: 'order-processing',
+  input: {
+    orderId: 'ORD-123',
+    customerId: 'CUST-456'
+  }
+});
+
+console.log(result.output);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Success (200)
+{
+  "id": "exec_abc123def456",
+  "status": "completed",
+  "output": {
+    "status": "success",
+    "total": 99.99,
+    "paymentId": "ch_1234567890"
+  },
+  "duration": 1523,
+  "timestamp": 1704067200000
+}
+```
+
+```json Async (202)
+{
+  "id": "exec_abc123def456",
+  "status": "running",
+  "timestamp": 1704067200000
+}
+```
+
+```json Error (400)
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid input: orderId is required",
+    "details": {
+      "field": "orderId",
+      "constraint": "required"
+    }
+  }
+}
+```
+
+```json Error (404)
+{
+  "error": {
+    "code": "ENSEMBLE_NOT_FOUND",
+    "message": "Ensemble 'order-processing' not found",
+    "details": {
+      "ensemble": "order-processing",
+      "available": ["user-onboarding", "content-moderation"]
+    }
+  }
+}
+```
+
+</ResponseExample>
+
+---
+
+## Get Execution Status
+
+<api>GET /api/v1/executions/:id</api>
+
+Retrieve the status and result of a specific execution.
+
+<ParamField path="id" type="string" required>
+  Execution ID returned from execute endpoint
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Execution identifier
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status: `completed`, `failed`, `running`, `waiting_for_input`
+</ResponseField>
+
+<ResponseField name="output" type="object">
+  Result data (if completed)
+</ResponseField>
+
+<ResponseField name="error" type="object">
+  Error information (if failed)
+</ResponseField>
+
+<ResponseField name="progress" type="object">
+  Execution progress information
+
+  <ResponseField name="progress.completed" type="number">
+    Number of completed members
+  </ResponseField>
+
+  <ResponseField name="progress.total" type="number">
+    Total number of members
+  </ResponseField>
+
+  <ResponseField name="progress.current" type="string">
+    Currently executing member name
+  </ResponseField>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://your-worker.workers.dev/api/v1/executions/exec_abc123def456 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://your-worker.workers.dev/api/v1/executions/exec_abc123def456',
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  }
+);
+
+const execution = await response.json();
+console.log(execution.status);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Running (200)
+{
+  "id": "exec_abc123def456",
+  "status": "running",
+  "progress": {
+    "completed": 3,
+    "total": 7,
+    "current": "process-payment"
+  },
+  "timestamp": 1704067200000
+}
+```
+
+```json Completed (200)
+{
+  "id": "exec_abc123def456",
+  "status": "completed",
+  "output": {
+    "result": "success"
+  },
+  "duration": 2341,
+  "timestamp": 1704067200000
+}
+```
+
+```json HITL Waiting (200)
+{
+  "id": "exec_abc123def456",
+  "status": "waiting_for_input",
+  "hitl": {
+    "member": "request-approval",
+    "prompt": "Review this content",
+    "fields": [
+      {
+        "name": "approved",
+        "type": "boolean",
+        "label": "Approve?"
+      }
+    ],
+    "token": "hitl_xyz789",
+    "expiresAt": 1704153600000
+  },
+  "timestamp": 1704067200000
+}
+```
+
+</ResponseExample>
+
+---
+
+## Resume Execution
+
+<api>POST /api/v1/executions/:id/resume</api>
+
+Resume a workflow waiting for human input (HITL).
+
+<ParamField path="id" type="string" required>
+  Execution ID
+</ParamField>
+
+<ParamField body="token" type="string" required>
+  HITL token from execution status
+</ParamField>
+
+<ParamField body="input" type="object" required>
+  Human input data matching the HITL fields
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://your-worker.workers.dev/api/v1/executions/exec_abc123/resume \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "hitl_xyz789",
+    "input": {
+      "approved": true,
+      "comments": "Looks good"
+    }
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://your-worker.workers.dev/api/v1/executions/exec_abc123/resume',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      token: 'hitl_xyz789',
+      input: {
+        approved: true,
+        comments: 'Looks good'
+      }
+    })
+  }
+);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Success (200)
+{
+  "id": "exec_abc123def456",
+  "status": "completed",
+  "output": {
+    "approved": true,
+    "result": "published"
+  },
+  "duration": 3522,
+  "timestamp": 1704067200000
+}
+```
+
+```json Invalid Token (401)
+{
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "Invalid or expired HITL token"
+  }
+}
+```
+
+</ResponseExample>
+
+---
+
+## Cancel Execution
+
+<api>DELETE /api/v1/executions/:id</api>
+
+Cancel a running execution.
+
+<ParamField path="id" type="string" required>
+  Execution ID to cancel
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://your-worker.workers.dev/api/v1/executions/exec_abc123 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Success (200)
+{
+  "id": "exec_abc123def456",
+  "status": "cancelled",
+  "message": "Execution cancelled successfully"
+}
+```
+
+```json Not Found (404)
+{
+  "error": {
+    "code": "EXECUTION_NOT_FOUND",
+    "message": "Execution 'exec_abc123' not found"
+  }
+}
+```
+
+</ResponseExample>
+
+---
+
+## Stream Execution
+
+<api>POST /api/v1/stream</api>
+
+Execute an ensemble and stream progress updates via Server-Sent Events (SSE).
+
+<ParamField body="ensemble" type="string" required>
+  Ensemble name
+</ParamField>
+
+<ParamField body="input" type="object">
+  Input data
+</ParamField>
+
+### Event Types
+
+| Event | Description |
+|-------|-------------|
+| `start` | Execution started |
+| `member.start` | Member execution started |
+| `member.complete` | Member execution completed |
+| `member.error` | Member execution failed |
+| `hitl.waiting` | Waiting for human input |
+| `complete` | Execution completed |
+| `error` | Execution failed |
+
+<RequestExample>
+
+```javascript JavaScript
+const eventSource = new EventSource(
+  'https://your-worker.workers.dev/api/v1/stream',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      ensemble: 'order-processing',
+      input: { orderId: 'ORD-123' }
+    })
+  }
+);
+
+eventSource.addEventListener('member.complete', (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`Completed: ${data.member}`);
+});
+
+eventSource.addEventListener('complete', (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Final output:', data.output);
+  eventSource.close();
+});
+
+eventSource.addEventListener('error', (event) => {
+  console.error('Stream error:', event);
+  eventSource.close();
+});
+```
+
+```python Python
+import sseclient
+import requests
+
+response = requests.post(
+    'https://your-worker.workers.dev/api/v1/stream',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'ensemble': 'order-processing',
+        'input': {'orderId': 'ORD-123'}
+    },
+    stream=True
+)
+
+client = sseclient.SSEClient(response)
+for event in client.events():
+    if event.event == 'member.complete':
+        print(f"Completed: {event.data}")
+    elif event.event == 'complete':
+        print(f"Final: {event.data}")
+        break
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```text SSE Stream
+event: start
+data: {"id":"exec_abc123","timestamp":1704067200000}
+
+event: member.start
+data: {"member":"validate-order","timestamp":1704067200100}
+
+event: member.complete
+data: {"member":"validate-order","duration":123,"timestamp":1704067200223}
+
+event: member.start
+data: {"member":"process-payment","timestamp":1704067200250}
+
+event: member.complete
+data: {"member":"process-payment","duration":1200,"output":{"paymentId":"ch_123"},"timestamp":1704067201450}
+
+event: complete
+data: {"id":"exec_abc123","status":"completed","output":{"total":99.99},"duration":1523,"timestamp":1704067201523}
+```
+
+</ResponseExample>
+
+## Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| `VALIDATION_ERROR` | Invalid input data | Check input schema |
+| `ENSEMBLE_NOT_FOUND` | Ensemble doesn't exist | Verify ensemble name |
+| `EXECUTION_NOT_FOUND` | Execution ID not found | Check execution ID |
+| `INVALID_TOKEN` | HITL token invalid/expired | Request new token |
+| `TIMEOUT` | Execution exceeded timeout | Increase timeout or optimize workflow |
+| `RATE_LIMIT_EXCEEDED` | Too many requests | Implement backoff, increase limits |
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="HTTP API Overview"
+    icon="globe"
+    href="/conductor-api/http/overview"
+  >
+    API authentication and setup
+  </Card>
+
+  <Card
+    title="HITL Guide"
+    icon="hand"
+    href="/conductor/guides/hitl"
+  >
+    Human-in-the-loop workflows
+  </Card>
+
+  <Card
+    title="SDK Client"
+    icon="code"
+    href="/conductor-api/sdk/client"
+  >
+    TypeScript SDK
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test HTTP endpoints
+  </Card>
+</CardGroup>
