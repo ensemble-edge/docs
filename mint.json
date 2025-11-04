@@ -81,7 +81,9 @@
   "navigation": [
     {
       "group": "Introduction",
-      "pages": ["index"]
+      "pages": [
+        "index"
+      ]
     },
     {
       "group": "Getting Started",
@@ -142,8 +144,7 @@
     },
     {
       "group": "Guides",
-      "isCollapsible": true,
-      "defaultOpen": false,
+      "expanded": false,
       "pages": [
         "conductor/guides/quickstart",
         "conductor/guides/creating-members",
@@ -178,8 +179,6 @@
     },
     {
       "group": "Built-In Members",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor/built-in-members/overview",
         "conductor/built-in-members/scrape",
@@ -189,12 +188,11 @@
         "conductor/built-in-members/fetch",
         "conductor/built-in-members/transform",
         "conductor/built-in-members/schedule"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "Examples",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor/examples/hello-world",
         "conductor/examples/company-intelligence",
@@ -207,7 +205,8 @@
         "conductor/examples/conversational-ai",
         "conductor/examples/ecommerce-workflow",
         "conductor/examples/content-moderation"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "API Reference",
@@ -218,8 +217,6 @@
     },
     {
       "group": "Deployment",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor/deployment/overview",
         "conductor/deployment/configuration",
@@ -228,7 +225,8 @@
         "conductor/deployment/ai-providers",
         "conductor/deployment/testing",
         "conductor/deployment/documentation"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "Conductor API",
@@ -238,31 +236,27 @@
     },
     {
       "group": "Core Classes",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/core/executor",
         "conductor-api/core/parser",
         "conductor-api/core/state-manager",
         "conductor-api/core/graph-executor"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "Member Types API",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/members/base-member",
         "conductor-api/members/think-member",
         "conductor-api/members/function-member",
         "conductor-api/members/data-member",
         "conductor-api/members/api-member"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "Built-In Members API",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/built-in/overview",
         "conductor-api/built-in/scrape",
@@ -271,52 +265,47 @@
         "conductor-api/built-in/hitl",
         "conductor-api/built-in/fetch",
         "conductor-api/built-in/queries"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "SDK API",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/sdk/client",
         "conductor-api/sdk/member-factory",
         "conductor-api/sdk/edgit"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "Testing API",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/testing/test-conductor",
         "conductor-api/testing/matchers",
         "conductor-api/testing/mocks"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "Durable Objects API",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/durable-objects/execution-state",
         "conductor-api/durable-objects/hitl-state"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "AI Providers API",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/ai/overview",
         "conductor-api/ai/provider-registry",
         "conductor-api/ai/catalog",
         "conductor-api/ai/routing"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "HTTP API",
-      "isCollapsible": true,
-      "defaultOpen": false,
       "pages": [
         "conductor-api/http/overview",
         "conductor-api/http/execution",
@@ -324,7 +313,8 @@
         "conductor-api/http/schedules",
         "conductor-api/http/webhooks",
         "conductor-api/http/health"
-      ]
+      ],
+      "expanded": false
     },
     {
       "group": "Cloud",
