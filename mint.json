@@ -139,7 +139,8 @@
         "conductor/concepts/state",
         "conductor/concepts/scoring",
         "conductor/concepts/caching",
-        "conductor/concepts/routing"
+        "conductor/concepts/routing",
+        "conductor/concepts/glossary"
       ]
     },
     {
