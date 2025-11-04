@@ -1,0 +1,717 @@
+---
+title: "State Manager"
+description: "Manage and persist execution state with Durable Objects"
+---
+
+## Overview
+
+The `StateManager` class manages execution state, enabling pausing, resuming, and recovering workflows. It integrates with Cloudflare Durable Objects for persistent state storage and distributed execution coordination.
+
+```typescript
+import { StateManager } from '@ensemble-edge/conductor';
+
+const stateManager = new StateManager({
+  env,
+  executionId: 'exec_abc123'
+});
+
+await stateManager.save({
+  status: 'running',
+  context: { userId: 'user_123' }
+});
+```
+
+## Constructor
+
+```typescript
+new StateManager(options: StateManagerOptions)
+```
+
+<ParamField body="options" type="StateManagerOptions" required>
+  State manager configuration
+
+  <ParamField body="options.env" type="Env" required>
+    Cloudflare Workers environment bindings
+  </ParamField>
+
+  <ParamField body="options.executionId" type="string" required>
+    Unique execution identifier
+  </ParamField>
+
+  <ParamField body="options.namespace" type="string" default="execution-state">
+    Durable Object namespace
+  </ParamField>
+
+  <ParamField body="options.ttl" type="number" default="86400000">
+    State TTL in milliseconds (24 hours)
+  </ParamField>
+</ParamField>
+
+```typescript
+interface StateManagerOptions {
+  env: Env;
+  executionId: string;
+  namespace?: string;
+  ttl?: number;
+}
+```
+
+**Example**:
+
+```typescript
+const stateManager = new StateManager({
+  env,
+  executionId: 'exec_abc123',
+  ttl: 7 * 24 * 60 * 60 * 1000 // 7 days
+});
+```
+
+## Methods
+
+### save()
+
+Save execution state.
+
+```typescript
+async save(state: ExecutionState): Promise<void>
+```
+
+<ParamField body="state" type="ExecutionState" required>
+  State to save
+
+  <ParamField body="state.status" type="string" required>
+    Execution status
+  </ParamField>
+
+  <ParamField body="state.input" type="object">
+    Initial input data
+  </ParamField>
+
+  <ParamField body="state.context" type="object">
+    Execution context
+  </ParamField>
+
+  <ParamField body="state.memberOutputs" type="object">
+    Map of member outputs
+  </ParamField>
+
+  <ParamField body="state.currentMember" type="string">
+    Currently executing member
+  </ParamField>
+
+  <ParamField body="state.startTime" type="number">
+    Start timestamp
+  </ParamField>
+
+  <ParamField body="state.metadata" type="object">
+    Additional metadata
+  </ParamField>
+</ParamField>
+
+```typescript
+interface ExecutionState {
+  id: string;
+  status: 'running' | 'waiting' | 'paused' | 'completed' | 'failed';
+  input?: Record<string, any>;
+  context?: Record<string, any>;
+  memberOutputs?: Map<string, any>;
+  currentMember?: string;
+  startTime: number;
+  metadata?: Record<string, any>;
+}
+```
+
+**Example**:
+
+```typescript
+await stateManager.save({
+  id: 'exec_abc123',
+  status: 'running',
+  input: { orderId: 'ORD-123' },
+  context: { userId: 'user_123' },
+  memberOutputs: new Map([
+    ['validate-order', { valid: true }],
+    ['calculate-total', { amount: 99.99 }]
+  ]),
+  currentMember: 'process-payment',
+  startTime: Date.now()
+});
+```
+
+### load()
+
+Load execution state.
+
+```typescript
+async load(): Promise<ExecutionState | null>
+```
+
+**Returns**: `Promise<ExecutionState | null>` - State or null if not found
+
+**Example**:
+
+```typescript
+const state = await stateManager.load();
+
+if (state) {
+  console.log(`Status: ${state.status}`);
+  console.log(`Current member: ${state.currentMember}`);
+} else {
+  console.log('State not found');
+}
+```
+
+### update()
+
+Update specific state fields.
+
+```typescript
+async update(updates: Partial<ExecutionState>): Promise<void>
+```
+
+<ParamField body="updates" type="Partial<ExecutionState>" required>
+  Fields to update
+</ParamField>
+
+**Example**:
+
+```typescript
+// Update status and current member
+await stateManager.update({
+  status: 'waiting',
+  currentMember: 'approval-step'
+});
+
+// Add member output
+await stateManager.update({
+  memberOutputs: new Map([
+    ['process-payment', { paymentId: 'ch_123' }]
+  ])
+});
+```
+
+### delete()
+
+Delete execution state.
+
+```typescript
+async delete(): Promise<void>
+```
+
+**Example**:
+
+```typescript
+// Clean up after completion
+await stateManager.delete();
+```
+
+### pause()
+
+Pause execution and save state.
+
+```typescript
+async pause(options: PauseOptions): Promise<string>
+```
+
+<ParamField body="options" type="PauseOptions" required>
+  Pause configuration
+
+  <ParamField body="options.member" type="string" required>
+    Member that triggered pause
+  </ParamField>
+
+  <ParamField body="options.reason" type="string" required>
+    Pause reason
+  </ParamField>
+
+  <ParamField body="options.data" type="object">
+    Additional pause data
+  </ParamField>
+
+  <ParamField body="options.expiresAt" type="number">
+    Expiration timestamp
+  </ParamField>
+</ParamField>
+
+**Returns**: `Promise<string>` - Resume token
+
+**Example**:
+
+```typescript
+const token = await stateManager.pause({
+  member: 'approval-step',
+  reason: 'waiting_for_approval',
+  data: {
+    approvalUrl: 'https://app.example.com/approve/123',
+    requestedBy: 'user_123'
+  },
+  expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+});
+
+console.log(`Resume with: ${token}`);
+```
+
+### resume()
+
+Resume paused execution.
+
+```typescript
+async resume(token: string, input: Record<string, any>): Promise<void>
+```
+
+<ParamField body="token" type="string" required>
+  Resume token from pause()
+</ParamField>
+
+<ParamField body="input" type="object" required>
+  Input data to resume with
+</ParamField>
+
+**Example**:
+
+```typescript
+await stateManager.resume('hitl_token_123', {
+  approved: true,
+  comments: 'Looks good'
+});
+```
+
+### checkpoint()
+
+Create a state checkpoint.
+
+```typescript
+async checkpoint(name: string): Promise<void>
+```
+
+<ParamField body="name" type="string" required>
+  Checkpoint name
+</ParamField>
+
+**Example**:
+
+```typescript
+// Save checkpoint before critical operation
+await stateManager.checkpoint('before-payment');
+
+try {
+  await processPayment();
+} catch (error) {
+  // Restore from checkpoint
+  await stateManager.restore('before-payment');
+}
+```
+
+### restore()
+
+Restore from checkpoint.
+
+```typescript
+async restore(name: string): Promise<void>
+```
+
+<ParamField body="name" type="string" required>
+  Checkpoint name to restore
+</ParamField>
+
+### listCheckpoints()
+
+List available checkpoints.
+
+```typescript
+async listCheckpoints(): Promise<Checkpoint[]>
+```
+
+**Returns**: `Promise<Checkpoint[]>`
+
+```typescript
+interface Checkpoint {
+  name: string;
+  timestamp: number;
+  state: ExecutionState;
+}
+```
+
+### lock()
+
+Acquire distributed lock for execution.
+
+```typescript
+async lock(options?: LockOptions): Promise<boolean>
+```
+
+<ParamField body="options" type="LockOptions">
+  Lock configuration
+
+  <ParamField body="options.timeout" type="number" default="30000">
+    Lock timeout in milliseconds
+  </ParamField>
+
+  <ParamField body="options.retry" type="boolean" default="true">
+    Retry on lock contention
+  </ParamField>
+</ParamField>
+
+**Returns**: `Promise<boolean>` - True if lock acquired
+
+**Example**:
+
+```typescript
+const locked = await stateManager.lock({ timeout: 60000 });
+
+if (locked) {
+  try {
+    // Perform exclusive operation
+    await criticalOperation();
+  } finally {
+    await stateManager.unlock();
+  }
+}
+```
+
+### unlock()
+
+Release distributed lock.
+
+```typescript
+async unlock(): Promise<void>
+```
+
+### isLocked()
+
+Check if execution is locked.
+
+```typescript
+async isLocked(): Promise<boolean>
+```
+
+**Returns**: `Promise<boolean>` - True if locked
+
+## Properties
+
+### executionId
+
+```typescript
+readonly executionId: string
+```
+
+Execution identifier for this state manager.
+
+### namespace
+
+```typescript
+readonly namespace: string
+```
+
+Durable Object namespace being used.
+
+### ttl
+
+```typescript
+readonly ttl: number
+```
+
+Time-to-live for state in milliseconds.
+
+## Durable Objects Integration
+
+The StateManager uses Cloudflare Durable Objects for persistent storage:
+
+### Configuration
+
+```toml
+# wrangler.toml
+[[durable_objects.bindings]]
+name = "EXECUTION_STATE"
+class_name = "ExecutionStateDO"
+script_name = "conductor"
+
+[[durable_objects.bindings]]
+name = "HITL_STATE"
+class_name = "HITLStateDO"
+script_name = "conductor"
+```
+
+### Durable Object Implementation
+
+```typescript
+// src/durable-objects/execution-state.ts
+export class ExecutionStateDO {
+  state: DurableObjectState;
+
+  constructor(state: DurableObjectState) {
+    this.state = state;
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (request.method === 'GET') {
+      const state = await this.state.storage.get('execution-state');
+      return Response.json(state || null);
+    }
+
+    if (request.method === 'PUT') {
+      const state = await request.json();
+      await this.state.storage.put('execution-state', state);
+      return Response.json({ success: true });
+    }
+
+    if (request.method === 'DELETE') {
+      await this.state.storage.deleteAll();
+      return Response.json({ success: true });
+    }
+
+    return new Response('Method not allowed', { status: 405 });
+  }
+}
+```
+
+## State Serialization
+
+The StateManager handles complex object serialization:
+
+```typescript
+// Maps are serialized as objects
+const state = {
+  memberOutputs: new Map([
+    ['member-1', { result: 'success' }],
+    ['member-2', { count: 42 }]
+  ])
+};
+
+await stateManager.save(state);
+
+// Restored with correct types
+const loaded = await stateManager.load();
+console.log(loaded.memberOutputs instanceof Map); // true
+```
+
+## Error Handling
+
+```typescript
+try {
+  await stateManager.save(state);
+} catch (error) {
+  if (error instanceof StateError) {
+    console.error('State error:', {
+      code: error.code,
+      message: error.message,
+      executionId: error.executionId
+    });
+  }
+}
+```
+
+### State Error Codes
+
+- `STATE_NOT_FOUND` - No state exists for execution
+- `LOCK_TIMEOUT` - Failed to acquire lock
+- `CHECKPOINT_NOT_FOUND` - Checkpoint doesn't exist
+- `SERIALIZATION_ERROR` - Failed to serialize state
+- `STORAGE_ERROR` - Durable Object storage error
+- `INVALID_TOKEN` - Resume token invalid/expired
+
+## Advanced Usage
+
+### Optimistic Updates
+
+```typescript
+// Load current state
+const state = await stateManager.load();
+
+// Modify state
+state.memberOutputs.set('new-member', { result: 'success' });
+
+// Save with optimistic locking
+try {
+  await stateManager.save(state);
+} catch (error) {
+  if (error.code === 'CONFLICT') {
+    // State was modified by another process
+    // Reload and retry
+    const fresh = await stateManager.load();
+    // ... merge changes
+  }
+}
+```
+
+### Transactional Updates
+
+```typescript
+await stateManager.transaction(async (state) => {
+  // Atomic state modifications
+  state.memberOutputs.set('payment', { id: 'ch_123' });
+  state.currentMember = 'send-confirmation';
+  state.metadata.paymentProcessed = true;
+
+  // All changes committed or rolled back together
+});
+```
+
+### State Migration
+
+```typescript
+import { migrateState } from '@ensemble-edge/conductor';
+
+const oldState = await stateManager.load();
+
+const newState = await migrateState(oldState, {
+  from: '1.0.0',
+  to: '2.0.0',
+  transformers: [
+    // Custom transformation logic
+    (state) => ({
+      ...state,
+      version: '2.0.0',
+      newField: 'default-value'
+    })
+  ]
+});
+
+await stateManager.save(newState);
+```
+
+### Batch Operations
+
+```typescript
+const manager1 = new StateManager({ env, executionId: 'exec_1' });
+const manager2 = new StateManager({ env, executionId: 'exec_2' });
+const manager3 = new StateManager({ env, executionId: 'exec_3' });
+
+// Save multiple states in parallel
+await Promise.all([
+  manager1.save(state1),
+  manager2.save(state2),
+  manager3.save(state3)
+]);
+```
+
+## Performance
+
+### Caching
+
+Enable in-memory caching for frequently accessed state:
+
+```typescript
+const stateManager = new StateManager({
+  env,
+  executionId: 'exec_abc123',
+  cache: {
+    enabled: true,
+    ttl: 60000 // 1 minute
+  }
+});
+
+// First load - from Durable Object
+const state1 = await stateManager.load();
+
+// Second load - from cache
+const state2 = await stateManager.load(); // Fast!
+```
+
+### Compression
+
+Large states are automatically compressed:
+
+```typescript
+// Automatically compressed if > 10KB
+await stateManager.save({
+  ...state,
+  largeData: veryLargeObject
+});
+```
+
+## Best Practices
+
+1. **Set appropriate TTL** - Clean up old state
+2. **Use checkpoints** - Before critical operations
+3. **Handle lock timeouts** - Retry with backoff
+4. **Minimize state size** - Store only essential data
+5. **Test serialization** - Verify complex objects
+6. **Clean up completed state** - Delete after execution
+7. **Use transactions** - For atomic updates
+8. **Monitor DO usage** - Track storage and requests
+9. **Handle migration** - Version state schemas
+10. **Log state changes** - Debug state issues
+
+## Testing
+
+```typescript
+import { StateManager } from '@ensemble-edge/conductor';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+describe('StateManager', () => {
+  let stateManager: StateManager;
+
+  beforeEach(() => {
+    stateManager = new StateManager({
+      env: getMockEnv(),
+      executionId: 'test-exec-123'
+    });
+  });
+
+  it('saves and loads state', async () => {
+    const state = {
+      id: 'test-exec-123',
+      status: 'running',
+      startTime: Date.now()
+    };
+
+    await stateManager.save(state);
+    const loaded = await stateManager.load();
+
+    expect(loaded).toEqual(state);
+  });
+
+  it('handles pause and resume', async () => {
+    const token = await stateManager.pause({
+      member: 'approval',
+      reason: 'waiting'
+    });
+
+    expect(token).toMatch(/^hitl_/);
+
+    await stateManager.resume(token, { approved: true });
+
+    const state = await stateManager.load();
+    expect(state.status).toBe('running');
+  });
+});
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Executor"
+    icon="gears"
+    href="/conductor-api/core/executor"
+  >
+    Execute workflows with state
+  </Card>
+
+  <Card
+    title="Execution State DO"
+    icon="box"
+    href="/conductor-api/durable-objects/execution-state"
+  >
+    Durable Object implementation
+  </Card>
+
+  <Card
+    title="HITL Guide"
+    icon="hand"
+    href="/conductor/guides/hitl"
+  >
+    Human-in-the-loop patterns
+  </Card>
+
+  <Card
+    title="Durable Objects"
+    icon="book"
+    href="https://developers.cloudflare.com/durable-objects"
+  >
+    Cloudflare documentation
+  </Card>
+</CardGroup>

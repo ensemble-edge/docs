@@ -1,0 +1,608 @@
+---
+title: "Parser"
+description: "Parse and validate ensemble YAML definitions"
+---
+
+## Overview
+
+The `Parser` class validates and transforms ensemble YAML definitions into executable workflow structures. It handles syntax validation, schema checking, expression parsing, and optimization.
+
+```typescript
+import { Parser } from '@ensemble-edge/conductor';
+
+const parser = new Parser();
+const parsed = await parser.parse(yamlContent);
+```
+
+## Constructor
+
+```typescript
+new Parser(options?: ParserOptions)
+```
+
+<ParamField body="options" type="ParserOptions">
+  Parser configuration options
+
+  <ParamField body="options.strict" type="boolean" default="true">
+    Enable strict validation mode
+  </ParamField>
+
+  <ParamField body="options.validateExpressions" type="boolean" default="true">
+    Validate expression syntax
+  </ParamField>
+
+  <ParamField body="options.allowUnknownFields" type="boolean" default="false">
+    Allow unknown fields in definitions
+  </ParamField>
+
+  <ParamField body="options.maxMembers" type="number" default="100">
+    Maximum members per ensemble
+  </ParamField>
+
+  <ParamField body="options.maxDepth" type="number" default="10">
+    Maximum nesting depth
+  </ParamField>
+</ParamField>
+
+```typescript
+interface ParserOptions {
+  strict?: boolean;
+  validateExpressions?: boolean;
+  allowUnknownFields?: boolean;
+  maxMembers?: number;
+  maxDepth?: number;
+}
+```
+
+**Example**:
+
+```typescript
+const parser = new Parser({
+  strict: true,
+  validateExpressions: true,
+  maxMembers: 50
+});
+```
+
+## Methods
+
+### parse()
+
+Parse ensemble YAML into executable structure.
+
+```typescript
+async parse(yaml: string): Promise<ParsedEnsemble>
+```
+
+<ParamField body="yaml" type="string" required>
+  YAML ensemble definition
+</ParamField>
+
+**Returns**: `Promise<ParsedEnsemble>`
+
+```typescript
+interface ParsedEnsemble {
+  name: string;
+  description?: string;
+  version?: string;
+  flow: ParsedMember[];
+  input?: InputSchema;
+  output?: OutputSchema;
+  metadata?: Record<string, any>;
+  dependencies?: string[];
+}
+```
+
+**Example**:
+
+```typescript
+const yaml = `
+name: user-onboarding
+description: Onboard new users
+
+flow:
+  - member: validate-email
+    type: Function
+    input:
+      email: \${input.email}
+
+  - member: create-user
+    type: Function
+    condition: \${validate-email.output.valid}
+    input:
+      email: \${input.email}
+      name: \${input.name}
+
+output:
+  userId: \${create-user.output.id}
+  status: "success"
+`;
+
+const parsed = await parser.parse(yaml);
+console.log(parsed.name); // "user-onboarding"
+console.log(parsed.flow.length); // 2
+```
+
+### validate()
+
+Validate ensemble definition without parsing.
+
+```typescript
+validate(yaml: string): ValidationResult
+```
+
+<ParamField body="yaml" type="string" required>
+  YAML ensemble definition
+</ParamField>
+
+**Returns**: `ValidationResult`
+
+```typescript
+interface ValidationResult {
+  valid: boolean;
+  errors?: ValidationError[];
+  warnings?: ValidationWarning[];
+}
+
+interface ValidationError {
+  code: string;
+  message: string;
+  line?: number;
+  column?: number;
+  path?: string;
+}
+```
+
+**Example**:
+
+```typescript
+const result = parser.validate(yaml);
+
+if (!result.valid) {
+  result.errors?.forEach(error => {
+    console.error(`Line ${error.line}: ${error.message}`);
+  });
+}
+```
+
+### parseExpression()
+
+Parse a single expression.
+
+```typescript
+parseExpression(expression: string): ParsedExpression
+```
+
+<ParamField body="expression" type="string" required>
+  Expression to parse (e.g., `${input.userId}`)
+</ParamField>
+
+**Returns**: `ParsedExpression`
+
+```typescript
+interface ParsedExpression {
+  type: 'literal' | 'reference' | 'expression';
+  value: string;
+  references: string[];
+  operators?: string[];
+}
+```
+
+**Example**:
+
+```typescript
+const expr = parser.parseExpression('${input.amount * 1.1}');
+console.log(expr.type); // "expression"
+console.log(expr.references); // ["input.amount"]
+console.log(expr.operators); // ["*"]
+```
+
+### validateSchema()
+
+Validate against JSON schema.
+
+```typescript
+validateSchema(data: any, schema: JSONSchema): SchemaValidationResult
+```
+
+<ParamField body="data" type="any" required>
+  Data to validate
+</ParamField>
+
+<ParamField body="schema" type="JSONSchema" required>
+  JSON schema definition
+</ParamField>
+
+**Returns**: `SchemaValidationResult`
+
+**Example**:
+
+```typescript
+const schema = {
+  type: 'object',
+  required: ['email'],
+  properties: {
+    email: { type: 'string', format: 'email' },
+    age: { type: 'number', minimum: 0 }
+  }
+};
+
+const result = parser.validateSchema(
+  { email: 'user@example.com', age: 25 },
+  schema
+);
+
+if (!result.valid) {
+  console.error(result.errors);
+}
+```
+
+### resolveReferences()
+
+Resolve member references in the flow.
+
+```typescript
+resolveReferences(ensemble: ParsedEnsemble): ResolvedEnsemble
+```
+
+<ParamField body="ensemble" type="ParsedEnsemble" required>
+  Parsed ensemble
+</ParamField>
+
+**Returns**: `ResolvedEnsemble` - Ensemble with resolved references
+
+**Example**:
+
+```typescript
+const parsed = await parser.parse(yaml);
+const resolved = parser.resolveReferences(parsed);
+
+// References are now validated and mapped
+```
+
+### optimize()
+
+Optimize ensemble for execution.
+
+```typescript
+optimize(ensemble: ParsedEnsemble): ParsedEnsemble
+```
+
+<ParamField body="ensemble" type="ParsedEnsemble" required>
+  Parsed ensemble
+</ParamField>
+
+**Returns**: `ParsedEnsemble` - Optimized ensemble
+
+Optimizations include:
+- Removing unreachable members
+- Simplifying constant expressions
+- Reordering for better parallelization
+- Eliminating redundant conditions
+
+**Example**:
+
+```typescript
+const parsed = await parser.parse(yaml);
+const optimized = parser.optimize(parsed);
+```
+
+## Parsed Member Structure
+
+```typescript
+interface ParsedMember {
+  member: string;
+  type: 'Think' | 'Function' | 'Data' | 'API';
+  config?: Record<string, any>;
+  input?: Record<string, any>;
+  condition?: string;
+  retry?: RetryConfig;
+  cache?: CacheConfig;
+  timeout?: number;
+  parallel?: boolean;
+  metadata?: Record<string, any>;
+}
+```
+
+## Error Handling
+
+```typescript
+try {
+  const parsed = await parser.parse(yaml);
+} catch (error) {
+  if (error instanceof ParseError) {
+    console.error('Parse error:', {
+      message: error.message,
+      line: error.line,
+      column: error.column,
+      path: error.path
+    });
+  }
+}
+```
+
+### Parse Error Types
+
+```typescript
+class ParseError extends Error {
+  code: string;
+  line?: number;
+  column?: number;
+  path?: string;
+  details?: Record<string, any>;
+}
+```
+
+Common error codes:
+- `INVALID_YAML` - Malformed YAML syntax
+- `MISSING_REQUIRED_FIELD` - Required field not provided
+- `INVALID_MEMBER_TYPE` - Unknown member type
+- `INVALID_EXPRESSION` - Expression syntax error
+- `CIRCULAR_REFERENCE` - Circular dependency detected
+- `DUPLICATE_MEMBER` - Duplicate member name
+- `UNKNOWN_REFERENCE` - Reference to non-existent member
+
+## Validation Rules
+
+### Required Fields
+
+```yaml
+# Minimum valid ensemble
+name: my-ensemble
+
+flow:
+  - member: step-1
+    type: Function
+```
+
+### Member Names
+
+- Must be alphanumeric with hyphens/underscores
+- Cannot start with a number
+- Must be unique within ensemble
+- Reserved names: `input`, `output`, `env`, `context`
+
+### Expressions
+
+Valid expression syntax:
+- `${input.field}` - Input reference
+- `${member.output.field}` - Member output reference
+- `${env.VAR}` - Environment variable
+- `${context.field}` - Context reference
+- `${input.amount * 1.1}` - Arithmetic
+- `${input.age >= 18}` - Comparison
+- `${input.status === 'active' && input.verified}` - Boolean logic
+
+### Conditions
+
+```yaml
+# Simple condition
+condition: ${input.amount > 100}
+
+# Complex condition
+condition: ${validate.output.valid && input.tier === 'premium'}
+
+# Nested member references
+condition: ${create-user.output.id === update-profile.output.userId}
+```
+
+## Schema Validation
+
+### Input Schema
+
+```yaml
+input:
+  schema:
+    type: object
+    required:
+      - email
+      - name
+    properties:
+      email:
+        type: string
+        format: email
+      name:
+        type: string
+        minLength: 1
+      age:
+        type: number
+        minimum: 0
+```
+
+### Output Schema
+
+```yaml
+output:
+  schema:
+    type: object
+    properties:
+      userId:
+        type: string
+      status:
+        type: string
+        enum: [success, failed]
+```
+
+## Advanced Features
+
+### Dependency Detection
+
+The parser automatically detects dependencies between members:
+
+```typescript
+const parsed = await parser.parse(yaml);
+
+console.log(parsed.dependencies);
+// ["@ensemble-edge/builtin-members", "custom-validator"]
+```
+
+### Expression Optimization
+
+The parser optimizes constant expressions:
+
+```yaml
+# Before optimization
+input:
+  total: ${100 * 1.1}
+  message: ${"Hello " + "World"}
+
+# After optimization
+input:
+  total: 110
+  message: "Hello World"
+```
+
+### Circular Reference Detection
+
+```yaml
+flow:
+  - member: a
+    input:
+      data: ${b.output}
+
+  - member: b
+    input:
+      data: ${a.output}  # ERROR: Circular reference
+```
+
+The parser detects and reports circular references during parsing.
+
+### Dead Code Elimination
+
+```yaml
+flow:
+  - member: step-1
+    type: Function
+
+  - member: step-2
+    condition: ${false}  # Never executes
+    type: Function
+
+  - member: step-3
+    condition: ${step-2.output.valid}  # Unreachable
+    type: Function
+```
+
+The optimizer removes unreachable members.
+
+## Performance
+
+### Caching
+
+The parser caches parsed results:
+
+```typescript
+const parser = new Parser();
+
+// First parse - slow
+const parsed1 = await parser.parse(yaml);
+
+// Second parse (same YAML) - fast (cached)
+const parsed2 = await parser.parse(yaml);
+```
+
+### Streaming
+
+For large ensembles, use streaming parsing:
+
+```typescript
+import { StreamingParser } from '@ensemble-edge/conductor';
+
+const parser = new StreamingParser();
+
+const stream = parser.parseStream(yamlStream);
+
+for await (const member of stream) {
+  console.log(`Parsed member: ${member.member}`);
+}
+```
+
+## Testing
+
+```typescript
+import { Parser } from '@ensemble-edge/conductor';
+import { describe, it, expect } from 'vitest';
+
+describe('Parser', () => {
+  it('parses valid ensemble', async () => {
+    const yaml = `
+name: test
+flow:
+  - member: step-1
+    type: Function
+`;
+    const parser = new Parser();
+    const parsed = await parser.parse(yaml);
+
+    expect(parsed.name).toBe('test');
+    expect(parsed.flow).toHaveLength(1);
+  });
+
+  it('validates required fields', () => {
+    const yaml = `
+flow:
+  - member: step-1
+    type: Function
+`;
+    const parser = new Parser();
+    const result = parser.validate(yaml);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'MISSING_REQUIRED_FIELD',
+        path: 'name'
+      })
+    );
+  });
+});
+```
+
+## Best Practices
+
+1. **Enable strict mode** - Catch errors early
+2. **Validate expressions** - Prevent runtime errors
+3. **Use schemas** - Define clear contracts
+4. **Cache parsed results** - Improve performance
+5. **Handle parse errors** - Provide clear feedback
+6. **Optimize before execution** - Remove dead code
+7. **Test edge cases** - Verify error handling
+8. **Document schemas** - Clear input/output contracts
+9. **Use meaningful names** - Improve readability
+10. **Avoid circular refs** - Design linear flows
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Executor"
+    icon="gears"
+    href="/conductor-api/core/executor"
+  >
+    Execute parsed ensembles
+  </Card>
+
+  <Card
+    title="Ensemble Structure"
+    icon="file-code"
+    href="/conductor/ensemble-structure"
+  >
+    YAML format reference
+  </Card>
+
+  <Card
+    title="Expression Syntax"
+    icon="brackets-curly"
+    href="/conductor/expressions"
+  >
+    Expression language guide
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test ensemble definitions
+  </Card>
+</CardGroup>

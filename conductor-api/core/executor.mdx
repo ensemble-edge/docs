@@ -1,0 +1,586 @@
+---
+title: "Executor"
+description: "Core execution engine for ensemble workflows"
+---
+
+## Overview
+
+The `Executor` class is the core execution engine that processes ensemble workflows. It manages member execution, state transitions, control flow, error handling, and runtime coordination.
+
+```typescript
+import { Executor } from '@ensemble-edge/conductor';
+
+const executor = new Executor({
+  env,
+  ensemble: parsedEnsemble,
+  input: { userId: 'user_123' },
+  timeout: 30000
+});
+
+const result = await executor.execute();
+```
+
+## Constructor
+
+<ParamField body="options" type="ExecutorOptions" required>
+  Executor configuration options
+
+  <ParamField body="options.env" type="Env" required>
+    Cloudflare Workers environment bindings (D1, KV, AI, etc.)
+  </ParamField>
+
+  <ParamField body="options.ensemble" type="ParsedEnsemble" required>
+    Parsed ensemble definition from Parser
+  </ParamField>
+
+  <ParamField body="options.input" type="object">
+    Initial input data for the workflow
+  </ParamField>
+
+  <ParamField body="options.timeout" type="number" default="30000">
+    Maximum execution time in milliseconds
+  </ParamField>
+
+  <ParamField body="options.executionId" type="string">
+    Custom execution ID (auto-generated if not provided)
+  </ParamField>
+
+  <ParamField body="options.parentExecutionId" type="string">
+    Parent execution ID for nested workflows
+  </ParamField>
+
+  <ParamField body="options.context" type="ExecutionContext">
+    Additional execution context
+  </ParamField>
+</ParamField>
+
+```typescript
+interface ExecutorOptions {
+  env: Env;
+  ensemble: ParsedEnsemble;
+  input?: Record<string, any>;
+  timeout?: number;
+  executionId?: string;
+  parentExecutionId?: string;
+  context?: ExecutionContext;
+}
+```
+
+## Methods
+
+### execute()
+
+Execute the ensemble workflow from start to finish.
+
+```typescript
+async execute(): Promise<ExecutionResult>
+```
+
+**Returns**: `Promise<ExecutionResult>`
+
+```typescript
+interface ExecutionResult {
+  id: string;
+  status: 'completed' | 'failed' | 'cancelled' | 'timeout';
+  output?: Record<string, any>;
+  error?: ExecutionError;
+  duration: number;
+  timestamp: number;
+  metadata: ExecutionMetadata;
+}
+```
+
+**Example**:
+
+```typescript
+const executor = new Executor({
+  env,
+  ensemble: parsedEnsemble,
+  input: { orderId: 'ORD-123' }
+});
+
+const result = await executor.execute();
+
+if (result.status === 'completed') {
+  console.log('Output:', result.output);
+} else {
+  console.error('Error:', result.error);
+}
+```
+
+### executeMember()
+
+Execute a specific member within the ensemble.
+
+```typescript
+async executeMember(
+  member: Member,
+  input: Record<string, any>
+): Promise<MemberResult>
+```
+
+<ParamField body="member" type="Member" required>
+  Member to execute
+</ParamField>
+
+<ParamField body="input" type="object" required>
+  Input data for the member
+</ParamField>
+
+**Returns**: `Promise<MemberResult>`
+
+```typescript
+interface MemberResult {
+  member: string;
+  status: 'success' | 'error' | 'skipped';
+  output?: any;
+  error?: Error;
+  duration: number;
+  cached?: boolean;
+}
+```
+
+**Example**:
+
+```typescript
+const member = ensemble.flow.find(m => m.member === 'validate-order');
+const result = await executor.executeMember(member, {
+  orderId: 'ORD-123'
+});
+```
+
+### evaluateCondition()
+
+Evaluate a conditional expression in the current execution context.
+
+```typescript
+evaluateCondition(condition: string): boolean
+```
+
+<ParamField body="condition" type="string" required>
+  Condition expression (e.g., `${input.amount > 100}`)
+</ParamField>
+
+**Returns**: `boolean`
+
+**Example**:
+
+```typescript
+const shouldExecute = executor.evaluateCondition(
+  '${validate-order.output.valid === true}'
+);
+
+if (shouldExecute) {
+  // Execute next member
+}
+```
+
+### resolveExpression()
+
+Resolve an expression to its value in the current context.
+
+```typescript
+resolveExpression(expression: string): any
+```
+
+<ParamField body="expression" type="string" required>
+  Expression to resolve (e.g., `${input.userId}`)
+</ParamField>
+
+**Returns**: `any` - Resolved value
+
+**Example**:
+
+```typescript
+const userId = executor.resolveExpression('${input.userId}');
+const total = executor.resolveExpression('${calculate-total.output.amount}');
+```
+
+### getState()
+
+Get the current execution state.
+
+```typescript
+getState(): ExecutionState
+```
+
+**Returns**: `ExecutionState`
+
+```typescript
+interface ExecutionState {
+  id: string;
+  status: 'running' | 'waiting' | 'paused' | 'completed' | 'failed';
+  input: Record<string, any>;
+  context: Record<string, any>;
+  memberOutputs: Map<string, any>;
+  currentMember?: string;
+  startTime: number;
+  metadata: Record<string, any>;
+}
+```
+
+**Example**:
+
+```typescript
+const state = executor.getState();
+console.log(`Current member: ${state.currentMember}`);
+console.log(`Status: ${state.status}`);
+```
+
+### cancel()
+
+Cancel the execution.
+
+```typescript
+cancel(reason?: string): void
+```
+
+<ParamField body="reason" type="string">
+  Optional cancellation reason
+</ParamField>
+
+**Example**:
+
+```typescript
+// Cancel after timeout
+setTimeout(() => {
+  executor.cancel('Timeout exceeded');
+}, 30000);
+```
+
+### pause()
+
+Pause execution (for HITL or async operations).
+
+```typescript
+async pause(options: PauseOptions): Promise<string>
+```
+
+<ParamField body="options" type="PauseOptions" required>
+  Pause configuration
+
+  <ParamField body="options.reason" type="string" required>
+    Reason for pausing
+  </ParamField>
+
+  <ParamField body="options.member" type="string" required>
+    Member that triggered the pause
+  </ParamField>
+
+  <ParamField body="options.expiresAt" type="number">
+    Expiration timestamp
+  </ParamField>
+</ParamField>
+
+**Returns**: `Promise<string>` - Resume token
+
+**Example**:
+
+```typescript
+const token = await executor.pause({
+  reason: 'waiting_for_approval',
+  member: 'approval-step',
+  expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+});
+
+console.log(`Resume with token: ${token}`);
+```
+
+### resume()
+
+Resume a paused execution.
+
+```typescript
+async resume(token: string, input: Record<string, any>): Promise<ExecutionResult>
+```
+
+<ParamField body="token" type="string" required>
+  Resume token from pause()
+</ParamField>
+
+<ParamField body="input" type="object" required>
+  Input data to resume with
+</ParamField>
+
+**Returns**: `Promise<ExecutionResult>`
+
+**Example**:
+
+```typescript
+const result = await executor.resume('hitl_token_123', {
+  approved: true,
+  comments: 'Looks good'
+});
+```
+
+## Properties
+
+### id
+
+```typescript
+readonly id: string
+```
+
+Unique execution identifier.
+
+### status
+
+```typescript
+readonly status: ExecutionStatus
+```
+
+Current execution status: `running`, `waiting`, `paused`, `completed`, `failed`, `cancelled`
+
+### ensemble
+
+```typescript
+readonly ensemble: ParsedEnsemble
+```
+
+The parsed ensemble being executed.
+
+### startTime
+
+```typescript
+readonly startTime: number
+```
+
+Execution start timestamp.
+
+### duration
+
+```typescript
+readonly duration: number
+```
+
+Elapsed execution time in milliseconds.
+
+## Events
+
+The Executor emits events during execution that can be subscribed to:
+
+```typescript
+executor.on('member.start', (data) => {
+  console.log(`Starting member: ${data.member}`);
+});
+
+executor.on('member.complete', (data) => {
+  console.log(`Completed member: ${data.member}`, data.output);
+});
+
+executor.on('member.error', (data) => {
+  console.error(`Error in member: ${data.member}`, data.error);
+});
+
+executor.on('execution.complete', (result) => {
+  console.log('Execution completed:', result);
+});
+```
+
+### Event Types
+
+| Event | Data | Description |
+|-------|------|-------------|
+| `member.start` | `{ member, timestamp }` | Member execution started |
+| `member.complete` | `{ member, output, duration }` | Member completed successfully |
+| `member.error` | `{ member, error }` | Member execution failed |
+| `member.skip` | `{ member, reason }` | Member skipped (condition) |
+| `execution.pause` | `{ member, token }` | Execution paused (HITL) |
+| `execution.resume` | `{ token }` | Execution resumed |
+| `execution.complete` | `ExecutionResult` | Execution finished |
+| `execution.error` | `ExecutionError` | Execution failed |
+
+## Error Handling
+
+The Executor provides comprehensive error handling:
+
+```typescript
+try {
+  const result = await executor.execute();
+} catch (error) {
+  if (error instanceof ExecutionError) {
+    console.error('Execution failed:', {
+      code: error.code,
+      message: error.message,
+      member: error.member,
+      stack: error.stack
+    });
+  }
+}
+```
+
+### Error Types
+
+```typescript
+class ExecutionError extends Error {
+  code: string;
+  member?: string;
+  details?: Record<string, any>;
+}
+```
+
+Common error codes:
+- `TIMEOUT` - Execution exceeded timeout
+- `MEMBER_ERROR` - Member execution failed
+- `VALIDATION_ERROR` - Input validation failed
+- `CONDITION_ERROR` - Condition evaluation failed
+- `EXPRESSION_ERROR` - Expression resolution failed
+- `CANCELLED` - Execution cancelled
+
+## Advanced Usage
+
+### Nested Workflows
+
+Execute ensembles within ensembles:
+
+```typescript
+const parentExecutor = new Executor({
+  env,
+  ensemble: parentEnsemble,
+  input: { userId: 'user_123' }
+});
+
+// Child executor inherits parent context
+const childExecutor = new Executor({
+  env,
+  ensemble: childEnsemble,
+  input: { orderId: 'ORD-123' },
+  parentExecutionId: parentExecutor.id
+});
+
+const childResult = await childExecutor.execute();
+```
+
+### Custom Context
+
+Pass additional context to the execution:
+
+```typescript
+const executor = new Executor({
+  env,
+  ensemble: parsedEnsemble,
+  input: { userId: 'user_123' },
+  context: {
+    requestId: 'req_abc123',
+    userAgent: 'Mozilla/5.0...',
+    ip: '192.168.1.1',
+    metadata: {
+      source: 'api',
+      version: '1.0.0'
+    }
+  }
+});
+```
+
+Access context in members:
+
+```typescript
+// In member input
+input:
+  userId: ${input.userId}
+  requestId: ${context.requestId}
+  userAgent: ${context.userAgent}
+```
+
+### Progress Tracking
+
+Track execution progress:
+
+```typescript
+const executor = new Executor({ env, ensemble, input });
+
+let completed = 0;
+const total = ensemble.flow.length;
+
+executor.on('member.complete', () => {
+  completed++;
+  const progress = (completed / total * 100).toFixed(1);
+  console.log(`Progress: ${progress}%`);
+});
+
+await executor.execute();
+```
+
+### Streaming Results
+
+Stream execution progress via SSE:
+
+```typescript
+const stream = new ReadableStream({
+  async start(controller) {
+    const executor = new Executor({ env, ensemble, input });
+
+    executor.on('member.complete', (data) => {
+      controller.enqueue(
+        `data: ${JSON.stringify({ type: 'member.complete', data })}\n\n`
+      );
+    });
+
+    executor.on('execution.complete', (result) => {
+      controller.enqueue(
+        `data: ${JSON.stringify({ type: 'complete', data: result })}\n\n`
+      );
+      controller.close();
+    });
+
+    await executor.execute();
+  }
+});
+
+return new Response(stream, {
+  headers: {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  }
+});
+```
+
+## Best Practices
+
+1. **Set appropriate timeouts** - Prevent long-running executions
+2. **Handle errors gracefully** - Catch and log all errors
+3. **Use events for monitoring** - Track execution progress
+4. **Clean up resources** - Cancel executions when needed
+5. **Validate input** - Check input before execution
+6. **Log execution context** - Include execution ID in logs
+7. **Monitor performance** - Track duration and identify bottlenecks
+8. **Use custom context** - Pass request metadata
+9. **Test error scenarios** - Verify error handling
+10. **Document expectations** - Clear input/output contracts
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Parser"
+    icon="file-code"
+    href="/conductor-api/core/parser"
+  >
+    Parse ensemble definitions
+  </Card>
+
+  <Card
+    title="State Manager"
+    icon="database"
+    href="/conductor-api/core/state-manager"
+  >
+    Manage execution state
+  </Card>
+
+  <Card
+    title="Graph Executor"
+    icon="diagram-project"
+    href="/conductor-api/core/graph-executor"
+  >
+    Execute graph-based workflows
+  </Card>
+
+  <Card
+    title="Execution API"
+    icon="play"
+    href="/conductor-api/http/execution"
+  >
+    HTTP execution endpoints
+  </Card>
+</CardGroup>
