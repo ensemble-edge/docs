@@ -1,0 +1,634 @@
+---
+title: "Think Member"
+description: "AI-powered reasoning and decision-making member type"
+---
+
+## Overview
+
+The `ThinkMember` class enables AI-powered reasoning, planning, and decision-making within workflows. It uses Cloudflare Workers AI or external LLM providers for intelligent processing.
+
+```typescript
+import { ThinkMember } from '@ensemble-edge/conductor';
+
+const thinker = new ThinkMember({
+  name: 'analyze-sentiment',
+  config: {
+    model: '@cf/meta/llama-3.1-8b-instruct',
+    prompt: 'Analyze the sentiment of: ${input.text}'
+  }
+});
+
+const result = await thinker.execute({
+  text: 'I love this product!'
+});
+```
+
+## Constructor
+
+```typescript
+new ThinkMember(options: ThinkMemberOptions)
+```
+
+<ParamField body="options" type="ThinkMemberOptions" required>
+  Think member configuration (extends MemberOptions)
+
+  <ParamField body="options.name" type="string" required>
+    Member name
+  </ParamField>
+
+  <ParamField body="options.config" type="ThinkConfig" required>
+    AI configuration
+
+    <ParamField body="options.config.model" type="string" required>
+      AI model to use
+    </ParamField>
+
+    <ParamField body="options.config.prompt" type="string" required>
+      Prompt template with expressions
+    </ParamField>
+
+    <ParamField body="options.config.temperature" type="number" default="0.7">
+      Sampling temperature (0-1)
+    </ParamField>
+
+    <ParamField body="options.config.maxTokens" type="number" default="1024">
+      Maximum response tokens
+    </ParamField>
+
+    <ParamField body="options.config.systemPrompt" type="string">
+      System prompt for context
+    </ParamField>
+
+    <ParamField body="options.config.provider" type="string" default="cloudflare">
+      AI provider: `cloudflare`, `openai`, `anthropic`
+    </ParamField>
+
+    <ParamField body="options.config.responseFormat" type="string" default="text">
+      Response format: `text`, `json`, `structured`
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+```typescript
+interface ThinkConfig {
+  model: string;
+  prompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  systemPrompt?: string;
+  provider?: 'cloudflare' | 'openai' | 'anthropic' | 'custom';
+  responseFormat?: 'text' | 'json' | 'structured';
+  schema?: JSONSchema;
+  tools?: Tool[];
+}
+```
+
+## Methods
+
+### execute()
+
+Execute AI reasoning task.
+
+```typescript
+async execute(input: any): Promise<ThinkResult>
+```
+
+<ParamField body="input" type="any" required>
+  Input data for the prompt
+</ParamField>
+
+**Returns**: `Promise<ThinkResult>`
+
+```typescript
+interface ThinkResult {
+  content: string;
+  reasoning?: string;
+  confidence?: number;
+  metadata?: {
+    model: string;
+    tokens: number;
+    duration: number;
+  };
+}
+```
+
+**Example**:
+
+```typescript
+const result = await thinker.execute({
+  text: 'Customer feedback: Great service but shipping was slow.',
+  categories: ['service', 'shipping', 'product']
+});
+
+console.log(result.content); // AI-generated response
+console.log(result.confidence); // 0.95
+console.log(result.metadata.tokens); // 156
+```
+
+### buildPrompt()
+
+Build final prompt from template and input.
+
+```typescript
+buildPrompt(input: any): string
+```
+
+<ParamField body="input" type="any" required>
+  Input data
+</ParamField>
+
+**Returns**: `string` - Rendered prompt
+
+**Example**:
+
+```typescript
+const thinker = new ThinkMember({
+  name: 'classify',
+  config: {
+    model: '@cf/meta/llama-3.1-8b-instruct',
+    prompt: `
+Classify the following text into one of these categories: ${input.categories.join(', ')}
+
+Text: ${input.text}
+
+Category:
+    `.trim()
+  }
+});
+
+const prompt = thinker.buildPrompt({
+  text: 'Hello world',
+  categories: ['greeting', 'question', 'statement']
+});
+
+console.log(prompt);
+// Classify the following text into one of these categories: greeting, question, statement
+//
+// Text: Hello world
+//
+// Category:
+```
+
+## Configuration Examples
+
+### Sentiment Analysis
+
+```yaml
+- member: analyze-sentiment
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    prompt: |
+      Analyze the sentiment of the following text.
+      Return only: positive, negative, or neutral.
+
+      Text: ${input.text}
+
+      Sentiment:
+    temperature: 0.3
+  input:
+    text: ${input.review}
+```
+
+### Text Classification
+
+```yaml
+- member: classify-ticket
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    systemPrompt: "You are a customer support ticket classifier."
+    prompt: |
+      Classify this support ticket into one category:
+      - technical
+      - billing
+      - general
+
+      Ticket: ${input.description}
+
+      Category:
+    temperature: 0.2
+  input:
+    description: ${input.ticketText}
+```
+
+### JSON Response
+
+```yaml
+- member: extract-entities
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    responseFormat: json
+    schema:
+      type: object
+      properties:
+        entities:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              type: { type: string }
+              confidence: { type: number }
+    prompt: |
+      Extract named entities from this text and return as JSON:
+
+      ${input.text}
+  input:
+    text: ${input.document}
+```
+
+### Multi-Step Reasoning
+
+```yaml
+- member: plan-actions
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    systemPrompt: |
+      You are an AI assistant that breaks down complex tasks into steps.
+      Think through the problem step by step.
+    prompt: |
+      Task: ${input.task}
+
+      Available tools: ${input.tools.join(', ')}
+
+      Create a step-by-step plan to accomplish this task:
+    temperature: 0.7
+    maxTokens: 2048
+  input:
+    task: ${input.userRequest}
+    tools: ${available-tools.output.list}
+```
+
+## AI Providers
+
+### Cloudflare Workers AI
+
+```typescript
+const thinker = new ThinkMember({
+  name: 'cloudflare-ai',
+  config: {
+    provider: 'cloudflare',
+    model: '@cf/meta/llama-3.1-8b-instruct',
+    prompt: '${input.prompt}'
+  }
+});
+```
+
+Available models:
+- `@cf/meta/llama-3.1-8b-instruct` - Fast, general purpose
+- `@cf/meta/llama-3.1-70b-instruct` - Larger, more capable
+- `@cf/mistral/mistral-7b-instruct-v0.1` - Fast instruction following
+- `@cf/openchat/openchat-3.5-0106` - Chat optimized
+
+### OpenAI
+
+```typescript
+const thinker = new ThinkMember({
+  name: 'openai',
+  config: {
+    provider: 'openai',
+    model: 'gpt-4-turbo-preview',
+    prompt: '${input.prompt}',
+    apiKey: '${env.OPENAI_API_KEY}'
+  }
+});
+```
+
+### Anthropic Claude
+
+```typescript
+const thinker = new ThinkMember({
+  name: 'claude',
+  config: {
+    provider: 'anthropic',
+    model: 'claude-3-sonnet-20240229',
+    prompt: '${input.prompt}',
+    apiKey: '${env.ANTHROPIC_API_KEY}'
+  }
+});
+```
+
+## Advanced Features
+
+### Structured Output
+
+Force JSON schema conformance:
+
+```yaml
+- member: extract-data
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    responseFormat: structured
+    schema:
+      type: object
+      required: [name, email, intent]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        intent: { type: string, enum: [purchase, support, inquiry] }
+    prompt: |
+      Extract structured information from this message:
+
+      ${input.message}
+```
+
+### Tool Use
+
+Enable AI to use tools:
+
+```yaml
+- member: research-assistant
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    tools:
+      - name: search_web
+        description: Search the web for information
+        parameters:
+          query: { type: string, description: Search query }
+
+      - name: calculate
+        description: Perform mathematical calculations
+        parameters:
+          expression: { type: string, description: Math expression }
+    prompt: |
+      Answer this question using available tools:
+
+      ${input.question}
+```
+
+### Few-Shot Learning
+
+Provide examples in the prompt:
+
+```yaml
+- member: few-shot-classifier
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    prompt: |
+      Classify customer messages as urgent or not urgent.
+
+      Examples:
+      Input: "ASAP! System is down!"
+      Output: urgent
+
+      Input: "Quick question about pricing"
+      Output: not_urgent
+
+      Input: "Cannot access my account!!!"
+      Output: urgent
+
+      Now classify this:
+      Input: ${input.message}
+      Output:
+```
+
+### Chain of Thought
+
+Encourage step-by-step reasoning:
+
+```yaml
+- member: complex-reasoning
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    systemPrompt: |
+      Think through problems step by step.
+      Show your reasoning before giving an answer.
+    prompt: |
+      ${input.question}
+
+      Let's think step by step:
+    temperature: 0.7
+```
+
+### Self-Consistency
+
+Run multiple times and pick most common answer:
+
+```yaml
+- member: self-consistent
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    prompt: ${input.question}
+    samples: 5  # Generate 5 responses
+    consistency: majority  # Pick most common answer
+```
+
+## Response Parsing
+
+### Text Response
+
+```typescript
+const result = await thinker.execute({ text: 'Hello' });
+console.log(result.content); // "Hello! How can I help you?"
+```
+
+### JSON Response
+
+```typescript
+const thinker = new ThinkMember({
+  name: 'json-extractor',
+  config: {
+    model: '@cf/meta/llama-3.1-8b-instruct',
+    responseFormat: 'json',
+    prompt: 'Extract data from: ${input.text}'
+  }
+});
+
+const result = await thinker.execute({ text: '...' });
+const data = JSON.parse(result.content);
+console.log(data.entities);
+```
+
+### Structured Response
+
+```typescript
+const thinker = new ThinkMember({
+  name: 'structured',
+  config: {
+    model: '@cf/meta/llama-3.1-8b-instruct',
+    responseFormat: 'structured',
+    schema: {
+      type: 'object',
+      properties: {
+        sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] },
+        confidence: { type: 'number', minimum: 0, maximum: 1 }
+      }
+    },
+    prompt: 'Analyze: ${input.text}'
+  }
+});
+
+const result = await thinker.execute({ text: '...' });
+// result.content is automatically parsed and validated
+console.log(result.content.sentiment);
+console.log(result.content.confidence);
+```
+
+## Cost Optimization
+
+### Caching
+
+Cache AI responses for repeated inputs:
+
+```yaml
+- member: cached-analysis
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    prompt: 'Analyze: ${input.text}'
+  cache:
+    enabled: true
+    ttl: 3600000  # 1 hour
+    key: ${input.text}
+```
+
+### Smaller Models
+
+Use smaller models for simple tasks:
+
+```yaml
+# Fast, cheap model for classification
+- member: classify
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    prompt: 'Classify: ${input.text}'
+
+# Larger model only when needed
+- member: complex-analysis
+  type: Think
+  condition: ${classify.output.confidence < 0.8}
+  config:
+    model: '@cf/meta/llama-3.1-70b-instruct'
+    prompt: 'Detailed analysis: ${input.text}'
+```
+
+### Token Limits
+
+Set appropriate token limits:
+
+```yaml
+- member: summarize
+  type: Think
+  config:
+    model: '@cf/meta/llama-3.1-8b-instruct'
+    maxTokens: 256  # Short summary
+    prompt: 'Summarize in 2-3 sentences: ${input.article}'
+```
+
+## Error Handling
+
+```typescript
+try {
+  const result = await thinker.execute({ text: 'Hello' });
+} catch (error) {
+  if (error instanceof AIProviderError) {
+    console.error('AI provider error:', {
+      provider: error.provider,
+      model: error.model,
+      message: error.message
+    });
+  }
+}
+```
+
+## Testing
+
+```typescript
+import { ThinkMember } from '@ensemble-edge/conductor';
+import { describe, it, expect } from 'vitest';
+
+describe('ThinkMember', () => {
+  it('classifies sentiment', async () => {
+    const thinker = new ThinkMember({
+      name: 'sentiment',
+      config: {
+        model: '@cf/meta/llama-3.1-8b-instruct',
+        prompt: 'Sentiment of "${input.text}": ',
+        temperature: 0.1
+      }
+    });
+
+    const result = await thinker.execute({
+      text: 'I love this!'
+    });
+
+    expect(result.content.toLowerCase()).toContain('positive');
+  });
+
+  it('returns structured data', async () => {
+    const thinker = new ThinkMember({
+      name: 'extractor',
+      config: {
+        model: '@cf/meta/llama-3.1-8b-instruct',
+        responseFormat: 'json',
+        prompt: 'Extract name from: ${input.text}'
+      }
+    });
+
+    const result = await thinker.execute({
+      text: 'My name is Alice'
+    });
+
+    const data = JSON.parse(result.content);
+    expect(data.name).toBe('Alice');
+  });
+});
+```
+
+## Best Practices
+
+1. **Use appropriate models** - Match task complexity
+2. **Set lower temperature** - For deterministic tasks
+3. **Cache results** - Reduce costs and latency
+4. **Validate output** - Don't trust AI blindly
+5. **Provide examples** - Improve accuracy
+6. **Set token limits** - Control costs
+7. **Handle errors** - AI can fail
+8. **Monitor usage** - Track tokens and costs
+9. **Test thoroughly** - AI responses vary
+10. **Use structured output** - For parsing reliability
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Base Member"
+    icon="cube"
+    href="/conductor-api/member-types/base-member"
+  >
+    Member base class
+  </Card>
+
+  <Card
+    title="AI Providers"
+    icon="brain"
+    href="/conductor-api/ai-providers/overview"
+  >
+    Available AI providers
+  </Card>
+
+  <Card
+    title="Cloudflare Workers AI"
+    icon="book"
+    href="https://developers.cloudflare.com/workers-ai"
+  >
+    Workers AI documentation
+  </Card>
+
+  <Card
+    title="Prompt Engineering"
+    icon="wand-magic-sparkles"
+    href="/conductor/guides/prompt-engineering"
+  >
+    Write better prompts
+  </Card>
+</CardGroup>

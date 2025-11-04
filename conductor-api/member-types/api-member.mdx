@@ -1,0 +1,764 @@
+---
+title: "API Member"
+description: "Make HTTP/REST API calls with advanced features"
+---
+
+## Overview
+
+The `APIMember` class makes HTTP/REST API calls with built-in retry, timeout, authentication, and response transformation capabilities.
+
+```typescript
+import { APIMember } from '@ensemble-edge/conductor';
+
+const api = new APIMember({
+  name: 'fetch-weather',
+  config: {
+    url: 'https://api.weather.com/forecast',
+    method: 'GET',
+    params: {
+      city: '${input.city}',
+      apiKey: '${env.WEATHER_API_KEY}'
+    }
+  }
+});
+
+const result = await api.execute({ city: 'San Francisco' });
+```
+
+## Constructor
+
+```typescript
+new APIMember(options: APIMemberOptions)
+```
+
+<ParamField body="options" type="APIMemberOptions" required>
+  API member configuration (extends MemberOptions)
+
+  <ParamField body="options.name" type="string" required>
+    Member name
+  </ParamField>
+
+  <ParamField body="options.config" type="APIConfig" required>
+    API configuration
+
+    <ParamField body="options.config.url" type="string" required>
+      API endpoint URL
+    </ParamField>
+
+    <ParamField body="options.config.method" type="string" default="GET">
+      HTTP method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`
+    </ParamField>
+
+    <ParamField body="options.config.headers" type="object">
+      Request headers
+    </ParamField>
+
+    <ParamField body="options.config.params" type="object">
+      Query parameters (for GET)
+    </ParamField>
+
+    <ParamField body="options.config.body" type="any">
+      Request body (for POST/PUT/PATCH)
+    </ParamField>
+
+    <ParamField body="options.config.auth" type="AuthConfig">
+      Authentication configuration
+    </ParamField>
+
+    <ParamField body="options.config.responseType" type="string" default="json">
+      Response type: `json`, `text`, `blob`, `arrayBuffer`
+    </ParamField>
+
+    <ParamField body="options.config.timeout" type="number" default="30000">
+      Request timeout in milliseconds
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+```typescript
+interface APIConfig {
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+  headers?: Record<string, string>;
+  params?: Record<string, any>;
+  body?: any;
+  auth?: AuthConfig;
+  responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer';
+  timeout?: number;
+  validateStatus?: (status: number) => boolean;
+}
+```
+
+## Methods
+
+### execute()
+
+Execute the API call.
+
+```typescript
+async execute(input: any): Promise<APIResponse>
+```
+
+<ParamField body="input" type="any" required>
+  Input data (used in URL/body expressions)
+</ParamField>
+
+**Returns**: `Promise<APIResponse>`
+
+```typescript
+interface APIResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  data: any;
+  duration: number;
+}
+```
+
+**Example**:
+
+```typescript
+const result = await api.execute({ userId: 'user_123' });
+
+console.log(result.status); // 200
+console.log(result.data); // { id: 'user_123', name: 'Alice' }
+console.log(result.duration); // 234
+```
+
+## HTTP Methods
+
+### GET Request
+
+```yaml
+- member: get-user
+  type: API
+  config:
+    url: https://api.example.com/users/${input.userId}
+    method: GET
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+  input:
+    userId: user_123
+```
+
+### POST Request
+
+```yaml
+- member: create-user
+  type: API
+  config:
+    url: https://api.example.com/users
+    method: POST
+    headers:
+      Content-Type: application/json
+      Authorization: Bearer ${env.API_KEY}
+    body:
+      email: ${input.email}
+      name: ${input.name}
+      role: user
+  input:
+    email: newuser@example.com
+    name: New User
+```
+
+### PUT Request
+
+```yaml
+- member: update-user
+  type: API
+  config:
+    url: https://api.example.com/users/${input.userId}
+    method: PUT
+    body:
+      name: ${input.name}
+      email: ${input.email}
+```
+
+### PATCH Request
+
+```yaml
+- member: partial-update
+  type: API
+  config:
+    url: https://api.example.com/users/${input.userId}
+    method: PATCH
+    body:
+      name: ${input.name}
+```
+
+### DELETE Request
+
+```yaml
+- member: delete-user
+  type: API
+  config:
+    url: https://api.example.com/users/${input.userId}
+    method: DELETE
+```
+
+## Authentication
+
+### Bearer Token
+
+```yaml
+- member: authenticated-request
+  type: API
+  config:
+    url: https://api.example.com/protected
+    method: GET
+    auth:
+      type: bearer
+      token: ${env.API_TOKEN}
+```
+
+### Basic Auth
+
+```yaml
+- member: basic-auth-request
+  type: API
+  config:
+    url: https://api.example.com/protected
+    method: GET
+    auth:
+      type: basic
+      username: ${env.API_USERNAME}
+      password: ${env.API_PASSWORD}
+```
+
+### API Key (Header)
+
+```yaml
+- member: api-key-header
+  type: API
+  config:
+    url: https://api.example.com/data
+    method: GET
+    headers:
+      X-API-Key: ${env.API_KEY}
+```
+
+### API Key (Query)
+
+```yaml
+- member: api-key-query
+  type: API
+  config:
+    url: https://api.example.com/data
+    method: GET
+    params:
+      api_key: ${env.API_KEY}
+```
+
+### OAuth 2.0
+
+```yaml
+- member: oauth-request
+  type: API
+  config:
+    url: https://api.example.com/protected
+    method: GET
+    auth:
+      type: oauth2
+      accessToken: ${get-access-token.output.token}
+```
+
+### Custom Auth
+
+```yaml
+- member: custom-auth
+  type: API
+  config:
+    url: https://api.example.com/protected
+    method: GET
+    headers:
+      Authorization: Custom ${env.API_KEY}
+      X-Request-ID: ${context.executionId}
+      X-Timestamp: ${Date.now()}
+```
+
+## Query Parameters
+
+### Static Parameters
+
+```yaml
+- member: search-users
+  type: API
+  config:
+    url: https://api.example.com/users
+    method: GET
+    params:
+      status: active
+      role: admin
+      limit: 50
+```
+
+### Dynamic Parameters
+
+```yaml
+- member: search-dynamic
+  type: API
+  config:
+    url: https://api.example.com/search
+    method: GET
+    params:
+      q: ${input.query}
+      page: ${input.page}
+      limit: ${input.limit || 10}
+      sort: ${input.sortBy}
+```
+
+### Array Parameters
+
+```yaml
+- member: filter-by-tags
+  type: API
+  config:
+    url: https://api.example.com/posts
+    method: GET
+    params:
+      tags: ${input.tags}  # Array: ?tags=a&tags=b&tags=c
+```
+
+## Request Bodies
+
+### JSON Body
+
+```yaml
+- member: json-request
+  type: API
+  config:
+    url: https://api.example.com/data
+    method: POST
+    headers:
+      Content-Type: application/json
+    body:
+      user:
+        id: ${input.userId}
+        name: ${input.name}
+      metadata:
+        timestamp: ${Date.now()}
+        source: conductor
+```
+
+### Form Data
+
+```yaml
+- member: form-request
+  type: API
+  config:
+    url: https://api.example.com/submit
+    method: POST
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    body:
+      name: ${input.name}
+      email: ${input.email}
+```
+
+### Multipart Upload
+
+```yaml
+- member: upload-file
+  type: API
+  config:
+    url: https://api.example.com/upload
+    method: POST
+    headers:
+      Content-Type: multipart/form-data
+    body:
+      file: ${input.fileData}
+      filename: ${input.filename}
+      description: ${input.description}
+```
+
+## Response Handling
+
+### JSON Response
+
+```yaml
+- member: fetch-json
+  type: API
+  config:
+    url: https://api.example.com/data
+    method: GET
+    responseType: json
+```
+
+### Text Response
+
+```yaml
+- member: fetch-text
+  type: API
+  config:
+    url: https://api.example.com/text
+    method: GET
+    responseType: text
+```
+
+### Binary Response
+
+```yaml
+- member: download-file
+  type: API
+  config:
+    url: https://api.example.com/download
+    method: GET
+    responseType: blob
+```
+
+### Response Transformation
+
+```yaml
+- member: transform-response
+  type: API
+  config:
+    url: https://api.example.com/data
+    method: GET
+    transform:
+      # Extract specific fields
+      output:
+        id: ${response.data.user.id}
+        name: ${response.data.user.profile.fullName}
+        email: ${response.data.user.contact.email}
+```
+
+### Status Code Validation
+
+```yaml
+- member: validate-status
+  type: API
+  config:
+    url: https://api.example.com/data
+    method: GET
+    validateStatus: (status) => status >= 200 && status < 300
+```
+
+## Error Handling
+
+### Retry Configuration
+
+```yaml
+- member: retry-on-failure
+  type: API
+  config:
+    url: https://api.example.com/flaky-endpoint
+    method: GET
+  retry:
+    maxAttempts: 3
+    backoff: exponential
+    initialDelay: 1000
+    retryIf: |
+      (error) => {
+        // Retry on network errors or 5xx
+        return error.code === 'NETWORK_ERROR' ||
+               (error.status >= 500 && error.status < 600);
+      }
+```
+
+### Timeout Handling
+
+```yaml
+- member: with-timeout
+  type: API
+  config:
+    url: https://api.example.com/slow-endpoint
+    method: GET
+    timeout: 5000  # 5 seconds
+  retry:
+    maxAttempts: 2
+    retryIf: (error) => error.code === 'TIMEOUT'
+```
+
+### Fallback Value
+
+```yaml
+flow:
+  - member: try-api
+    type: API
+    config:
+      url: https://api.example.com/data
+      method: GET
+
+  - member: use-fallback
+    condition: ${try-api.output.status !== 200}
+    type: Function
+    config:
+      handler: () => ({ data: [], source: 'fallback' })
+```
+
+## Advanced Patterns
+
+### Pagination
+
+```yaml
+flow:
+  - member: fetch-page-1
+    type: API
+    config:
+      url: https://api.example.com/users
+      method: GET
+      params:
+        page: 1
+        limit: 100
+
+  - member: fetch-page-2
+    condition: ${fetch-page-1.output.data.hasMore}
+    type: API
+    config:
+      url: https://api.example.com/users
+      method: GET
+      params:
+        page: 2
+        limit: 100
+```
+
+### Rate Limiting
+
+```yaml
+- member: rate-limited-request
+  type: API
+  config:
+    url: https://api.example.com/data
+    method: GET
+    rateLimit:
+      maxRequests: 100
+      perMilliseconds: 60000  # 100 requests per minute
+```
+
+### Parallel Requests
+
+```yaml
+flow:
+  - parallel:
+      - member: fetch-users
+        type: API
+        config:
+          url: https://api.example.com/users
+
+      - member: fetch-products
+        type: API
+        config:
+          url: https://api.example.com/products
+
+      - member: fetch-orders
+        type: API
+        config:
+          url: https://api.example.com/orders
+
+  - member: combine-results
+    type: Function
+    config:
+      handler: |
+        (input) => ({
+          users: input.fetchUsers.data,
+          products: input.fetchProducts.data,
+          orders: input.fetchOrders.data
+        })
+```
+
+### Request Chaining
+
+```yaml
+flow:
+  - member: get-user-id
+    type: API
+    config:
+      url: https://api.example.com/auth/me
+      method: GET
+
+  - member: get-user-profile
+    type: API
+    config:
+      url: https://api.example.com/users/${get-user-id.output.data.id}/profile
+      method: GET
+
+  - member: get-user-orders
+    type: API
+    config:
+      url: https://api.example.com/users/${get-user-id.output.data.id}/orders
+      method: GET
+```
+
+### Conditional Requests
+
+```yaml
+flow:
+  - member: check-cache
+    type: Data
+    config:
+      type: kv
+      operation: get
+      key: api-cache:${input.key}
+
+  - member: call-api
+    condition: ${!check-cache.output.value}
+    type: API
+    config:
+      url: https://api.example.com/expensive-operation
+      method: POST
+
+  - member: cache-result
+    condition: ${call-api.output.status === 200}
+    type: Data
+    config:
+      type: kv
+      operation: put
+      key: api-cache:${input.key}
+      value: ${call-api.output.data}
+      expirationTtl: 3600
+```
+
+### Webhook Integration
+
+```yaml
+- member: trigger-webhook
+  type: API
+  config:
+    url: ${env.WEBHOOK_URL}
+    method: POST
+    headers:
+      Content-Type: application/json
+      X-Webhook-Signature: ${computeSignature(input)}
+    body:
+      event: workflow_completed
+      data: ${output}
+      timestamp: ${Date.now()}
+```
+
+## Performance Optimization
+
+### Connection Pooling
+
+```typescript
+const api = new APIMember({
+  name: 'pooled-api',
+  config: {
+    url: 'https://api.example.com/data',
+    method: 'GET',
+    keepAlive: true,
+    maxSockets: 10
+  }
+});
+```
+
+### Response Compression
+
+```yaml
+- member: compressed-request
+  type: API
+  config:
+    url: https://api.example.com/large-data
+    method: GET
+    headers:
+      Accept-Encoding: gzip, deflate, br
+```
+
+### Caching
+
+```yaml
+- member: cached-api-call
+  type: API
+  config:
+    url: https://api.example.com/static-data
+    method: GET
+  cache:
+    enabled: true
+    ttl: 3600000  # 1 hour
+    key: ${config.url}
+```
+
+## Testing
+
+```typescript
+import { APIMember } from '@ensemble-edge/conductor';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('APIMember', () => {
+  it('makes GET request', async () => {
+    const api = new APIMember({
+      name: 'test-api',
+      config: {
+        url: 'https://api.example.com/users/123',
+        method: 'GET'
+      }
+    });
+
+    // Mock fetch
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: '123', name: 'Test' })
+    });
+
+    const result = await api.execute({});
+
+    expect(result.status).toBe(200);
+    expect(result.data.name).toBe('Test');
+  });
+
+  it('handles errors', async () => {
+    const api = new APIMember({
+      name: 'error-api',
+      config: {
+        url: 'https://api.example.com/error',
+        method: 'GET'
+      }
+    });
+
+    global.fetch = vi.fn().mockRejectedValue(
+      new Error('Network error')
+    );
+
+    await expect(api.execute({})).rejects.toThrow('Network error');
+  });
+});
+```
+
+## Best Practices
+
+1. **Set appropriate timeouts** - Prevent hanging requests
+2. **Use retry with backoff** - Handle transient failures
+3. **Validate status codes** - Don't trust 2xx only
+4. **Cache when possible** - Reduce API calls
+5. **Handle rate limits** - Respect API quotas
+6. **Use authentication** - Secure API access
+7. **Transform responses** - Extract what you need
+8. **Log requests** - Debug API issues
+9. **Test with mocks** - Avoid real API calls in tests
+10. **Monitor API usage** - Track performance and costs
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Base Member"
+    icon="cube"
+    href="/conductor-api/member-types/base-member"
+  >
+    Member base class
+  </Card>
+
+  <Card
+    title="Webhooks Guide"
+    icon="webhook"
+    href="/conductor/guides/webhooks"
+  >
+    Webhook integration patterns
+  </Card>
+
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/conductor/guides/error-handling"
+  >
+    Handle API errors
+  </Card>
+
+  <Card
+    title="Testing API Calls"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test API members
+  </Card>
+</CardGroup>

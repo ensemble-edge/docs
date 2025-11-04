@@ -1,0 +1,602 @@
+---
+title: "Function Member"
+description: "Execute custom JavaScript/TypeScript functions in workflows"
+---
+
+## Overview
+
+The `FunctionMember` class executes custom JavaScript/TypeScript functions within workflows. It's the most flexible member type for implementing custom business logic.
+
+```typescript
+import { FunctionMember } from '@ensemble-edge/conductor';
+
+const fn = new FunctionMember({
+  name: 'calculate-total',
+  config: {
+    handler: async (input: { items: number[]; tax: number }) => {
+      const subtotal = input.items.reduce((sum, price) => sum + price, 0);
+      const total = subtotal * (1 + input.tax);
+      return { subtotal, total };
+    }
+  }
+});
+
+const result = await fn.execute({
+  items: [10, 20, 30],
+  tax: 0.1
+});
+```
+
+## Constructor
+
+```typescript
+new FunctionMember(options: FunctionMemberOptions)
+```
+
+<ParamField body="options" type="FunctionMemberOptions" required>
+  Function member configuration (extends MemberOptions)
+
+  <ParamField body="options.name" type="string" required>
+    Member name
+  </ParamField>
+
+  <ParamField body="options.config" type="FunctionConfig" required>
+    Function configuration
+
+    <ParamField body="options.config.handler" type="Function" required>
+      Function to execute
+    </ParamField>
+
+    <ParamField body="options.config.module" type="string">
+      Module path (for external functions)
+    </ParamField>
+
+    <ParamField body="options.config.export" type="string" default="default">
+      Export name (for module functions)
+    </ParamField>
+
+    <ParamField body="options.config.timeout" type="number">
+      Function-specific timeout
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+```typescript
+interface FunctionConfig {
+  handler?: (input: any, context: ExecutionContext) => Promise<any>;
+  module?: string;
+  export?: string;
+  timeout?: number;
+}
+```
+
+## Methods
+
+### execute()
+
+Execute the function with input.
+
+```typescript
+async execute(input: any): Promise<any>
+```
+
+<ParamField body="input" type="any" required>
+  Input data for the function
+</ParamField>
+
+**Returns**: `Promise<any>` - Function result
+
+**Example**:
+
+```typescript
+const result = await fn.execute({
+  amount: 100,
+  currency: 'USD'
+});
+
+console.log(result);
+```
+
+## Configuration Examples
+
+### Inline Handler
+
+```yaml
+- member: validate-email
+  type: Function
+  config:
+    handler: |
+      (input) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return {
+          valid: emailRegex.test(input.email),
+          email: input.email
+        };
+      }
+  input:
+    email: ${input.userEmail}
+```
+
+### External Module
+
+```yaml
+- member: process-payment
+  type: Function
+  config:
+    module: './functions/payment.ts'
+    export: 'processPayment'
+  input:
+    amount: ${input.total}
+    method: ${input.paymentMethod}
+```
+
+```typescript
+// functions/payment.ts
+export async function processPayment(input: {
+  amount: number;
+  method: string;
+}): Promise<{ success: boolean; transactionId: string }> {
+  // Payment processing logic
+  const transactionId = await chargeCard(input.amount, input.method);
+
+  return {
+    success: true,
+    transactionId
+  };
+}
+```
+
+### With Context Access
+
+```typescript
+const fn = new FunctionMember({
+  name: 'with-context',
+  config: {
+    handler: async (input, context) => {
+      console.log('Execution ID:', context.executionId);
+      console.log('Environment:', context.env);
+      console.log('Previous outputs:', context.memberOutputs);
+
+      return { processed: true };
+    }
+  }
+});
+```
+
+## Common Patterns
+
+### Data Transformation
+
+```yaml
+- member: transform-data
+  type: Function
+  config:
+    handler: |
+      (input) => ({
+        items: input.rawData.map(item => ({
+          id: item._id,
+          name: item.displayName,
+          price: parseFloat(item.cost),
+          available: item.inStock > 0
+        }))
+      })
+  input:
+    rawData: ${fetch-data.output.results}
+```
+
+### Validation
+
+```yaml
+- member: validate-order
+  type: Function
+  config:
+    handler: |
+      (input) => {
+        const errors = [];
+
+        if (!input.customerId) {
+          errors.push('Customer ID required');
+        }
+
+        if (input.items.length === 0) {
+          errors.push('Order must have items');
+        }
+
+        if (input.total <= 0) {
+          errors.push('Invalid total amount');
+        }
+
+        return {
+          valid: errors.length === 0,
+          errors
+        };
+      }
+  input:
+    customerId: ${input.customerId}
+    items: ${input.items}
+    total: ${input.total}
+```
+
+### Aggregation
+
+```yaml
+- member: aggregate-results
+  type: Function
+  config:
+    handler: |
+      (input) => {
+        const results = input.results;
+
+        return {
+          total: results.length,
+          successful: results.filter(r => r.success).length,
+          failed: results.filter(r => !r.success).length,
+          avgDuration: results.reduce((sum, r) => sum + r.duration, 0) / results.length
+        };
+      }
+  input:
+    results: [
+      ${process-a.output},
+      ${process-b.output},
+      ${process-c.output}
+    ]
+```
+
+### Conditional Logic
+
+```yaml
+- member: determine-action
+  type: Function
+  config:
+    handler: |
+      (input) => {
+        if (input.amount > 1000) {
+          return { action: 'manual_review', reason: 'high_value' };
+        } else if (input.riskScore > 0.8) {
+          return { action: 'flag', reason: 'high_risk' };
+        } else {
+          return { action: 'approve', reason: 'normal' };
+        }
+      }
+  input:
+    amount: ${input.orderTotal}
+    riskScore: ${assess-risk.output.score}
+```
+
+### API Wrapping
+
+```yaml
+- member: call-legacy-api
+  type: Function
+  config:
+    handler: |
+      async (input, context) => {
+        const response = await fetch(context.env.LEGACY_API_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${context.env.LEGACY_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            user_id: input.userId,
+            action: input.action
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        return await response.json();
+      }
+  input:
+    userId: ${input.userId}
+    action: 'update_profile'
+```
+
+## TypeScript Functions
+
+### Strong Typing
+
+```typescript
+// functions/types.ts
+export interface ProcessOrderInput {
+  orderId: string;
+  customerId: string;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    price: number;
+  }>;
+}
+
+export interface ProcessOrderOutput {
+  success: boolean;
+  orderId: string;
+  total: number;
+  status: 'pending' | 'confirmed' | 'failed';
+}
+
+// functions/order.ts
+import type { ProcessOrderInput, ProcessOrderOutput } from './types';
+
+export async function processOrder(
+  input: ProcessOrderInput
+): Promise<ProcessOrderOutput> {
+  const total = input.items.reduce(
+    (sum, item) => sum + (item.price * item.quantity),
+    0
+  );
+
+  // Process order logic...
+
+  return {
+    success: true,
+    orderId: input.orderId,
+    total,
+    status: 'confirmed'
+  };
+}
+```
+
+```yaml
+- member: process-order
+  type: Function
+  config:
+    module: './functions/order.ts'
+    export: 'processOrder'
+  input:
+    orderId: ${input.orderId}
+    customerId: ${input.customerId}
+    items: ${input.items}
+```
+
+### Reusable Functions
+
+```typescript
+// functions/utils.ts
+export function calculateTax(amount: number, rate: number): number {
+  return amount * rate;
+}
+
+export function formatCurrency(amount: number, currency: string): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency
+  }).format(amount);
+}
+
+export async function sendEmail(
+  to: string,
+  subject: string,
+  body: string
+): Promise<boolean> {
+  // Email sending logic
+  return true;
+}
+```
+
+## Error Handling
+
+### Try-Catch
+
+```yaml
+- member: safe-operation
+  type: Function
+  config:
+    handler: |
+      async (input) => {
+        try {
+          const result = await riskyOperation(input.data);
+          return { success: true, result };
+        } catch (error) {
+          console.error('Operation failed:', error);
+          return {
+            success: false,
+            error: error.message,
+            fallback: getDefaultValue()
+          };
+        }
+      }
+```
+
+### Validation Errors
+
+```yaml
+- member: validate-and-process
+  type: Function
+  config:
+    handler: |
+      (input) => {
+        if (!input.email || !input.email.includes('@')) {
+          throw new Error('Invalid email address');
+        }
+
+        if (input.age < 18) {
+          throw new Error('Must be 18 or older');
+        }
+
+        return { valid: true, processed: true };
+      }
+```
+
+## Async Operations
+
+### Parallel Execution
+
+```yaml
+- member: fetch-multiple
+  type: Function
+  config:
+    handler: |
+      async (input) => {
+        const [users, products, orders] = await Promise.all([
+          fetch(`${input.apiUrl}/users`).then(r => r.json()),
+          fetch(`${input.apiUrl}/products`).then(r => r.json()),
+          fetch(`${input.apiUrl}/orders`).then(r => r.json())
+        ]);
+
+        return { users, products, orders };
+      }
+```
+
+### Sequential with Dependencies
+
+```yaml
+- member: sequential-process
+  type: Function
+  config:
+    handler: |
+      async (input) => {
+        const user = await fetchUser(input.userId);
+        const preferences = await fetchPreferences(user.id);
+        const recommendations = await generateRecommendations(
+          user,
+          preferences
+        );
+
+        return { user, preferences, recommendations };
+      }
+```
+
+## Performance Optimization
+
+### Caching Results
+
+```yaml
+- member: expensive-calculation
+  type: Function
+  config:
+    handler: |
+      (input) => {
+        // Expensive computation
+        const result = complexCalculation(input.data);
+        return { result };
+      }
+  cache:
+    enabled: true
+    ttl: 3600000  # 1 hour
+    key: ${input.data}
+```
+
+### Memoization
+
+```typescript
+// functions/fibonacci.ts
+const cache = new Map<number, number>();
+
+export function fibonacci(n: number): number {
+  if (n <= 1) return n;
+
+  if (cache.has(n)) {
+    return cache.get(n)!;
+  }
+
+  const result = fibonacci(n - 1) + fibonacci(n - 2);
+  cache.set(n, result);
+  return result;
+}
+```
+
+## Testing
+
+```typescript
+import { FunctionMember } from '@ensemble-edge/conductor';
+import { describe, it, expect } from 'vitest';
+
+describe('FunctionMember', () => {
+  it('executes inline function', async () => {
+    const fn = new FunctionMember({
+      name: 'double',
+      config: {
+        handler: (input: { value: number }) => ({
+          result: input.value * 2
+        })
+      }
+    });
+
+    const result = await fn.execute({ value: 5 });
+    expect(result.result).toBe(10);
+  });
+
+  it('handles async functions', async () => {
+    const fn = new FunctionMember({
+      name: 'async-fn',
+      config: {
+        handler: async (input: { delay: number }) => {
+          await new Promise(resolve => setTimeout(resolve, input.delay));
+          return { completed: true };
+        }
+      }
+    });
+
+    const result = await fn.execute({ delay: 100 });
+    expect(result.completed).toBe(true);
+  });
+
+  it('passes context', async () => {
+    const fn = new FunctionMember({
+      name: 'with-context',
+      config: {
+        handler: async (input, context) => ({
+          executionId: context.executionId,
+          hasEnv: !!context.env
+        })
+      }
+    });
+
+    const result = await fn.execute({});
+    expect(result.executionId).toBeDefined();
+    expect(result.hasEnv).toBe(true);
+  });
+});
+```
+
+## Best Practices
+
+1. **Keep functions focused** - Single responsibility
+2. **Use TypeScript** - Type safety and IDE support
+3. **Handle errors** - Try-catch for risky operations
+4. **Validate input** - Check assumptions
+5. **Return consistent shapes** - Predictable output
+6. **Use external modules** - For complex logic
+7. **Cache expensive operations** - Improve performance
+8. **Document expectations** - Input/output contracts
+9. **Test thoroughly** - Unit test functions
+10. **Avoid side effects** - Pure functions when possible
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Base Member"
+    icon="cube"
+    href="/conductor-api/member-types/base-member"
+  >
+    Member base class
+  </Card>
+
+  <Card
+    title="Data Member"
+    icon="database"
+    href="/conductor-api/member-types/data-member"
+  >
+    Database operations
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test custom functions
+  </Card>
+
+  <Card
+    title="TypeScript Guide"
+    icon="code"
+    href="/conductor/guides/typescript"
+  >
+    TypeScript best practices
+  </Card>
+</CardGroup>
