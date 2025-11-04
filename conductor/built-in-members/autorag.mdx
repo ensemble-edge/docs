@@ -1,0 +1,236 @@
+---
+title: "AutoRAG Member"
+description: "Cloudflare's fully managed RAG with R2 storage"
+---
+
+## Overview
+
+AutoRAG is Cloudflare's **fully managed RAG service** - the easiest way to do retrieval-augmented generation. Just point it to an R2 bucket and it handles everything automatically:
+
+- ✅ **Automatic document ingestion** from R2 buckets
+- ✅ **Automatic chunking** with smart splitting
+- ✅ **Automatic embedding** via Workers AI
+- ✅ **Automatic indexing** in Vectorize
+- ✅ **Continuous monitoring** and updates
+- ✅ **Supports** PDFs, images, text, HTML, CSV, and more
+
+**This is the recommended way to do RAG on Cloudflare** - zero manual work required!
+
+## Quick Example
+
+```yaml
+name: autorag-qa
+description: Q&A using AutoRAG
+
+flow:
+  - member: search-docs
+    type: AutoRAG
+    config:
+      instance: my-knowledge-base
+      mode: answer  # Returns AI-generated answer
+    input:
+      query: ${input.question}
+
+output:
+  answer: ${search-docs.output.answer}
+  sources: ${search-docs.output.sources}
+```
+
+## Setup
+
+### 1. Configure in wrangler.toml
+
+```toml
+[[autorag]]
+binding = "MY_KNOWLEDGE_BASE"
+bucket = "my-docs-bucket"  # Your R2 bucket name
+
+# Optional configuration
+chunk_size = 512
+chunk_overlap = 50
+embedding_model = "@cf/baai/bge-base-en-v1.5"
+```
+
+### 2. Upload Documents to R2
+
+```bash
+# Upload your documents
+wrangler r2 object put my-docs-bucket/doc1.pdf --file=./doc1.pdf
+wrangler r2 object put my-docs-bucket/doc2.md --file=./doc2.md
+```
+
+That's it! CloudFlare automatically:
+- Detects new files in R2
+- Extracts text content
+- Chunks documents
+- Generates embeddings
+- Indexes in Vectorize
+
+## Configuration
+
+```yaml
+config:
+  # AutoRAG instance name from wrangler.toml
+  instance: string  # Required
+
+  # Return mode: 'answer' or 'results'
+  mode: 'answer' | 'results'  # Default: 'answer'
+
+  # Number of results to retrieve
+  topK: number  # Default: 5
+
+  # Enable query rewriting for better retrieval
+  rewriteQuery: boolean  # Default: false
+```
+
+## Modes
+
+### Answer Mode (Recommended)
+
+Returns an AI-generated answer grounded in retrieved documents:
+
+```yaml
+- member: ask-question
+  type: AutoRAG
+  config:
+    instance: kb
+    mode: answer  # AI generates answer
+  input:
+    query: "What are the key features?"
+```
+
+**Output**:
+```yaml
+output:
+  answer: "The key features include..."
+  sources:
+    - content: "Feature 1 is..."
+      score: 0.95
+      metadata: {filename: "doc1.pdf"}
+    - content: "Feature 2 is..."
+      score: 0.89
+      metadata: {filename: "doc2.md"}
+```
+
+### Results Mode
+
+Returns raw search results without generation:
+
+```yaml
+- member: search
+  type: AutoRAG
+  config:
+    instance: kb
+    mode: results  # Just retrieve, don't generate
+  input:
+    query: "features"
+    topK: 10
+```
+
+**Output**:
+```yaml
+output:
+  results:
+    - content: "Feature 1 description..."
+      score: 0.95
+      metadata: {filename: "doc1.pdf", page: 3}
+    - content: "Feature 2 description..."
+      score: 0.89
+      metadata: {filename: "doc2.md"}
+```
+
+## Supported File Types
+
+AutoRAG automatically handles:
+
+- **Text**: `.txt`, `.md`, `.csv`
+- **Documents**: `.pdf`, `.docx`
+- **Code**: `.js`, `.ts`, `.py`, `.go`, etc.
+- **Web**: `.html`, `.xml`
+- **Images**: `.jpg`, `.png` (with OCR)
+
+## Complete Example
+
+```yaml
+name: document-qa-system
+description: Full Q&A system with AutoRAG
+
+flow:
+  # Search knowledge base
+  - member: search
+    type: AutoRAG
+    config:
+      instance: company-docs
+      mode: answer
+      topK: 5
+    input:
+      query: ${input.question}
+
+  # If no good answer, escalate
+  - member: check-confidence
+    type: Function
+    input:
+      sources: ${search.output.sources}
+      threshold: 0.7
+
+  - member: escalate
+    condition: ${check-confidence.output.lowConfidence}
+    type: API
+    config:
+      url: ${env.SLACK_WEBHOOK}
+      method: POST
+    input:
+      body:
+        text: "Question needs human review: ${input.question}"
+
+output:
+  answer: ${search.output.answer}
+  confidence: ${check-confidence.output.confidence}
+  sources: ${search.output.sources}
+  escalated: ${escalate.success || false}
+```
+
+## Advantages
+
+**vs. Manual Vectorize-RAG**:
+- ✅ No manual chunking code
+- ✅ No embedding generation code
+- ✅ No indexing logic
+- ✅ Automatic updates when R2 files change
+- ✅ Built-in monitoring
+
+**vs. External RAG Services**:
+- ✅ No data egress - stays in Cloudflare
+- ✅ Lower latency - edge-native
+- ✅ No extra costs - bundled pricing
+- ✅ Integrated with Workers
+
+## Best Practices
+
+1. **Organize R2 bucket** - Use folders for categories
+2. **Descriptive filenames** - Used in metadata
+3. **Monitor bucket size** - AutoRAG has limits
+4. **Use answer mode** - Better UX than raw results
+5. **Set appropriate topK** - Balance speed vs. completeness
+6. **Test queries** - Verify retrieval quality
+
+## Limitations
+
+- **Bucket size**: Check AutoRAG pricing for limits
+- **File size**: Individual files have size limits
+- **Update latency**: New files indexed within minutes
+- **Query rate**: Standard Workers rate limits apply
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Vectorize-RAG" icon="database" href="/conductor/built-in-members/vectorize-rag">
+    Manual Vectorize integration
+  </Card>
+  <Card title="Think Members" icon="brain" href="/conductor/member-types/think">
+    AI generation
+  </Card>
+  <Card title="AutoRAG Docs" icon="cloudflare" href="https://developers.cloudflare.com/autorag">
+    Official AutoRAG documentation
+  </Card>
+</CardGroup>

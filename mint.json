@@ -183,6 +183,8 @@
         "conductor/built-in-members/scrape",
         "conductor/built-in-members/validate",
         "conductor/built-in-members/rag",
+        "conductor/built-in-members/autorag",
+        "conductor/built-in-members/vectorize-rag",
         "conductor/built-in-members/hitl",
         "conductor/built-in-members/fetch",
         "conductor/built-in-members/transform",
