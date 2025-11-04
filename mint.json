@@ -142,6 +142,8 @@
     },
     {
       "group": "Guides",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor/guides/quickstart",
         "conductor/guides/creating-members",
@@ -153,7 +155,15 @@
         "conductor/guides/scoring",
         "conductor/guides/hitl",
         "conductor/guides/webhooks",
-        "conductor/guides/scheduling"
+        "conductor/guides/scheduling",
+        "conductor/guides/performance",
+        "conductor/guides/monitoring",
+        "conductor/guides/troubleshooting",
+        "conductor/guides/migration",
+        "conductor/guides/ci-cd",
+        "conductor/guides/queue-integration",
+        "conductor/guides/secrets-management",
+        "conductor/guides/best-practices"
       ]
     },
     {
@@ -168,6 +178,8 @@
     },
     {
       "group": "Built-In Members",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor/built-in-members/overview",
         "conductor/built-in-members/scrape",
@@ -175,18 +187,26 @@
         "conductor/built-in-members/rag",
         "conductor/built-in-members/hitl",
         "conductor/built-in-members/fetch",
-        "conductor/built-in-members/queries"
+        "conductor/built-in-members/transform",
+        "conductor/built-in-members/schedule"
       ]
     },
     {
       "group": "Examples",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor/examples/hello-world",
         "conductor/examples/company-intelligence",
         "conductor/examples/parallel-processing",
         "conductor/examples/conditional-logic",
         "conductor/examples/error-handling",
-        "conductor/examples/scoring-retry"
+        "conductor/examples/scoring-retry",
+        "conductor/examples/data-processing-pipeline",
+        "conductor/examples/multi-agent-coordination",
+        "conductor/examples/conversational-ai",
+        "conductor/examples/ecommerce-workflow",
+        "conductor/examples/content-moderation"
       ]
     },
     {
@@ -198,6 +218,8 @@
     },
     {
       "group": "Deployment",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor/deployment/overview",
         "conductor/deployment/configuration",
@@ -216,6 +238,8 @@
     },
     {
       "group": "Core Classes",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/core/executor",
         "conductor-api/core/parser",
@@ -225,6 +249,8 @@
     },
     {
       "group": "Member Types API",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/members/base-member",
         "conductor-api/members/think-member",
@@ -235,6 +261,8 @@
     },
     {
       "group": "Built-In Members API",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/built-in/overview",
         "conductor-api/built-in/scrape",
@@ -247,6 +275,8 @@
     },
     {
       "group": "SDK API",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/sdk/client",
         "conductor-api/sdk/member-factory",
@@ -255,6 +285,8 @@
     },
     {
       "group": "Testing API",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/testing/test-conductor",
         "conductor-api/testing/matchers",
@@ -263,6 +295,8 @@
     },
     {
       "group": "Durable Objects API",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/durable-objects/execution-state",
         "conductor-api/durable-objects/hitl-state"
@@ -270,6 +304,8 @@
     },
     {
       "group": "AI Providers API",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/ai/overview",
         "conductor-api/ai/provider-registry",
@@ -279,6 +315,8 @@
     },
     {
       "group": "HTTP API",
+      "isCollapsible": true,
+      "defaultOpen": false,
       "pages": [
         "conductor-api/http/overview",
         "conductor-api/http/execution",

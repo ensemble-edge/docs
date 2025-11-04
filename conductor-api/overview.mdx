@@ -1,0 +1,256 @@
+---
+title: "API Reference Overview"
+description: "Complete TypeScript API reference for Conductor v1.0.0"
+---
+
+## Overview
+
+Complete TypeScript API reference for Conductor v1.0.0. This section documents all public classes, interfaces, functions, and types available in the `@ensemble-edge/conductor` package.
+
+## Installation
+
+```bash
+npm install @ensemble-edge/conductor
+```
+
+## Package Exports
+
+Conductor provides three export paths for different use cases:
+
+### Main Export
+
+```typescript
+import { Conductor, Executor, Parser, StateManager } from '@ensemble-edge/conductor';
+```
+
+**Available**:
+- Core runtime classes (Executor, Parser, StateManager, GraphExecutor)
+- Member classes (BaseMember, ThinkMember, FunctionMember, DataMember, APIMember)
+- Built-in member registry
+- Type definitions (EnsembleConfig, MemberConfig, ExecutionResult, etc.)
+
+### SDK Export
+
+```typescript
+import { ConductorClient, createMember } from '@ensemble-edge/conductor/sdk';
+```
+
+**Available**:
+- `ConductorClient` - HTTP client for remote Conductor instances
+- `createMember` - Factory functions for creating members
+- `loadComponent` - Edgit integration (future)
+
+### Testing Export
+
+```typescript
+import { TestConductor, registerMatchers } from '@ensemble-edge/conductor/testing';
+```
+
+**Available**:
+- `TestConductor` - Testing harness with mocking
+- `registerMatchers` - Custom Vitest matchers
+- Mock implementations (MockAIProvider, MockDatabase, etc.)
+
+## TypeScript Support
+
+Conductor is written in TypeScript and provides full type definitions.
+
+```typescript
+import type {
+  EnsembleConfig,
+  MemberConfig,
+  ExecutionResult,
+  MemberResponse,
+  ConductorEnv
+} from '@ensemble-edge/conductor';
+```
+
+## Core Architecture
+
+### Execution Flow
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                       Executor                           │
+│  • Load ensemble YAML                                    │
+│  • Parse configuration                                   │
+│  • Initialize state                                      │
+│  • Execute workflow                                      │
+└──────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│                    GraphExecutor                         │
+│  • Resolve dependencies                                  │
+│  • Execute members (parallel where possible)             │
+│  • Handle conditionals and loops                         │
+└──────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│                   BaseMember (Think/Function/Data/API)   │
+│  • Execute member logic                                  │
+│  • Handle caching                                        │
+│  • Return result                                         │
+└──────────────────────────────────────────────────────────┘
+```
+
+### State Management
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    StateManager                          │
+│  • Immutable state                                       │
+│  • Selective member access                               │
+│  • Access tracking                                       │
+│  • Pending updates                                       │
+└──────────────────────────────────────────────────────────┘
+```
+
+## API Categories
+
+### Core Runtime
+
+[Executor](/conductor-api/core/executor), [Parser](/conductor-api/core/parser), [StateManager](/conductor-api/core/state-manager), [GraphExecutor](/conductor-api/core/graph-executor)
+
+Classes that power workflow execution, YAML parsing, state management, and dependency resolution.
+
+### Member Types
+
+[BaseMember](/conductor-api/members/base-member), [ThinkMember](/conductor-api/members/think-member), [FunctionMember](/conductor-api/members/function-member), [DataMember](/conductor-api/members/data-member), [APIMember](/conductor-api/members/api-member)
+
+Base classes and implementations for the four member types (Think, Function, Data, API).
+
+### Built-In Members
+
+[Scrape](/conductor-api/built-in/scrape), [Validate](/conductor-api/built-in/validate), [RAG](/conductor-api/built-in/rag), [HITL](/conductor-api/built-in/hitl), [Fetch](/conductor-api/built-in/fetch), [Queries](/conductor-api/built-in/queries)
+
+Pre-built members for common tasks (scraping, validation, RAG, human-in-the-loop, HTTP requests, database queries).
+
+### SDK
+
+[ConductorClient](/conductor-api/sdk/client), [Member Factory](/conductor-api/sdk/member-factory), [Edgit](/conductor-api/sdk/edgit)
+
+Client SDK for interacting with Conductor via HTTP and factory functions for creating members programmatically.
+
+### Testing
+
+[TestConductor](/conductor-api/testing/test-conductor), [Custom Matchers](/conductor-api/testing/matchers), [Mocks](/conductor-api/testing/mocks)
+
+Testing utilities including test harness, custom Vitest matchers, and mock implementations.
+
+### Durable Objects
+
+[ExecutionState](/conductor-api/durable-objects/execution-state), [HITLState](/conductor-api/durable-objects/hitl-state)
+
+Durable Objects for stateful execution tracking and human-in-the-loop workflows.
+
+### AI Providers
+
+[Provider Registry](/conductor-api/ai/provider-registry), [Catalog](/conductor-api/ai/catalog), [Routing](/conductor-api/ai/routing)
+
+AI provider system, model catalog, and routing modes (direct, cloudflare-gateway, cloudflare).
+
+### HTTP API
+
+[Execution](/conductor-api/http/execution), [Members](/conductor-api/http/members), [Schedules](/conductor-api/http/schedules), [Webhooks](/conductor-api/http/webhooks), [Health](/conductor-api/http/health)
+
+HTTP endpoints for executing ensembles, listing members, managing schedules, handling webhooks, and health checks.
+
+## Version Information
+
+- **Current Version**: 1.0.0
+- **License**: MIT
+- **Repository**: [github.com/ensemble-edge/conductor](https://github.com/ensemble-edge/conductor)
+- **NPM**: [@ensemble-edge/conductor](https://www.npmjs.com/package/@ensemble-edge/conductor)
+
+## Getting Started
+
+### Basic Usage
+
+```typescript
+import { Conductor } from '@ensemble-edge/conductor';
+
+// Initialize
+const conductor = new Conductor({
+  env: {
+    AI: env.AI,
+    DB: env.DB,
+    OPENAI_API_KEY: env.OPENAI_API_KEY
+  }
+});
+
+// Execute ensemble
+const result = await conductor.executeEnsemble('my-workflow', {
+  input: 'data'
+});
+
+if (result.ok) {
+  console.log('Success:', result.value.output);
+} else {
+  console.error('Error:', result.error.message);
+}
+```
+
+### Testing
+
+```typescript
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+import { describe, it, expect } from 'vitest';
+
+describe('my-workflow', () => {
+  it('should execute successfully', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeEnsemble('my-workflow', {
+      input: 'test data'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output).toBeDefined();
+  });
+});
+```
+
+## Support
+
+- **Documentation**: [docs.ensemblehq.ai](https://docs.ensemblehq.ai)
+- **GitHub Issues**: [github.com/ensemble-edge/conductor/issues](https://github.com/ensemble-edge/conductor/issues)
+- **Discord**: [discord.gg/ensemble](https://discord.gg/ensemble)
+- **Email**: support@ensemblehq.ai
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/conductor/guides/quickstart"
+  >
+    Get started with Conductor
+  </Card>
+
+  <Card
+    title="Core Classes"
+    icon="cube"
+    href="/conductor-api/core/executor"
+  >
+    Executor, Parser, StateManager
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test your workflows
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="lightbulb"
+    href="/conductor/examples/hello-world"
+  >
+    Example workflows
+  </Card>
+</CardGroup>
