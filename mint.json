@@ -293,7 +293,7 @@
       "pages": [
         "conductor-api/ai/overview",
         "conductor-api/ai/provider-registry",
-        "conductor-api/ai/catalog",
+        "conductor-api/ai/ai-catalog",
         "conductor-api/ai/routing"
       ]
     },

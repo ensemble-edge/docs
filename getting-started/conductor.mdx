@@ -1,125 +1,363 @@
 ---
 title: "Conductor Quick Start"
-description: "Get started with agent orchestration (Coming Soon)"
+description: "Build your first AI workflow in 5 minutes"
 ---
-
-<Warning>
-  **Coming Soon** - Conductor is currently in development. This is a preview of the planned quick start experience.
-</Warning>
 
 ## What You'll Build
 
-In this guide, you'll:
+In this guide, you'll create a complete AI workflow that:
+- Executes at the edge on Cloudflare Workers
+- Orchestrates multiple members (LLMs, functions, APIs)
+- Manages state across execution
+- Deploys globally in seconds
 
-1. Install Conductor CLI
-2. Define a simple workflow
-3. Register agents from Edgit
-4. Execute your first orchestrated workflow
-5. Monitor execution and results
+**Time**: ~5 minutes
 
 ## Prerequisites
 
-- **Edgit** installed and initialized
-- **Node.js** v18 or higher
-- At least one agent registered in Edgit
-- Basic familiarity with YAML
+- Node.js 18+ installed
+- Cloudflare account (free tier works)
+- Wrangler CLI installed: `npm install -g wrangler`
 
-## Planned Quick Start
-
-### Step 1: Install Conductor
+## Step 1: Install Conductor
 
 ```bash
-npm install -g @ensemble/conductor
+npm install @ensemble-edge/conductor
 ```
 
-### Step 2: Initialize Conductor
+## Step 2: Create Your First Ensemble
+
+Create a directory structure:
 
 ```bash
-cd your-project
-conductor init
+mkdir -p my-conductor-project/ensembles
+cd my-conductor-project
 ```
 
-### Step 3: Register an Agent
-
-```bash
-# Agent is already in Edgit
-edgit add agent email-processor src/agents/email.ts
-
-# Conductor auto-discovers it
-conductor agents list
-# Output: email-processor (v1.0.0)
-```
-
-### Step 4: Define a Workflow
+Create your first ensemble:
 
 ```yaml
-# workflows/email-workflow.yaml
-name: email-processing
-version: 1.0.0
+# ensembles/hello-world.yaml
+name: hello-world
+description: My first Conductor ensemble
 
-triggers:
-  - event: email.received
-
-steps:
-  - id: process
-    agent: email-processor
+flow:
+  - member: greet
+    type: Think
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
     input:
-      email: ${{ event.email }}
+      prompt: Say hello to ${input.name} in a friendly way
+
+output:
+  greeting: ${greet.output.text}
 ```
 
-### Step 5: Deploy Workflow
+## Step 3: Create Worker Entry Point
+
+```typescript
+// src/index.ts
+import { ConductorRuntime } from '@ensemble-edge/conductor';
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const conductor = new ConductorRuntime({ env, ctx });
+
+    const url = new URL(request.url);
+    const name = url.searchParams.get('name') || 'World';
+
+    const result = await conductor.executeEnsemble('hello-world', {
+      input: { name }
+    });
+
+    return Response.json(result);
+  }
+};
+```
+
+## Step 4: Configure Wrangler
+
+```toml
+# wrangler.toml
+name = "my-conductor-project"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[ai]
+binding = "AI"
+```
+
+## Step 5: Deploy to Cloudflare
 
 ```bash
-# Register workflow
-edgit add workflow email-processing workflows/email-workflow.yaml
+# Login to Cloudflare
+npx wrangler login
 
-# Deploy to Conductor
-conductor deploy email-processing v1.0.0
+# Deploy
+npx wrangler deploy
 ```
 
-### Step 6: Trigger Workflow
+## Step 6: Test Your Ensemble
 
 ```bash
-# Simulate event
-conductor trigger email.received \
-  --data '{"email":{"from":"test@example.com","subject":"Hello"}}'
-
-# View execution
-conductor executions list
-conductor executions show <execution-id>
+# Test with your deployed worker URL
+curl "https://my-conductor-project.your-subdomain.workers.dev?name=World"
 ```
 
-## Coming Soon
+**Response:**
+```json
+{
+  "success": true,
+  "output": {
+    "greeting": "Hello, World! Welcome to Conductor!"
+  },
+  "executionTime": 245,
+  "memberCount": 1
+}
+```
 
-Complete quick start documentation will be available when Conductor launches.
+## What Just Happened?
 
-## Stay Updated
+1. ✅ **Deployed globally** - Your workflow runs at 300+ Cloudflare locations
+2. ✅ **Sub-50ms cold starts** - Edge-native execution
+3. ✅ **Free AI inference** - Cloudflare Workers AI on free tier
+4. ✅ **Git-native** - Everything defined in YAML
+5. ✅ **Production-ready** - Built-in error handling, logging, observability
+
+## Next Steps
+
+### Add More Members
+
+```yaml
+# ensembles/company-intel.yaml
+name: company-intel
+description: Analyze company data
+
+state:
+  schema:
+    companyData: object
+    analysis: object
+
+flow:
+  # Scrape company website
+  - member: scrape
+    type: API
+    config:
+      url: https://${input.domain}
+    state:
+      set: [companyData]
+
+  # Analyze with AI
+  - member: analyze
+    type: Think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    input:
+      prompt: Analyze this company data: ${state.companyData}
+    state:
+      set: [analysis]
+
+  # Generate report
+  - member: report
+    type: Function
+    code: |
+      export default async function({ state }) {
+        return {
+          company: state.companyData.name,
+          insights: state.analysis,
+          generatedAt: new Date().toISOString()
+        };
+      }
+
+output:
+  report: ${report.output}
+```
+
+### Add State Management
+
+State lets members share data without prop drilling:
+
+```yaml
+state:
+  schema:
+    userData: object
+    processedData: object
+
+flow:
+  - member: fetch-user
+    state:
+      set: [userData]  # Write to state
+
+  - member: process
+    state:
+      use: [userData]   # Read from state
+      set: [processedData]  # Write result
+```
+
+### Add Parallel Execution
+
+```yaml
+flow:
+  - parallel:
+      - member: fetch-financials
+      - member: fetch-news
+      - member: fetch-competitors
+
+  - member: combine-results
+    input:
+      financials: ${fetch-financials.output}
+      news: ${fetch-news.output}
+      competitors: ${fetch-competitors.output}
+```
+
+### Add Caching
+
+```yaml
+- member: expensive-api-call
+  cache:
+    ttl: 3600  # Cache for 1 hour
+    key: ${input.id}
+```
+
+### Add Quality Scoring
+
+```yaml
+scoring:
+  enabled: true
+  defaultThresholds:
+    minimum: 0.7
+    target: 0.85
+
+flow:
+  - member: generate-content
+    scoring:
+      evaluator: validate
+      thresholds:
+        minimum: 0.8
+      criteria:
+        accuracy: "Content must be factually accurate"
+      onFailure: retry
+```
+
+## Local Development
+
+Test locally before deploying:
+
+```bash
+# Start local dev server
+npm run dev
+
+# Test locally
+curl http://localhost:8787?name=World
+```
+
+## Testing Your Ensembles
+
+```typescript
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('hello-world ensemble', () => {
+  it('should greet user', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: '.'
+    });
+
+    const result = await conductor.executeEnsemble('hello-world', {
+      input: { name: 'Alice' }
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.greeting).toContain('Alice');
+  });
+});
+```
+
+## Learn More
 
 <CardGroup cols={2}>
   <Card
-    title="GitHub Repository"
-    icon="github"
-    href="https://github.com/ensemble-edge/conductor"
+    title="Core Concepts"
+    icon="book"
+    href="/conductor/concepts/ensembles"
   >
-    Star the repo to get updates
+    Learn about ensembles and members
   </Card>
 
   <Card
-    title="Early Access"
-    icon="envelope"
-    href="mailto:conductor@ensemble.ai"
+    title="Member Types"
+    icon="users"
+    href="/conductor/concepts/members"
   >
-    Request beta access
+    Think, Function, Data, API members
+  </Card>
+
+  <Card
+    title="State Management"
+    icon="database"
+    href="/conductor/concepts/state"
+  >
+    Share data between members
+  </Card>
+
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/conductor/guides/deployment"
+  >
+    Deploy to production
+  </Card>
+
+  <Card
+    title="CLI Reference"
+    icon="terminal"
+    href="/conductor/api-reference/cli"
+  >
+    Command-line tools
+  </Card>
+
+  <Card
+    title="SDK Reference"
+    icon="code"
+    href="/conductor/api-reference/sdk"
+  >
+    Programmatic API
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="lightbulb"
+    href="/conductor/examples/hello-world"
+  >
+    Real-world examples
+  </Card>
+
+  <Card
+    title="Testing"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test your workflows
   </Card>
 </CardGroup>
 
-## Meanwhile, Use Edgit
+## Get Help
 
-While Conductor is in development, you can prepare by:
+<CardGroup cols={2}>
+  <Card
+    title="GitHub Discussions"
+    icon="comments"
+    href="https://github.com/ensemble-edge/conductor/discussions"
+  >
+    Ask questions and share ideas
+  </Card>
 
-1. **Organize your agents** in Edgit's component registry
-2. **Version your agents** with Git tags
-3. **Track deployments** with Edgit deploy commands
-4. **Plan workflows** by documenting agent interactions
-
-[Get started with Edgit →](/getting-started/edgit)
+  <Card
+    title="GitHub Issues"
+    icon="github"
+    href="https://github.com/ensemble-edge/conductor/issues"
+  >
+    Report bugs or request features
+  </Card>
+</CardGroup>
