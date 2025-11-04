@@ -58,6 +58,10 @@
       "url": "conductor"
     },
     {
+      "name": "Conductor API",
+      "url": "conductor-api"
+    },
+    {
       "name": "Cloud",
       "url": "cloud"
     }
@@ -126,28 +130,162 @@
       ]
     },
     {
-      "group": "Conductor Agents",
+      "group": "Core Concepts",
       "pages": [
-        "conductor/agents/overview"
+        "conductor/concepts/members",
+        "conductor/concepts/ensembles",
+        "conductor/concepts/state",
+        "conductor/concepts/scoring",
+        "conductor/concepts/caching",
+        "conductor/concepts/routing"
       ]
     },
     {
-      "group": "Conductor Workflows",
+      "group": "Guides",
       "pages": [
-        "conductor/workflows/overview"
+        "conductor/guides/quickstart",
+        "conductor/guides/creating-members",
+        "conductor/guides/state-management",
+        "conductor/guides/ai-integration",
+        "conductor/guides/testing",
+        "conductor/guides/deployment",
+        "conductor/guides/edgit-integration",
+        "conductor/guides/scoring",
+        "conductor/guides/hitl",
+        "conductor/guides/webhooks",
+        "conductor/guides/scheduling"
       ]
     },
     {
-      "group": "Conductor API Reference",
+      "group": "Member Types",
+      "pages": [
+        "conductor/member-types/overview",
+        "conductor/member-types/think",
+        "conductor/member-types/function",
+        "conductor/member-types/data",
+        "conductor/member-types/api"
+      ]
+    },
+    {
+      "group": "Built-In Members",
+      "pages": [
+        "conductor/built-in-members/overview",
+        "conductor/built-in-members/scrape",
+        "conductor/built-in-members/validate",
+        "conductor/built-in-members/rag",
+        "conductor/built-in-members/hitl",
+        "conductor/built-in-members/fetch",
+        "conductor/built-in-members/queries"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "conductor/examples/hello-world",
+        "conductor/examples/company-intelligence",
+        "conductor/examples/parallel-processing",
+        "conductor/examples/conditional-logic",
+        "conductor/examples/error-handling",
+        "conductor/examples/scoring-retry"
+      ]
+    },
+    {
+      "group": "API Reference",
       "pages": [
         "conductor/api-reference/cli",
         "conductor/api-reference/sdk"
       ]
     },
     {
-      "group": "Conductor Deployment",
+      "group": "Deployment",
       "pages": [
-        "conductor/deployment/overview"
+        "conductor/deployment/overview",
+        "conductor/deployment/configuration",
+        "conductor/deployment/environment-variables",
+        "conductor/deployment/bindings",
+        "conductor/deployment/ai-providers",
+        "conductor/deployment/testing",
+        "conductor/deployment/documentation"
+      ]
+    },
+    {
+      "group": "Conductor API",
+      "pages": [
+        "conductor-api/overview"
+      ]
+    },
+    {
+      "group": "Core Classes",
+      "pages": [
+        "conductor-api/core/executor",
+        "conductor-api/core/parser",
+        "conductor-api/core/state-manager",
+        "conductor-api/core/graph-executor"
+      ]
+    },
+    {
+      "group": "Member Types API",
+      "pages": [
+        "conductor-api/members/base-member",
+        "conductor-api/members/think-member",
+        "conductor-api/members/function-member",
+        "conductor-api/members/data-member",
+        "conductor-api/members/api-member"
+      ]
+    },
+    {
+      "group": "Built-In Members API",
+      "pages": [
+        "conductor-api/built-in/overview",
+        "conductor-api/built-in/scrape",
+        "conductor-api/built-in/validate",
+        "conductor-api/built-in/rag",
+        "conductor-api/built-in/hitl",
+        "conductor-api/built-in/fetch",
+        "conductor-api/built-in/queries"
+      ]
+    },
+    {
+      "group": "SDK API",
+      "pages": [
+        "conductor-api/sdk/client",
+        "conductor-api/sdk/member-factory",
+        "conductor-api/sdk/edgit"
+      ]
+    },
+    {
+      "group": "Testing API",
+      "pages": [
+        "conductor-api/testing/test-conductor",
+        "conductor-api/testing/matchers",
+        "conductor-api/testing/mocks"
+      ]
+    },
+    {
+      "group": "Durable Objects API",
+      "pages": [
+        "conductor-api/durable-objects/execution-state",
+        "conductor-api/durable-objects/hitl-state"
+      ]
+    },
+    {
+      "group": "AI Providers API",
+      "pages": [
+        "conductor-api/ai/overview",
+        "conductor-api/ai/provider-registry",
+        "conductor-api/ai/catalog",
+        "conductor-api/ai/routing"
+      ]
+    },
+    {
+      "group": "HTTP API",
+      "pages": [
+        "conductor-api/http/overview",
+        "conductor-api/http/execution",
+        "conductor-api/http/members",
+        "conductor-api/http/schedules",
+        "conductor-api/http/webhooks",
+        "conductor-api/http/health"
       ]
     },
     {

@@ -1,164 +1,334 @@
 ---
 title: "Conductor Overview"
-description: "Agent orchestration and workflow automation platform (Coming Soon)"
+description: "Edge-native orchestration for AI workflows. Built on Cloudflare Workers."
 ---
-
-<Warning>
-  **Coming Soon** - Conductor is currently in development. This documentation is a preview of planned features.
-</Warning>
 
 ## What is Conductor?
 
-Conductor is an orchestration platform for managing AI agents, workflows, and complex multi-step processes. It builds on Edgit's component registry to provide advanced coordination and execution capabilities.
+Conductor is a production-ready orchestration framework for building AI workflows that execute at the edge with sub-50ms cold starts. Think of it as sheet music for your AI systems - you define **ensembles** (workflows) that coordinate **members** (AI models, functions, databases, APIs) to accomplish complex tasks.
 
-## Planned Features
+```bash
+npm install @ensemble-edge/conductor
+```
 
 <CardGroup cols={2}>
   <Card
-    title="Agent Orchestration"
-    icon="network-wired"
+    title="276 Tests Passing"
+    icon="check-circle"
   >
-    Coordinate multiple AI agents with message passing and state management
+    40%+ test coverage with built-in testing framework
   </Card>
 
   <Card
-    title="Workflow Engine"
-    icon="diagram-project"
+    title="v1.0.0 Released"
+    icon="rocket"
+    href="https://www.npmjs.com/package/@ensemble-edge/conductor"
   >
-    Define complex workflows with branching, loops, and error handling
-  </Card>
-
-  <Card
-    title="Event-Driven Architecture"
-    icon="bolt"
-  >
-    Trigger workflows based on events, schedules, or external webhooks
-  </Card>
-
-  <Card
-    title="Monitoring & Observability"
-    icon="chart-line"
-  >
-    Real-time monitoring of agent performance and workflow execution
+    Production-ready and published to npm
   </Card>
 </CardGroup>
 
-## Architecture Preview
+## The Musical Metaphor
 
-```mermaid
-graph TD
-    A[Event Source] -->|trigger| B[Conductor]
-    B -->|orchestrate| C[Agent Pool]
-    C -->|execute| D[Workflow Steps]
-    D -->|update| E[State Store]
-    E -->|notify| F[Monitoring]
+Conductor uses a memorable metaphor that makes complex orchestration intuitive:
 
-    style B fill:#16A34A
-    style C fill:#16A34A
-    style E fill:#16A34A
+<CardGroup cols={2}>
+  <Card title="Members = Musicians" icon="user">
+    Each member plays one instrument (role): AI reasoning, JavaScript logic, database queries, HTTP requests
+  </Card>
+
+  <Card title="Ensembles = Sheet Music" icon="file-music">
+    YAML workflows that coordinate members in perfect harmony
+  </Card>
+
+  <Card title="Conductor = The Orchestrator" icon="wand-magic-sparkles">
+    Runtime engine that brings your composition to life
+  </Card>
+
+  <Card title="Models = Instruments" icon="microphone">
+    GPT-4, Claude, Llama - the instruments your AI members play
+  </Card>
+</CardGroup>
+
+## Core Features
+
+### Edge-Native Execution
+Execute workflows on Cloudflare's global network with **sub-50ms cold starts** at 200+ locations worldwide.
+
+### Four Member Types
+- **Think** - AI reasoning with GPT-4, Claude, Workers AI, Groq
+- **Function** - JavaScript/TypeScript business logic
+- **Data** - KV, D1, R2, Vectorize storage operations
+- **API** - HTTP requests to external services
+
+### Six Built-In Members
+Production-ready members you can use immediately:
+- **scrape** - Web scraping with 3-tier fallback strategy
+- **validate** - Quality evaluation with 4 evaluator types
+- **rag** - RAG system with Vectorize integration
+- **hitl** - Human-in-the-Loop approval workflows
+- **fetch** - HTTP client with retry logic
+- **queries** - SQL execution with Hyperdrive
+
+### State Management
+Shared state across ensemble execution with immutable updates, selective member access, and comprehensive tracking.
+
+### Quality Scoring
+Built-in quality validation with confidence thresholds, automatic retry logic, and progressive improvement loops.
+
+### Testing Framework
+First-class testing support with TestConductor, custom Vitest matchers, and mock providers.
+
+## Quick Example
+
+Create a simple greeting ensemble:
+
+```yaml
+# ensembles/greet.yaml
+name: greet
+description: Greet a user by name
+
+flow:
+  - member: generate-greeting
+    input:
+      name: ${input.name}
+
+output:
+  message: ${generate-greeting.output.message}
 ```
+
+Create the member:
+
+```typescript
+// members/generate-greeting/index.ts
+export default async function generateGreeting({ input }) {
+  return {
+    message: `Hello, ${input.name}! Welcome to Conductor.`
+  };
+}
+```
+
+Execute the ensemble:
+
+```typescript
+import { Executor } from '@ensemble-edge/conductor';
+
+const executor = new Executor({ env, ctx });
+const result = await executor.executeFromYAML(yamlContent, {
+  name: 'World'
+});
+
+console.log(result.output.message); // "Hello, World! Welcome to Conductor."
+```
+
+## Why Edge-Native?
+
+<CardGroup cols={3}>
+  <Card title="Sub-50ms Cold Starts" icon="bolt">
+    Unlike traditional orchestrators that take seconds to start
+  </Card>
+
+  <Card title="200+ Global Locations" icon="globe">
+    Execute close to your users anywhere in the world
+  </Card>
+
+  <Card title="Zero Infrastructure" icon="server">
+    No servers to manage, scales infinitely
+  </Card>
+
+  <Card title="Built-in Caching" icon="database">
+    KV cache for AI responses, database queries, HTTP requests
+  </Card>
+
+  <Card title="Durable Objects" icon="hard-drive">
+    Strongly consistent state for async execution tracking
+  </Card>
+
+  <Card title="AI Gateway Integration" icon="network-wired">
+    Persistent caching, analytics, rate limiting for AI providers
+  </Card>
+</CardGroup>
+
+## Integration with Edgit
+
+Conductor and [Edgit](/edgit/overview) work together to provide complete versioning for AI systems:
+
+**What Edgit Versions:**
+- Member configurations (`member.yaml`)
+- Prompts for Think members
+- SQL queries for Data members
+
+**What Git Versions:**
+- Member implementations (`index.ts`)
+- Ensembles (YAML workflows)
+
+**Example:**
+```yaml
+# Reference versioned prompt from Edgit
+members:
+  - name: analyze-company
+    type: Think
+    config:
+      prompt: company-analysis-prompt@v1.2.0  # Edgit component
+      model: claude-3-5-sonnet-20241022
+```
+
+<Note>
+  Edgit integration is planned for a future release. Currently use local files or inline configurations.
+</Note>
 
 ## Use Cases
 
 <AccordionGroup>
-  <Accordion icon="robot" title="Multi-Agent Systems">
-    Coordinate teams of specialized AI agents working together on complex tasks.
+  <Accordion icon="building" title="Company Intelligence">
+    Gather data from multiple sources, analyze with AI, generate structured reports.
 
-    **Example**: Customer service system with routing, support, and escalation agents
+    **Members**: Web scraping, API calls, Claude analysis, D1 storage
   </Accordion>
 
-  <Accordion icon="workflow" title="Business Process Automation">
-    Automate complex business workflows with human-in-the-loop approvals.
+  <Accordion icon="envelope" title="Email Processing">
+    Parse emails, extract intent, route to appropriate handler, send responses.
 
-    **Example**: Invoice processing with validation, approval, and payment steps
+    **Members**: Email parsing, GPT-4 classification, conditional logic, SendGrid API
   </Accordion>
 
-  <Accordion icon="calendar" title="Scheduled Workflows">
-    Run workflows on schedules or in response to events.
+  <Accordion icon="file-invoice" title="Invoice Processing">
+    Extract data from invoices, validate quality, require human approval, store records.
 
-    **Example**: Daily data pipeline with extraction, transformation, and loading
+    **Members**: OCR, validation scoring, HITL approval, database storage
   </Accordion>
 
-  <Accordion icon="scale-balanced" title="Load Balancing">
-    Distribute work across multiple agent instances for scalability.
+  <Accordion icon="magnifying-glass" title="RAG System">
+    Index documents, perform semantic search, generate contextualized answers.
 
-    **Example**: Parallel processing of user requests across agent pool
+    **Members**: Document chunking, Vectorize embeddings, semantic search, AI generation
+  </Accordion>
+
+  <Accordion icon="robot" title="AI-Powered API">
+    Expose AI workflows as HTTP endpoints with webhooks and scheduled execution.
+
+    **Members**: Webhook handling, Think members, API responses, cron schedules
   </Accordion>
 </AccordionGroup>
 
-## Integration with Edgit
+## Architecture Highlights
 
-Conductor leverages Edgit's component registry:
+### Three-Layer Platform System
+Clean separation enabling multi-cloud support:
+1. **AI Providers** - OpenAI, Anthropic, Workers AI, Groq, custom
+2. **Cloud Platforms** - Cloudflare (future: Vercel, AWS, Azure)
+3. **Base Interfaces** - Platform-agnostic abstractions
 
-- **Agent Discovery**: Automatically discover agents registered in Edgit
-- **Version Management**: Use Git tags for workflow versioning
-- **Deployment**: Deploy workflows alongside agents
-- **Observability**: Track which workflow versions use which agent versions
+### Result-Based Error Handling
+No throwing exceptions in core runtime - explicit Result<T, E> types for predictable error propagation.
 
-## Roadmap
+### Immutable State Management
+StateManager returns new instances on every mutation - functional programming approach for predictable state transitions.
 
-<Steps>
-  <Step title="Q1 2026: Core Engine">
-    - Basic workflow engine
-    - Agent lifecycle management
-    - State persistence
-  </Step>
+### Composition Over Inheritance
+- Provider registry pattern for AI providers
+- Repository pattern for storage abstractions
+- Resolver chain for template interpolation
 
-  <Step title="Q2 2026: Orchestration">
-    - Multi-agent coordination
-    - Event-driven triggers
-    - Monitoring dashboard
-  </Step>
+### Lazy Loading
+Built-in members load on demand for faster cold starts and smaller bundle sizes.
 
-  <Step title="Q3 2026: Advanced Features">
-    - Distributed execution
-    - Complex workflow patterns
-    - Enterprise integrations
-  </Step>
-
-  <Step title="Q4 2026: Production Ready">
-    - Performance optimizations
-    - Security hardening
-    - Full documentation
-  </Step>
-</Steps>
-
-## Stay Updated
+## Getting Started
 
 <CardGroup cols={2}>
   <Card
-    title="GitHub Discussions"
-    icon="github"
-    href="https://github.com/ensemble-edge/conductor/discussions"
+    title="Quickstart Guide"
+    icon="rocket"
+    href="/conductor/guides/quickstart"
   >
-    Join the conversation about Conductor features
+    Build your first ensemble in 5 minutes
   </Card>
 
   <Card
-    title="Early Access"
-    icon="envelope"
-    href="mailto:conductor@ensemble.ai"
+    title="Core Concepts"
+    icon="book"
+    href="/conductor/concepts/members"
   >
-    Request early access to Conductor beta
+    Understand members, ensembles, and state
+  </Card>
+
+  <Card
+    title="Member Types"
+    icon="users"
+    href="/conductor/member-types/overview"
+  >
+    Learn about Think, Function, Data, and API members
+  </Card>
+
+  <Card
+    title="Built-In Members"
+    icon="cube"
+    href="/conductor/built-in-members/overview"
+  >
+    Use production-ready members immediately
   </Card>
 </CardGroup>
 
 ## Related Documentation
 
-<CardGroup cols={2}>
+<CardGroup cols={3}>
   <Card
-    title="Edgit Documentation"
-    icon="cube"
-    href="/edgit/overview"
+    title="Conductor API Reference"
+    icon="code"
+    href="/conductor-api/overview"
   >
-    Learn about the component registry foundation
+    Complete API documentation for all classes and interfaces
   </Card>
 
   <Card
-    title="Cloud"
-    icon="cloud"
-    href="/cloud/overview"
+    title="Examples"
+    icon="lightbulb"
+    href="/conductor/examples/hello-world"
   >
-    Managed service for component editing
+    Real-world ensemble examples
+  </Card>
+
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/conductor/deployment/overview"
+  >
+    Deploy to Cloudflare Workers
+  </Card>
+</CardGroup>
+
+## Community
+
+<CardGroup cols={2}>
+  <Card
+    title="GitHub"
+    icon="github"
+    href="https://github.com/ensemble-edge/conductor"
+  >
+    View source code and contribute
+  </Card>
+
+  <Card
+    title="npm Package"
+    icon="box"
+    href="https://www.npmjs.com/package/@ensemble-edge/conductor"
+  >
+    Install from npm
+  </Card>
+
+  <Card
+    title="Issues"
+    icon="circle-exclamation"
+    href="https://github.com/ensemble-edge/conductor/issues"
+  >
+    Report bugs and request features
+  </Card>
+
+  <Card
+    title="Discussions"
+    icon="comments"
+    href="https://github.com/ensemble-edge/conductor/discussions"
+  >
+    Ask questions and share ideas
   </Card>
 </CardGroup>
