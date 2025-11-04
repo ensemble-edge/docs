@@ -1,0 +1,649 @@
+---
+title: "AI Integration Guide"
+description: "Connect OpenAI, Anthropic, Workers AI, Groq, and custom providers"
+---
+
+## Overview
+
+Conductor integrates with multiple AI providers through a unified interface. Configure your providers, route through AI Gateway for caching and analytics, and switch between models effortlessly.
+
+## Supported Providers
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="openai">
+    GPT-4, GPT-4o, GPT-4o-mini, o1
+  </Card>
+
+  <Card title="Anthropic" icon="brain">
+    Claude 3.5 Sonnet, Claude 3.5 Haiku
+  </Card>
+
+  <Card title="Workers AI" icon="cloudflare">
+    Llama 3.1, Mistral, Gemma (edge models)
+  </Card>
+
+  <Card title="Groq" icon="bolt">
+    Ultra-fast Llama 3.1 inference
+  </Card>
+</CardGroup>
+
+## Setup
+
+### 1. Install Conductor
+
+```bash
+npm install @ensemble-edge/conductor
+```
+
+### 2. Configure Environment Variables
+
+Create `.dev.vars` for local development:
+
+```bash
+# .dev.vars (DO NOT COMMIT)
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+```
+
+Add to `wrangler.toml` for production:
+
+```toml
+[vars]
+# Public variables
+API_VERSION = "v1"
+
+# Secrets (set via wrangler secret put)
+# OPENAI_API_KEY
+# ANTHROPIC_API_KEY
+# GROQ_API_KEY
+```
+
+Set secrets:
+
+```bash
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put GROQ_API_KEY
+```
+
+### 3. Configure AI Gateway (Recommended)
+
+```toml
+# wrangler.toml
+[[ai.gateway]]
+id = "my-gateway"
+cache_ttl = 3600  # Cache responses for 1 hour
+```
+
+Create gateway in Cloudflare dashboard:
+1. Go to AI Gateway
+2. Create new gateway
+3. Copy gateway ID to wrangler.toml
+
+## OpenAI Integration
+
+### Basic Configuration
+
+```yaml
+name: analyze-text
+type: Think
+
+config:
+  provider: openai
+  model: gpt-4o-mini
+  routing: cloudflare-gateway
+  temperature: 0.7
+  maxTokens: 500
+  systemPrompt: |
+    Analyze the given text and provide insights.
+```
+
+### Available Models
+
+```yaml
+# Latest models
+model: gpt-4o              # Most capable
+model: gpt-4o-mini         # Fast and cheap
+model: gpt-4-turbo         # Previous flagship
+model: o1-preview          # Reasoning model
+model: o1-mini             # Fast reasoning
+```
+
+### Structured Output
+
+```yaml
+config:
+  provider: openai
+  model: gpt-4o
+  responseFormat:
+    type: json_schema
+    json_schema:
+      name: company_analysis
+      strict: true
+      schema:
+        type: object
+        properties:
+          industry: { type: string }
+          size: { type: string, enum: ["small", "medium", "large"] }
+          confidence: { type: number }
+        required: [industry, size, confidence]
+        additionalProperties: false
+```
+
+### Function Calling
+
+```yaml
+config:
+  provider: openai
+  model: gpt-4o
+  functions:
+    - name: get_weather
+      description: Get current weather for a location
+      parameters:
+        type: object
+        properties:
+          location:
+            type: string
+            description: City name
+          units:
+            type: string
+            enum: [celsius, fahrenheit]
+        required: [location]
+```
+
+## Anthropic Integration
+
+### Basic Configuration
+
+```yaml
+name: generate-content
+type: Think
+
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  routing: cloudflare-gateway
+  temperature: 0.7
+  maxTokens: 2000
+  systemPrompt: |
+    You are an expert content writer.
+```
+
+### Available Models
+
+```yaml
+# Current models
+model: claude-3-5-sonnet-20241022  # Most capable
+model: claude-3-5-haiku-20241022   # Fast and affordable
+model: claude-3-opus-20240229      # Previous flagship
+```
+
+### Extended Thinking
+
+Claude's new thinking feature for complex reasoning:
+
+```yaml
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  thinkingBudget: 5000  # Tokens for internal reasoning
+  systemPrompt: |
+    Think through this problem step by step.
+```
+
+## Workers AI Integration
+
+### Basic Configuration
+
+```yaml
+name: classify-intent
+type: Think
+
+config:
+  provider: workers-ai
+  model: "@cf/meta/llama-3.1-8b-instruct"
+  routing: cloudflare  # Platform-native
+  temperature: 0.3
+  maxTokens: 100
+```
+
+### Available Models
+
+```yaml
+# Llama models
+model: "@cf/meta/llama-3.1-8b-instruct"
+model: "@cf/meta/llama-3.1-70b-instruct"
+model: "@cf/meta/llama-3-8b-instruct"
+
+# Mistral models
+model: "@cf/mistral/mistral-7b-instruct"
+
+# Other models
+model: "@cf/google/gemma-7b-it"
+```
+
+### No API Key Needed
+
+```yaml
+# Workers AI uses binding, no API key required
+config:
+  provider: workers-ai
+  routing: cloudflare
+  # No apiKey needed!
+```
+
+Setup in wrangler.toml:
+
+```toml
+[ai]
+binding = "AI"
+```
+
+## Groq Integration
+
+### Basic Configuration
+
+```yaml
+name: fast-classification
+type: Think
+
+config:
+  provider: groq
+  model: llama-3.1-70b-versatile
+  routing: cloudflare-gateway
+  temperature: 0.2
+  maxTokens: 200
+```
+
+### Available Models
+
+```yaml
+model: llama-3.1-70b-versatile   # Best quality
+model: llama-3.1-8b-instant      # Ultra-fast
+model: mixtral-8x7b-32768        # Good balance
+```
+
+### Ultra-Fast Inference
+
+Groq provides extremely fast inference (~200ms):
+
+```yaml
+config:
+  provider: groq
+  model: llama-3.1-8b-instant
+  # Typical response time: 100-300ms
+```
+
+## Routing Modes
+
+### cloudflare-gateway (Recommended)
+
+```yaml
+config:
+  routing: cloudflare-gateway
+
+# Benefits:
+# - Persistent caching across requests
+# - Real-time analytics dashboard
+# - Cost controls and rate limiting
+# - Works with all providers
+```
+
+### cloudflare (Workers AI Only)
+
+```yaml
+config:
+  provider: workers-ai
+  routing: cloudflare
+
+# Benefits:
+# - Sub-50ms cold start
+# - No API key needed
+# - Edge execution
+# - Ultra-low latency
+```
+
+### direct
+
+```yaml
+config:
+  routing: direct
+
+# Use cases:
+# - Testing new features
+# - Provider-specific parameters
+# - Debugging
+# - Very low volume
+```
+
+See [Routing Guide](/conductor/concepts/routing) for details.
+
+## Multi-Provider Patterns
+
+### Cascade Pattern
+
+Try fast model first, escalate if needed:
+
+```yaml
+flow:
+  # Try Workers AI first (fast, cheap)
+  - member: quick-analysis
+    config:
+      provider: workers-ai
+      model: "@cf/meta/llama-3.1-8b-instruct"
+    scoring:
+      thresholds:
+        minimum: 0.7
+      onFailure: continue
+
+  # Escalate to Claude if quality too low
+  - member: detailed-analysis
+    condition: ${quick-analysis.scoring.score < 0.7}
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+```
+
+### Load Balancing
+
+Distribute load across providers:
+
+```yaml
+flow:
+  - member: analyze
+    config:
+      # Alternate between providers
+      provider: ${input.id % 2 === 0 ? 'openai' : 'anthropic'}
+      model: ${input.id % 2 === 0 ? 'gpt-4o' : 'claude-3-5-sonnet-20241022'}
+      routing: cloudflare-gateway
+```
+
+### Fallback Pattern
+
+Primary provider with fallback:
+
+```yaml
+flow:
+  - member: primary-analysis
+    config:
+      provider: openai
+      model: gpt-4o
+    retry:
+      maxAttempts: 2
+      onFailure: continue
+
+  - member: fallback-analysis
+    condition: ${!primary-analysis.success}
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+```
+
+### Cost Optimization
+
+Use cheaper models when appropriate:
+
+```yaml
+flow:
+  # Simple classification with mini model
+  - member: classify
+    config:
+      provider: openai
+      model: gpt-4o-mini  # $0.15/1M tokens
+
+  # Complex reasoning only when needed
+  - member: deep-analysis
+    condition: ${classify.output.category === 'complex'}
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022  # $3/1M tokens
+```
+
+## Prompt Engineering
+
+### System Prompts
+
+```yaml
+config:
+  systemPrompt: |
+    You are an expert ${input.domain} analyst with 20 years of experience.
+
+    Guidelines:
+    - Be concise and actionable
+    - Use bullet points
+    - Cite sources when possible
+    - Admit uncertainty when appropriate
+
+    Output format: JSON with keys: analysis, confidence, recommendations
+```
+
+### Few-Shot Examples
+
+```yaml
+config:
+  systemPrompt: |
+    Classify customer feedback sentiment.
+
+    Examples:
+    Input: "I love this product! Best purchase ever!"
+    Output: {"sentiment": "positive", "confidence": 0.95}
+
+    Input: "It's okay, nothing special."
+    Output: {"sentiment": "neutral", "confidence": 0.7}
+
+    Input: "Terrible quality, waste of money."
+    Output: {"sentiment": "negative", "confidence": 0.9}
+
+    Now classify:
+```
+
+### Dynamic Prompts
+
+```yaml
+config:
+  systemPrompt: |
+    Analyze companies in the ${input.industry} sector.
+    Focus on ${input.analysisType} metrics.
+    Target audience: ${input.audience}
+```
+
+## Response Handling
+
+### JSON Responses
+
+```yaml
+flow:
+  - member: analyze
+    config:
+      responseFormat:
+        type: json_object
+
+# Access structured data
+output:
+  industry: ${analyze.output.industry}
+  confidence: ${analyze.output.confidence}
+```
+
+### Text Responses
+
+```yaml
+flow:
+  - member: generate-text
+
+output:
+  text: ${generate-text.output.text}
+```
+
+### Streaming (Custom Members)
+
+```typescript
+import { createThinkMember } from '@ensemble-edge/conductor/sdk';
+
+export default createThinkMember({
+  async handler({ input, env }) {
+    const stream = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      prompt: input.prompt,
+      stream: true
+    });
+
+    // Process stream
+    for await (const chunk of stream) {
+      console.log(chunk);
+    }
+
+    return { completed: true };
+  }
+});
+```
+
+## Error Handling
+
+### Retry on Failure
+
+```yaml
+- member: ai-analysis
+  retry:
+    maxAttempts: 3
+    backoff: exponential
+```
+
+### Fallback Content
+
+```yaml
+flow:
+  - member: generate-content
+    continue_on_error: true
+
+  - member: use-fallback
+    condition: ${!generate-content.success}
+```
+
+### Timeout Handling
+
+```yaml
+config:
+  timeout: 30000  # 30 seconds
+```
+
+## Cost Optimization
+
+### Use Cheaper Models
+
+```yaml
+# ✅ Good - use mini for simple tasks
+- member: classify
+  config:
+    model: gpt-4o-mini  # 97% cheaper than gpt-4o
+
+# ❌ Wasteful - flagship for simple task
+- member: classify
+  config:
+    model: gpt-4o  # Overkill
+```
+
+### Cache Aggressively
+
+```yaml
+- member: analyze
+  config:
+    routing: cloudflare-gateway  # Persistent cache
+  cache:
+    ttl: 86400  # 24 hours
+```
+
+### Limit Token Usage
+
+```yaml
+config:
+  maxTokens: 100  # Only what you need
+  systemPrompt: "Be concise. Maximum 50 words."
+```
+
+### Monitor Spending
+
+Check AI Gateway dashboard:
+- Cost per model
+- Cache hit rates
+- Request volume
+- Set spending limits
+
+## Testing AI Members
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('ai-analysis', () => {
+  it('should analyze text with AI', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        ai: {
+          responses: {
+            'analyze-text': {
+              sentiment: 'positive',
+              confidence: 0.95
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeMember('analyze-text', {
+      text: 'I love this product!'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.sentiment).toBe('positive');
+  });
+});
+```
+
+## Best Practices
+
+1. **Use AI Gateway** - Always route through gateway in production
+2. **Start with cheaper models** - Escalate to expensive models only when needed
+3. **Cache aggressively** - Long TTLs for stable queries
+4. **Lower temperature for consistency** - Use 0.1-0.3 for deterministic tasks
+5. **Limit tokens** - Set maxTokens to prevent runaway costs
+6. **Use structured output** - JSON schemas for type safety
+7. **Handle errors gracefully** - Retry with fallback providers
+8. **Monitor costs** - Check dashboard regularly
+9. **Test with mocks** - Fast, reliable tests
+10. **Version your prompts** - Use Edgit for prompt versioning (future)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Think Members"
+    icon="brain"
+    href="/conductor/member-types/think"
+  >
+    Complete guide to AI members
+  </Card>
+
+  <Card
+    title="Routing Guide"
+    icon="route"
+    href="/conductor/concepts/routing"
+  >
+    AI Gateway and routing modes
+  </Card>
+
+  <Card
+    title="Caching"
+    icon="database"
+    href="/conductor/concepts/caching"
+  >
+    Optimize costs with caching
+  </Card>
+
+  <Card
+    title="Scoring"
+    icon="check"
+    href="/conductor/concepts/scoring"
+  >
+    Quality validation with retry
+  </Card>
+</CardGroup>

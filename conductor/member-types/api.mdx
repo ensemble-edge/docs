@@ -1,0 +1,657 @@
+---
+title: "API Members"
+description: "HTTP requests to external services"
+---
+
+## Overview
+
+API members make HTTP requests to external services, handling URLs, methods, headers, body, timeouts, retries, and response parsing. Perfect for integrating third-party APIs, webhooks, and microservices.
+
+## Basic Configuration
+
+```yaml
+name: fetch-pricing
+type: API
+description: Fetch pricing from external API
+
+config:
+  url: "https://api.example.com/pricing"
+  method: GET
+  headers:
+    Authorization: "Bearer ${env.API_KEY}"
+    Content-Type: "application/json"
+  timeout: 30000
+  retries: 3
+
+schema:
+  input:
+    type: object
+    properties:
+      plan:
+        type: string
+
+  output:
+    type: object
+    properties:
+      status: number
+      data: unknown
+      headers: object
+```
+
+## HTTP Methods
+
+### GET Request
+
+```yaml
+config:
+  url: "https://api.example.com/users/${input.userId}"
+  method: GET
+  headers:
+    Authorization: "Bearer ${env.API_KEY}"
+```
+
+### POST Request
+
+```yaml
+config:
+  url: "https://api.example.com/users"
+  method: POST
+  headers:
+    Authorization: "Bearer ${env.API_KEY}"
+    Content-Type: "application/json"
+```
+
+Input with body:
+
+```yaml
+flow:
+  - member: create-user
+    input:
+      body:
+        name: "Alice"
+        email: "alice@example.com"
+```
+
+### PUT Request
+
+```yaml
+config:
+  url: "https://api.example.com/users/${input.userId}"
+  method: PUT
+```
+
+### DELETE Request
+
+```yaml
+config:
+  url: "https://api.example.com/users/${input.userId}"
+  method: DELETE
+```
+
+### PATCH Request
+
+```yaml
+config:
+  url: "https://api.example.com/users/${input.userId}"
+  method: PATCH
+```
+
+## URL Interpolation
+
+### Static URL
+
+```yaml
+config:
+  url: "https://api.example.com/pricing"
+```
+
+### With Path Parameters
+
+```yaml
+config:
+  url: "https://api.example.com/users/${input.userId}/orders/${input.orderId}"
+```
+
+### With Query Parameters
+
+```yaml
+config:
+  url: "https://api.example.com/search?q=${input.query}&limit=${input.limit}"
+```
+
+### Dynamic URL from Input
+
+```yaml
+config:
+  url: "${input.apiUrl}"  # Entire URL from input
+```
+
+## Headers
+
+### Static Headers
+
+```yaml
+config:
+  headers:
+    Content-Type: "application/json"
+    Accept: "application/json"
+```
+
+### With Environment Variables
+
+```yaml
+config:
+  headers:
+    Authorization: "Bearer ${env.API_KEY}"
+    X-API-Version: "${env.API_VERSION}"
+```
+
+### With Input Values
+
+```yaml
+config:
+  headers:
+    X-User-ID: "${input.userId}"
+    X-Request-ID: "${input.requestId}"
+```
+
+### Dynamic Headers
+
+Pass headers in input:
+
+```yaml
+flow:
+  - member: custom-api-call
+    input:
+      headers:
+        Authorization: "Bearer ${state.accessToken}"
+        Custom-Header: "value"
+```
+
+## Request Body
+
+### JSON Body
+
+```yaml
+flow:
+  - member: create-order
+    input:
+      body:
+        customerId: ${input.customerId}
+        items: ${input.items}
+        total: ${calculate-total.output.amount}
+```
+
+### String Body
+
+```yaml
+flow:
+  - member: send-xml
+    input:
+      body: "<xml>...</xml>"
+```
+
+### Form Data
+
+```yaml
+flow:
+  - member: submit-form
+    input:
+      body: "field1=value1&field2=value2"
+```
+
+## Timeout Configuration
+
+### Default Timeout
+
+```yaml
+config:
+  timeout: 30000  # 30 seconds
+```
+
+### Short Timeout
+
+```yaml
+config:
+  timeout: 5000  # 5 seconds for fast APIs
+```
+
+### Long Timeout
+
+```yaml
+config:
+  timeout: 120000  # 2 minutes for slow operations
+```
+
+## Retry Configuration
+
+### Basic Retry
+
+```yaml
+config:
+  retries: 3  # Retry up to 3 times on failure
+```
+
+### With Exponential Backoff
+
+Conductor automatically uses exponential backoff:
+- Attempt 1: immediate
+- Attempt 2: 1s delay
+- Attempt 3: 2s delay
+- Attempt 4: 4s delay
+
+### No Retries
+
+```yaml
+config:
+  retries: 0  # Fail immediately on error
+```
+
+## Response Handling
+
+### Automatic JSON Parsing
+
+```yaml
+# Response with JSON body is automatically parsed
+output:
+  data: ${fetch-pricing.output.data}
+  status: ${fetch-pricing.output.status}
+```
+
+### Access Response Headers
+
+```yaml
+output:
+  contentType: ${fetch-api.output.headers['content-type']}
+  rateLimit: ${fetch-api.output.headers['x-rate-limit-remaining']}
+```
+
+### Check Status Code
+
+```yaml
+flow:
+  - member: check-api
+    type: API
+
+  - member: handle-success
+    condition: ${check-api.output.status === 200}
+
+  - member: handle-error
+    condition: ${check-api.output.status >= 400}
+```
+
+## Custom API Members
+
+For complex logic, implement custom API members:
+
+```typescript
+// members/advanced-api-call/index.ts
+import { createAPIMember } from '@ensemble-edge/conductor/sdk';
+
+export default createAPIMember({
+  async handler({ input, env }) {
+    const response = await fetch(input.url, {
+      method: input.method || 'GET',
+      headers: {
+        'Authorization': `Bearer ${env.API_KEY}`,
+        'Content-Type': 'application/json',
+        ...input.headers
+      },
+      body: input.body ? JSON.stringify(input.body) : undefined
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    return {
+      status: response.status,
+      data,
+      headers: Object.fromEntries(response.headers.entries())
+    };
+  }
+});
+```
+
+### With Retry Logic
+
+```typescript
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+
+      if (response.ok) {
+        return response;
+      }
+
+      // Retry on 5xx errors
+      if (response.status >= 500 && attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      }
+
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
+
+export default createAPIMember({
+  async handler({ input, env }) {
+    const response = await fetchWithRetry(input.url, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${env.API_KEY}` }
+    }, 3);
+
+    return { data: await response.json() };
+  }
+});
+```
+
+### With Response Transformation
+
+```typescript
+export default createAPIMember({
+  async handler({ input, env }) {
+    const response = await fetch(input.url);
+    const data = await response.json();
+
+    // Transform response
+    return {
+      transformed: {
+        id: data.user_id,
+        name: data.full_name,
+        email: data.email_address,
+        createdAt: new Date(data.created_timestamp).toISOString()
+      }
+    };
+  }
+});
+```
+
+## Common Integration Patterns
+
+### SendGrid Email
+
+```yaml
+name: send-email
+type: API
+
+config:
+  url: "https://api.sendgrid.com/v3/mail/send"
+  method: POST
+  headers:
+    Authorization: "Bearer ${env.SENDGRID_API_KEY}"
+    Content-Type: "application/json"
+
+schema:
+  input:
+    properties:
+      to: string
+      subject: string
+      body: string
+```
+
+Usage:
+
+```yaml
+- member: send-email
+  input:
+    body:
+      personalizations:
+        - to:
+            - email: ${input.email}
+      from:
+        email: "noreply@example.com"
+      subject: ${input.subject}
+      content:
+        - type: "text/plain"
+          value: ${input.body}
+```
+
+### Stripe Payment
+
+```yaml
+name: create-payment
+type: API
+
+config:
+  url: "https://api.stripe.com/v1/payment_intents"
+  method: POST
+  headers:
+    Authorization: "Bearer ${env.STRIPE_SECRET_KEY}"
+    Content-Type: "application/x-www-form-urlencoded"
+```
+
+### Slack Webhook
+
+```yaml
+name: post-to-slack
+type: API
+
+config:
+  url: "${env.SLACK_WEBHOOK_URL}"
+  method: POST
+  headers:
+    Content-Type: "application/json"
+
+schema:
+  input:
+    properties:
+      message: string
+```
+
+Usage:
+
+```yaml
+- member: post-to-slack
+  input:
+    body:
+      text: ${input.message}
+      username: "Conductor Bot"
+      icon_emoji: ":robot_face:"
+```
+
+### Twilio SMS
+
+```yaml
+name: send-sms
+type: API
+
+config:
+  url: "https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json"
+  method: POST
+  headers:
+    Authorization: "Basic ${env.TWILIO_AUTH_TOKEN}"
+    Content-Type: "application/x-www-form-urlencoded"
+```
+
+## Error Handling
+
+### Check Response Status
+
+```yaml
+flow:
+  - member: call-api
+    type: API
+
+  - member: handle-success
+    condition: ${call-api.output.status >= 200 && call-api.output.status < 300}
+
+  - member: handle-error
+    condition: ${call-api.output.status >= 400}
+```
+
+### Retry on Failure
+
+```yaml
+- member: unreliable-api
+  retry:
+    maxAttempts: 5
+    backoff: exponential
+```
+
+### Fallback API
+
+```yaml
+flow:
+  - member: primary-api
+    continue_on_error: true
+
+  - member: fallback-api
+    condition: ${!primary-api.success}
+```
+
+## Caching
+
+### Cache API Responses
+
+```yaml
+- member: fetch-pricing
+  type: API
+  cache:
+    ttl: 3600  # Cache for 1 hour
+```
+
+### Conditional Caching
+
+```yaml
+- member: fetch-data
+  cache:
+    ttl: ${input.cached ? 3600 : 0}
+```
+
+## Performance Tips
+
+### Use Parallel Requests
+
+```yaml
+flow:
+  parallel:
+    - member: fetch-user
+    - member: fetch-orders
+    - member: fetch-settings
+```
+
+### Set Appropriate Timeouts
+
+```yaml
+# Fast APIs
+config:
+  timeout: 5000
+
+# Slow APIs
+config:
+  timeout: 60000
+```
+
+### Cache Aggressively
+
+```yaml
+cache:
+  ttl: 86400  # 24 hours for stable data
+```
+
+## Testing API Members
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('fetch-pricing', () => {
+  it('should fetch pricing from API', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        http: {
+          responses: {
+            'https://api.example.com/pricing': {
+              status: 200,
+              data: {
+                plan: 'pro',
+                price: 99.99,
+                currency: 'USD'
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeMember('fetch-pricing', {
+      plan: 'pro'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.status).toBe(200);
+    expect(result.output.data.price).toBe(99.99);
+  });
+
+  it('should handle API errors', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        http: {
+          handler: async () => {
+            throw new Error('API unavailable');
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeMember('fetch-pricing', {});
+
+    expect(result).toHaveError(/API unavailable/);
+  });
+});
+```
+
+## Best Practices
+
+1. **Always set timeouts** - Prevent hanging requests
+2. **Use retries** - Handle transient failures
+3. **Secure API keys** - Use environment variables
+4. **Cache responses** - Reduce API calls and costs
+5. **Handle errors gracefully** - Don't fail entire workflow
+6. **Use HTTPS** - Never use HTTP for sensitive data
+7. **Validate responses** - Check status codes and data
+8. **Rate limit awareness** - Respect API provider limits
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Built-In Fetch Member"
+    icon="arrow-right"
+    href="/conductor/built-in-members/fetch"
+  >
+    Production-ready HTTP client
+  </Card>
+
+  <Card
+    title="Creating Members"
+    icon="plus"
+    href="/conductor/guides/creating-members"
+  >
+    Build custom API members
+  </Card>
+
+  <Card
+    title="Error Handling Example"
+    icon="triangle-exclamation"
+    href="/conductor/examples/error-handling"
+  >
+    Handle API failures
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test API members with mocks
+  </Card>
+</CardGroup>
