@@ -1,0 +1,582 @@
+---
+title: "RAG Member"
+description: "Retrieval-augmented generation with vector search"
+---
+
+## Overview
+
+The RAG (Retrieval-Augmented Generation) member provides semantic search and knowledge retrieval using Cloudflare Vectorize. Insert embeddings, search by similarity, and retrieve relevant context for AI generation.
+
+Perfect for Q&A systems, knowledge bases, document search, and semantic retrieval workflows.
+
+## Quick Example
+
+```yaml
+name: qa-with-rag
+description: Answer questions using knowledge base
+
+flow:
+  # Search for relevant context
+  - member: search-knowledge
+    type: RAG
+    config:
+      vectorizeBinding: "VECTORIZE"
+      indexName: "knowledge-base"
+      operation: query
+    input:
+      query: ${input.question}
+      topK: 5
+
+  # Generate answer with context
+  - member: generate-answer
+    type: Think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    input:
+      prompt: |
+        Answer this question using the provided context:
+
+        Question: ${input.question}
+
+        Context:
+        ${search-knowledge.output.results.map(r => r.text).join('\n\n')}
+
+output:
+  answer: ${generate-answer.output.text}
+  sources: ${search-knowledge.output.results}
+```
+
+## Configuration
+
+### Setup Vectorize
+
+```toml
+# wrangler.toml
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "knowledge-base"
+```
+
+Create index in Cloudflare dashboard or via API.
+
+### Input Parameters
+
+```yaml
+input:
+  # For query operation
+  query: string              # Search query text
+  topK: number              # Number of results (default: 10)
+  filters: object           # Metadata filters
+  scoreThreshold: number    # Minimum similarity score
+
+  # For insert operation
+  text: string              # Text to embed and insert
+  embedding: array          # Pre-computed embedding vector
+  metadata: object          # Associated metadata
+  id: string               # Optional document ID
+
+  # For delete operation
+  ids: array               # IDs to delete
+```
+
+### Output Format
+
+```yaml
+output:
+  # Query output
+  results: array           # Search results
+    - id: string
+      text: string
+      score: number        # Similarity score (0-1)
+      metadata: object
+
+  # Insert output
+  id: string              # Inserted document ID
+  success: boolean
+
+  # Delete output
+  deleted: number         # Number of documents deleted
+```
+
+## Operations
+
+### Query (Search)
+
+```yaml
+- member: search
+  type: RAG
+  config:
+    vectorizeBinding: "VECTORIZE"
+    indexName: "docs"
+    operation: query
+  input:
+    query: "What is Conductor?"
+    topK: 5
+```
+
+### Insert
+
+```yaml
+- member: insert-doc
+  type: RAG
+  config:
+    vectorizeBinding: "VECTORIZE"
+    indexName: "docs"
+    operation: insert
+  input:
+    text: "Conductor is an edge-native orchestration framework"
+    metadata:
+      source: "documentation"
+      category: "overview"
+```
+
+### Delete
+
+```yaml
+- member: delete-docs
+  type: RAG
+  config:
+    vectorizeBinding: "VECTORIZE"
+    indexName: "docs"
+    operation: delete
+  input:
+    ids: ["doc-1", "doc-2", "doc-3"]
+```
+
+## Common Patterns
+
+### Knowledge Base Q&A
+
+```yaml
+name: knowledge-qa
+description: Answer questions from knowledge base
+
+flow:
+  # Search for relevant documents
+  - member: search
+    type: RAG
+    config:
+      vectorizeBinding: "VECTORIZE"
+      indexName: "kb"
+      operation: query
+    input:
+      query: ${input.question}
+      topK: 5
+      scoreThreshold: 0.7
+
+  # Generate answer if relevant docs found
+  - member: generate-answer
+    condition: ${search.output.results.length > 0}
+    type: Think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    input:
+      prompt: |
+        Answer the question using only the provided context.
+        If the context doesn't contain enough information, say so.
+
+        Question: ${input.question}
+
+        Context:
+        ${search.output.results.map(r => r.text).join('\n\n')}
+
+  # Fallback if no relevant docs
+  - member: no-answer
+    condition: ${search.output.results.length === 0}
+    type: Function
+    input:
+      message: "No relevant information found in knowledge base"
+
+output:
+  answer: ${generate-answer.success ? generate-answer.output.text : no-answer.output.message}
+  sources: ${search.output.results}
+  confidence: ${search.output.results[0]?.score || 0}
+```
+
+### Document Ingestion Pipeline
+
+```yaml
+name: ingest-documents
+description: Process and index documents
+
+flow:
+  # Split document into chunks
+  - member: chunk-document
+    type: Function
+    input:
+      document: ${input.document}
+      chunkSize: 500
+      overlap: 50
+
+  # Generate embeddings for each chunk
+  - member: generate-embeddings
+    foreach: ${chunk-document.output.chunks}
+    type: Think
+    config:
+      provider: openai
+      model: text-embedding-3-small
+    input:
+      text: ${item.text}
+
+  # Insert chunks into vector database
+  - member: insert-chunks
+    foreach: ${generate-embeddings.output}
+    type: RAG
+    config:
+      vectorizeBinding: "VECTORIZE"
+      indexName: "docs"
+      operation: insert
+    input:
+      text: ${item.text}
+      embedding: ${item.embedding}
+      metadata:
+        documentId: ${input.documentId}
+        chunkIndex: ${item.index}
+        source: ${input.source}
+
+output:
+  chunksIngested: ${insert-chunks.output.length}
+  documentId: ${input.documentId}
+```
+
+### Semantic Search with Filters
+
+```yaml
+name: filtered-search
+description: Search with metadata filtering
+
+flow:
+  - member: search
+    type: RAG
+    config:
+      vectorizeBinding: "VECTORIZE"
+      indexName: "products"
+      operation: query
+    input:
+      query: ${input.searchQuery}
+      topK: 10
+      scoreThreshold: 0.6
+      filters:
+        category: ${input.category}
+        inStock: true
+        price: { $lte: ${input.maxPrice} }
+
+  - member: format-results
+    type: Transform
+    input:
+      data: ${search.output.results}
+      expression: |
+        {
+          "products": $.results[].{
+            "name": metadata.name,
+            "price": metadata.price,
+            "relevance": score,
+            "description": text
+          }
+        }
+
+output:
+  products: ${format-results.output.products}
+  totalResults: ${search.output.results.length}
+```
+
+### Hybrid Search (Vector + Keyword)
+
+```yaml
+name: hybrid-search
+description: Combine vector and keyword search
+
+flow:
+  # Vector search
+  - member: vector-search
+    type: RAG
+    config:
+      vectorizeBinding: "VECTORIZE"
+      indexName: "docs"
+      operation: query
+    input:
+      query: ${input.query}
+      topK: 20
+
+  # Keyword search
+  - member: keyword-search
+    type: Data
+    config:
+      storage: d1
+      operation: query
+      query: |
+        SELECT * FROM documents
+        WHERE content LIKE ?
+        LIMIT 20
+    input:
+      params: ["%${input.query}%"]
+
+  # Combine and rerank
+  - member: merge-results
+    type: Function
+    input:
+      vectorResults: ${vector-search.output.results}
+      keywordResults: ${keyword-search.output.results}
+      query: ${input.query}
+
+output:
+  results: ${merge-results.output.ranked}
+```
+
+### Conversational RAG
+
+```yaml
+name: conversational-rag
+description: Multi-turn conversation with context
+
+state:
+  schema:
+    conversationHistory: array
+    retrievedContext: array
+
+flow:
+  # Reformulate query based on conversation history
+  - member: reformulate-query
+    type: Think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+    state:
+      use: [conversationHistory]
+    input:
+      prompt: |
+        Given this conversation history, reformulate the latest question
+        to be self-contained:
+
+        ${JSON.stringify(state.conversationHistory)}
+
+        Latest question: ${input.question}
+
+  # Search with reformulated query
+  - member: search
+    type: RAG
+    config:
+      vectorizeBinding: "VECTORIZE"
+      indexName: "docs"
+      operation: query
+    input:
+      query: ${reformulate-query.output.text}
+      topK: 5
+
+  # Generate answer with conversation context
+  - member: generate-answer
+    type: Think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    state:
+      use: [conversationHistory]
+      set: [conversationHistory, retrievedContext]
+    input:
+      prompt: |
+        Continue this conversation using the provided context:
+
+        Conversation history:
+        ${JSON.stringify(state.conversationHistory)}
+
+        Retrieved context:
+        ${search.output.results.map(r => r.text).join('\n\n')}
+
+        User question: ${input.question}
+
+output:
+  answer: ${generate-answer.output.text}
+  sources: ${search.output.results}
+```
+
+## Metadata Filtering
+
+### Basic Filters
+
+```yaml
+input:
+  filters:
+    category: "documentation"
+    status: "published"
+```
+
+### Comparison Operators
+
+```yaml
+input:
+  filters:
+    price: { $lte: 100 }        # Less than or equal
+    rating: { $gte: 4.0 }       # Greater than or equal
+    views: { $gt: 1000 }        # Greater than
+    stock: { $lt: 10 }          # Less than
+```
+
+### Array Filters
+
+```yaml
+input:
+  filters:
+    tags: { $in: ["ai", "ml", "nlp"] }    # Contains any
+    categories: { $all: ["tech", "ai"] }   # Contains all
+```
+
+## Performance Optimization
+
+### Cache Search Results
+
+```yaml
+- member: search
+  type: RAG
+  cache:
+    ttl: 3600  # Cache for 1 hour
+  input:
+    query: ${input.query}
+```
+
+### Batch Insert
+
+```yaml
+flow:
+  # Generate embeddings in parallel
+  parallel:
+    - member: embed-1
+      type: Think
+    - member: embed-2
+      type: Think
+    - member: embed-3
+      type: Think
+
+  # Insert all at once
+  - member: batch-insert
+    type: RAG
+    config:
+      operation: insertBatch
+    input:
+      documents: [
+        ${embed-1.output},
+        ${embed-2.output},
+        ${embed-3.output}
+      ]
+```
+
+### Set Appropriate topK
+
+```yaml
+# ✅ Good - only what you need
+input:
+  topK: 5
+
+# ❌ Wasteful - retrieving too many
+input:
+  topK: 100
+```
+
+## Testing
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('rag member', () => {
+  it('should search knowledge base', async () => {
+    const conductor = await TestConductor.create({
+      mocks:
+        vectorize: {
+          responses: {
+            'knowledge-base': {
+              query: async (query) => ({
+                results: [
+                  {
+                    id: 'doc-1',
+                    text: 'Conductor is an orchestration framework',
+                    score: 0.95,
+                    metadata: { source: 'docs' }
+                  }
+                ]
+              })
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeMember('search', {
+      query: 'What is Conductor?',
+      topK: 5
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.results).toHaveLength(1);
+    expect(result.output.results[0].score).toBeGreaterThan(0.9);
+  });
+
+  it('should insert document', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeMember('insert', {
+      text: 'New document content',
+      metadata: { category: 'test' }
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.success).toBe(true);
+    expect(result.output.id).toBeDefined();
+  });
+});
+```
+
+## Best Practices
+
+1. **Chunk appropriately** - 200-500 tokens per chunk
+2. **Include metadata** - Enable filtering and source tracking
+3. **Set score thresholds** - Filter low-relevance results
+4. **Cache searches** - Reduce redundant queries
+5. **Batch operations** - Insert multiple documents at once
+6. **Monitor relevance** - Track search quality metrics
+7. **Update regularly** - Keep knowledge base current
+8. **Test thoroughly** - Verify search quality
+
+## Limitations
+
+- **Index size**: Vectorize has storage limits
+- **Embedding model**: Must use compatible embedding dimensions
+- **Query latency**: ~50ms typical, varies with index size
+- **Metadata filters**: Limited operators compared to full database
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Built-In Members Overview"
+    icon="cube"
+    href="/conductor/built-in-members/overview"
+  >
+    All built-in members
+  </Card>
+
+  <Card
+    title="Cloudflare Vectorize"
+    icon="cloudflare"
+    href="https://developers.cloudflare.com/vectorize/"
+  >
+    Official Vectorize documentation
+  </Card>
+
+  <Card
+    title="Think Members"
+    icon="brain"
+    href="/conductor/member-types/think"
+  >
+    AI member integration
+  </Card>
+
+  <Card
+    title="Data Members"
+    icon="database"
+    href="/conductor/member-types/data"
+  >
+    Database operations
+  </Card>
+</CardGroup>

@@ -1,0 +1,575 @@
+---
+title: "Scoring Guide"
+description: "Practical patterns for quality validation and automatic retry"
+---
+
+## Overview
+
+This guide provides practical patterns for implementing quality scoring in your workflows. Learn when to use each evaluator type, how to set appropriate thresholds, and optimize for cost and performance.
+
+See [Scoring Concept](/conductor/concepts/scoring) for foundational concepts.
+
+## When to Use Scoring
+
+### ✅ Good Use Cases
+
+- **AI-generated content** - Validate quality, tone, accuracy
+- **Data extraction** - Ensure all required fields present
+- **Content moderation** - Check for inappropriate content
+- **Translation quality** - Validate translation accuracy
+- **Summarization** - Verify completeness and clarity
+
+### ❌ Not Needed
+
+- **Simple calculations** - Deterministic operations don't need scoring
+- **Data retrieval** - Database queries are either successful or not
+- **API calls** - HTTP status codes indicate success/failure
+
+## Choosing an Evaluator
+
+### Rule-Based Evaluator
+
+**When to use:**
+- Fast validation needed (< 1ms)
+- Clear, objective criteria
+- Structured data with known schema
+- Cost is a concern
+
+**Example:**
+
+```yaml
+scoring:
+  evaluator: validate
+  evaluatorConfig:
+    type: rule
+  criteria:
+    hasTitle:
+      rule: "output.title != null && output.title.length > 0"
+      weight: 0.3
+    hasBody:
+      rule: "output.body.length >= 100"
+      weight: 0.4
+    hasAuthor:
+      rule: "output.author != null"
+      weight: 0.3
+```
+
+### LLM Judge Evaluator
+
+**When to use:**
+- Subjective quality assessment
+- Natural language evaluation
+- Complex multi-dimensional criteria
+- Human-like judgment needed
+
+**Example:**
+
+```yaml
+scoring:
+  evaluator: validate
+  evaluatorConfig:
+    type: judge
+    model: gpt-4o
+    systemPrompt: |
+      You are an expert content evaluator.
+      Score content on accuracy, clarity, and engagement.
+  criteria:
+    accuracy: "Content is factually accurate"
+    clarity: "Writing is clear and easy to understand"
+    engagement: "Content maintains reader interest"
+```
+
+### NLP Evaluator
+
+**When to use:**
+- Sentiment analysis
+- Readability scoring
+- Keyword presence checking
+- Language-specific metrics
+
+**Example:**
+
+```yaml
+scoring:
+  evaluator: validate
+  evaluatorConfig:
+    type: nlp
+  criteria:
+    sentiment:
+      target: "positive"
+      weight: 0.4
+    readability:
+      target: "easy"
+      weight: 0.3
+    keywords:
+      required: ["innovation", "growth"]
+      weight: 0.3
+```
+
+### Embedding Similarity
+
+**When to use:**
+- Style matching
+- Consistency checking
+- Example-based validation
+- Semantic similarity
+
+**Example:**
+
+```yaml
+scoring:
+  evaluator: validate
+  evaluatorConfig:
+    type: embedding
+    referenceExamples:
+      - "High-quality example 1"
+      - "High-quality example 2"
+    similarityThreshold: 0.8
+```
+
+## Setting Thresholds
+
+### Start Lenient, Tighten Gradually
+
+```yaml
+# Week 1: Observe
+thresholds:
+  minimum: 0.6
+
+# Week 2: After collecting data
+thresholds:
+  minimum: 0.7
+
+# Week 3: Final target
+thresholds:
+  minimum: 0.8
+```
+
+### Different Thresholds by Importance
+
+```yaml
+# Critical content - strict
+- member: generate-legal-doc
+  scoring:
+    thresholds:
+      minimum: 0.95
+
+# Marketing content - moderate
+- member: generate-blog-post
+  scoring:
+    thresholds:
+      minimum: 0.8
+
+# Internal notes - lenient
+- member: generate-summary
+  scoring:
+    thresholds:
+      minimum: 0.6
+```
+
+## Weighting Criteria
+
+### Equal Weights
+
+```yaml
+criteria:
+  accuracy: "Must be accurate"
+  clarity: "Must be clear"
+  completeness: "Must be complete"
+# All get 0.33 weight automatically
+```
+
+### Custom Weights
+
+```yaml
+criteria:
+  critical_field:
+    rule: "output.required != null"
+    weight: 0.6  # 60% of score
+
+  nice_to_have:
+    rule: "output.optional != null"
+    weight: 0.2  # 20% of score
+
+  formatting:
+    rule: "output.format === 'json'"
+    weight: 0.2  # 20% of score
+```
+
+## Retry Strategies
+
+### Exponential Backoff (Recommended)
+
+```yaml
+scoring:
+  onFailure: retry
+  retryLimit: 5
+  backoffStrategy: exponential
+# Delays: 1s, 2s, 4s, 8s, 16s
+```
+
+**Best for:**
+- AI provider rate limits
+- Non-deterministic failures
+- Production workloads
+
+### Linear Backoff
+
+```yaml
+scoring:
+  onFailure: retry
+  retryLimit: 3
+  backoffStrategy: linear
+# Delays: 2s, 4s, 6s
+```
+
+**Best for:**
+- Predictable retry timing
+- Simple scenarios
+
+### No Backoff (Fixed)
+
+```yaml
+scoring:
+  onFailure: retry
+  retryLimit: 3
+  backoffStrategy: fixed
+# Delays: 5s, 5s, 5s
+```
+
+**Best for:**
+- Testing
+- Immediate retries desired
+
+## Progressive Improvement
+
+Require each retry to score higher:
+
+```yaml
+scoring:
+  requireImprovement: true
+  minImprovement: 0.05  # Must improve by 5%
+  thresholds:
+    minimum: 0.8
+  retryLimit: 5
+```
+
+**Example:**
+```
+Attempt 1: 0.65 ❌ Retry
+Attempt 2: 0.70 ✅ Improved, retry
+Attempt 3: 0.68 ❌ Decreased, reject
+Attempt 4: 0.75 ✅ Improved, retry
+Attempt 5: 0.82 ✅ Passed!
+```
+
+## Failure Handling
+
+### Retry (Default)
+
+```yaml
+scoring:
+  onFailure: retry  # Keep trying until pass or max retries
+  retryLimit: 3
+```
+
+### Continue
+
+```yaml
+scoring:
+  onFailure: continue  # Log failure but continue workflow
+```
+
+Use for non-critical quality checks.
+
+### Abort
+
+```yaml
+scoring:
+  onFailure: abort  # Stop execution immediately
+```
+
+Use for critical quality requirements.
+
+## Layered Validation
+
+Fast checks first, expensive checks later:
+
+```yaml
+flow:
+  # Layer 1: Fast rule check (free, instant)
+  - member: generate-content
+    scoring:
+      evaluatorConfig:
+        type: rule
+      criteria:
+        minLength:
+          rule: "output.text.length >= 50"
+      thresholds:
+        minimum: 1.0
+      onFailure: retry
+      retryLimit: 2
+
+  # Layer 2: AI judge (expensive, ~1s)
+  - member: validate-quality
+    input:
+      content: ${generate-content.output}
+    scoring:
+      evaluatorConfig:
+        type: judge
+        model: gpt-4o
+      thresholds:
+        minimum: 0.85
+      onFailure: retry
+      retryLimit: 3
+```
+
+## Cost Optimization
+
+### Use Cheaper Models for Judging
+
+```yaml
+# ✅ Good - use mini for scoring
+scoring:
+  evaluatorConfig:
+    type: judge
+    model: gpt-4o-mini  # 97% cheaper
+
+# ❌ Expensive - flagship for scoring
+scoring:
+  evaluatorConfig:
+    type: judge
+    model: gpt-4o
+```
+
+### Cache Evaluations
+
+```yaml
+- member: generate-content
+  cache:
+    ttl: 3600  # Cache content and scores
+  scoring:
+    evaluator: validate
+```
+
+### Lower Temperature for Consistency
+
+```yaml
+config:
+  temperature: 0.2  # More deterministic = better cache hit rate
+```
+
+### Set Reasonable Retry Limits
+
+```yaml
+# ✅ Good - balanced
+retryLimit: 3-5
+
+# ❌ Too many - expensive
+retryLimit: 20
+```
+
+## Real-World Patterns
+
+### Blog Post Generation
+
+```yaml
+- member: generate-blog-post
+  scoring:
+    evaluatorConfig:
+      type: judge
+      model: claude-3-5-sonnet-20241022
+    criteria:
+      engagement: "Highly engaging and interesting"
+      structure: "Well-structured with clear flow"
+      accuracy: "Factually accurate"
+      seo: "SEO-optimized with keywords"
+    thresholds:
+      minimum: 0.85
+    onFailure: retry
+    retryLimit: 5
+    requireImprovement: true
+```
+
+### Data Extraction
+
+```yaml
+- member: extract-company-info
+  scoring:
+    evaluatorConfig:
+      type: rule
+    criteria:
+      hasName:
+        rule: "output.name != null"
+        weight: 0.3
+      hasIndustry:
+        rule: "output.industry != null"
+        weight: 0.2
+      hasEmployees:
+        rule: "output.employees > 0"
+        weight: 0.2
+      hasLocation:
+        rule: "output.location != null"
+        weight: 0.3
+    thresholds:
+      minimum: 0.8
+    onFailure: retry
+    retryLimit: 3
+```
+
+### Customer Response
+
+```yaml
+- member: generate-response
+  scoring:
+    evaluatorConfig:
+      type: nlp
+    criteria:
+      sentiment:
+        target: "positive"
+        weight: 0.4
+      tone:
+        target: "professional"
+        weight: 0.3
+      readability:
+        target: "easy"
+        weight: 0.3
+    thresholds:
+      minimum: 0.8
+    onFailure: retry
+    retryLimit: 3
+```
+
+## Monitoring and Debugging
+
+### Track Scoring Metrics
+
+```typescript
+const result = await executor.executeEnsemble(ensemble, input);
+
+console.log('Scoring Metrics:', {
+  score: result.output.quality.score,
+  passed: result.output.quality.passed,
+  attempts: result.output.quality.attempts,
+  feedback: result.output.quality.feedback,
+  breakdown: result.output.quality.breakdown
+});
+
+// Alert if quality consistently low
+if (result.output.quality.attempts > 3) {
+  console.warn('High retry count - review thresholds or prompts');
+}
+```
+
+### Log Scoring Details
+
+```yaml
+output:
+  result: ${generate-content.output}
+  quality:
+    score: ${generate-content.scoring.score}
+    passed: ${generate-content.scoring.passed}
+    attempts: ${generate-content.scoring.attempts}
+    breakdown: ${generate-content.scoring.breakdown}
+    feedback: ${generate-content.scoring.feedback}
+```
+
+## Testing Scoring
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('scoring validation', () => {
+  it('should pass high-quality content', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        ai: {
+          responses: {
+            'generate-content': {
+              text: 'High-quality content',
+              score: 0.95
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('with-scoring', input);
+
+    expect(result).toBeSuccessful();
+    expect(result.output.quality.score).toBeGreaterThan(0.8);
+    expect(result.output.quality.attempts).toBe(1);
+  });
+
+  it('should retry low-quality content', async () => {
+    let attempts = 0;
+
+    const conductor = await TestConductor.create({
+      mocks: {
+        ai: {
+          handler: async () => {
+            attempts++;
+            return {
+              text: 'Content',
+              score: attempts === 1 ? 0.6 : 0.9
+            };
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('with-scoring', input);
+
+    expect(result).toBeSuccessful();
+    expect(result.output.quality.attempts).toBe(2);
+  });
+});
+```
+
+## Best Practices
+
+1. **Start with rule-based** - Fast and free for objective criteria
+2. **Use AI judges sparingly** - Only when subjective assessment needed
+3. **Set lenient initial thresholds** - Tighten based on data
+4. **Require improvement** - Each retry should score higher
+5. **Layer validations** - Fast checks first, expensive later
+6. **Cache aggressively** - Reduce redundant evaluations
+7. **Monitor metrics** - Track success rates and costs
+8. **Test thoroughly** - Verify scoring works as expected
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Scoring Concept"
+    icon="check"
+    href="/conductor/concepts/scoring"
+  >
+    Foundational scoring concepts
+  </Card>
+
+  <Card
+    title="Validate Member"
+    icon="check-circle"
+    href="/conductor/built-in-members/validate"
+  >
+    Complete validate member reference
+  </Card>
+
+  <Card
+    title="Scoring Example"
+    icon="lightbulb"
+    href="/conductor/examples/scoring-retry"
+  >
+    Real-world scoring examples
+  </Card>
+
+  <Card
+    title="Testing"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test scoring configurations
+  </Card>
+</CardGroup>

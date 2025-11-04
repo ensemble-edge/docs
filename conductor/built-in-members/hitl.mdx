@@ -1,0 +1,644 @@
+---
+title: "HITL Member"
+description: "Human-in-the-loop workflows with manual review and approval"
+---
+
+## Overview
+
+The HITL (Human-in-the-Loop) member pauses workflow execution for human review, approval, or input. Uses Durable Objects to maintain state across requests, allowing workflows to wait for minutes, hours, or days.
+
+Perfect for approval workflows, content moderation, manual review, and any process requiring human judgment.
+
+See [HITL Guide](/conductor/guides/hitl) for comprehensive patterns and UI integration.
+
+## Quick Example
+
+```yaml
+name: content-approval
+description: Generate content and wait for human approval
+
+flow:
+  # Generate content with AI
+  - member: generate-post
+    type: Think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    input:
+      topic: ${input.topic}
+
+  # Pause for human review
+  - member: request-approval
+    type: HITL
+    config:
+      prompt: "Review the generated blog post"
+      fields:
+        - name: approved
+          type: boolean
+          label: "Approve this content?"
+        - name: feedback
+          type: text
+          label: "Feedback (optional)"
+      timeout: 86400000  # 24 hours
+
+  # Continue only if approved
+  - member: publish-post
+    condition: ${request-approval.output.approved}
+    input:
+      content: ${generate-post.output.text}
+
+output:
+  status: ${request-approval.output.approved ? 'published' : 'rejected'}
+  feedback: ${request-approval.output.feedback}
+```
+
+## Configuration
+
+### Input Parameters
+
+```yaml
+config:
+  prompt: string              # Required: Question/instructions for human
+  fields: array              # Required: Form fields for input
+  timeout: number            # Optional: Timeout in ms (default: 86400000)
+  notifyUrl: string          # Optional: Webhook URL for notifications
+  notifyPayload: object      # Optional: Custom notification data
+  context: object            # Optional: Additional context to display
+```
+
+### Field Types
+
+```yaml
+fields:
+  # Boolean (checkbox)
+  - name: approved
+    type: boolean
+    label: "Approve?"
+    required: true
+
+  # Text (single line)
+  - name: comment
+    type: text
+    label: "Comment"
+    placeholder: "Enter comment"
+    required: false
+
+  # Textarea (multi-line)
+  - name: feedback
+    type: textarea
+    label: "Detailed feedback"
+    rows: 5
+
+  # Number
+  - name: score
+    type: number
+    label: "Rating (1-10)"
+    min: 1
+    max: 10
+    required: true
+
+  # Select (dropdown)
+  - name: category
+    type: select
+    label: "Category"
+    options:
+      - "Urgent"
+      - "Normal"
+      - "Low Priority"
+
+  # Email
+  - name: assignee
+    type: email
+    label: "Assign to"
+
+  # Date
+  - name: deadline
+    type: date
+    label: "Deadline"
+```
+
+### Output Format
+
+```yaml
+output:
+  # Field values submitted by human
+  fieldName1: value1
+  fieldName2: value2
+
+  # Metadata
+  respondedAt: timestamp
+  respondedBy: userId (if available)
+```
+
+## Common Patterns
+
+### Content Moderation
+
+```yaml
+name: moderate-content
+description: AI generates, human approves
+
+flow:
+  - member: generate-content
+    type: Think
+
+  - member: human-review
+    type: HITL
+    config:
+      prompt: "Review generated content for quality and appropriateness"
+      context:
+        content: ${generate-content.output.text}
+        generatedAt: ${Date.now()}
+      fields:
+        - name: approved
+          type: boolean
+          label: "Approve content?"
+        - name: rating
+          type: number
+          label: "Quality rating (1-5)"
+          min: 1
+          max: 5
+        - name: concerns
+          type: textarea
+          label: "Any concerns?"
+
+  - member: publish-content
+    condition: ${human-review.output.approved && human-review.output.rating >= 3}
+
+output:
+  published: ${publish-content.success}
+  rating: ${human-review.output.rating}
+```
+
+### Multi-Level Approval
+
+```yaml
+name: expense-approval
+description: Hierarchical approval workflow
+
+flow:
+  - member: check-amount
+    type: Function
+
+  # Manager approval for $500+
+  - member: manager-approval
+    condition: ${check-amount.output.total >= 500}
+    type: HITL
+    config:
+      prompt: "Manager approval required for $${check-amount.output.total}"
+      notifyUrl: "${env.MANAGER_WEBHOOK}"
+      timeout: 172800000  # 48 hours
+      fields:
+        - name: approved
+          type: boolean
+          label: "Approve expense?"
+        - name: notes
+          type: text
+          label: "Comments"
+
+  # Director approval for $5000+
+  - member: director-approval
+    condition: ${check-amount.output.total >= 5000 && manager-approval.output.approved}
+    type: HITL
+    config:
+      prompt: "Director approval required for $${check-amount.output.total}"
+      notifyUrl: "${env.DIRECTOR_WEBHOOK}"
+      timeout: 172800000  # 48 hours
+      fields:
+        - name: approved
+          type: boolean
+          label: "Approve expense?"
+
+output:
+  status: ${director-approval.output.approved || (manager-approval.output.approved && check-amount.output.total < 5000) ? 'approved' : 'rejected'}
+```
+
+### Data Validation
+
+```yaml
+name: validate-extraction
+description: AI extracts, human validates
+
+flow:
+  - member: extract-data
+    type: Think
+    input:
+      document: ${input.document}
+
+  - member: validate-extraction
+    type: HITL
+    config:
+      prompt: "Verify extracted data is correct"
+      context:
+        extracted: ${extract-data.output}
+        original: ${input.document}
+      fields:
+        - name: correct
+          type: boolean
+          label: "Is extraction correct?"
+        - name: corrections
+          type: textarea
+          label: "Corrections needed"
+
+  - member: apply-corrections
+    condition: ${!validate-extraction.output.correct}
+    input:
+      corrections: ${validate-extraction.output.corrections}
+
+output:
+  data: ${validate-extraction.output.correct ? extract-data.output : apply-corrections.output}
+  validated: true
+```
+
+### Security Review
+
+```yaml
+name: security-review
+description: Automated scan with manual approval
+
+flow:
+  - member: security-scan
+    type: Function
+
+  # Require review for high/critical findings
+  - member: security-approval
+    condition: ${security-scan.output.severity >= 7}
+    type: HITL
+    config:
+      prompt: "Security vulnerabilities detected"
+      timeout: 7200000  # 2 hours
+      context:
+        findings: ${security-scan.output.findings}
+        severity: ${security-scan.output.severity}
+      fields:
+        - name: action
+          type: select
+          label: "Action"
+          options:
+            - "Block deployment"
+            - "Deploy with risk"
+            - "Request remediation"
+        - name: notes
+          type: textarea
+          label: "Security notes"
+          required: true
+
+output:
+  canDeploy: ${security-scan.output.severity < 7 || security-approval.output.action === 'Deploy with risk'}
+  securityNotes: ${security-approval.output.notes}
+```
+
+## Notifications
+
+### Slack Notification
+
+```yaml
+config:
+  prompt: "Approve deployment"
+  notifyUrl: "${env.SLACK_WEBHOOK_URL}"
+  notifyPayload:
+    text: "Deployment approval required"
+    blocks:
+      - type: "section"
+        text:
+          type: "mrkdwn"
+          text: "*Deployment Approval Required*\n\nEnvironment: ${input.environment}\nVersion: ${input.version}"
+      - type: "actions"
+        elements:
+          - type: "button"
+            text:
+              type: "plain_text"
+              text: "Review"
+            url: "${env.HITL_REVIEW_URL}/${execution.id}"
+```
+
+### Email Notification
+
+```yaml
+config:
+  prompt: "Review invoice"
+  notifyUrl: "${env.EMAIL_WEBHOOK_URL}"
+  notifyPayload:
+    to: ${input.approverEmail}
+    subject: "Invoice Approval Required"
+    body: |
+      An invoice requires your approval.
+
+      Amount: ${input.amount}
+      Vendor: ${input.vendor}
+
+      Review: ${env.HITL_REVIEW_URL}/${execution.id}
+```
+
+## Timeout Handling
+
+### Default Timeout
+
+```yaml
+config:
+  timeout: 86400000  # 24 hours
+```
+
+Workflow fails if no response within timeout.
+
+### Custom Timeout Behavior
+
+```yaml
+flow:
+  - member: approval-request
+    type: HITL
+    config:
+      timeout: 3600000  # 1 hour
+    continue_on_error: true
+
+  # Auto-reject if timeout
+  - member: handle-timeout
+    condition: ${!approval-request.success}
+    type: Function
+    input:
+      reason: "timeout"
+```
+
+### No Timeout (Wait Indefinitely)
+
+```yaml
+config:
+  timeout: 0  # Wait forever
+```
+
+Use with caution - workflow will wait indefinitely for response.
+
+## Building HITL UI
+
+### Fetching Pending Request
+
+```typescript
+// Get pending HITL request
+const response = await fetch(`https://api.example.com/hitl/${executionId}`, {
+  headers: {
+    'Authorization': `Bearer ${apiKey}`
+  }
+});
+
+const hitl = await response.json();
+
+console.log(hitl.prompt);     // Display prompt
+console.log(hitl.fields);     // Render form fields
+console.log(hitl.context);    // Show additional context
+```
+
+### Submitting Response
+
+```typescript
+// Submit HITL response
+await fetch(`https://api.example.com/hitl/${executionId}/respond`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    approved: true,
+    comments: "Looks good!"
+  })
+});
+```
+
+### React Component
+
+```typescript
+import { useState, useEffect } from 'react';
+
+function HITLReview({ executionId, apiKey }) {
+  const [hitl, setHitl] = useState(null);
+  const [values, setValues] = useState({});
+
+  useEffect(() => {
+    fetch(`https://api.example.com/hitl/${executionId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    })
+      .then(res => res.json())
+      .then(setHitl);
+  }, [executionId]);
+
+  const handleSubmit = async () => {
+    await fetch(`https://api.example.com/hitl/${executionId}/respond`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(values)
+    });
+  };
+
+  if (!hitl) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h2>{hitl.prompt}</h2>
+
+      {hitl.context && (
+        <pre>{JSON.stringify(hitl.context, null, 2)}</pre>
+      )}
+
+      {hitl.fields.map(field => (
+        <div key={field.name}>
+          <label>{field.label}</label>
+          {field.type === 'boolean' && (
+            <input
+              type="checkbox"
+              checked={values[field.name] || false}
+              onChange={e => setValues({
+                ...values,
+                [field.name]: e.target.checked
+              })}
+            />
+          )}
+          {field.type === 'text' && (
+            <input
+              type="text"
+              value={values[field.name] || ''}
+              onChange={e => setValues({
+                ...values,
+                [field.name]: e.target.value
+              })}
+            />
+          )}
+        </div>
+      ))}
+
+      <button onClick={handleSubmit}>Submit</button>
+    </div>
+  );
+}
+```
+
+## Testing
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('hitl member', () => {
+  it('should wait for human approval', async () => {
+    const conductor = await TestConductor.create();
+
+    // Start workflow (will pause at HITL)
+    const execution = await conductor.executeEnsemble('content-approval', {
+      topic: 'AI Safety'
+    });
+
+    // Verify workflow is paused
+    expect(execution.status).toBe('waiting_for_input');
+    expect(execution.currentMember).toBe('request-approval');
+
+    // Simulate human approval
+    await conductor.respondToHITL(execution.id, {
+      approved: true,
+      feedback: 'Looks great!'
+    });
+
+    // Workflow continues and completes
+    const result = await conductor.waitForCompletion(execution.id);
+
+    expect(result).toBeSuccessful();
+    expect(result.output.status).toBe('published');
+  });
+
+  it('should handle rejection', async () => {
+    const conductor = await TestConductor.create();
+
+    const execution = await conductor.executeEnsemble('content-approval', {
+      topic: 'AI Safety'
+    });
+
+    // Simulate rejection
+    await conductor.respondToHITL(execution.id, {
+      approved: false,
+      feedback: 'Needs more detail'
+    });
+
+    const result = await conductor.waitForCompletion(execution.id);
+
+    expect(result).toBeSuccessful();
+    expect(result.output.status).toBe('rejected');
+    expect(result.output.feedback).toBe('Needs more detail');
+  });
+
+  it('should timeout after deadline', async () => {
+    const conductor = await TestConductor.create();
+
+    const execution = await conductor.executeEnsemble('urgent-approval', {
+      data: { ... }
+    });
+
+    // Fast-forward time past timeout
+    await conductor.advanceTime(3600000 + 1000);  // 1 hour + 1 second
+
+    const result = await conductor.getExecution(execution.id);
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('timeout');
+  });
+});
+```
+
+## Best Practices
+
+1. **Set appropriate timeouts** - Balance urgency vs. availability
+2. **Provide clear prompts** - Explain what needs review
+3. **Include context** - Show relevant data for decision-making
+4. **Send notifications** - Alert approvers via Slack/email
+5. **Handle timeouts gracefully** - Default action or retry
+6. **Track approval history** - Log who approved what when
+7. **Test thoroughly** - Verify both approval and rejection paths
+8. **Secure endpoints** - Require authentication for responses
+9. **Monitor pending requests** - Dashboard of awaiting approvals
+10. **Set SLAs** - Define expected response times
+
+## Security
+
+### Authentication
+
+```typescript
+// Verify request signature
+export default {
+  async fetch(request, env) {
+    const signature = request.headers.get('X-Signature');
+
+    if (!verifySignature(signature, env.WEBHOOK_SECRET)) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    // Process HITL response
+  }
+};
+```
+
+### Authorization
+
+```typescript
+// Check user has permission to approve
+const user = await authenticateUser(request);
+
+if (!user.permissions.includes('approve_content')) {
+  return new Response('Forbidden', { status: 403 });
+}
+
+await respondToHITL(executionId, response);
+```
+
+### Audit Trail
+
+```yaml
+- member: log-approval
+  type: Data
+  config:
+    storage: d1
+    operation: query
+    query: |
+      INSERT INTO approval_log (execution_id, approver, decision, timestamp)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+  input:
+    params:
+      - ${execution.id}
+      - ${request-approval.output.approver}
+      - ${request-approval.output.approved}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="HITL Guide"
+    icon="hand"
+    href="/conductor/guides/hitl"
+  >
+    Complete HITL patterns and UI integration
+  </Card>
+
+  <Card
+    title="Durable Objects"
+    icon="cube"
+    href="/conductor/concepts/durable-objects"
+  >
+    State persistence for HITL
+  </Card>
+
+  <Card
+    title="Built-In Members"
+    icon="cube"
+    href="/conductor/built-in-members/overview"
+  >
+    All built-in members
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test HITL workflows
+  </Card>
+</CardGroup>

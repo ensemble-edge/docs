@@ -1,0 +1,550 @@
+---
+title: "Built-In Members Overview"
+description: "Production-ready members included with Conductor"
+---
+
+## Overview
+
+Conductor includes production-ready built-in members for common tasks. These members are battle-tested, optimized for edge performance, and ready to use in your ensembles without any additional setup.
+
+## Available Built-In Members
+
+<CardGroup cols={2}>
+  <Card
+    title="Scrape"
+    icon="globe"
+    href="/conductor/built-in-members/scrape"
+  >
+    Extract content from websites with automatic cleaning
+  </Card>
+
+  <Card
+    title="Validate"
+    icon="check-circle"
+    href="/conductor/built-in-members/validate"
+  >
+    Quality scoring with multiple evaluator types
+  </Card>
+
+  <Card
+    title="RAG"
+    icon="book"
+    href="/conductor/built-in-members/rag"
+  >
+    Retrieval-augmented generation with vector search
+  </Card>
+
+  <Card
+    title="HITL"
+    icon="hand"
+    href="/conductor/built-in-members/hitl"
+  >
+    Human-in-the-loop for manual review and approval
+  </Card>
+
+  <Card
+    title="Fetch"
+    icon="arrow-right"
+    href="/conductor/built-in-members/fetch"
+  >
+    HTTP requests with retry and error handling
+  </Card>
+
+  <Card
+    title="Transform"
+    icon="wand-magic-sparkles"
+    href="/conductor/built-in-members/transform"
+  >
+    Data transformation with JSONata expressions
+  </Card>
+
+  <Card
+    title="Schedule"
+    icon="clock"
+    href="/conductor/built-in-members/schedule"
+  >
+    Delayed execution and scheduling
+  </Card>
+</CardGroup>
+
+## Usage
+
+Built-in members are referenced by name in ensemble definitions:
+
+```yaml
+name: example-workflow
+description: Using built-in members
+
+flow:
+  # Scrape a website
+  - member: scrape
+    type: Scrape
+    input:
+      url: "https://example.com"
+
+  # Validate the scraped content
+  - member: validate-content
+    type: Validate
+    input:
+      data: ${scrape.output.content}
+      rules:
+        minLength: 100
+
+  # Transform the data
+  - member: transform
+    type: Transform
+    input:
+      data: ${scrape.output}
+      expression: "{ title: title, excerpt: content[0..200] }"
+
+output:
+  result: ${transform.output}
+```
+
+## Built-In vs Custom Members
+
+### When to Use Built-In Members
+
+✅ **Use built-in members when:**
+- The functionality matches your needs exactly
+- You want zero configuration
+- Edge performance is critical
+- You need battle-tested reliability
+- You're prototyping quickly
+
+### When to Create Custom Members
+
+✅ **Create custom members when:**
+- You need specialized business logic
+- Integration with proprietary systems
+- Complex multi-step operations
+- Reusable components across projects
+- Team-specific patterns
+
+## Member Comparison
+
+| Member | Type | Use Case | Edge Performance |
+|--------|------|----------|------------------|
+| **Scrape** | Built-in | Web scraping | ⚡ Sub-100ms |
+| **Validate** | Built-in | Quality scoring | ⚡ Sub-10ms (rules) |
+| **RAG** | Built-in | Vector search | ⚡ Sub-50ms |
+| **HITL** | Built-in | Human approval | ⏸️ Waits for input |
+| **Fetch** | Built-in | HTTP requests | ⚡ Sub-100ms |
+| **Transform** | Built-in | Data transformation | ⚡ Sub-5ms |
+| **Schedule** | Built-in | Delayed execution | ⏰ Scheduled |
+
+## Feature Matrix
+
+### Scrape Member
+
+```yaml
+# Extract content from websites
+- member: scrape
+  type: Scrape
+  input:
+    url: "https://example.com"
+    selector: "article"  # Optional CSS selector
+    cleanHtml: true      # Remove scripts, styles
+```
+
+**Features:**
+- Automatic HTML cleaning
+- CSS selector support
+- Markdown conversion
+- Rate limiting
+- Cache support
+
+**Best For:** Content extraction, data gathering, web monitoring
+
+---
+
+### Validate Member
+
+```yaml
+# Quality validation with retry
+- member: validate
+  type: Validate
+  scoring:
+    evaluator: validate
+    evaluatorConfig:
+      type: rule  # or judge, nlp, embedding
+    criteria:
+      hasTitle:
+        rule: "output.title != null"
+    thresholds:
+      minimum: 0.8
+    onFailure: retry
+    retryLimit: 3
+```
+
+**Features:**
+- Multiple evaluator types (rule, LLM judge, NLP, embedding)
+- Automatic retry on failure
+- Progressive improvement
+- Custom scoring criteria
+
+**Best For:** Quality control, content moderation, data validation
+
+---
+
+### RAG Member
+
+```yaml
+# Vector search and retrieval
+- member: rag
+  type: RAG
+  config:
+    vectorizeBinding: "VECTORIZE"
+    indexName: "knowledge-base"
+  input:
+    query: ${input.question}
+    topK: 5
+```
+
+**Features:**
+- Cloudflare Vectorize integration
+- Automatic embedding generation
+- Similarity search
+- Metadata filtering
+
+**Best For:** Knowledge retrieval, semantic search, Q&A systems
+
+---
+
+### HITL Member
+
+```yaml
+# Human review and approval
+- member: hitl
+  type: HITL
+  config:
+    prompt: "Review this content"
+    fields:
+      - name: approved
+        type: boolean
+        label: "Approve?"
+    timeout: 86400000  # 24 hours
+```
+
+**Features:**
+- Durable Objects for state
+- Custom form fields
+- Webhook notifications
+- Configurable timeouts
+
+**Best For:** Content approval, manual review, compliance workflows
+
+---
+
+### Fetch Member
+
+```yaml
+# HTTP requests
+- member: fetch
+  type: Fetch
+  config:
+    url: "https://api.example.com/data"
+    method: GET
+    headers:
+      Authorization: "Bearer ${env.API_KEY}"
+    timeout: 30000
+    retries: 3
+```
+
+**Features:**
+- Automatic retries
+- Timeout handling
+- Header interpolation
+- Response parsing
+
+**Best For:** API integration, data fetching, webhooks
+
+---
+
+### Transform Member
+
+```yaml
+# Data transformation
+- member: transform
+  type: Transform
+  input:
+    data: ${previous.output}
+    expression: |
+      {
+        "title": title,
+        "summary": content[0..200],
+        "wordCount": $length($split(content, ' '))
+      }
+```
+
+**Features:**
+- JSONata expressions
+- Complex transformations
+- Array operations
+- Type conversions
+
+**Best For:** Data reshaping, filtering, aggregation
+
+---
+
+### Schedule Member
+
+```yaml
+# Delayed execution
+- member: schedule
+  type: Schedule
+  config:
+    delay: 3600000  # 1 hour
+  input:
+    action: "send-reminder"
+    data: ${input}
+```
+
+**Features:**
+- Durable Objects for persistence
+- Configurable delays
+- Cron-like scheduling
+- Retry on failure
+
+**Best For:** Reminders, delayed tasks, scheduled operations
+
+## Composition Patterns
+
+### Sequential Processing
+
+```yaml
+flow:
+  - member: scrape-content
+    type: Scrape
+
+  - member: validate-content
+    type: Validate
+
+  - member: transform-content
+    type: Transform
+
+  - member: save-content
+    type: Function
+```
+
+### Parallel + Aggregate
+
+```yaml
+flow:
+  parallel:
+    - member: scrape-site-1
+      type: Scrape
+    - member: scrape-site-2
+      type: Scrape
+    - member: scrape-site-3
+      type: Scrape
+
+  - member: combine-results
+    type: Transform
+    input:
+      data:
+        - ${scrape-site-1.output}
+        - ${scrape-site-2.output}
+        - ${scrape-site-3.output}
+```
+
+### Validation + Retry
+
+```yaml
+flow:
+  - member: generate-content
+    type: Think
+
+  - member: validate-quality
+    type: Validate
+    scoring:
+      onFailure: retry
+      retryLimit: 5
+
+  - member: human-review
+    condition: ${validate-quality.output.score < 0.8}
+    type: HITL
+```
+
+## Performance Optimization
+
+### Use Built-In Members for Speed
+
+```yaml
+# ✅ Fast - built-in Transform member
+- member: transform
+  type: Transform
+  input:
+    expression: "{ title: title, excerpt: content[0..200] }"
+
+# ❌ Slower - custom Function member
+- member: transform
+  type: Function
+  # Custom logic slower than optimized built-in
+```
+
+### Cache Aggressively
+
+```yaml
+- member: scrape
+  type: Scrape
+  cache:
+    ttl: 3600  # Cache for 1 hour
+```
+
+### Parallel Execution
+
+```yaml
+parallel:
+  - member: fetch-api-1
+    type: Fetch
+  - member: fetch-api-2
+    type: Fetch
+  - member: scrape-site
+    type: Scrape
+```
+
+## Error Handling
+
+Built-in members have consistent error handling:
+
+```yaml
+- member: scrape
+  type: Scrape
+  retry:
+    maxAttempts: 3
+    backoff: exponential
+  continue_on_error: true
+
+- member: handle-error
+  condition: ${!scrape.success}
+  type: Function
+```
+
+## Testing Built-In Members
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('built-in members', () => {
+  it('should scrape website', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        http: {
+          responses: {
+            'https://example.com': {
+              status: 200,
+              body: '<html><body><h1>Hello</h1></body></html>'
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeMember('scrape', {
+      url: 'https://example.com'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.content).toContain('Hello');
+  });
+
+  it('should validate content', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeMember('validate', {
+      data: { title: 'Test', body: 'Content here' },
+      rules: {
+        hasTitle: "data.title != null"
+      }
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.passed).toBe(true);
+  });
+});
+```
+
+## Migration from Custom Members
+
+If you have custom members that duplicate built-in functionality:
+
+```yaml
+# Before: Custom fetch member
+- member: my-custom-fetch
+  type: Function
+  # Complex custom HTTP logic
+
+# After: Built-in Fetch member
+- member: fetch-data
+  type: Fetch
+  config:
+    url: "https://api.example.com"
+```
+
+**Benefits:**
+- Less code to maintain
+- Better performance
+- Automatic updates
+- Battle-tested reliability
+
+## Contributing Built-In Members
+
+Want to contribute a built-in member?
+
+1. **Propose** - Open a GitHub issue describing the member
+2. **Discuss** - Community feedback on scope and API
+3. **Implement** - Follow the member SDK patterns
+4. **Test** - Comprehensive test coverage
+5. **Document** - Complete documentation with examples
+6. **Submit** - Pull request with tests and docs
+
+See [CONTRIBUTING.md](https://github.com/ensemble-edge/ensemble/blob/main/CONTRIBUTING.md) for details.
+
+## Best Practices
+
+1. **Prefer built-ins** - Use built-in members when available
+2. **Compose freely** - Mix built-in and custom members
+3. **Cache strategically** - Set appropriate TTLs
+4. **Handle errors** - Use retry and fallback patterns
+5. **Test thoroughly** - Mock built-in members in tests
+6. **Monitor performance** - Track member execution times
+7. **Update regularly** - Keep Conductor updated for improvements
+8. **Read the docs** - Each built-in has detailed documentation
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Creating Members"
+    icon="plus"
+    href="/conductor/guides/creating-members"
+  >
+    Build custom members
+  </Card>
+
+  <Card
+    title="Member Types"
+    icon="cube"
+    href="/conductor/member-types/overview"
+  >
+    Think, Function, Data, API members
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test built-in members
+  </Card>
+
+  <Card
+    title="Performance"
+    icon="bolt"
+    href="/conductor/guides/performance"
+  >
+    Optimize member execution
+  </Card>
+</CardGroup>

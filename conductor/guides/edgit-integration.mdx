@@ -1,0 +1,612 @@
+---
+title: "Edgit Integration Guide"
+description: "Version and deploy Conductor members with Edgit"
+---
+
+## Overview
+
+Edgit provides Git tag-based component versioning for Conductor members, allowing you to version prompts, members, and configurations independently while deploying them at the edge with precision.
+
+Perfect for teams that need to:
+- Deploy different member versions to different regions
+- Roll back individual components without full redeployment
+- Track which version of each member is running in production
+- Maintain independent evolution cycles for different components
+
+## Quick Example
+
+```bash
+# Install Edgit globally
+npm install -g @ensemble-edge/edgit
+
+# Initialize in your Conductor project
+cd my-conductor-project
+edgit init
+
+# Create a Think member
+cat > members/analyze-content/index.ts << 'EOF'
+import { createThinkMember } from '@ensemble-edge/conductor/sdk';
+
+export default createThinkMember({
+  async handler({ input, env }) {
+    // AI analysis logic
+    return { analysis: 'positive' };
+  }
+});
+EOF
+
+# Version the member
+edgit tag create analyze-content v1.0.0
+
+# Deploy to production
+edgit deploy set analyze-content v1.0.0 --to prod
+
+# Deploy v2.0.0 to staging for testing
+edgit tag create analyze-content v2.0.0
+edgit deploy set analyze-content v2.0.0 --to staging
+```
+
+## Why Edgit + Conductor?
+
+### The Problem
+
+Traditional deployment approaches version your entire application:
+
+```bash
+# Deploy entire app
+npm run deploy
+
+# Problem: Everything updates together
+✅ New feature in member A
+⚠️ Experimental change in member B (not ready!)
+❌ Breaking change in member C (oops!)
+```
+
+### The Solution
+
+Edgit enables component-level versioning:
+
+```yaml
+# Ensemble can reference specific member versions
+name: hybrid-workflow
+description: Mix stable and experimental members
+
+flow:
+  # Use stable v1.0.0 in production
+  - member: analyze-content
+    version: v1.0.0
+
+  # Test v2.0.0 in canary deployment
+  - member: experimental-analysis
+    version: v2.0.0
+    condition: ${input.canary}
+```
+
+## Setup
+
+### Installation
+
+```bash
+# Install Edgit globally
+npm install -g @ensemble-edge/edgit
+
+# Or as project dependency
+npm install --save-dev @ensemble-edge/edgit
+```
+
+### Initialize Repository
+
+```bash
+cd your-conductor-project
+edgit init
+```
+
+This creates `.edgit/components.json` to track your members.
+
+### Configure AI Commits (Optional)
+
+```bash
+# Add OpenAI API key for AI-generated commit messages
+echo "OPENAI_API_KEY=sk-proj-..." >> .env
+
+# Now Edgit will generate intelligent commit messages
+edgit commit
+# Example: "feat(analyze-content): enhance sentiment analysis with context"
+```
+
+## Versioning Members
+
+### Think Members
+
+```typescript
+// members/analyze-sentiment/index.ts
+import { createThinkMember } from '@ensemble-edge/conductor/sdk';
+
+export default createThinkMember({
+  async handler({ input, env }) {
+    // ... implementation
+  }
+});
+```
+
+```bash
+# Version the member
+edgit tag create analyze-sentiment v1.0.0
+
+# Deploy to production
+edgit deploy set analyze-sentiment v1.0.0 --to prod
+```
+
+### Function Members
+
+```typescript
+// members/transform-data/index.ts
+import { createFunctionMember } from '@ensemble-edge/conductor/sdk';
+
+export default createFunctionMember({
+  async handler({ input }) {
+    // ... transformation logic
+  }
+});
+```
+
+```bash
+edgit tag create transform-data v1.0.0
+edgit deploy set transform-data v1.0.0 --to prod
+```
+
+### Ensemble Definitions
+
+```yaml
+# ensembles/content-workflow/ensemble.yaml
+name: content-workflow
+description: Multi-step content processing
+
+flow:
+  - member: analyze-sentiment
+    version: v1.0.0  # Reference specific version
+
+  - member: transform-data
+    version: v2.1.0  # Different version
+```
+
+```bash
+edgit tag create content-workflow v1.0.0
+edgit deploy set content-workflow v1.0.0 --to prod
+```
+
+### Prompts and Templates
+
+```markdown
+<!-- prompts/system-prompt.prompt.md -->
+You are an expert content analyst.
+Analyze the given content for sentiment, tone, and key themes.
+```
+
+```bash
+edgit tag create system-prompt v1.0.0
+edgit deploy set system-prompt v1.0.0 --to prod
+```
+
+## Deployment Strategies
+
+### Blue-Green Deployment
+
+```bash
+# Deploy v2.0.0 to staging (green)
+edgit tag create analyze-content v2.0.0
+edgit deploy set analyze-content v2.0.0 --to staging
+
+# Test in staging
+curl https://staging.example.com/api/analyze
+
+# Promote to production (blue)
+edgit deploy promote analyze-content staging prod
+
+# Instant rollback if needed
+edgit deploy set analyze-content v1.0.0 --to prod
+```
+
+### Canary Deployment
+
+```yaml
+# Ensemble with canary routing
+name: canary-workflow
+description: Route to different versions based on flag
+
+flow:
+  # 90% traffic to stable v1.0.0
+  - member: analyze-content-stable
+    condition: ${Math.random() > 0.1}
+    version: v1.0.0
+
+  # 10% traffic to canary v2.0.0
+  - member: analyze-content-canary
+    condition: ${Math.random() <= 0.1}
+    version: v2.0.0
+```
+
+### Regional Deployment
+
+```bash
+# Asia: Latest experimental version
+edgit deploy set analyze-content v2.0.0 --to asia
+
+# Europe: Stable version
+edgit deploy set analyze-content v1.0.0 --to europe
+
+# US: Middle ground
+edgit deploy set analyze-content v1.5.0 --to us
+```
+
+Use Cloudflare routing to direct traffic:
+
+```typescript
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const region = request.cf?.region || 'us';
+
+    // Load ensemble with region-specific version
+    const version = getVersionForRegion(region);
+
+    const conductor = new Conductor({ env });
+    const result = await conductor.executeEnsemble('analyze-workflow', {
+      memberVersion: version,
+      ...input
+    });
+
+    return Response.json(result);
+  }
+};
+```
+
+### A/B Testing
+
+```yaml
+name: ab-test-workflow
+description: Test two prompt versions
+
+flow:
+  # Version A (control)
+  - member: analyze-with-v1
+    condition: ${input.userId % 2 === 0}
+    version: v1.0.0
+
+  # Version B (experiment)
+  - member: analyze-with-v2
+    condition: ${input.userId % 2 === 1}
+    version: v2.0.0
+
+  # Track metrics
+  - member: log-version
+    input:
+      version: ${input.userId % 2 === 0 ? 'v1.0.0' : 'v2.0.0'}
+      result: ${input.userId % 2 === 0 ? analyze-with-v1.output : analyze-with-v2.output}
+```
+
+## Version Management
+
+### Semantic Versioning
+
+```bash
+# Major version (breaking changes)
+edgit tag create member v2.0.0
+
+# Minor version (new features)
+edgit tag create member v1.1.0
+
+# Patch version (bug fixes)
+edgit tag create member v1.0.1
+
+# Pre-release versions
+edgit tag create member v2.0.0-beta.1
+edgit tag create member v2.0.0-rc.1
+```
+
+### List Versions
+
+```bash
+# List all versions of a member
+edgit tag list analyze-content
+# v1.0.0  (Created: 2024-10-31, SHA: abc1234)
+# v1.1.0  (Created: 2024-11-01, SHA: def5678)
+# v2.0.0  (Created: 2024-11-02, SHA: 789abcd)
+
+# Show version details
+edgit tag show analyze-content v1.0.0
+# Tag: components/analyze-content/v1.0.0
+# Commit: abc1234
+# Date: 2024-10-31 10:30:00
+```
+
+### Delete Versions
+
+```bash
+# Delete a version tag (careful!)
+edgit tag delete analyze-content v1.0.0
+
+# This is permanent - only delete if version was never deployed
+```
+
+## Workflow Patterns
+
+### Multi-Stage Pipeline
+
+```bash
+# Stage 1: Development
+git checkout -b feature/new-analysis
+# ... implement changes ...
+edgit commit
+edgit tag create analyze-content v1.1.0-dev
+edgit deploy set analyze-content v1.1.0-dev --to dev
+
+# Stage 2: Testing
+git checkout main && git merge feature/new-analysis
+edgit tag create analyze-content v1.1.0-rc.1
+edgit deploy set analyze-content v1.1.0-rc.1 --to staging
+
+# Stage 3: Production
+edgit tag create analyze-content v1.1.0
+edgit deploy set analyze-content v1.1.0 --to prod
+```
+
+### Hotfix Workflow
+
+```bash
+# Production is on v1.2.0
+edgit deploy status analyze-content
+# prod: v1.2.0
+
+# Create hotfix branch
+git checkout -b hotfix/critical-bug v1.2.0
+
+# Fix the bug
+# ... edit files ...
+
+# Create patch version
+edgit tag create analyze-content v1.2.1
+edgit deploy set analyze-content v1.2.1 --to prod
+
+# Merge hotfix back
+git checkout main && git merge hotfix/critical-bug
+```
+
+### Progressive Rollout
+
+```bash
+# Week 1: Deploy to staging
+edgit tag create member v2.0.0
+edgit deploy set member v2.0.0 --to staging
+
+# Week 2: Deploy to 10% of production
+# (Use Conductor conditional logic for routing)
+
+# Week 3: Deploy to 50% of production
+
+# Week 4: Deploy to 100% of production
+edgit deploy set member v2.0.0 --to prod
+```
+
+## Component Discovery
+
+Edgit automatically detects Conductor components:
+
+```bash
+# Members
+members/**/*.ts        → Member implementations
+members/**/*.js        → JavaScript members
+*.member.ts            → Member files anywhere
+
+# Ensembles
+ensembles/**/*.yaml    → Ensemble definitions
+ensembles/**/*.yml     → YAML ensembles
+*.ensemble.yaml        → Ensemble files anywhere
+
+# Prompts
+prompts/**/*           → Prompt files
+*.prompt.md            → Prompt markdown files
+
+# Configs
+configs/**/*           → Configuration files
+*.config.yaml          → Config files
+```
+
+## Monitoring and Observability
+
+### Track Deployments
+
+```bash
+# See what's deployed where
+edgit deploy list
+# Component: analyze-content
+#   prod:    v1.0.0
+#   staging: v2.0.0
+#   dev:     v2.1.0-beta
+
+# Component: transform-data
+#   prod:    v1.5.0
+#   staging: v1.5.0
+```
+
+### Version Analytics
+
+```yaml
+# Log version info in ensemble
+name: versioned-workflow
+
+flow:
+  - member: log-version
+    type: Function
+    input:
+      memberName: analyze-content
+      version: v1.0.0
+      executionId: ${execution.id}
+
+  - member: analyze-content
+    version: v1.0.0
+```
+
+### Deployment History
+
+```bash
+# Git tags preserve complete history
+git log --all --decorate --oneline --graph \
+  --simplify-by-decoration \
+  refs/tags/components/analyze-content/*
+
+# See what changed between versions
+git diff components/analyze-content/v1.0.0 components/analyze-content/v2.0.0
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy with Edgit
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Need full history for Edgit
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Edgit
+        run: npm install -g @ensemble-edge/edgit
+
+      - name: Version and Deploy
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          # Create version tag
+          edgit tag create analyze-content v1.0.${{ github.run_number }}
+
+          # Deploy to production
+          edgit deploy set analyze-content v1.0.${{ github.run_number }} --to prod
+
+          # Push tags
+          git push origin --tags
+
+      - name: Deploy to Cloudflare
+        run: npx wrangler deploy
+```
+
+### GitLab CI
+
+```yaml
+# .gitlab-ci.yml
+deploy:
+  stage: deploy
+  script:
+    - npm install -g @ensemble-edge/edgit
+    - edgit tag create $COMPONENT_NAME $CI_COMMIT_TAG
+    - edgit deploy set $COMPONENT_NAME $CI_COMMIT_TAG --to prod
+    - git push origin --tags
+  only:
+    - tags
+```
+
+## Best Practices
+
+1. **Version Everything** - Members, ensembles, prompts, and configs
+2. **Semantic Versioning** - Follow semver for clear version meaning
+3. **Tag Early, Deploy Later** - Create tags when code is ready, deploy when confident
+4. **Test in Staging** - Always test new versions before production
+5. **Immutable Versions** - Never modify existing version tags
+6. **Document Changes** - Use AI commits or write clear commit messages
+7. **Monitor Deployments** - Track which versions are running where
+8. **Rollback Plan** - Know how to quickly revert to previous versions
+9. **Progressive Rollout** - Use canary/blue-green for major changes
+10. **Clean Up** - Delete unused development/test versions
+
+## Troubleshooting
+
+### Version Not Found
+
+```bash
+# Check if version exists
+edgit tag list member-name
+
+# Create version if missing
+edgit tag create member-name v1.0.0
+```
+
+### Deployment Not Updating
+
+```bash
+# Force update deployment tag
+edgit deploy set member-name v1.0.0 --to prod --force
+
+# Push tags to remote
+git push origin --tags --force
+```
+
+### Component Not Detected
+
+```bash
+# Reinitialize to discover components
+edgit init --force
+
+# Check component registry
+cat .edgit/components.json
+```
+
+### Naming Conflicts
+
+```bash
+# Edgit detects collisions automatically
+❌ Component name collision detected: "auth-prompt" already exists.
+   Suggested alternatives: auth-prompt-2, auth-prompt-new
+
+# Rename the file to avoid conflict
+mv prompts/duplicate.prompt.md prompts/unique-name.prompt.md
+edgit init --force
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Edgit Documentation"
+    icon="git"
+    href="https://github.com/ensemble-edge/edgit"
+  >
+    Complete Edgit documentation
+  </Card>
+
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/conductor/guides/deployment"
+  >
+    Deploy Conductor to Cloudflare Workers
+  </Card>
+
+  <Card
+    title="Creating Members"
+    icon="plus"
+    href="/conductor/guides/creating-members"
+  >
+    Build custom Conductor members
+  </Card>
+
+  <Card
+    title="CI/CD Best Practices"
+    icon="code-branch"
+    href="/conductor/guides/ci-cd"
+  >
+    Automate deployment pipelines
+  </Card>
+</CardGroup>

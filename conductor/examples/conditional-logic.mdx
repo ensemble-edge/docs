@@ -1,0 +1,536 @@
+---
+title: "Conditional Logic Example"
+description: "Branch execution based on conditions with if/then/else patterns"
+---
+
+## Overview
+
+Conditional logic allows workflows to branch based on input, state, or previous member outputs. This example demonstrates if/then/else patterns, switch statements, and dynamic routing.
+
+## Basic If/Then Pattern
+
+```yaml
+name: conditional-greeting
+description: Conditional member execution
+
+flow:
+  # Always execute
+  - member: check-user-type
+    input:
+      userId: ${input.userId}
+
+  # Execute only for premium users
+  - member: premium-greeting
+    condition: ${check-user-type.output.isPremium}
+    input:
+      name: ${input.name}
+
+  # Execute only for basic users
+  - member: basic-greeting
+    condition: ${!check-user-type.output.isPremium}
+    input:
+      name: ${input.name}
+
+output:
+  greeting: ${check-user-type.output.isPremium ? premium-greeting.output.message : basic-greeting.output.message}
+```
+
+## Multiple Conditions
+
+```yaml
+name: order-processing
+description: Process orders based on multiple conditions
+
+flow:
+  - member: validate-order
+    input:
+      order: ${input.order}
+
+  # High-value orders require approval
+  - member: request-approval
+    condition: ${input.order.total > 10000}
+    input:
+      order: ${input.order}
+      reason: "High-value order"
+
+  # International orders require customs
+  - member: process-customs
+    condition: ${input.order.country !== 'US'}
+    input:
+      order: ${input.order}
+
+  # Express shipping gets priority
+  - member: priority-fulfillment
+    condition: ${input.order.shipping === 'express'}
+    input:
+      order: ${input.order}
+
+  # Standard fulfillment for others
+  - member: standard-fulfillment
+    condition: ${input.order.shipping !== 'express' && validate-order.output.valid}
+    input:
+      order: ${input.order}
+
+output:
+  processed: true
+  requiresApproval: ${input.order.total > 10000}
+  fulfillmentType: ${input.order.shipping === 'express' ? 'priority' : 'standard'}
+```
+
+## Switch/Case Pattern
+
+```yaml
+name: route-by-intent
+description: Route based on user intent classification
+
+flow:
+  # Classify user intent
+  - member: classify-intent
+    type: Think
+    config:
+      provider: workers-ai
+      model: "@cf/meta/llama-3.1-8b-instruct"
+      systemPrompt: |
+        Classify user intent into: question, complaint, request, or praise.
+        Respond with only one word.
+    input:
+      text: ${input.message}
+
+  # Route to appropriate handler
+  - member: handle-question
+    condition: ${classify-intent.output.intent === 'question'}
+    input:
+      question: ${input.message}
+
+  - member: handle-complaint
+    condition: ${classify-intent.output.intent === 'complaint'}
+    input:
+      complaint: ${input.message}
+
+  - member: handle-request
+    condition: ${classify-intent.output.intent === 'request'}
+    input:
+      request: ${input.message}
+
+  - member: handle-praise
+    condition: ${classify-intent.output.intent === 'praise'}
+    input:
+      praise: ${input.message}
+
+output:
+  intent: ${classify-intent.output.intent}
+  response: ${handle-question.success ? handle-question.output : handle-complaint.success ? handle-complaint.output : handle-request.success ? handle-request.output : handle-praise.output}
+```
+
+## Nested Conditions
+
+```yaml
+name: pricing-calculator
+description: Calculate pricing with complex conditional logic
+
+flow:
+  - member: get-base-price
+    input:
+      productId: ${input.productId}
+
+  # Premium tier with volume discount
+  - member: calculate-premium-discount
+    condition: ${input.tier === 'premium' && input.quantity >= 100}
+    input:
+      basePrice: ${get-base-price.output.price}
+      quantity: ${input.quantity}
+      discount: 0.25
+
+  # Premium tier without volume
+  - member: calculate-premium-price
+    condition: ${input.tier === 'premium' && input.quantity < 100}
+    input:
+      basePrice: ${get-base-price.output.price}
+      quantity: ${input.quantity}
+      discount: 0.1
+
+  # Standard tier with volume
+  - member: calculate-standard-discount
+    condition: ${input.tier === 'standard' && input.quantity >= 50}
+    input:
+      basePrice: ${get-base-price.output.price}
+      quantity: ${input.quantity}
+      discount: 0.15
+
+  # Standard tier without volume
+  - member: calculate-standard-price
+    condition: ${input.tier === 'standard' && input.quantity < 50}
+    input:
+      basePrice: ${get-base-price.output.price}
+      quantity: ${input.quantity}
+
+  # Apply additional discounts
+  - member: apply-seasonal-discount
+    condition: ${input.season === 'holiday'}
+    input:
+      currentPrice: ${calculate-premium-discount.success ? calculate-premium-discount.output.total : calculate-premium-price.success ? calculate-premium-price.output.total : calculate-standard-discount.success ? calculate-standard-discount.output.total : calculate-standard-price.output.total}
+
+output:
+  finalPrice: ${apply-seasonal-discount.success ? apply-seasonal-discount.output.total : calculate-premium-discount.success ? calculate-premium-discount.output.total : calculate-premium-price.success ? calculate-premium-price.output.total : calculate-standard-discount.success ? calculate-standard-discount.output.total : calculate-standard-price.output.total}
+  discountsApplied: ${apply-seasonal-discount.success ? ['tier', 'volume', 'seasonal'] : calculate-premium-discount.success ? ['tier', 'volume'] : calculate-premium-price.success ? ['tier'] : calculate-standard-discount.success ? ['volume'] : []}
+```
+
+## State-Based Conditions
+
+```yaml
+name: multi-step-validation
+description: Conditional execution based on accumulated state
+
+state:
+  schema:
+    validations: object
+
+flow:
+  # Step 1: Validate email
+  - member: validate-email
+    input:
+      email: ${input.email}
+    state:
+      set: [validations]
+
+  # Step 2: Only validate phone if email is valid
+  - member: validate-phone
+    condition: ${state.validations.emailValid}
+    input:
+      phone: ${input.phone}
+    state:
+      use: [validations]
+      set: [validations]
+
+  # Step 3: Only validate address if both email and phone are valid
+  - member: validate-address
+    condition: ${state.validations.emailValid && state.validations.phoneValid}
+    input:
+      address: ${input.address}
+    state:
+      use: [validations]
+      set: [validations]
+
+  # Step 4: Only create account if all validations pass
+  - member: create-account
+    condition: ${state.validations.emailValid && state.validations.phoneValid && state.validations.addressValid}
+    input:
+      email: ${input.email}
+      phone: ${input.phone}
+      address: ${input.address}
+
+output:
+  success: ${create-account.success}
+  validations: ${state.validations}
+```
+
+## Fallback Chain
+
+```yaml
+name: content-generation-fallback
+description: Try multiple strategies until one succeeds
+
+flow:
+  # Try fast edge model first
+  - member: generate-with-workers-ai
+    type: Think
+    config:
+      provider: workers-ai
+      model: "@cf/meta/llama-3.1-8b-instruct"
+    input:
+      prompt: ${input.prompt}
+    continue_on_error: true
+    scoring:
+      thresholds:
+        minimum: 0.7
+      onFailure: continue
+
+  # If quality too low or failed, try GPT-4o-mini
+  - member: generate-with-gpt-mini
+    condition: ${!generate-with-workers-ai.success || generate-with-workers-ai.scoring.score < 0.7}
+    type: Think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+    input:
+      prompt: ${input.prompt}
+    continue_on_error: true
+    scoring:
+      thresholds:
+        minimum: 0.8
+      onFailure: continue
+
+  # Final fallback to Claude
+  - member: generate-with-claude
+    condition: ${!generate-with-gpt-mini.success || generate-with-gpt-mini.scoring.score < 0.8}
+    type: Think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    input:
+      prompt: ${input.prompt}
+
+output:
+  content: ${generate-with-workers-ai.success && generate-with-workers-ai.scoring.score >= 0.7 ? generate-with-workers-ai.output.text : generate-with-gpt-mini.success && generate-with-gpt-mini.scoring.score >= 0.8 ? generate-with-gpt-mini.output.text : generate-with-claude.output.text}
+  provider: ${generate-with-workers-ai.success && generate-with-workers-ai.scoring.score >= 0.7 ? 'workers-ai' : generate-with-gpt-mini.success && generate-with-gpt-mini.scoring.score >= 0.8 ? 'gpt-4o-mini' : 'claude'}
+  attempts: ${generate-with-claude.success ? 3 : generate-with-gpt-mini.success ? 2 : 1}
+```
+
+## Dynamic Configuration
+
+```yaml
+name: adaptive-analysis
+description: Adapt analysis depth based on input complexity
+
+flow:
+  # Assess complexity
+  - member: assess-complexity
+    type: Function
+    input:
+      text: ${input.text}
+
+  # Simple analysis for low complexity
+  - member: simple-analysis
+    condition: ${assess-complexity.output.complexity === 'low'}
+    type: Think
+    config:
+      provider: workers-ai
+      model: "@cf/meta/llama-3.1-8b-instruct"
+      maxTokens: 200
+    input:
+      text: ${input.text}
+
+  # Detailed analysis for medium complexity
+  - member: detailed-analysis
+    condition: ${assess-complexity.output.complexity === 'medium'}
+    type: Think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      maxTokens: 500
+    input:
+      text: ${input.text}
+
+  # Comprehensive analysis for high complexity
+  - member: comprehensive-analysis
+    condition: ${assess-complexity.output.complexity === 'high'}
+    type: Think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      maxTokens: 2000
+    input:
+      text: ${input.text}
+
+output:
+  analysis: ${simple-analysis.success ? simple-analysis.output : detailed-analysis.success ? detailed-analysis.output : comprehensive-analysis.output}
+  complexity: ${assess-complexity.output.complexity}
+  tokensUsed: ${simple-analysis.success ? 200 : detailed-analysis.success ? 500 : 2000}
+```
+
+## Conditional Parallel Execution
+
+```yaml
+name: conditional-parallel
+description: Execute different parallel paths based on conditions
+
+flow:
+  - member: determine-strategy
+    input:
+      dataSize: ${input.dataSize}
+      urgency: ${input.urgency}
+
+  # For large datasets, process in parallel
+  parallel:
+    condition: ${determine-strategy.output.strategy === 'parallel'}
+
+    - member: process-chunk-1
+      input:
+        data: ${input.data.chunk1}
+
+    - member: process-chunk-2
+      input:
+        data: ${input.data.chunk2}
+
+    - member: process-chunk-3
+      input:
+        data: ${input.data.chunk3}
+
+  # For small datasets, process sequentially
+  - member: process-all
+    condition: ${determine-strategy.output.strategy === 'sequential'}
+    input:
+      data: ${input.data}
+
+output:
+  results: ${determine-strategy.output.strategy === 'parallel' ? [process-chunk-1.output, process-chunk-2.output, process-chunk-3.output] : [process-all.output]}
+  strategy: ${determine-strategy.output.strategy}
+```
+
+## Testing Conditional Logic
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('conditional-greeting', () => {
+  it('should use premium greeting for premium users', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        database: {
+          responses: {
+            'check-user-type': {
+              isPremium: true
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('conditional-greeting', {
+      userId: 123,
+      name: 'Alice'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result).toHaveExecutedMember('premium-greeting');
+    expect(result).not.toHaveExecutedMember('basic-greeting');
+  });
+
+  it('should use basic greeting for basic users', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        database: {
+          responses: {
+            'check-user-type': {
+              isPremium: false
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('conditional-greeting', {
+      userId: 456,
+      name: 'Bob'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result).toHaveExecutedMember('basic-greeting');
+    expect(result).not.toHaveExecutedMember('premium-greeting');
+  });
+});
+
+describe('fallback chain', () => {
+  it('should try multiple providers until success', async () => {
+    let attempts = 0;
+
+    const conductor = await TestConductor.create({
+      mocks: {
+        ai: {
+          handler: async (memberName) => {
+            attempts++;
+            if (memberName === 'generate-with-workers-ai') {
+              return { text: 'Low quality', score: 0.5 };
+            }
+            if (memberName === 'generate-with-gpt-mini') {
+              return { text: 'Better quality', score: 0.85 };
+            }
+            return { text: 'High quality' };
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('content-generation-fallback', {
+      prompt: 'Write a story'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.provider).toBe('gpt-4o-mini');
+    expect(result.output.attempts).toBe(2);
+  });
+});
+```
+
+## Best Practices
+
+### 1. Keep Conditions Simple
+
+```yaml
+# ✅ Good - clear condition
+condition: ${input.isPremium}
+
+# ❌ Bad - complex nested condition
+condition: ${input.user.subscription.plan === 'premium' && input.user.status === 'active' && input.user.payment.current}
+```
+
+### 2. Use State for Complex Logic
+
+```yaml
+# ✅ Good - evaluate once, store in state
+- member: evaluate-conditions
+  state:
+    set: [shouldProcess, shouldNotify, shouldCache]
+
+- member: process
+  condition: ${state.shouldProcess}
+```
+
+### 3. Provide Fallbacks
+
+```yaml
+# ✅ Good - always have a path forward
+- member: try-primary
+  continue_on_error: true
+
+- member: fallback
+  condition: ${!try-primary.success}
+```
+
+### 4. Test All Branches
+
+```typescript
+// Test each conditional path
+describe('all branches', () => {
+  it('tests branch A');
+  it('tests branch B');
+  it('tests default branch');
+});
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Ensembles Concept"
+    icon="file-music"
+    href="/conductor/concepts/ensembles"
+  >
+    Learn about workflow patterns
+  </Card>
+
+  <Card
+    title="State Management"
+    icon="database"
+    href="/conductor/guides/state-management"
+  >
+    Use state in conditions
+  </Card>
+
+  <Card
+    title="Error Handling Example"
+    icon="triangle-exclamation"
+    href="/conductor/examples/error-handling"
+  >
+    Handle failures gracefully
+  </Card>
+
+  <Card
+    title="Parallel Processing"
+    icon="bolt"
+    href="/conductor/examples/parallel-processing"
+  >
+    Combine with parallel execution
+  </Card>
+</CardGroup>
