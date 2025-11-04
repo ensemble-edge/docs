@@ -1,0 +1,447 @@
+---
+title: "Hello World Example"
+description: "Simple greeting ensemble demonstrating core concepts"
+---
+
+## Overview
+
+This example demonstrates the fundamentals of Conductor: creating a member, defining an ensemble, and executing a workflow. Perfect for understanding how the pieces fit together.
+
+## Project Structure
+
+```
+hello-world/
+├── members/
+│   └── greet/
+│       ├── member.yaml
+│       └── index.ts
+└── ensembles/
+    └── hello-world.yaml
+```
+
+## Step 1: Create the Member
+
+### Configuration
+
+```yaml
+# members/greet/member.yaml
+name: greet
+type: Function
+description: Generate a personalized greeting message
+
+schema:
+  input:
+    type: object
+    properties:
+      name:
+        type: string
+        description: Name of person to greet
+      language:
+        type: string
+        enum: [english, spanish, french]
+        default: english
+    required: [name]
+
+  output:
+    type: object
+    properties:
+      message:
+        type: string
+      timestamp:
+        type: number
+```
+
+### Implementation
+
+```typescript
+// members/greet/index.ts
+export default async function greet({ input }) {
+  const { name, language = 'english' } = input;
+
+  const greetings: Record<string, string> = {
+    english: `Hello, ${name}! Welcome to Conductor.`,
+    spanish: `¡Hola, ${name}! Bienvenido a Conductor.`,
+    french: `Bonjour, ${name}! Bienvenue à Conductor.`
+  };
+
+  return {
+    message: greetings[language] || greetings.english,
+    timestamp: Date.now()
+  };
+}
+```
+
+## Step 2: Define the Ensemble
+
+```yaml
+# ensembles/hello-world.yaml
+name: hello-world
+description: Simple greeting workflow demonstrating Conductor basics
+
+flow:
+  # Execute the greet member
+  - member: greet
+    input:
+      name: ${input.name}
+      language: ${input.language}
+
+# Map member output to ensemble output
+output:
+  greeting: ${greet.output.message}
+  timestamp: ${greet.output.timestamp}
+```
+
+## Step 3: Execute the Ensemble
+
+### Using the API
+
+```bash
+curl -X POST http://localhost:8787/api/v1/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ensemble": "hello-world",
+    "input": {
+      "name": "World"
+    }
+  }'
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "output": {
+    "greeting": "Hello, World! Welcome to Conductor.",
+    "timestamp": 1704067200000
+  },
+  "executionTime": 5,
+  "cached": false
+}
+```
+
+### Using the SDK
+
+```typescript
+import { Executor } from '@ensemble-edge/conductor';
+
+const executor = new Executor({ env, ctx });
+
+const result = await executor.executeFromYAML(
+  ensembleYAML,
+  { name: 'World' }
+);
+
+console.log(result.output.greeting);
+// "Hello, World! Welcome to Conductor."
+```
+
+## Step 4: Test It
+
+```typescript
+// ensembles/hello-world.test.ts
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('hello-world ensemble', () => {
+  it('should greet user in English', async () => {
+    const conductor = await TestConductor.create();
+    await conductor.loadProject('./');
+
+    const result = await conductor.executeEnsemble('hello-world', {
+      name: 'Alice'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.greeting).toBe('Hello, Alice! Welcome to Conductor.');
+    expect(result.output.timestamp).toBeGreaterThan(0);
+  });
+
+  it('should greet user in Spanish', async () => {
+    const conductor = await TestConductor.create();
+    await conductor.loadProject('./');
+
+    const result = await conductor.executeEnsemble('hello-world', {
+      name: 'Carlos',
+      language: 'spanish'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.greeting).toBe('¡Hola, Carlos! Bienvenido a Conductor.');
+  });
+
+  it('should greet user in French', async () => {
+    const conductor = await TestConductor.create();
+    await conductor.loadProject('./');
+
+    const result = await conductor.executeEnsemble('hello-world', {
+      name: 'Marie',
+      language: 'french'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.greeting).toBe('Bonjour, Marie! Bienvenue à Conductor.');
+  });
+
+  it('should require name', async () => {
+    const conductor = await TestConductor.create();
+    await conductor.loadProject('./');
+
+    const result = await conductor.executeEnsemble('hello-world', {});
+
+    expect(result).toHaveError();
+  });
+});
+```
+
+Run tests:
+
+```bash
+npm test
+```
+
+## Concepts Demonstrated
+
+### 1. Member Configuration
+
+```yaml
+schema:
+  input:
+    properties:
+      name: string      # Required parameter
+      language: string  # Optional with enum
+```
+
+### 2. Member Implementation
+
+```typescript
+export default async function greet({ input }) {
+  // Access input parameters
+  const { name, language } = input;
+
+  // Return output object
+  return { message, timestamp };
+}
+```
+
+### 3. Ensemble Flow
+
+```yaml
+flow:
+  - member: greet  # Reference member by name
+    input:
+      name: ${input.name}  # Template interpolation
+```
+
+### 4. Output Mapping
+
+```yaml
+output:
+  greeting: ${greet.output.message}  # Map member output to ensemble output
+```
+
+## Variations
+
+### With State
+
+Track greeting count across executions:
+
+```yaml
+name: hello-world-stateful
+
+state:
+  schema:
+    greetingCount: number
+
+flow:
+  - member: greet
+    input:
+      name: ${input.name}
+    state:
+      use: [greetingCount]
+
+  - member: increment-count
+    state:
+      use: [greetingCount]
+      set: [greetingCount]
+
+output:
+  greeting: ${greet.output.message}
+  totalGreetings: ${state.greetingCount}
+```
+
+### With Caching
+
+Cache greetings for frequent names:
+
+```yaml
+flow:
+  - member: greet
+    input:
+      name: ${input.name}
+    cache:
+      ttl: 3600  # Cache for 1 hour
+```
+
+### With Validation
+
+Validate input before greeting:
+
+```yaml
+flow:
+  - member: validate-name
+    input:
+      name: ${input.name}
+
+  - member: greet
+    condition: ${validate-name.output.valid}
+    input:
+      name: ${input.name}
+
+output:
+  greeting: ${greet.output.message}
+  valid: ${validate-name.output.valid}
+```
+
+### With AI
+
+AI-generated personalized greeting:
+
+```yaml
+flow:
+  - member: generate-greeting
+    type: Think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      systemPrompt: |
+        Generate a warm, personalized greeting for ${input.name}.
+        Consider their interests: ${input.interests}
+    input:
+      name: ${input.name}
+      interests: ${input.interests}
+
+output:
+  greeting: ${generate-greeting.output.text}
+```
+
+## Common Mistakes
+
+### ❌ Missing Required Input
+
+```yaml
+# Ensemble expects 'name' but not provided
+input: {}
+```
+
+**Error:** `Missing required property: name`
+
+### ❌ Wrong Member Reference
+
+```yaml
+flow:
+  - member: greet-user  # Member is named 'greet' not 'greet-user'
+```
+
+**Error:** `Member 'greet-user' not found`
+
+### ❌ Invalid Interpolation
+
+```yaml
+output:
+  greeting: ${greet.message}  # Should be greet.output.message
+```
+
+**Error:** `Cannot read property 'message' of undefined`
+
+### ❌ Member Not Exported
+
+```typescript
+// Missing default export
+async function greet({ input }) {
+  return { message: 'Hello' };
+}
+```
+
+**Error:** `Member 'greet' has no default export`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart Guide"
+    icon="rocket"
+    href="/conductor/guides/quickstart"
+  >
+    Build your first project from scratch
+  </Card>
+
+  <Card
+    title="Creating Members"
+    icon="plus"
+    href="/conductor/guides/creating-members"
+  >
+    Learn to build all member types
+  </Card>
+
+  <Card
+    title="Parallel Processing"
+    icon="bolt"
+    href="/conductor/examples/parallel-processing"
+  >
+    Execute multiple members concurrently
+  </Card>
+
+  <Card
+    title="Conditional Logic"
+    icon="code-branch"
+    href="/conductor/examples/conditional-logic"
+  >
+    Add if/then/else logic to workflows
+  </Card>
+
+  <Card
+    title="Company Intelligence"
+    icon="building"
+    href="/conductor/examples/company-intelligence"
+  >
+    Real-world AI-powered workflow
+  </Card>
+
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/conductor/examples/error-handling"
+  >
+    Handle errors gracefully
+  </Card>
+</CardGroup>
+
+## Source Code
+
+View the complete source code:
+
+```bash
+# Clone the examples repository
+git clone https://github.com/ensemble-edge/conductor-examples
+cd conductor-examples/hello-world
+
+# Install dependencies
+npm install
+
+# Run locally
+npm run dev
+
+# Test
+npm test
+
+# Deploy
+npm run deploy
+```
+
+## Related Documentation
+
+- [Ensembles Concept](/conductor/concepts/ensembles)
+- [Members Concept](/conductor/concepts/members)
+- [Function Members](/conductor/member-types/function)
+- [Testing Guide](/conductor/guides/testing)

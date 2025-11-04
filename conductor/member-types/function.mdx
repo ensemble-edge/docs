@@ -1,0 +1,682 @@
+---
+title: "Function Members"
+description: "JavaScript/TypeScript business logic execution"
+---
+
+## Overview
+
+Function members execute custom JavaScript/TypeScript code for business logic, data transformation, calculations, and any task that doesn't require AI or external services. They're fast, free, and fully under your control.
+
+## Basic Structure
+
+```yaml
+# members/calculate-metrics/member.yaml
+name: calculate-metrics
+type: Function
+description: Calculate business metrics
+
+schema:
+  input:
+    type: object
+    properties:
+      revenue:
+        type: number
+      costs:
+        type: number
+    required: [revenue, costs]
+
+  output:
+    type: object
+    properties:
+      profit:
+        type: number
+      margin:
+        type: number
+```
+
+```typescript
+// members/calculate-metrics/index.ts
+export default async function calculateMetrics({ input }) {
+  const { revenue, costs } = input;
+
+  const profit = revenue - costs;
+  const margin = (profit / revenue) * 100;
+
+  return {
+    profit,
+    margin: parseFloat(margin.toFixed(2))
+  };
+}
+```
+
+## Handler Signature
+
+```typescript
+interface HandlerContext {
+  input: Record<string, unknown>      // Input from ensemble
+  state?: Record<string, unknown>     // Shared state (if declared)
+  setState?: (updates: Record<string, unknown>) => void  // Update state
+  env: ConductorEnv                   // Environment variables & bindings
+}
+
+export default async function handler(context: HandlerContext) {
+  // Your logic here
+  return { /* output */ };
+}
+```
+
+## Using SDK Factory
+
+```typescript
+import { createFunctionMember } from '@ensemble-edge/conductor/sdk';
+
+export default createFunctionMember({
+  async handler({ input }) {
+    return {
+      result: performCalculation(input)
+    };
+  }
+});
+```
+
+## Common Use Cases
+
+### 1. Data Transformation
+
+```typescript
+export default async function formatOutput({ input }) {
+  return {
+    fullName: `${input.firstName} ${input.lastName}`,
+    email: input.email.toLowerCase(),
+    displayDate: new Date(input.timestamp).toLocaleDateString()
+  };
+}
+```
+
+### 2. Calculations
+
+```typescript
+export default async function calculateROI({ input }) {
+  const { initialInvestment, currentValue, years } = input;
+
+  const profit = currentValue - initialInvestment;
+  const roi = (profit / initialInvestment) * 100;
+  const annualizedROI = Math.pow((currentValue / initialInvestment), (1 / years)) - 1;
+
+  return {
+    profit,
+    roi: parseFloat(roi.toFixed(2)),
+    annualizedROI: parseFloat((annualizedROI * 100).toFixed(2))
+  };
+}
+```
+
+### 3. Validation
+
+```typescript
+export default async function validateOrder({ input }) {
+  const errors: string[] = [];
+
+  // Validate email
+  if (!input.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
+    errors.push('Invalid email address');
+  }
+
+  // Validate amount
+  if (!input.amount || input.amount <= 0) {
+    errors.push('Amount must be positive');
+  }
+
+  // Validate items
+  if (!input.items || input.items.length === 0) {
+    errors.push('Order must contain at least one item');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+```
+
+### 4. String Manipulation
+
+```typescript
+export default async function processText({ input }) {
+  const { text } = input;
+
+  return {
+    length: text.length,
+    wordCount: text.split(/\s+/).length,
+    uppercase: text.toUpperCase(),
+    lowercase: text.toLowerCase(),
+    titleCase: text.replace(/\w\S*/g, (word) =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ),
+    slug: text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-]/g, '')
+  };
+}
+```
+
+### 5. Array Operations
+
+```typescript
+export default async function analyzeArray({ input }) {
+  const { numbers } = input;
+
+  const sum = numbers.reduce((acc: number, n: number) => acc + n, 0);
+  const avg = sum / numbers.length;
+  const sorted = [...numbers].sort((a: number, b: number) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const min = Math.min(...numbers);
+  const max = Math.max(...numbers);
+
+  return {
+    sum,
+    average: avg,
+    median,
+    min,
+    max,
+    count: numbers.length
+  };
+}
+```
+
+### 6. JSON Processing
+
+```typescript
+export default async function transformJSON({ input }) {
+  const { data, mapping } = input;
+
+  // Transform object keys based on mapping
+  const transformed: Record<string, unknown> = {};
+
+  for (const [oldKey, newKey] of Object.entries(mapping)) {
+    if (data[oldKey] !== undefined) {
+      transformed[newKey as string] = data[oldKey];
+    }
+  }
+
+  return { transformed };
+}
+```
+
+## State Management
+
+### Reading State
+
+```typescript
+import { createFunctionMember } from '@ensemble-edge/conductor/sdk';
+
+export default createFunctionMember({
+  async handler({ input, state }) {
+    // Access shared state
+    const previousResult = state?.previousCalculation;
+
+    const result = input.value + (previousResult || 0);
+
+    return { result };
+  }
+});
+```
+
+### Writing State
+
+```typescript
+export default createFunctionMember({
+  async handler({ input, setState }) {
+    const result = performCalculation(input);
+
+    // Update shared state
+    setState?.({
+      lastCalculation: result,
+      timestamp: Date.now()
+    });
+
+    return { result };
+  }
+});
+```
+
+### Both Read and Write
+
+```typescript
+export default createFunctionMember({
+  async handler({ input, state, setState }) {
+    // Read from state
+    const history = state?.calculationHistory || [];
+
+    // Perform calculation
+    const result = calculateMetric(input);
+
+    // Update state with history
+    setState?.({
+      calculationHistory: [...history, result],
+      lastUpdated: Date.now()
+    });
+
+    return {
+      result,
+      historyLength: history.length + 1
+    };
+  }
+});
+```
+
+## Using Utilities
+
+### Shared Helpers
+
+```typescript
+// src/lib/helpers.ts
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(amount);
+}
+```
+
+```typescript
+// members/process-order/index.ts
+import { validateEmail, formatCurrency } from '../../lib/helpers';
+import { createFunctionMember } from '@ensemble-edge/conductor/sdk';
+
+export default createFunctionMember({
+  async handler({ input }) {
+    if (!validateEmail(input.customerEmail)) {
+      throw new Error('Invalid customer email');
+    }
+
+    return {
+      total: formatCurrency(input.amount),
+      processed: true
+    };
+  }
+});
+```
+
+## Environment Access
+
+```typescript
+export default async function fetchConfig({ env }) {
+  // Access KV
+  const config = await env.CONFIG_KV.get('app-settings');
+
+  // Access secrets
+  const apiKey = env.EXTERNAL_API_KEY;
+
+  // Access D1
+  const settings = await env.DB.prepare(
+    'SELECT * FROM settings WHERE active = 1'
+  ).first();
+
+  return {
+    config: config ? JSON.parse(config) : null,
+    hasApiKey: !!apiKey,
+    settings
+  };
+}
+```
+
+## Error Handling
+
+### Throw Errors
+
+```typescript
+export default async function divide({ input }) {
+  const { numerator, denominator } = input;
+
+  if (denominator === 0) {
+    throw new Error('Division by zero');
+  }
+
+  return {
+    result: numerator / denominator
+  };
+}
+```
+
+### Return Error State
+
+```typescript
+export default async function processData({ input }) {
+  try {
+    const result = await riskyOperation(input);
+    return {
+      success: true,
+      result
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      fallback: getDefaultValue()
+    };
+  }
+}
+```
+
+## TypeScript Types
+
+### Strongly Typed
+
+```typescript
+interface CalculateInput {
+  revenue: number;
+  costs: number;
+  taxRate: number;
+}
+
+interface CalculateOutput {
+  profit: number;
+  margin: number;
+  tax: number;
+  netProfit: number;
+}
+
+export default async function calculate({
+  input
+}: {
+  input: CalculateInput
+}): Promise<CalculateOutput> {
+  const profit = input.revenue - input.costs;
+  const margin = (profit / input.revenue) * 100;
+  const tax = profit * input.taxRate;
+  const netProfit = profit - tax;
+
+  return {
+    profit,
+    margin: parseFloat(margin.toFixed(2)),
+    tax,
+    netProfit
+  };
+}
+```
+
+### Using SDK Types
+
+```typescript
+import { createFunctionMember } from '@ensemble-edge/conductor/sdk';
+import type { MemberHandler } from '@ensemble-edge/conductor/sdk';
+
+interface Input {
+  value: number;
+  multiplier: number;
+}
+
+interface Output {
+  result: number;
+}
+
+const handler: MemberHandler<Input, Output> = async ({ input }) => {
+  return {
+    result: input.value * input.multiplier
+  };
+};
+
+export default createFunctionMember({ handler });
+```
+
+## Async Operations
+
+### Parallel Execution
+
+```typescript
+export default async function fetchMultiple({ input, env }) {
+  // Execute multiple async operations in parallel
+  const [user, orders, settings] = await Promise.all([
+    env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(input.userId).first(),
+    env.DB.prepare('SELECT * FROM orders WHERE user_id = ?').bind(input.userId).all(),
+    env.KV.get('user-settings')
+  ]);
+
+  return {
+    user,
+    orders: orders.results,
+    settings: settings ? JSON.parse(settings) : null
+  };
+}
+```
+
+### Sequential with Dependencies
+
+```typescript
+export default async function processOrder({ input, env }) {
+  // Step 1: Validate user
+  const user = await env.DB.prepare(
+    'SELECT * FROM users WHERE id = ?'
+  ).bind(input.userId).first();
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Step 2: Check balance (depends on user)
+  const balance = await getBalance(env, user.id);
+
+  if (balance < input.amount) {
+    throw new Error('Insufficient balance');
+  }
+
+  // Step 3: Create order (depends on validation)
+  const order = await createOrder(env, input);
+
+  return { order, remainingBalance: balance - input.amount };
+}
+```
+
+## Performance Optimization
+
+### Memoization
+
+```typescript
+const cache = new Map<string, unknown>();
+
+export default async function expensiveCalculation({ input }) {
+  const cacheKey = JSON.stringify(input);
+
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
+  const result = performExpensiveOperation(input);
+  cache.set(cacheKey, result);
+
+  return result;
+}
+```
+
+### Early Returns
+
+```typescript
+export default async function processData({ input }) {
+  // Quick validation
+  if (!input.data || input.data.length === 0) {
+    return { processed: 0, skipped: true };
+  }
+
+  // Early return for cached
+  if (input.useCache && cachedResult) {
+    return cachedResult;
+  }
+
+  // Expensive processing only if needed
+  return expensiveProcessing(input.data);
+}
+```
+
+## Testing Function Members
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('calculate-metrics', () => {
+  it('should calculate profit and margin', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeMember('calculate-metrics', {
+      revenue: 1000,
+      costs: 600
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.profit).toBe(400);
+    expect(result.output.margin).toBe(40);
+  });
+
+  it('should handle zero revenue', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeMember('calculate-metrics', {
+      revenue: 0,
+      costs: 100
+    });
+
+    expect(result).toHaveError(/division by zero/i);
+  });
+});
+```
+
+### Unit Test Handler Directly
+
+```typescript
+import calculateMetrics from '../members/calculate-metrics';
+
+describe('calculateMetrics handler', () => {
+  it('should calculate correctly', async () => {
+    const result = await calculateMetrics({
+      input: { revenue: 1000, costs: 600 },
+      env: {} as any
+    });
+
+    expect(result.profit).toBe(400);
+    expect(result.margin).toBe(40);
+  });
+});
+```
+
+## Best Practices
+
+### 1. Keep Functions Pure
+
+```typescript
+// ✅ Good - pure function
+export default async function calculate({ input }) {
+  return { result: input.a + input.b };
+}
+
+// ❌ Bad - side effects
+let globalCounter = 0;
+export default async function calculate({ input }) {
+  globalCounter++;  // Don't mutate external state
+  return { result: input.a + input.b };
+}
+```
+
+### 2. Validate Input
+
+```typescript
+// ✅ Good - validate first
+export default async function process({ input }) {
+  if (!input.email) {
+    throw new Error('Email is required');
+  }
+
+  if (!validateEmail(input.email)) {
+    throw new Error('Invalid email format');
+  }
+
+  return processEmail(input.email);
+}
+```
+
+### 3. Use TypeScript
+
+```typescript
+// ✅ Good - typed
+interface Input { value: number; }
+interface Output { doubled: number; }
+
+export default async function({ input }: { input: Input }): Promise<Output> {
+  return { doubled: input.value * 2 };
+}
+```
+
+### 4. Handle Errors
+
+```typescript
+// ✅ Good - graceful error handling
+export default async function process({ input }) {
+  try {
+    return { result: riskyOperation(input) };
+  } catch (error) {
+    console.error('Operation failed:', error);
+    return {
+      error: error.message,
+      fallback: getDefaultValue()
+    };
+  }
+}
+```
+
+### 5. Document Complex Logic
+
+```typescript
+/**
+ * Calculate compound annual growth rate (CAGR)
+ *
+ * Formula: CAGR = (Ending Value / Beginning Value)^(1/Years) - 1
+ */
+export default async function calculateCAGR({ input }) {
+  const { beginningValue, endingValue, years } = input;
+
+  const cagr = Math.pow(endingValue / beginningValue, 1 / years) - 1;
+
+  return {
+    cagr: parseFloat((cagr * 100).toFixed(2)),
+    unit: 'percent'
+  };
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Creating Members"
+    icon="plus"
+    href="/conductor/guides/creating-members"
+  >
+    Step-by-step guide to building members
+  </Card>
+
+  <Card
+    title="State Management"
+    icon="database"
+    href="/conductor/guides/state-management"
+  >
+    Share data between members
+  </Card>
+
+  <Card
+    title="Testing"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test your Function members
+  </Card>
+
+  <Card
+    title="SDK Reference"
+    icon="code"
+    href="/conductor-api/sdk/member-factory"
+  >
+    Complete API reference
+  </Card>
+</CardGroup>

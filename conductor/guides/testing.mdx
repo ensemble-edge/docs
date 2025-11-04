@@ -1,0 +1,816 @@
+---
+title: "Testing Guide"
+description: "Test your ensembles and members with TestConductor and custom matchers"
+---
+
+## Overview
+
+Conductor provides a comprehensive testing framework with `TestConductor`, custom Vitest matchers, and mock providers. Write tests that are fast, reliable, and easy to maintain.
+
+## Testing Philosophy
+
+<CardGroup cols={2}>
+  <Card title="Test Ensembles, Not Implementation" icon="target">
+    Focus on workflow behavior and outputs, not internal details
+  </Card>
+
+  <Card title="Mock External Services" icon="cloud">
+    Mock AI providers, databases, APIs for fast, deterministic tests
+  </Card>
+
+  <Card title="Use Real Member Logic" icon="code">
+    Test actual member implementations, not mocks
+  </Card>
+
+  <Card title="Test Edge Cases" icon="triangle-exclamation">
+    Error handling, retries, scoring, state management
+  </Card>
+</CardGroup>
+
+## Installation
+
+TestConductor is included with Conductor:
+
+```bash
+npm install --save-dev vitest @ensemble-edge/conductor
+```
+
+## Basic Test Structure
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('hello-world ensemble', () => {
+  it('should greet user by name', async () => {
+    // Create test conductor
+    const conductor = await TestConductor.create();
+
+    // Load your project
+    await conductor.loadProject('./');
+
+    // Execute ensemble
+    const result = await conductor.executeEnsemble('hello-world', {
+      name: 'World'
+    });
+
+    // Assertions
+    expect(result).toBeSuccessful();
+    expect(result.output.greeting).toBe('Hello, World! Welcome to Conductor.');
+  });
+});
+```
+
+## TestConductor API
+
+### Creating Test Instance
+
+```typescript
+// Basic creation
+const conductor = await TestConductor.create();
+
+// With mocks
+const conductor = await TestConductor.create({
+  mocks: {
+    ai: {
+      responses: {
+        'analyze-sentiment': { sentiment: 'positive', confidence: 0.95 }
+      }
+    }
+  }
+});
+
+// With project path
+const conductor = await TestConductor.create({
+  projectPath: './'  // Loads all ensembles and members
+});
+```
+
+### Executing Ensembles
+
+```typescript
+// Execute with input
+const result = await conductor.executeEnsemble('sentiment-analysis', {
+  text: 'I love this product!'
+});
+
+// Access results
+console.log(result.success);        // true
+console.log(result.output);         // { sentiment: 'positive', ... }
+console.log(result.executionTime);  // 1203 (ms)
+console.log(result.error);          // undefined (on success)
+```
+
+### Executing Members
+
+Test individual members:
+
+```typescript
+const result = await conductor.executeMember('greet', {
+  name: 'Alice'
+});
+
+expect(result).toBeSuccessful();
+expect(result.output.message).toContain('Alice');
+```
+
+## Custom Matchers
+
+Conductor extends Vitest with custom matchers for cleaner assertions.
+
+### Setup Matchers
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    setupFiles: ['@ensemble-edge/conductor/testing/matchers']
+  }
+});
+```
+
+### Available Matchers
+
+#### toBeSuccessful()
+
+```typescript
+it('should succeed', async () => {
+  const result = await conductor.executeEnsemble('hello-world', { name: 'Test' });
+
+  expect(result).toBeSuccessful();
+  // Equivalent to: expect(result.success).toBe(true)
+});
+```
+
+#### toHaveError()
+
+```typescript
+it('should fail with invalid input', async () => {
+  const result = await conductor.executeEnsemble('analyze', {});
+
+  expect(result).toHaveError();
+  expect(result).toHaveError(/required/i);  // Match error message
+});
+```
+
+#### toHaveExecutedMember()
+
+```typescript
+it('should execute analyze-sentiment member', async () => {
+  const result = await conductor.executeEnsemble('sentiment-analysis', input);
+
+  expect(result).toHaveExecutedMember('analyze-sentiment');
+});
+```
+
+#### toHaveCachedResult()
+
+```typescript
+it('should cache results', async () => {
+  // First call
+  await conductor.executeEnsemble('expensive-call', input);
+
+  // Second call
+  const result = await conductor.executeEnsemble('expensive-call', input);
+
+  expect(result).toHaveCachedResult();
+});
+```
+
+#### toHaveState()
+
+```typescript
+it('should set state correctly', async () => {
+  const result = await conductor.executeEnsemble('multi-step', input);
+
+  expect(result).toHaveState('companyData');
+  expect(result).toHaveState('analysis', { confidence: 0.9 });
+});
+```
+
+#### toHaveOutputMatching()
+
+```typescript
+it('should have expected output structure', async () => {
+  const result = await conductor.executeEnsemble('analyze', input);
+
+  expect(result).toHaveOutputMatching({
+    sentiment: expect.any(String),
+    confidence: expect.any(Number)
+  });
+});
+```
+
+## Mocking Strategies
+
+### Mock AI Providers
+
+```typescript
+const conductor = await TestConductor.create({
+  mocks: {
+    ai: {
+      // Mock specific members
+      responses: {
+        'analyze-sentiment': {
+          sentiment: 'positive',
+          confidence: 0.95
+        },
+        'generate-summary': {
+          summary: 'Test summary'
+        }
+      },
+
+      // Or use a function for dynamic responses
+      handler: async (memberName, input) => {
+        if (memberName === 'analyze-sentiment') {
+          return {
+            sentiment: input.text.includes('love') ? 'positive' : 'negative',
+            confidence: 0.8
+          };
+        }
+      }
+    }
+  }
+});
+```
+
+### Mock Databases
+
+```typescript
+const conductor = await TestConductor.create({
+  mocks: {
+    database: {
+      // Mock query results
+      responses: {
+        'get-user': {
+          id: 1,
+          name: 'Test User',
+          email: 'test@example.com'
+        }
+      },
+
+      // Or use a function
+      handler: async (operation, query, params) => {
+        if (query.includes('SELECT * FROM users')) {
+          return [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }];
+        }
+      }
+    }
+  }
+});
+```
+
+### Mock HTTP Requests
+
+```typescript
+const conductor = await TestConductor.create({
+  mocks: {
+    http: {
+      // Mock by URL pattern
+      responses: {
+        'https://api.example.com/pricing': {
+          price: 99.99,
+          currency: 'USD'
+        }
+      },
+
+      // Or use a function
+      handler: async (url, options) => {
+        if (url.includes('/users/')) {
+          return {
+            status: 200,
+            data: { id: 1, name: 'Alice' }
+          };
+        }
+      }
+    }
+  }
+});
+```
+
+### Mock Vectorize
+
+```typescript
+const conductor = await TestConductor.create({
+  mocks: {
+    vectorize: {
+      // Mock search results
+      searches: {
+        'documentation': [
+          { id: 'doc1', score: 0.95, metadata: { title: 'Getting Started' } },
+          { id: 'doc2', score: 0.87, metadata: { title: 'API Reference' } }
+        ]
+      }
+    }
+  }
+});
+```
+
+## Testing Patterns
+
+### Test Successful Execution
+
+```typescript
+describe('company-intelligence ensemble', () => {
+  it('should analyze company successfully', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        ai: {
+          responses: {
+            'analyze-company': {
+              summary: 'Growing tech company',
+              confidence: 0.9
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('company-intelligence', {
+      domain: 'example.com'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.summary).toBe('Growing tech company');
+    expect(result.output.confidence).toBe(0.9);
+  });
+});
+```
+
+### Test Error Handling
+
+```typescript
+it('should handle invalid domain', async () => {
+  const conductor = await TestConductor.create();
+
+  const result = await conductor.executeEnsemble('company-intelligence', {
+    domain: 'invalid-domain'
+  });
+
+  expect(result).toHaveError();
+  expect(result.error.message).toContain('Invalid domain');
+});
+```
+
+### Test State Management
+
+```typescript
+it('should share state between members', async () => {
+  const conductor = await TestConductor.create();
+
+  const result = await conductor.executeEnsemble('multi-step', input);
+
+  expect(result).toHaveState('companyData');
+  expect(result).toHaveState('analysis');
+  expect(result).toHaveExecutedMember('fetch-data');
+  expect(result).toHaveExecutedMember('analyze-data');
+});
+```
+
+### Test Caching
+
+```typescript
+it('should cache expensive operations', async () => {
+  const conductor = await TestConductor.create();
+
+  // First call - cache miss
+  const result1 = await conductor.executeEnsemble('analyze', input);
+  expect(result1).not.toHaveCachedResult();
+
+  // Second call - cache hit
+  const result2 = await conductor.executeEnsemble('analyze', input);
+  expect(result2).toHaveCachedResult();
+  expect(result2.executionTime).toBeLessThan(result1.executionTime);
+});
+```
+
+### Test Scoring and Retry
+
+```typescript
+it('should retry on low quality scores', async () => {
+  let attempt = 0;
+
+  const conductor = await TestConductor.create({
+    mocks: {
+      ai: {
+        handler: async (memberName, input) => {
+          attempt++;
+          return {
+            content: attempt === 1 ? 'bad' : 'good content',
+            quality: attempt === 1 ? 0.3 : 0.9  // Low then high
+          };
+        }
+      }
+    }
+  });
+
+  const result = await conductor.executeEnsemble('generate-content', input);
+
+  expect(result).toBeSuccessful();
+  expect(result.metadata.attempts).toBe(2);  // Retried once
+});
+```
+
+### Test Conditional Flows
+
+```typescript
+it('should execute conditional branch', async () => {
+  const conductor = await TestConductor.create();
+
+  const result = await conductor.executeEnsemble('conditional-flow', {
+    type: 'premium'
+  });
+
+  expect(result).toHaveExecutedMember('premium-handler');
+  expect(result).not.toHaveExecutedMember('basic-handler');
+});
+```
+
+### Test Parallel Execution
+
+```typescript
+it('should execute steps in parallel', async () => {
+  const conductor = await TestConductor.create();
+
+  const startTime = performance.now();
+  const result = await conductor.executeEnsemble('parallel-flow', input);
+  const duration = performance.now() - startTime;
+
+  expect(result).toBeSuccessful();
+  // Should be faster than sequential
+  expect(duration).toBeLessThan(5000);
+});
+```
+
+## Testing Built-In Members
+
+### Test Scrape Member
+
+```typescript
+it('should scrape website', async () => {
+  const conductor = await TestConductor.create({
+    mocks: {
+      http: {
+        responses: {
+          'https://example.com': {
+            status: 200,
+            body: '<html><body><h1>Test Page</h1></body></html>'
+          }
+        }
+      }
+    }
+  });
+
+  const result = await conductor.executeMember('scrape', {
+    url: 'https://example.com',
+    output: 'markdown'
+  });
+
+  expect(result).toBeSuccessful();
+  expect(result.output.content).toContain('Test Page');
+});
+```
+
+### Test Validate Member
+
+```typescript
+it('should validate content quality', async () => {
+  const conductor = await TestConductor.create();
+
+  const result = await conductor.executeMember('validate', {
+    content: 'This is high-quality content with proper grammar.',
+    criteria: {
+      grammar: 'Must have proper grammar',
+      length: 'Must be at least 10 characters'
+    },
+    thresholds: {
+      minimum: 0.7
+    }
+  });
+
+  expect(result).toBeSuccessful();
+  expect(result.output.score).toBeGreaterThan(0.7);
+  expect(result.output.passed).toBe(true);
+});
+```
+
+### Test RAG Member
+
+```typescript
+it('should search and retrieve documents', async () => {
+  const conductor = await TestConductor.create({
+    mocks: {
+      vectorize: {
+        searches: {
+          'how to deploy': [
+            { id: 'doc1', score: 0.95, metadata: { title: 'Deployment Guide' } }
+          ]
+        }
+      }
+    }
+  });
+
+  const result = await conductor.executeMember('rag', {
+    operation: 'search',
+    query: 'how to deploy',
+    topK: 5
+  });
+
+  expect(result).toBeSuccessful();
+  expect(result.output.results).toHaveLength(1);
+  expect(result.output.results[0].score).toBe(0.95);
+});
+```
+
+## Testing Best Practices
+
+### 1. Use Descriptive Test Names
+
+```typescript
+// ✅ Good - clear what's being tested
+it('should return positive sentiment for text containing "love"', async () => {
+  // ...
+});
+
+// ❌ Bad - unclear what's being tested
+it('test sentiment', async () => {
+  // ...
+});
+```
+
+### 2. Test One Thing Per Test
+
+```typescript
+// ✅ Good - focused test
+it('should cache AI responses', async () => {
+  // Test only caching behavior
+});
+
+it('should handle errors gracefully', async () => {
+  // Test only error handling
+});
+
+// ❌ Bad - testing multiple concerns
+it('should cache and handle errors', async () => {
+  // Too much in one test
+});
+```
+
+### 3. Use Arrange-Act-Assert Pattern
+
+```typescript
+it('should analyze sentiment', async () => {
+  // Arrange - setup
+  const conductor = await TestConductor.create();
+  const input = { text: 'I love this!' };
+
+  // Act - execute
+  const result = await conductor.executeEnsemble('sentiment-analysis', input);
+
+  // Assert - verify
+  expect(result).toBeSuccessful();
+  expect(result.output.sentiment).toBe('positive');
+});
+```
+
+### 4. Mock External Dependencies
+
+```typescript
+// ✅ Good - mocked for fast, reliable tests
+const conductor = await TestConductor.create({
+  mocks: {
+    ai: { responses: { ... } },
+    http: { responses: { ... } }
+  }
+});
+
+// ❌ Bad - real API calls (slow, flaky)
+const conductor = await TestConductor.create();
+// Uses real OpenAI, real databases
+```
+
+### 5. Test Error Paths
+
+```typescript
+describe('error handling', () => {
+  it('should handle missing required input', async () => {
+    const result = await conductor.executeEnsemble('analyze', {});
+    expect(result).toHaveError(/required/);
+  });
+
+  it('should handle invalid domain format', async () => {
+    const result = await conductor.executeEnsemble('analyze', {
+      domain: 'not-a-domain'
+    });
+    expect(result).toHaveError(/invalid domain/);
+  });
+});
+```
+
+## Running Tests
+
+### Run All Tests
+
+```bash
+npm test
+```
+
+### Run Specific Test File
+
+```bash
+npm test -- src/ensembles/sentiment.test.ts
+```
+
+### Run with Coverage
+
+```bash
+npm test -- --coverage
+```
+
+### Run in Watch Mode
+
+```bash
+npm test -- --watch
+```
+
+### Run with UI
+
+```bash
+npm test -- --ui
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/test.yml
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+```
+
+## Example Test Suite
+
+Complete example testing a sentiment analysis ensemble:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('sentiment-analysis ensemble', () => {
+  let conductor: TestConductor;
+
+  beforeEach(async () => {
+    conductor = await TestConductor.create({
+      projectPath: './',
+      mocks: {
+        ai: {
+          responses: {
+            'analyze-sentiment': {
+              sentiment: 'positive',
+              confidence: 0.95
+            }
+          }
+        }
+      }
+    });
+  });
+
+  describe('successful execution', () => {
+    it('should analyze positive sentiment', async () => {
+      const result = await conductor.executeEnsemble('sentiment-analysis', {
+        text: 'I love this product!',
+        name: 'Alice'
+      });
+
+      expect(result).toBeSuccessful();
+      expect(result.output.sentiment).toBe('positive');
+      expect(result.output.confidence).toBe(0.95);
+      expect(result.output.greeting).toContain('Alice');
+    });
+
+    it('should cache results', async () => {
+      const input = { text: 'Great!', name: 'Bob' };
+
+      const result1 = await conductor.executeEnsemble('sentiment-analysis', input);
+      const result2 = await conductor.executeEnsemble('sentiment-analysis', input);
+
+      expect(result1).not.toHaveCachedResult();
+      expect(result2).toHaveCachedResult();
+    });
+
+    it('should execute both members', async () => {
+      const result = await conductor.executeEnsemble('sentiment-analysis', {
+        text: 'Amazing!',
+        name: 'Charlie'
+      });
+
+      expect(result).toHaveExecutedMember('analyze-sentiment');
+      expect(result).toHaveExecutedMember('greet');
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle missing text', async () => {
+      const result = await conductor.executeEnsemble('sentiment-analysis', {
+        name: 'Alice'
+      });
+
+      expect(result).toHaveError();
+      expect(result.error.message).toContain('text');
+    });
+
+    it('should handle AI provider failure', async () => {
+      conductor = await TestConductor.create({
+        mocks: {
+          ai: {
+            handler: async () => {
+              throw new Error('AI provider unavailable');
+            }
+          }
+        }
+      });
+
+      const result = await conductor.executeEnsemble('sentiment-analysis', {
+        text: 'Test',
+        name: 'Bob'
+      });
+
+      expect(result).toHaveError(/provider unavailable/);
+    });
+  });
+
+  describe('performance', () => {
+    it('should execute within time limit', async () => {
+      const result = await conductor.executeEnsemble('sentiment-analysis', {
+        text: 'Test',
+        name: 'Alice'
+      });
+
+      expect(result.executionTime).toBeLessThan(2000);  // 2 seconds
+    });
+  });
+});
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="TestConductor API"
+    icon="flask"
+    href="/conductor-api/testing/test-conductor"
+  >
+    Complete API reference for TestConductor
+  </Card>
+
+  <Card
+    title="Custom Matchers"
+    icon="check"
+    href="/conductor-api/testing/matchers"
+  >
+    All available Vitest matchers
+  </Card>
+
+  <Card
+    title="Mock Providers"
+    icon="cube"
+    href="/conductor-api/testing/mocks"
+  >
+    Mock AI, database, HTTP, Vectorize
+  </Card>
+
+  <Card
+    title="Vitest Documentation"
+    icon="book"
+    href="https://vitest.dev"
+  >
+    Official Vitest docs
+  </Card>
+</CardGroup>
