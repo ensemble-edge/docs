@@ -1,0 +1,544 @@
+---
+title: "Testing Deployments"
+description: "Test Conductor workflows before and after deployment"
+---
+
+## Overview
+
+Comprehensive testing strategy for Conductor workflows: local testing, integration testing, staging validation, and production monitoring. Ensure workflows work correctly before deploying to users.
+
+## Testing Levels
+
+### 1. Local Testing (Pre-Deploy)
+
+Test workflows locally before deployment.
+
+```bash
+# Install dependencies
+npm install
+
+# Run unit tests
+npm test
+
+# Run with coverage
+npm test -- --coverage
+
+# Run specific test
+npm test -- path/to/test.spec.ts
+```
+
+**Example Test**:
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('order-processing', () => {
+  it('should process valid order', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        db: {
+          products: [
+            { id: 1, name: 'Widget', price: 10, stock: 100 }
+          ]
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('order-processing', {
+      productId: 1,
+      quantity: 5
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.total).toBe(50);
+  });
+});
+```
+
+### 2. Local Development Server
+
+Test with `wrangler dev` for edge environment simulation.
+
+```bash
+# Start local server
+npx wrangler dev
+
+# Test endpoint
+curl http://localhost:8787/api/v1/execute \
+  -H "Content-Type: application/json" \
+  -d '{"ensemble": "test-workflow", "input": {}}'
+```
+
+**With .dev.vars**:
+```bash
+# .dev.vars
+OPENAI_API_KEY=sk-test-key
+DATABASE_URL=postgresql://localhost:5432/dev
+
+# Run with dev vars
+npx wrangler dev
+```
+
+### 3. Integration Testing
+
+Test with real services in controlled environment.
+
+```typescript
+import { describe, it, expect, beforeAll } from 'vitest';
+import { Conductor } from '@ensemble-edge/conductor';
+
+describe('integration tests', () => {
+  let conductor: Conductor;
+
+  beforeAll(async () => {
+    conductor = new Conductor({
+      env: {
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        DB: testDatabase,
+        CACHE: testKVNamespace
+      }
+    });
+  });
+
+  it('should call real OpenAI API', async () => {
+    const result = await conductor.executeEnsemble('ai-classification', {
+      text: 'This is a positive review'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.sentiment).toBe('positive');
+  });
+});
+```
+
+### 4. Staging Deployment
+
+Deploy to staging environment for validation.
+
+```bash
+# Deploy to staging
+npx wrangler deploy --env staging
+
+# Run end-to-end tests against staging
+npm run test:e2e:staging
+```
+
+**Staging Configuration**:
+```toml
+[env.staging]
+name = "conductor-staging"
+vars = { ENVIRONMENT = "staging" }
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_id = "staging-db-id"
+```
+
+### 5. Production Smoke Tests
+
+Verify production deployment.
+
+```bash
+# Deploy to production
+npx wrangler deploy --env production
+
+# Run smoke tests
+npm run test:smoke:production
+```
+
+## Test Types
+
+### Unit Tests
+
+Test individual members and functions.
+
+```typescript
+describe('validate-email', () => {
+  it('should accept valid email', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeMember('validate-email', {
+      email: 'user@example.com'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.valid).toBe(true);
+  });
+
+  it('should reject invalid email', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeMember('validate-email', {
+      email: 'invalid-email'
+    });
+
+    expect(result.output.valid).toBe(false);
+  });
+});
+```
+
+### Integration Tests
+
+Test ensemble workflows end-to-end.
+
+```typescript
+describe('user-onboarding', () => {
+  it('should complete full onboarding', async () => {
+    const conductor = await TestConductor.create();
+
+    const result = await conductor.executeEnsemble('user-onboarding', {
+      email: 'new@example.com',
+      name: 'New User'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result).toHaveExecutedMember('verify-email');
+    expect(result).toHaveExecutedMember('create-user');
+    expect(result).toHaveExecutedMember('send-welcome');
+  });
+});
+```
+
+### Performance Tests
+
+Ensure workflows meet latency requirements.
+
+```typescript
+describe('performance', () => {
+  it('should execute under 2 seconds', async () => {
+    const conductor = await TestConductor.create();
+
+    const start = performance.now();
+    await conductor.executeEnsemble('fast-workflow', {});
+    const duration = performance.now() - start;
+
+    expect(duration).toBeLessThan(2000);
+  });
+
+  it('should cache effectively', async () => {
+    const conductor = await TestConductor.create();
+
+    // First call (uncached)
+    const start1 = performance.now();
+    await conductor.executeEnsemble('cached-workflow', { id: 1 });
+    const duration1 = performance.now() - start1;
+
+    // Second call (cached)
+    const start2 = performance.now();
+    await conductor.executeEnsemble('cached-workflow', { id: 1 });
+    const duration2 = performance.now() - start2;
+
+    // Cached should be 10x faster
+    expect(duration2).toBeLessThan(duration1 * 0.1);
+  });
+});
+```
+
+### Error Handling Tests
+
+Verify graceful error handling.
+
+```typescript
+describe('error handling', () => {
+  it('should handle API timeout', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        api: {
+          '/slow': { timeout: true }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('api-call', {});
+
+    expect(result).toHaveFailed();
+    expect(result.error.message).toContain('timeout');
+  });
+
+  it('should retry on failure', async () => {
+    let attempts = 0;
+    const conductor = await TestConductor.create({
+      mocks: {
+        api: {
+          '/flaky': () => {
+            attempts++;
+            if (attempts < 3) throw new Error('Temporary error');
+            return { success: true };
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeEnsemble('retry-workflow', {});
+
+    expect(result).toBeSuccessful();
+    expect(attempts).toBe(3);
+  });
+});
+```
+
+## CI/CD Testing
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/test.yml
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run integration tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
+        run: npm run test:integration
+
+      - name: Check coverage
+        run: npm run test:coverage
+```
+
+### Deploy After Tests
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm ci
+      - run: npm test
+
+  deploy-staging:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npx wrangler deploy --env staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  smoke-test-staging:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm run test:smoke:staging
+
+  deploy-production:
+    needs: smoke-test-staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx wrangler deploy --env production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  smoke-test-production:
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm run test:smoke:production
+```
+
+## End-to-End Tests
+
+### Staging Tests
+
+```typescript
+// tests/e2e/staging.spec.ts
+import { describe, it, expect } from 'vitest';
+
+const STAGING_URL = 'https://conductor-staging.example.com';
+
+describe('staging e2e', () => {
+  it('should execute workflow via HTTP', async () => {
+    const response = await fetch(`${STAGING_URL}/api/v1/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ensemble: 'test-workflow',
+        input: { test: true }
+      })
+    });
+
+    expect(response.ok).toBe(true);
+    const result = await response.json();
+    expect(result.status).toBe('completed');
+  });
+
+  it('should handle health check', async () => {
+    const response = await fetch(`${STAGING_URL}/health`);
+    expect(response.ok).toBe(true);
+
+    const health = await response.json();
+    expect(health.status).toBe('healthy');
+  });
+});
+```
+
+### Production Smoke Tests
+
+```typescript
+// tests/smoke/production.spec.ts
+import { describe, it, expect } from 'vitest';
+
+const PRODUCTION_URL = 'https://conductor.example.com';
+
+describe('production smoke tests', () => {
+  it('should be alive', async () => {
+    const response = await fetch(`${PRODUCTION_URL}/health/alive`);
+    expect(response.ok).toBe(true);
+  });
+
+  it('should be ready', async () => {
+    const response = await fetch(`${PRODUCTION_URL}/health/ready`);
+    expect(response.ok).toBe(true);
+  });
+
+  it('should list members', async () => {
+    const response = await fetch(`${PRODUCTION_URL}/api/v1/members`);
+    expect(response.ok).toBe(true);
+
+    const members = await response.json();
+    expect(Array.isArray(members)).toBe(true);
+  });
+});
+```
+
+## Test Data Management
+
+### Seed Test Data
+
+```bash
+# Seed staging database
+npx wrangler d1 execute DB --env staging --file=./seeds/test-data.sql
+```
+
+```sql
+-- seeds/test-data.sql
+INSERT INTO users (id, email, name) VALUES
+  (1, 'test@example.com', 'Test User'),
+  (2, 'admin@example.com', 'Admin User');
+
+INSERT INTO products (id, name, price, stock) VALUES
+  (1, 'Widget', 10.00, 100),
+  (2, 'Gadget', 20.00, 50);
+```
+
+### Clean Up After Tests
+
+```typescript
+import { afterAll } from 'vitest';
+
+afterAll(async () => {
+  // Clean up test data
+  await testDb.prepare('DELETE FROM users WHERE email LIKE ?')
+    .bind('%@test.example.com')
+    .run();
+});
+```
+
+## Monitoring Post-Deploy
+
+### Health Checks
+
+```bash
+# Check health after deploy
+curl https://conductor.example.com/health
+
+# Expected response
+{
+  "status": "healthy",
+  "timestamp": 1234567890,
+  "version": "1.0.0"
+}
+```
+
+### Metrics
+
+Monitor key metrics after deployment:
+- Request success rate (> 99%)
+- Average latency (< 200ms p95)
+- Error rate (< 1%)
+- Cache hit rate (> 80%)
+
+### Rollback Plan
+
+```bash
+# If issues detected, rollback
+npx wrangler rollback --env production
+
+# Or deploy previous version
+git checkout v1.0.0
+npx wrangler deploy --env production
+```
+
+## Best Practices
+
+1. **Test locally first** - Catch issues before deploy
+2. **Use staging environment** - Validate before production
+3. **Automate tests in CI/CD** - Every PR should run tests
+4. **Monitor after deploy** - Watch for issues
+5. **Have rollback plan** - Be ready to revert
+6. **Test error paths** - Not just happy path
+7. **Performance test** - Ensure latency requirements
+8. **Use realistic data** - Test with production-like data
+9. **Test with real APIs** - In staging/integration tests
+10. **Clean up test data** - Don't pollute production
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Comprehensive testing strategies
+  </Card>
+
+  <Card
+    title="CI/CD Guide"
+    icon="rocket"
+    href="/conductor/guides/ci-cd"
+  >
+    Automated deployment pipelines
+  </Card>
+
+  <Card
+    title="Monitoring Guide"
+    icon="chart-line"
+    href="/conductor/guides/monitoring"
+  >
+    Production monitoring
+  </Card>
+
+  <Card
+    title="Deployment Guide"
+    icon="cloud"
+    href="/conductor/guides/deployment"
+  >
+    Deploy to Cloudflare Workers
+  </Card>
+</CardGroup>

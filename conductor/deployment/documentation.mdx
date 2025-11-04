@@ -1,0 +1,599 @@
+---
+title: "Documentation Generation"
+description: "Generate and maintain Conductor documentation"
+---
+
+## Overview
+
+Generate API documentation, ensemble catalogs, and developer guides for your Conductor workflows. Keep documentation up-to-date with automated tools and best practices.
+
+## Documentation Types
+
+### 1. API Documentation
+
+Auto-generate OpenAPI specs from your HTTP endpoints.
+
+```bash
+# Generate OpenAPI specification
+npx conductor docs generate
+
+# Output: openapi.json
+```
+
+**Example OpenAPI Output**:
+```json
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Conductor API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/execute": {
+      "post": {
+        "summary": "Execute Ensemble",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ensemble": { "type": "string" },
+                  "input": { "type": "object" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### 2. Ensemble Catalog
+
+List all available ensembles and their inputs/outputs.
+
+```bash
+# Generate ensemble catalog
+npx conductor catalog list
+
+# Output: Table of ensembles
+```
+
+**Markdown Output**:
+```markdown
+# Ensemble Catalog
+
+## order-processing
+**Description**: Process customer orders with payment and fulfillment
+
+**Input**:
+- `orderId` (string) - Order identifier
+- `customerId` (string) - Customer identifier
+
+**Output**:
+- `status` (string) - Processing status
+- `total` (number) - Order total
+
+## user-onboarding
+**Description**: Onboard new users with email verification
+
+**Input**:
+- `email` (string) - User email
+- `name` (string) - User full name
+
+**Output**:
+- `userId` (string) - Created user ID
+- `verified` (boolean) - Email verification status
+```
+
+### 3. Member Documentation
+
+Document custom members and built-ins.
+
+```typescript
+/**
+ * Validates email addresses using regex pattern
+ * @member validate-email
+ * @type Function
+ * @input email - Email address to validate
+ * @output valid - Whether email is valid
+ * @output reason - Validation failure reason (if invalid)
+ */
+export async function validateEmail(context: MemberExecutionContext) {
+  const { email } = context.input;
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  return {
+    valid: regex.test(email),
+    reason: regex.test(email) ? null : 'Invalid email format'
+  };
+}
+```
+
+## CLI Documentation Commands
+
+### Generate Docs
+
+```bash
+# Generate all documentation
+npx conductor docs generate
+
+# Generate specific type
+npx conductor docs generate --type openapi
+npx conductor docs generate --type catalog
+npx conductor docs generate --type members
+
+# Output to specific directory
+npx conductor docs generate --output ./docs
+
+# Include examples
+npx conductor docs generate --examples
+```
+
+### Validate Documentation
+
+```bash
+# Check documentation is up-to-date
+npx conductor docs validate
+
+# Fix issues automatically
+npx conductor docs validate --fix
+```
+
+### Preview Documentation
+
+```bash
+# Start documentation server
+npx conductor docs serve
+
+# Opens http://localhost:3000
+```
+
+## Inline Documentation
+
+### YAML Ensemble Documentation
+
+```yaml
+name: order-processing
+description: |
+  Complete order processing workflow including:
+  - Inventory reservation
+  - Payment processing
+  - Order fulfillment
+  - Customer notifications
+
+  **SLA**: 95th percentile < 2 seconds
+  **Rate Limit**: 1000 requests/minute
+
+metadata:
+  version: "1.2.0"
+  author: "Engineering Team"
+  tags: ["e-commerce", "payments"]
+  examples:
+    - name: "Standard Order"
+      input:
+        orderId: "ORD-123"
+        customerId: "CUST-456"
+      output:
+        status: "completed"
+        total: 99.99
+
+flow:
+  # Reserve inventory
+  # This ensures product availability before charging
+  - member: reserve-inventory
+    type: Data
+    config:
+      storage: d1
+      operation: query
+      query: |
+        UPDATE products
+        SET reserved = reserved + ?
+        WHERE id = ? AND stock >= ?
+
+  # Process payment via Stripe
+  # Idempotent with idempotency key
+  - member: process-payment
+    type: API
+    config:
+      url: "https://api.stripe.com/v1/charges"
+      method: POST
+    input:
+      amount: ${calculate-total.output.cents}
+      idempotencyKey: ${input.orderId}
+```
+
+### TypeScript Function Documentation
+
+```typescript
+/**
+ * Calculate shipping cost based on weight and destination
+ *
+ * @example
+ * ```typescript
+ * const cost = await calculateShipping({
+ *   weight: 2.5,
+ *   destination: 'US',
+ *   express: false
+ * });
+ * // Returns: { cost: 15.99, estimatedDays: 5 }
+ * ```
+ *
+ * @param context - Execution context
+ * @param context.input.weight - Package weight in kg
+ * @param context.input.destination - Country code (ISO 3166-1)
+ * @param context.input.express - Use express shipping
+ * @returns Shipping cost and estimated delivery days
+ *
+ * @throws {Error} If destination is not supported
+ */
+export async function calculateShipping(
+  context: MemberExecutionContext
+): Promise<{ cost: number; estimatedDays: number }> {
+  const { weight, destination, express } = context.input;
+
+  // Implementation...
+
+  return { cost: 15.99, estimatedDays: 5 };
+}
+```
+
+## README Templates
+
+### Project README
+
+```markdown
+# Conductor Workflows
+
+Production-ready AI orchestration workflows for [Company Name].
+
+## Quick Start
+
+\`\`\`bash
+# Install dependencies
+npm install
+
+# Run locally
+npx wrangler dev
+
+# Deploy
+npx wrangler deploy
+\`\`\`
+
+## Available Ensembles
+
+| Name | Description | Trigger |
+|------|-------------|---------|
+| `order-processing` | Process customer orders | HTTP POST /webhooks/orders |
+| `user-onboarding` | Onboard new users | Cron: daily at 9am |
+| `content-moderation` | Moderate user content | Queue: moderation-queue |
+
+## Configuration
+
+See [Configuration Guide](./docs/configuration.md)
+
+## Testing
+
+\`\`\`bash
+npm test
+\`\`\`
+
+## Deployment
+
+\`\`\`bash
+npm run deploy:staging  # Staging
+npm run deploy:production  # Production
+\`\`\`
+
+## Documentation
+
+- [Architecture](./docs/architecture.md)
+- [API Reference](./docs/api.md)
+- [Development Guide](./docs/development.md)
+
+## Support
+
+- Slack: #conductor-support
+- Email: engineering@company.com
+- Docs: https://docs.company.com/conductor
+```
+
+### Ensemble README
+
+```markdown
+# Order Processing
+
+Process customer orders with inventory reservation, payment, and fulfillment.
+
+## Overview
+
+- **Trigger**: HTTP POST to `/webhooks/orders`
+- **Duration**: ~1.5s average
+- **Rate Limit**: 1000 req/min
+- **SLA**: 95th percentile < 2s
+
+## Input
+
+\`\`\`typescript
+interface OrderInput {
+  orderId: string;       // Order ID (ORD-xxx)
+  customerId: string;    // Customer ID (CUST-xxx)
+  items: Array<{
+    productId: string;   // Product ID
+    quantity: number;    // Quantity (> 0)
+  }>;
+  shippingAddress: {
+    street: string;
+    city: string;
+    country: string;
+    postalCode: string;
+  };
+}
+\`\`\`
+
+## Output
+
+\`\`\`typescript
+interface OrderOutput {
+  status: 'completed' | 'failed';
+  total: number;           // Total amount charged
+  paymentId?: string;      // Stripe payment ID
+  trackingNumber?: string; // Shipping tracking
+  error?: string;          // Error message (if failed)
+}
+\`\`\`
+
+## Flow
+
+1. **Validate Input** - Check order data
+2. **Reserve Inventory** - Lock product stock
+3. **Calculate Total** - Sum items + shipping + tax
+4. **Process Payment** - Charge via Stripe
+5. **Fulfill Order** - Create shipment
+6. **Send Confirmation** - Email customer
+
+## Error Handling
+
+- Payment failures: Automatic retry (3 attempts)
+- Inventory unavailable: Rollback and notify
+- Fulfillment errors: Manual review queue
+
+## Example
+
+\`\`\`bash
+curl -X POST https://api.example.com/webhooks/orders \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "orderId": "ORD-123",
+    "customerId": "CUST-456",
+    "items": [
+      { "productId": "PROD-789", "quantity": 2 }
+    ]
+  }'
+\`\`\`
+
+## Testing
+
+\`\`\`bash
+npm test -- order-processing.spec.ts
+\`\`\`
+
+## Monitoring
+
+- Dashboard: https://dash.cloudflare.com
+- Logs: `npx wrangler tail`
+- Alerts: #alerts-orders (Slack)
+```
+
+## Automated Documentation
+
+### Pre-Commit Hook
+
+```bash
+# .husky/pre-commit
+#!/bin/sh
+
+# Regenerate docs before commit
+npx conductor docs generate
+
+# Add generated docs to commit
+git add docs/
+```
+
+### CI/CD Documentation Check
+
+```yaml
+# .github/workflows/docs.yml
+name: Documentation
+
+on: [push, pull_request]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Generate documentation
+        run: npx conductor docs generate
+
+      - name: Check for changes
+        run: |
+          if ! git diff --quiet docs/; then
+            echo "Documentation is out of date"
+            echo "Run: npx conductor docs generate"
+            exit 1
+          fi
+
+      - name: Deploy docs
+        if: github.ref == 'refs/heads/main'
+        run: |
+          npx mintlify dev --publish
+```
+
+## Documentation Hosting
+
+### Mintlify
+
+```bash
+# Install Mintlify CLI
+npm install -g mintlify
+
+# Preview docs locally
+mintlify dev
+
+# Deploy to Mintlify
+mintlify deploy
+```
+
+### Cloudflare Pages
+
+```bash
+# Build static docs
+npm run docs:build
+
+# Deploy to Pages
+npx wrangler pages deploy ./docs-dist
+```
+
+### GitHub Pages
+
+```yaml
+# .github/workflows/pages.yml
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build docs
+        run: npm run docs:build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs-dist
+```
+
+## Best Practices
+
+1. **Keep docs updated** - Regenerate with each change
+2. **Document inputs/outputs** - Clear schemas
+3. **Include examples** - Show realistic usage
+4. **Add error cases** - Document failure modes
+5. **Version documentation** - Track changes over time
+6. **Automate generation** - Use CI/CD
+7. **Write for audience** - Developers, not just you
+8. **Link between docs** - Easy navigation
+9. **Include diagrams** - Visual flow representations
+10. **Test documentation** - Verify examples work
+
+## Documentation Structure
+
+```
+docs/
+├── README.md                 # Overview
+├── getting-started/
+│   ├── quickstart.md
+│   ├── installation.md
+│   └── configuration.md
+├── ensembles/
+│   ├── order-processing.md
+│   ├── user-onboarding.md
+│   └── content-moderation.md
+├── members/
+│   ├── custom-members.md
+│   └── built-in-members.md
+├── guides/
+│   ├── error-handling.md
+│   ├── testing.md
+│   └── deployment.md
+├── api/
+│   ├── openapi.json        # Generated
+│   ├── http-api.md
+│   └── sdk-reference.md
+└── examples/
+    ├── basic-workflow.md
+    └── advanced-patterns.md
+```
+
+## Tools
+
+### Documentation Linters
+
+```bash
+# Markdown linter
+npm install -D markdownlint-cli
+
+# Lint docs
+npx markdownlint docs/**/*.md
+
+# Fix issues
+npx markdownlint --fix docs/**/*.md
+```
+
+### Link Checkers
+
+```bash
+# Check for broken links
+npm install -D markdown-link-check
+
+# Run link checker
+npx markdown-link-check docs/**/*.md
+```
+
+### Spell Checkers
+
+```bash
+# Install cspell
+npm install -D cspell
+
+# Check spelling
+npx cspell "docs/**/*.md"
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/conductor-api/overview"
+  >
+    Complete API documentation
+  </Card>
+
+  <Card
+    title="Guides"
+    icon="book"
+    href="/conductor/guides/quickstart"
+  >
+    Development guides
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="lightbulb"
+    href="/conductor/examples/hello-world"
+  >
+    Example workflows
+  </Card>
+
+  <Card
+    title="CLI Reference"
+    icon="terminal"
+    href="/conductor/api-reference/cli"
+  >
+    Command-line tools
+  </Card>
+</CardGroup>

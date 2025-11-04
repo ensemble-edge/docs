@@ -1,0 +1,538 @@
+---
+title: "Environment Variables"
+description: "Manage environment variables and secrets"
+---
+
+## Overview
+
+Configure Conductor with environment variables for runtime configuration and secrets for sensitive data. Learn the difference between vars, secrets, and bindings.
+
+## Types of Configuration
+
+### 1. Variables (vars)
+
+Non-sensitive configuration values stored in `wrangler.toml`.
+
+```toml
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+MAX_RETRIES = "3"
+CACHE_TTL = "3600"
+```
+
+**Use for**:
+- Environment names
+- Feature flags
+- Public configuration
+- Default values
+
+**Do NOT use for**:
+- API keys
+- Passwords
+- Tokens
+- Private keys
+
+### 2. Secrets
+
+Sensitive values stored encrypted in Cloudflare.
+
+```bash
+# Add secret
+echo "sk-1234567890" | npx wrangler secret put OPENAI_API_KEY
+
+# List secrets (values hidden)
+npx wrangler secret list
+
+# Delete secret
+npx wrangler secret delete OPENAI_API_KEY
+```
+
+**Use for**:
+- API keys
+- Database passwords
+- OAuth tokens
+- Signing secrets
+- Private keys
+
+### 3. Bindings
+
+References to Cloudflare resources (D1, KV, R2, etc).
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_id = "abc123"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "xyz789"
+```
+
+## Accessing Variables
+
+### In Worker Code
+
+```typescript
+import { Conductor } from '@ensemble-edge/conductor';
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // Access variables
+    console.log(`Environment: ${env.ENVIRONMENT}`);
+    console.log(`Log level: ${env.LOG_LEVEL}`);
+
+    // Access secrets
+    const openaiKey = env.OPENAI_API_KEY;
+
+    // Access bindings
+    const db = env.DB;
+    const cache = env.CACHE;
+
+    // Pass to Conductor
+    const conductor = new Conductor({ env });
+
+    return Response.json({ status: 'ok' });
+  }
+};
+```
+
+### In Ensemble Files
+
+Use `${env.VARIABLE_NAME}` syntax:
+
+```yaml
+name: api-call
+description: Call external API
+
+flow:
+  - member: fetch-data
+    type: API
+    config:
+      url: "${env.API_BASE_URL}/data"
+      method: GET
+      headers:
+        Authorization: "Bearer ${env.API_KEY}"
+        X-Environment: "${env.ENVIRONMENT}"
+
+  - member: cache-result
+    type: Data
+    config:
+      storage: kv
+      operation: put
+      binding: CACHE
+    input:
+      key: "api:data"
+      value: ${fetch-data.output}
+      expirationTtl: ${env.CACHE_TTL}
+```
+
+## Environment-Specific Configuration
+
+### Multiple Environments
+
+```toml
+# Default (all environments)
+[vars]
+LOG_LEVEL = "info"
+
+# Development
+[env.dev]
+name = "conductor-dev"
+vars = { ENVIRONMENT = "dev", DEBUG = "true" }
+
+# Staging
+[env.staging]
+name = "conductor-staging"
+vars = { ENVIRONMENT = "staging", DEBUG = "false" }
+
+# Production
+[env.production]
+name = "conductor-production"
+vars = { ENVIRONMENT = "production", DEBUG = "false" }
+```
+
+### Environment-Specific Secrets
+
+```bash
+# Development secrets
+npx wrangler secret put OPENAI_API_KEY --env dev
+# Enter: sk-dev-key...
+
+# Production secrets
+npx wrangler secret put OPENAI_API_KEY --env production
+# Enter: sk-prod-key...
+```
+
+### Deploy to Environment
+
+```bash
+# Deploy to development
+npx wrangler deploy --env dev
+
+# Deploy to production
+npx wrangler deploy --env production
+```
+
+## Local Development
+
+### .dev.vars File
+
+Create `.dev.vars` for local secrets (DO NOT COMMIT):
+
+```bash
+# .dev.vars
+OPENAI_API_KEY=sk-local-key-123
+ANTHROPIC_API_KEY=sk-ant-local-key-456
+DATABASE_URL=postgresql://localhost:5432/dev
+STRIPE_SECRET_KEY=sk_test_123
+```
+
+### .gitignore
+
+```bash
+# .gitignore
+.dev.vars
+.env
+.env.local
+*.key
+credentials.json
+secrets/
+```
+
+### Access in Local Development
+
+```bash
+# Run with .dev.vars
+npx wrangler dev
+
+# Or set inline
+OPENAI_API_KEY=sk-123 npx wrangler dev
+```
+
+## Common Variables
+
+### AI Provider Keys
+
+```bash
+# OpenAI
+npx wrangler secret put OPENAI_API_KEY
+
+# Anthropic
+npx wrangler secret put ANTHROPIC_API_KEY
+
+# Groq
+npx wrangler secret put GROQ_API_KEY
+```
+
+```yaml
+# In ensemble
+- member: ai-task
+  type: Think
+  config:
+    provider: openai
+    apiKey: ${env.OPENAI_API_KEY}
+    model: gpt-4o
+```
+
+### Database Credentials
+
+```bash
+# Database password (if using external DB)
+npx wrangler secret put DATABASE_PASSWORD
+
+# Connection string
+npx wrangler secret put DATABASE_URL
+```
+
+### API Keys
+
+```bash
+# Third-party API keys
+npx wrangler secret put STRIPE_SECRET_KEY
+npx wrangler secret put SENDGRID_API_KEY
+npx wrangler secret put SLACK_WEBHOOK_URL
+```
+
+### Webhook Secrets
+
+```bash
+# Webhook signing secrets
+npx wrangler secret put GITHUB_WEBHOOK_SECRET
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+```
+
+```typescript
+// Verify webhook signature
+const signature = request.headers.get('X-Hub-Signature-256');
+const isValid = await verifySignature(
+  await request.text(),
+  signature,
+  env.GITHUB_WEBHOOK_SECRET
+);
+```
+
+## Variable Naming
+
+### Conventions
+
+```toml
+[vars]
+# Use SCREAMING_SNAKE_CASE
+API_BASE_URL = "https://api.example.com"
+MAX_RETRY_ATTEMPTS = "3"
+CACHE_TTL_SECONDS = "3600"
+
+# Boolean values as strings
+FEATURE_FLAG_ENABLED = "true"
+DEBUG_MODE = "false"
+
+# Environment-specific suffixes
+OPENAI_API_BASE_URL = "https://api.openai.com/v1"
+ANTHROPIC_API_BASE_URL = "https://api.anthropic.com/v1"
+```
+
+### Reserved Names
+
+Avoid these (used by Cloudflare):
+- `CF_*` - CloudFlare internal
+- `WORKER_*` - Worker runtime
+- Any binding names (DB, AI, CACHE, etc.)
+
+## Type Safety
+
+### Environment Interface
+
+```typescript
+// src/env.ts
+export interface Env {
+  // Variables
+  ENVIRONMENT: string;
+  LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error';
+  MAX_RETRIES: string;
+
+  // Secrets
+  OPENAI_API_KEY: string;
+  ANTHROPIC_API_KEY: string;
+  DATABASE_PASSWORD: string;
+
+  // Bindings
+  DB: D1Database;
+  CACHE: KVNamespace;
+  AI: Ai;
+  VECTORIZE: VectorizeIndex;
+}
+```
+
+```typescript
+// src/index.ts
+import type { Env } from './env';
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // TypeScript knows about env properties
+    const logLevel: 'debug' | 'info' | 'warn' | 'error' = env.LOG_LEVEL;
+    const apiKey: string = env.OPENAI_API_KEY;
+    const db: D1Database = env.DB;
+
+    return Response.json({ ok: true });
+  }
+};
+```
+
+## Validation
+
+### Check Variables
+
+```typescript
+function validateEnv(env: Env): void {
+  const required = [
+    'OPENAI_API_KEY',
+    'ANTHROPIC_API_KEY',
+    'ENVIRONMENT'
+  ];
+
+  for (const key of required) {
+    if (!env[key]) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+  }
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    try {
+      validateEnv(env);
+      // ... rest of code
+    } catch (error) {
+      return Response.json({ error: error.message }, { status: 500 });
+    }
+  }
+};
+```
+
+### List Current Variables
+
+```bash
+# List secrets (values hidden)
+npx wrangler secret list
+
+# Show vars from wrangler.toml
+cat wrangler.toml | grep -A 10 "\[vars\]"
+
+# Check deployed configuration
+npx wrangler deployments list
+```
+
+## Rotation
+
+### Secret Rotation
+
+```bash
+# 1. Add new secret with different name
+npx wrangler secret put OPENAI_API_KEY_NEW
+
+# 2. Update code to try new key first, fallback to old
+const apiKey = env.OPENAI_API_KEY_NEW || env.OPENAI_API_KEY;
+
+# 3. Deploy
+npx wrangler deploy
+
+# 4. Delete old secret
+npx wrangler secret delete OPENAI_API_KEY
+
+# 5. Rename new to old
+npx wrangler secret put OPENAI_API_KEY
+# (Enter value from OPENAI_API_KEY_NEW)
+
+npx wrangler secret delete OPENAI_API_KEY_NEW
+```
+
+## Best Practices
+
+1. **Never commit secrets** - Use .gitignore for .dev.vars
+2. **Use secrets for sensitive data** - Not vars in wrangler.toml
+3. **Validate required variables** - Check on worker start
+4. **Use environment-specific values** - Different keys for dev/prod
+5. **Rotate secrets regularly** - Update API keys periodically
+6. **Document variables** - Add comments in wrangler.toml
+7. **Use type-safe interfaces** - Define Env type
+8. **Principle of least privilege** - Only grant necessary access
+9. **Monitor secret access** - Track usage in logs
+10. **Backup secrets** - Store in secure password manager
+
+## Troubleshooting
+
+### Secret not found
+
+```
+Error: env.OPENAI_API_KEY is undefined
+```
+
+**Solution**:
+```bash
+# Check if secret exists
+npx wrangler secret list
+
+# Add if missing
+npx wrangler secret put OPENAI_API_KEY
+```
+
+### Wrong environment
+
+```
+Error: Using development API key in production
+```
+
+**Solution**:
+```bash
+# Set secret for specific environment
+npx wrangler secret put OPENAI_API_KEY --env production
+```
+
+### Variable not updating
+
+**Solution**:
+```bash
+# Redeploy after changing wrangler.toml
+npx wrangler deploy
+
+# For secrets, no redeploy needed (takes effect immediately)
+```
+
+## Examples
+
+### Full Configuration
+
+```toml
+# wrangler.toml
+name = "conductor-app"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+MAX_RETRIES = "3"
+CACHE_TTL = "3600"
+API_BASE_URL = "https://api.example.com"
+FEATURE_FLAG_NEW_UI = "true"
+
+[env.staging]
+vars = { ENVIRONMENT = "staging", LOG_LEVEL = "debug" }
+
+[env.dev]
+vars = { ENVIRONMENT = "dev", LOG_LEVEL = "debug", FEATURE_FLAG_NEW_UI = "false" }
+```
+
+```bash
+# .dev.vars (local only, gitignored)
+OPENAI_API_KEY=sk-local-123
+ANTHROPIC_API_KEY=sk-ant-local-456
+STRIPE_SECRET_KEY=sk_test_123
+DATABASE_PASSWORD=dev-password
+```
+
+```bash
+# Production secrets (deployed)
+npx wrangler secret put OPENAI_API_KEY --env production
+npx wrangler secret put ANTHROPIC_API_KEY --env production
+npx wrangler secret put STRIPE_SECRET_KEY --env production
+npx wrangler secret put DATABASE_PASSWORD --env production
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/conductor/deployment/configuration"
+  >
+    wrangler.toml setup
+  </Card>
+
+  <Card
+    title="Secrets Management"
+    icon="lock"
+    href="/conductor/guides/secrets-management"
+  >
+    Secure secrets handling
+  </Card>
+
+  <Card
+    title="Bindings"
+    icon="link"
+    href="/conductor/deployment/bindings"
+  >
+    Resource bindings
+  </Card>
+
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/conductor/guides/deployment"
+  >
+    Deploy to Cloudflare Workers
+  </Card>
+</CardGroup>

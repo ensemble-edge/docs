@@ -1,0 +1,536 @@
+---
+title: "AI Provider Configuration"
+description: "Configure AI providers for Conductor workflows"
+---
+
+## Overview
+
+Configure AI providers (OpenAI, Anthropic, Groq, Workers AI) for your Conductor workflows. Learn about API keys, routing modes, model selection, and AI Gateway integration.
+
+## Supported Providers
+
+### Workers AI (Cloudflare)
+
+Edge-native AI models with sub-50ms cold starts.
+
+**Configuration**:
+```toml
+[ai]
+binding = "AI"
+```
+
+**Usage**:
+```yaml
+- member: classify
+  type: Think
+  config:
+    provider: workers-ai
+    model: "@cf/meta/llama-3.1-8b-instruct"
+  input:
+    prompt: "Classify sentiment: ${input.text}"
+```
+
+**Available Models**:
+- `@cf/meta/llama-3.1-8b-instruct` - Fast general purpose
+- `@cf/mistral/mistral-7b-instruct-v0.1` - Efficient reasoning
+- `@cf/openai/whisper` - Speech recognition
+- `@cf/stabilityai/stable-diffusion-xl-base-1.0` - Image generation
+
+**Advantages**:
+- No API keys required
+- Sub-50ms cold starts
+- Included in Workers plan
+- No external API calls
+
+### OpenAI
+
+GPT-4o, GPT-4o-mini, and other OpenAI models.
+
+**Add API Key**:
+```bash
+npx wrangler secret put OPENAI_API_KEY
+# Enter: sk-...
+```
+
+**Usage**:
+```yaml
+- member: generate
+  type: Think
+  config:
+    provider: openai
+    model: gpt-4o
+    apiKey: ${env.OPENAI_API_KEY}
+    temperature: 0.7
+    maxTokens: 1000
+  input:
+    prompt: "Write a blog post about ${input.topic}"
+```
+
+**Available Models**:
+- `gpt-4o` - Most capable, $5/$15 per 1M tokens
+- `gpt-4o-mini` - Fast and cheap, $0.15/$0.60 per 1M tokens
+- `gpt-4-turbo` - Previous flagship
+- `gpt-3.5-turbo` - Legacy, use gpt-4o-mini instead
+
+**Custom Base URL**:
+```yaml
+config:
+  provider: openai
+  apiKey: ${env.OPENAI_API_KEY}
+  baseURL: "https://custom-api.example.com/v1"
+```
+
+### Anthropic (Claude)
+
+Claude 3.5 Sonnet and other Anthropic models.
+
+**Add API Key**:
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY
+# Enter: sk-ant-...
+```
+
+**Usage**:
+```yaml
+- member: analyze
+  type: Think
+  config:
+    provider: anthropic
+    model: claude-3-5-sonnet-20241022
+    apiKey: ${env.ANTHROPIC_API_KEY}
+    temperature: 0.7
+    maxTokens: 2000
+  input:
+    prompt: "Analyze this contract: ${input.contract}"
+```
+
+**Available Models**:
+- `claude-3-5-sonnet-20241022` - Most capable, $3/$15 per 1M tokens
+- `claude-3-opus-20240229` - Previous flagship
+- `claude-3-haiku-20240307` - Fast and cheap
+
+**System Prompts**:
+```yaml
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  systemPrompt: |
+    You are a helpful AI assistant specialized in contract analysis.
+    Always cite specific sections when making claims.
+```
+
+### Groq
+
+Ultra-fast inference with LLaMA and other models.
+
+**Add API Key**:
+```bash
+npx wrangler secret put GROQ_API_KEY
+# Enter: gsk_...
+```
+
+**Usage**:
+```yaml
+- member: quick-response
+  type: Think
+  config:
+    provider: groq
+    model: llama-3.1-70b-versatile
+    apiKey: ${env.GROQ_API_KEY}
+  input:
+    prompt: "Quick answer: ${input.question}"
+```
+
+**Available Models**:
+- `llama-3.1-70b-versatile` - Fast, capable
+- `llama-3.1-8b-instant` - Fastest
+- `mixtral-8x7b-32768` - Long context
+
+**Advantages**:
+- Extremely fast inference (< 100ms)
+- Generous free tier
+- Long context windows
+
+## AI Gateway
+
+Cloudflare AI Gateway provides caching, analytics, and rate limiting for AI requests.
+
+### Setup
+
+1. **Create Gateway** in Cloudflare Dashboard:
+   - Go to AI → AI Gateway
+   - Click "Create Gateway"
+   - Copy Gateway ID
+
+2. **Configure Routing**:
+```yaml
+- member: cached-ai-call
+  type: Think
+  config:
+    provider: openai
+    model: gpt-4o-mini
+    routing: cloudflare-gateway  # Enable AI Gateway
+    gatewayId: "your-gateway-id"
+    temperature: 0.1  # Low temp = better cache hits
+```
+
+### Routing Modes
+
+#### 1. Direct (No Gateway)
+
+```yaml
+config:
+  routing: direct  # Default
+  provider: openai
+```
+
+- Requests go directly to OpenAI/Anthropic/etc
+- No caching
+- No analytics
+- Lowest latency
+
+#### 2. Cloudflare Gateway
+
+```yaml
+config:
+  routing: cloudflare-gateway
+  gatewayId: "your-gateway-id"
+```
+
+- Requests routed through AI Gateway
+- Persistent caching (identical requests cached)
+- Analytics dashboard
+- Slightly higher latency (~50ms)
+
+#### 3. Cloudflare (Workers AI)
+
+```yaml
+config:
+  routing: cloudflare
+  provider: workers-ai
+```
+
+- Uses Cloudflare Workers AI
+- No external API calls
+- Sub-50ms cold starts
+- No API keys needed
+
+### Cache Configuration
+
+**Automatic Caching**:
+```yaml
+config:
+  routing: cloudflare-gateway
+  temperature: 0.1  # Lower = better cache hits
+```
+
+AI Gateway automatically caches identical requests (same model, prompt, temperature, etc).
+
+**Cache TTL**:
+- Default: 30 days
+- Can configure in AI Gateway dashboard
+
+**Cache Key Factors**:
+- Model name
+- Prompt text
+- Temperature
+- Max tokens
+- Other parameters
+
+## Model Selection
+
+### By Task Complexity
+
+```yaml
+# Simple classification - Mini models
+- member: classify-sentiment
+  config:
+    model: gpt-4o-mini  # Fast, cheap
+
+# Complex reasoning - Flagship models
+- member: analyze-contract
+  config:
+    model: gpt-4o  # Accurate, expensive
+
+# Long-form writing - Sonnet
+- member: write-article
+  config:
+    provider: anthropic
+    model: claude-3-5-sonnet-20241022
+```
+
+### By Latency Requirements
+
+```yaml
+# Ultra-fast (< 100ms) - Workers AI or Groq
+- member: instant-response
+  config:
+    provider: workers-ai
+    model: "@cf/meta/llama-3.1-8b-instruct"
+
+# Fast (< 500ms) - Mini models
+- member: quick-task
+  config:
+    model: gpt-4o-mini
+
+# Quality (1-2s) - Flagship models
+- member: careful-analysis
+  config:
+    model: gpt-4o
+```
+
+### By Cost
+
+```yaml
+# Most economical - Workers AI (included)
+- member: budget-task
+  config:
+    provider: workers-ai
+
+# Very cheap - Mini models ($0.15/$0.60 per 1M)
+- member: cheap-task
+  config:
+    model: gpt-4o-mini
+
+# Premium - Flagship models ($3-5 per 1M)
+- member: premium-task
+  config:
+    model: gpt-4o
+```
+
+## Environment-Specific Configuration
+
+### Multiple Environments
+
+```toml
+# Development - Use cheaper models
+[env.dev]
+vars = { DEFAULT_MODEL = "gpt-4o-mini" }
+
+# Staging - Use prod models
+[env.staging]
+vars = { DEFAULT_MODEL = "gpt-4o" }
+
+# Production - Use best models
+[env.production]
+vars = { DEFAULT_MODEL = "gpt-4o" }
+```
+
+```bash
+# Separate API keys per environment
+npx wrangler secret put OPENAI_API_KEY --env dev
+npx wrangler secret put OPENAI_API_KEY --env production
+```
+
+### Dynamic Model Selection
+
+```yaml
+- member: adaptive-ai
+  type: Think
+  config:
+    provider: openai
+    model: ${env.DEFAULT_MODEL}  # From environment
+    apiKey: ${env.OPENAI_API_KEY}
+```
+
+## Cost Optimization
+
+### 1. Cache Aggressively
+
+```yaml
+config:
+  routing: cloudflare-gateway
+  temperature: 0.1  # Low temperature = better caching
+```
+
+### 2. Use Cheaper Models
+
+```yaml
+# Try mini model first
+- member: quick-attempt
+  config:
+    model: gpt-4o-mini
+  scoring:
+    thresholds:
+      minimum: 0.7
+    onFailure: continue
+
+# Escalate if needed
+- member: quality-attempt
+  condition: ${quick-attempt.scoring.score < 0.7}
+  config:
+    model: gpt-4o
+```
+
+### 3. Reduce Token Usage
+
+```yaml
+# ❌ Verbose (wastes tokens)
+prompt: |
+  I would like you to carefully analyze the following text.
+  Please be thorough and provide detailed reasoning.
+  Text: ${input.text}
+
+# ✅ Concise (saves tokens)
+prompt: "Analyze: ${input.text}"
+```
+
+### 4. Batch Requests
+
+```yaml
+# Process multiple items in one request
+prompt: |
+  Classify sentiment for each:
+  ${items.map((item, i) => `${i+1}. ${item}`).join('\n')}
+```
+
+## Advanced Configuration
+
+### Custom Headers
+
+```yaml
+config:
+  provider: openai
+  apiKey: ${env.OPENAI_API_KEY}
+  headers:
+    X-Custom-Header: "value"
+    Organization: ${env.OPENAI_ORG_ID}
+```
+
+### Timeouts
+
+```yaml
+config:
+  provider: openai
+  timeout: 30000  # 30 seconds
+```
+
+### Retry Logic
+
+```yaml
+- member: resilient-ai-call
+  type: Think
+  retry:
+    maxAttempts: 3
+    backoff: exponential
+    retryOn: [429, 500, 502, 503]  # Rate limit and server errors
+```
+
+## Monitoring
+
+### Track Token Usage
+
+```yaml
+output:
+  tokens: ${ai-call.output.usage.total_tokens}
+  cost: ${ai-call.output.usage.total_tokens * 0.00001}
+```
+
+### Log AI Calls
+
+```typescript
+console.log(JSON.stringify({
+  member: 'ai-call',
+  model: 'gpt-4o',
+  tokens: result.output.usage.total_tokens,
+  duration: result.duration,
+  cost: result.output.usage.total_tokens * 0.00001
+}));
+```
+
+### AI Gateway Analytics
+
+View in Cloudflare Dashboard:
+- Request count
+- Cache hit rate
+- Token usage
+- Cost tracking
+- Error rates
+
+## Best Practices
+
+1. **Use AI Gateway** - Cache and analytics
+2. **Start with cheap models** - Escalate if needed
+3. **Lower temperature for caching** - Better cache hits
+4. **Batch when possible** - Fewer API calls
+5. **Monitor costs** - Track token usage
+6. **Rotate API keys** - Security best practice
+7. **Use environment-specific keys** - Separate dev/prod
+8. **Implement rate limiting** - Prevent abuse
+9. **Add retry logic** - Handle transient failures
+10. **Validate API keys on start** - Fail fast
+
+## Troubleshooting
+
+### Invalid API Key
+
+```
+Error: Invalid API key
+```
+
+**Solution**:
+```bash
+# Check if secret exists
+npx wrangler secret list
+
+# Update secret
+npx wrangler secret put OPENAI_API_KEY
+```
+
+### Rate Limit Exceeded
+
+```
+Error: Rate limit exceeded (429)
+```
+
+**Solution**:
+```yaml
+# Add retry with backoff
+retry:
+  maxAttempts: 5
+  backoff: exponential
+```
+
+### Model Not Found
+
+```
+Error: Model 'gpt-5' not found
+```
+
+**Solution**: Use valid model name from provider documentation.
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Think Members"
+    icon="brain"
+    href="/conductor/member-types/think"
+  >
+    AI reasoning members
+  </Card>
+
+  <Card
+    title="AI Integration Guide"
+    icon="robot"
+    href="/conductor/guides/ai-integration"
+  >
+    Working with AI providers
+  </Card>
+
+  <Card
+    title="Secrets Management"
+    icon="lock"
+    href="/conductor/guides/secrets-management"
+  >
+    Secure API keys
+  </Card>
+
+  <Card
+    title="Performance Guide"
+    icon="bolt"
+    href="/conductor/guides/performance"
+  >
+    Optimize AI costs
+  </Card>
+</CardGroup>
