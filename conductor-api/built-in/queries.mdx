@@ -1,0 +1,96 @@
+---
+title: "Queries Member"
+description: "SQL queries with Hyperdrive pooling"
+---
+
+## Overview
+
+The `queries` built-in member executes SQL queries using Cloudflare Hyperdrive for connection pooling and query optimization.
+
+```yaml
+- member: fetch-users
+  type: Function
+  config:
+    builtin: queries
+    query: SELECT * FROM users WHERE status = ?
+    params: [active]
+    catalog: main
+```
+
+## Configuration
+
+<ParamField body="query" type="string" required>
+  SQL query
+</ParamField>
+
+<ParamField body="params" type="array">
+  Query parameters
+</ParamField>
+
+<ParamField body="catalog" type="string" default="main">
+  Query catalog/database
+</ParamField>
+
+<ParamField body="timeout" type="number" default="30000">
+  Query timeout
+</ParamField>
+
+## Examples
+
+### Simple Query
+
+```yaml
+- member: get-user
+  type: Function
+  config:
+    builtin: queries
+    query: SELECT * FROM users WHERE id = ?
+    params: [${input.userId}]
+```
+
+### Prepared Statement
+
+```yaml
+- member: insert-record
+  type: Function
+  config:
+    builtin: queries
+    query: INSERT INTO logs (event, data) VALUES (?, ?)
+    params: [${input.event}, ${input.data}]
+```
+
+### Transaction
+
+```yaml
+- member: transfer-funds
+  type: Function
+  config:
+    builtin: queries
+    queries:
+      - query: UPDATE accounts SET balance = balance - ? WHERE id = ?
+        params: [${input.amount}, ${input.fromId}]
+      - query: UPDATE accounts SET balance = balance + ? WHERE id = ?
+        params: [${input.amount}, ${input.toId}]
+    transaction: true
+```
+
+## Output
+
+```typescript
+interface QueriesOutput {
+  results: any[];
+  rowCount: number;
+  duration: number;
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Hyperdrive" icon="database" href="https://developers.cloudflare.com/hyperdrive">
+    Cloudflare Hyperdrive docs
+  </Card>
+  <Card title="Data Member" icon="database" href="/conductor-api/member-types/data-member">
+    Data operations
+  </Card>
+</CardGroup>

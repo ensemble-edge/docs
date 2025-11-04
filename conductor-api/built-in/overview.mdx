@@ -1,0 +1,435 @@
+---
+title: "Built-In Members Overview"
+description: "Pre-built members for common workflow tasks"
+---
+
+## Overview
+
+Conductor includes powerful built-in members for common operations like web scraping, validation, RAG, human-in-the-loop approvals, API calls, and database queries. These members are production-ready and optimized for Cloudflare Workers.
+
+## Available Members
+
+<CardGroup cols={2}>
+  <Card
+    title="Scrape"
+    icon="spider-web"
+    href="/conductor-api/built-in/scrape"
+  >
+    Web scraping with three-tier fallback strategy
+  </Card>
+
+  <Card
+    title="Validate"
+    icon="circle-check"
+    href="/conductor-api/built-in/validate"
+  >
+    Multi-evaluator quality validation system
+  </Card>
+
+  <Card
+    title="RAG"
+    icon="magnifying-glass"
+    href="/conductor-api/built-in/rag"
+  >
+    Retrieval-augmented generation with Vectorize
+  </Card>
+
+  <Card
+    title="HITL"
+    icon="hand"
+    href="/conductor-api/built-in/hitl"
+  >
+    Human-in-the-loop approval workflows
+  </Card>
+
+  <Card
+    title="Fetch"
+    icon="download"
+    href="/conductor-api/built-in/fetch"
+  >
+    HTTP requests with retry and timeout
+  </Card>
+
+  <Card
+    title="Queries"
+    icon="database"
+    href="/conductor-api/built-in/queries"
+  >
+    SQL queries with Hyperdrive pooling
+  </Card>
+
+  <Card
+    title="Transform"
+    icon="shuffle"
+    href="/conductor-api/built-in/transform"
+  >
+    Data transformation utilities
+  </Card>
+
+  <Card
+    title="Schedule"
+    icon="clock"
+    href="/conductor-api/built-in/schedule"
+  >
+    Cron-based workflow scheduling
+  </Card>
+</CardGroup>
+
+## Registry System
+
+Built-in members use a lazy-loading registry for optimal performance:
+
+```typescript
+import { getBuiltInMember } from '@ensemble-edge/conductor';
+
+// Lazy loads only when first used
+const scrapeMember = await getBuiltInMember('scrape');
+```
+
+### Registry API
+
+```typescript
+interface BuiltInRegistry {
+  get(name: string): Promise<BaseMember>;
+  has(name: string): boolean;
+  list(): string[];
+  getMetadata(name: string): BuiltInMemberMetadata;
+}
+```
+
+## Usage in Ensembles
+
+### Basic Usage
+
+```yaml
+flow:
+  - member: scrape-page
+    type: Function
+    config:
+      builtin: scrape
+      url: https://example.com
+      format: markdown
+```
+
+### With Custom Configuration
+
+```yaml
+flow:
+  - member: validate-content
+    type: Function
+    config:
+      builtin: validate
+      strategy: judge
+      model: '@cf/meta/llama-3.1-8b-instruct'
+      criteria: "Is this content appropriate for all audiences?"
+```
+
+## Member Metadata
+
+Each built-in member provides metadata:
+
+```typescript
+interface BuiltInMemberMetadata {
+  name: string;
+  type: 'Think' | 'Function' | 'Data' | 'API';
+  description: string;
+  version: string;
+  configSchema: JSONSchema;
+  examples: Example[];
+}
+```
+
+Access metadata:
+
+```typescript
+import { getBuiltInMetadata } from '@ensemble-edge/conductor';
+
+const metadata = getBuiltInMetadata('scrape');
+console.log(metadata.description);
+console.log(metadata.configSchema);
+```
+
+## Configuration Schemas
+
+All built-in members have JSON schemas for validation:
+
+```typescript
+import { validateBuiltInConfig } from '@ensemble-edge/conductor';
+
+const config = {
+  url: 'https://example.com',
+  format: 'markdown'
+};
+
+const result = validateBuiltInConfig('scrape', config);
+
+if (!result.valid) {
+  console.error('Invalid config:', result.errors);
+}
+```
+
+## Performance
+
+### Lazy Loading
+
+Members are loaded only when first used:
+
+```typescript
+// No members loaded yet
+const conductor = new Conductor({ env });
+
+// Scrape member loaded on first use
+await conductor.execute('scrape-workflow', {});
+
+// Subsequent uses are instant (already loaded)
+await conductor.execute('scrape-workflow-2', {});
+```
+
+### Tree Shaking
+
+Unused members are eliminated from bundle:
+
+```typescript
+// Only includes 'scrape' in bundle
+import { scrape } from '@ensemble-edge/conductor/built-in';
+
+// Entire registry (all members)
+import { registry } from '@ensemble-edge/conductor/built-in';
+```
+
+### Caching
+
+Built-in members support caching:
+
+```yaml
+- member: cached-scrape
+  type: Function
+  config:
+    builtin: scrape
+    url: ${input.url}
+  cache:
+    enabled: true
+    ttl: 3600000  # 1 hour
+    key: ${input.url}
+```
+
+## Common Patterns
+
+### Scrape → Validate → Store
+
+```yaml
+flow:
+  - member: scrape-content
+    type: Function
+    config:
+      builtin: scrape
+      url: ${input.url}
+
+  - member: validate-quality
+    type: Function
+    config:
+      builtin: validate
+      strategy: judge
+      content: ${scrape-content.output.content}
+
+  - member: store-if-valid
+    condition: ${validate-quality.output.passed}
+    type: Data
+    config:
+      type: d1
+      operation: execute
+      query: INSERT INTO content (url, text) VALUES (?, ?)
+      params: [${input.url}, ${scrape-content.output.content}]
+```
+
+### RAG Pipeline
+
+```yaml
+flow:
+  - member: index-documents
+    type: Function
+    config:
+      builtin: rag
+      operation: index
+      documents: ${input.documents}
+      namespace: kb
+
+  - member: search-relevant
+    type: Function
+    config:
+      builtin: rag
+      operation: search
+      query: ${input.question}
+      namespace: kb
+      topK: 5
+
+  - member: generate-answer
+    type: Think
+    config:
+      model: '@cf/meta/llama-3.1-8b-instruct'
+      prompt: |
+        Context: ${search-relevant.output.results}
+
+        Question: ${input.question}
+
+        Answer:
+```
+
+### HITL Approval
+
+```yaml
+flow:
+  - member: request-approval
+    type: Function
+    config:
+      builtin: hitl
+      operation: suspend
+      prompt: "Review this content"
+      fields:
+        - name: approved
+          type: boolean
+          label: Approve?
+
+  - member: process-if-approved
+    condition: ${request-approval.output.approved}
+    type: Function
+    config:
+      handler: () => ({ status: 'processed' })
+```
+
+## Error Handling
+
+Built-in members use consistent error codes:
+
+```yaml
+flow:
+  - member: safe-scrape
+    type: Function
+    config:
+      builtin: scrape
+      url: ${input.url}
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+```
+
+Common error codes:
+- `SCRAPE_FAILED` - Web scraping error
+- `VALIDATION_FAILED` - Content validation error
+- `RAG_INDEX_ERROR` - Vectorize indexing error
+- `HITL_TIMEOUT` - Approval timeout
+- `FETCH_ERROR` - HTTP request error
+- `QUERY_ERROR` - Database query error
+
+## Testing
+
+Built-in members can be mocked for testing:
+
+```typescript
+import { mockBuiltInMember } from '@ensemble-edge/conductor/testing';
+
+// Mock scrape member
+mockBuiltInMember('scrape', {
+  execute: async (input) => ({
+    content: 'Mocked content',
+    strategy: 'fast'
+  })
+});
+
+// Run test
+const result = await conductor.execute('test-ensemble', {});
+expect(result.output).toBeDefined();
+```
+
+## Versioning
+
+Built-in members are versioned:
+
+```yaml
+- member: specific-version
+  type: Function
+  config:
+    builtin: scrape@1.2.0  # Pin to version
+    url: ${input.url}
+```
+
+Check available versions:
+
+```typescript
+import { getBuiltInVersions } from '@ensemble-edge/conductor';
+
+const versions = getBuiltInVersions('scrape');
+console.log(versions); // ['1.0.0', '1.1.0', '1.2.0']
+```
+
+## Custom Built-In Members
+
+Register your own built-in members:
+
+```typescript
+import { registerBuiltInMember } from '@ensemble-edge/conductor';
+
+registerBuiltInMember({
+  name: 'my-custom-member',
+  type: 'Function',
+  version: '1.0.0',
+  description: 'My custom reusable member',
+  factory: (config) => new MyCustomMember(config),
+  configSchema: {
+    type: 'object',
+    properties: {
+      option1: { type: 'string' },
+      option2: { type: 'number' }
+    }
+  }
+});
+```
+
+## Best Practices
+
+1. **Use built-in members** - Battle-tested, optimized code
+2. **Cache when possible** - Reduce redundant operations
+3. **Handle errors** - Built-in members can fail
+4. **Pin versions** - For production stability
+5. **Check schemas** - Validate configuration
+6. **Test with mocks** - Fast, predictable tests
+7. **Monitor usage** - Track performance
+8. **Contribute back** - Share improvements
+9. **Read documentation** - Understand capabilities
+10. **Stay updated** - New members added regularly
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Creating Members"
+    icon="wrench"
+    href="/conductor/guides/creating-members"
+  >
+    Build custom members
+  </Card>
+
+  <Card
+    title="Member Types"
+    icon="shapes"
+    href="/conductor-api/member-types/overview"
+  >
+    Base member classes
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Test workflows
+  </Card>
+
+  <Card
+    title="Contributing"
+    icon="code-pull-request"
+    href="/conductor/contributing"
+  >
+    Contribute members
+  </Card>
+</CardGroup>

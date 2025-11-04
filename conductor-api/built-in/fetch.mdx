@@ -1,0 +1,101 @@
+---
+title: "Fetch Member"
+description: "HTTP requests with retry and timeout"
+---
+
+## Overview
+
+The `fetch` built-in member makes HTTP requests with built-in retry, timeout, and response parsing.
+
+```yaml
+- member: api-call
+  type: Function
+  config:
+    builtin: fetch
+    url: https://api.example.com/data
+    method: GET
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+```
+
+## Configuration
+
+<ParamField body="url" type="string" required>
+  Request URL
+</ParamField>
+
+<ParamField body="method" type="string" default="GET">
+  HTTP method
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Request headers
+</ParamField>
+
+<ParamField body="body" type="any">
+  Request body
+</ParamField>
+
+<ParamField body="timeout" type="number" default="30000">
+  Timeout in milliseconds
+</ParamField>
+
+## Examples
+
+### GET Request
+
+```yaml
+- member: fetch-data
+  type: Function
+  config:
+    builtin: fetch
+    url: ${input.apiUrl}
+    method: GET
+```
+
+### POST Request
+
+```yaml
+- member: post-data
+  type: Function
+  config:
+    builtin: fetch
+    url: ${env.API_URL}
+    method: POST
+    headers:
+      Content-Type: application/json
+    body:
+      data: ${input.data}
+```
+
+### With Retry
+
+```yaml
+- member: resilient-fetch
+  type: Function
+  config:
+    builtin: fetch
+    url: ${input.url}
+  retry:
+    maxAttempts: 3
+    backoff: exponential
+```
+
+## Output
+
+```typescript
+interface FetchOutput {
+  status: number;
+  data: any;
+  headers: Record<string, string>;
+  duration: number;
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="API Member" icon="globe" href="/conductor-api/member-types/api-member">
+    Advanced API calls
+  </Card>
+</CardGroup>

@@ -1,0 +1,121 @@
+---
+title: "RAG Member"
+description: "Retrieval-augmented generation with Vectorize"
+---
+
+## Overview
+
+The `rag` built-in member provides retrieval-augmented generation using Cloudflare Vectorize for semantic search and document retrieval.
+
+```yaml
+- member: rag-search
+  type: Function
+  config:
+    builtin: rag
+    operation: search
+    query: ${input.question}
+    namespace: knowledge-base
+    topK: 5
+```
+
+## Operations
+
+### Index
+
+Index documents for search:
+
+```yaml
+- member: index-docs
+  type: Function
+  config:
+    builtin: rag
+    operation: index
+    documents: ${input.docs}
+    namespace: kb
+    chunkSize: 512
+    chunkStrategy: semantic
+```
+
+### Search
+
+Semantic search:
+
+```yaml
+- member: search
+  type: Function
+  config:
+    builtin: rag
+    operation: search
+    query: ${input.question}
+    namespace: kb
+    topK: 5
+    threshold: 0.7
+```
+
+### Hybrid
+
+Combine keyword and semantic search:
+
+```yaml
+- member: hybrid-search
+  type: Function
+  config:
+    builtin: rag
+    operation: hybrid
+    query: ${input.question}
+    namespace: kb
+    topK: 10
+    rerank: true
+```
+
+## Chunking Strategies
+
+- **semantic** - Split on sentence boundaries
+- **sliding_window** - Overlapping chunks
+- **fixed** - Fixed-size chunks
+
+## Output
+
+```typescript
+interface RAGOutput {
+  results: Array<{
+    content: string;
+    score: number;
+    metadata?: Record<string, any>;
+  }>;
+  took: number;
+}
+```
+
+## Example Pipeline
+
+```yaml
+flow:
+  - member: search-kb
+    type: Function
+    config:
+      builtin: rag
+      operation: search
+      query: ${input.question}
+      namespace: kb
+
+  - member: generate-answer
+    type: Think
+    config:
+      model: '@cf/meta/llama-3.1-8b-instruct'
+      prompt: |
+        Context: ${search-kb.output.results}
+        Question: ${input.question}
+        Answer:
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Vectorize" icon="database" href="https://developers.cloudflare.com/vectorize">
+    Cloudflare Vectorize docs
+  </Card>
+  <Card title="Think Member" icon="brain" href="/conductor-api/member-types/think-member">
+    AI generation
+  </Card>
+</CardGroup>
