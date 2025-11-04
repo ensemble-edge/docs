@@ -1,16 +1,682 @@
 ---
-title: "Conductor SDK Reference"
-description: "TypeScript/JavaScript SDK for Conductor"
+title: "SDK Getting Started"
+description: "TypeScript SDK for Conductor workflows"
 ---
 
-<Warning>
-  **Coming Soon** - Conductor SDK documentation will be available with Conductor v1.0.
-</Warning>
+## Overview
 
-## Planned SDK Features
+The Conductor SDK provides a type-safe TypeScript/JavaScript client for interacting with Conductor workflows. Perfect for integrating Conductor into your applications, building custom tools, and automating workflow execution.
 
-- Workflow definition API
-- Agent management
-- Event triggers
-- Execution monitoring
-- State management
+## Installation
+
+```bash
+npm install @ensemble-edge/conductor
+```
+
+## Quick Start
+
+```typescript
+import { ConductorClient } from '@ensemble-edge/conductor/sdk';
+
+// Create client
+const client = new ConductorClient({
+  baseUrl: 'https://your-worker.workers.dev',
+  apiKey: process.env.CONDUCTOR_API_KEY
+});
+
+// Execute a member
+const result = await client.execute({
+  member: 'analyze-sentiment',
+  input: { text: 'I love this product!' }
+});
+
+console.log(result.data);
+```
+
+## Configuration
+
+### Client Constructor
+
+Create a new client instance:
+
+```typescript
+import { ConductorClient, createClient } from '@ensemble-edge/conductor/sdk';
+
+// Using constructor
+const client = new ConductorClient({
+  baseUrl: 'https://your-worker.workers.dev',
+  apiKey: process.env.CONDUCTOR_API_KEY,
+  timeout: 30000, // Optional, default 30s
+  headers: {      // Optional custom headers
+    'X-Custom-Header': 'value'
+  }
+});
+
+// Or using factory function
+const client2 = createClient({
+  baseUrl: 'https://your-worker.workers.dev',
+  apiKey: process.env.CONDUCTOR_API_KEY
+});
+```
+
+**Configuration Options**:
+- `baseUrl` (required) - Conductor API base URL
+- `apiKey` (optional) - API key for authentication
+- `timeout` (optional) - Request timeout in milliseconds (default: 30000)
+- `headers` (optional) - Custom HTTP headers
+
+## Core Methods
+
+### execute()
+
+Execute a member with input data:
+
+```typescript
+const result = await client.execute({
+  member: 'process-order',
+  input: { orderId: 'ORD-123' },
+  config: { timeout: 5000 },        // Optional member config
+  userId: 'user_abc',                // Optional user context
+  sessionId: 'session_xyz',          // Optional session tracking
+  metadata: { source: 'api' }        // Optional metadata
+});
+
+if (result.success) {
+  console.log('Output:', result.data);
+  console.log('Execution ID:', result.metadata.executionId);
+  console.log('Duration:', result.metadata.duration, 'ms');
+} else {
+  console.error('Error:', result.error);
+}
+```
+
+**Parameters**:
+- `member` (required) - Member name to execute
+- `input` (required) - Input data for the member
+- `config` (optional) - Member-specific configuration
+- `userId` (optional) - User identifier for tracking
+- `sessionId` (optional) - Session identifier for correlation
+- `metadata` (optional) - Additional execution metadata
+
+**Returns**: `ExecuteResult<T>`
+```typescript
+interface ExecuteResult<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  metadata: {
+    executionId: string;
+    duration: number;
+    timestamp: number;
+  };
+}
+```
+
+### listMembers()
+
+List all available members:
+
+```typescript
+const members = await client.listMembers();
+
+members.forEach(member => {
+  console.log(`${member.name} (${member.type})`);
+  console.log(`  Built-in: ${member.builtIn}`);
+  console.log(`  Description: ${member.description}`);
+});
+```
+
+**Returns**: `Member[]`
+```typescript
+interface Member {
+  name: string;
+  type: string;
+  version?: string;
+  description?: string;
+  builtIn: boolean;
+}
+```
+
+### getMember()
+
+Get detailed member information:
+
+```typescript
+const member = await client.getMember('analyze-sentiment');
+
+console.log('Name:', member.name);
+console.log('Type:', member.type);
+console.log('Config Schema:', member.config?.schema);
+console.log('Input Schema:', member.input?.schema);
+console.log('Output Schema:', member.output?.schema);
+console.log('Examples:', member.input?.examples);
+```
+
+**Returns**: `MemberDetail`
+```typescript
+interface MemberDetail extends Member {
+  config?: {
+    schema?: Record<string, unknown>;
+    defaults?: Record<string, unknown>;
+  };
+  input?: {
+    schema?: Record<string, unknown>;
+    examples?: unknown[];
+  };
+  output?: {
+    schema?: Record<string, unknown>;
+  };
+}
+```
+
+### health()
+
+Check API health status:
+
+```typescript
+const health = await client.health();
+
+console.log('Status:', health.status);      // 'healthy' | 'degraded' | 'unhealthy'
+console.log('Version:', health.version);
+console.log('Checks:', health.checks);
+```
+
+**Returns**: `HealthStatus`
+```typescript
+interface HealthStatus {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: number;
+  version: string;
+  checks: {
+    database?: boolean;
+    cache?: boolean;
+    queue?: boolean;
+  };
+}
+```
+
+### ready()
+
+Check if API is ready to accept requests:
+
+```typescript
+const isReady = await client.ready();
+console.log('Ready:', isReady);
+```
+
+### alive()
+
+Check if API is alive:
+
+```typescript
+const isAlive = await client.alive();
+console.log('Alive:', isAlive);
+```
+
+## Usage Examples
+
+### Type-Safe Execution
+
+Use TypeScript generics for type-safe results:
+
+```typescript
+interface SentimentOutput {
+  sentiment: 'positive' | 'negative' | 'neutral';
+  confidence: number;
+}
+
+const result = await client.execute<SentimentOutput>({
+  member: 'analyze-sentiment',
+  input: { text: 'This is amazing!' }
+});
+
+if (result.success) {
+  // TypeScript knows result.data has SentimentOutput shape
+  console.log(`Sentiment: ${result.data.sentiment}`);
+  console.log(`Confidence: ${result.data.confidence}`);
+}
+```
+
+### Error Handling
+
+Handle errors with try-catch:
+
+```typescript
+import { ConductorError } from '@ensemble-edge/conductor/sdk';
+
+try {
+  const result = await client.execute({
+    member: 'process-payment',
+    input: { amount: 100 }
+  });
+
+  if (!result.success) {
+    console.error('Execution failed:', result.error);
+  }
+} catch (error) {
+  if (error instanceof ConductorError) {
+    console.error('API Error:', error.message);
+    console.error('Error Code:', error.code);
+    console.error('Details:', error.details);
+    console.error('Request ID:', error.requestId);
+  } else {
+    console.error('Unknown error:', error);
+  }
+}
+```
+
+### Member Discovery
+
+Discover and inspect available members:
+
+```typescript
+// List all Think members
+const members = await client.listMembers();
+const thinkMembers = members.filter(m => m.type === 'Think');
+
+console.log('Available Think Members:');
+for (const member of thinkMembers) {
+  // Get detailed info
+  const detail = await client.getMember(member.name);
+
+  console.log(`\n${member.name}:`);
+  console.log(`  Description: ${detail.description}`);
+
+  if (detail.input?.examples?.length) {
+    console.log(`  Example Input:`, detail.input.examples[0]);
+  }
+}
+```
+
+### Batch Execution
+
+Execute multiple members in parallel:
+
+```typescript
+const inputs = [
+  { text: 'I love this!' },
+  { text: 'This is terrible.' },
+  { text: 'It\'s okay.' }
+];
+
+const results = await Promise.all(
+  inputs.map(input =>
+    client.execute({
+      member: 'analyze-sentiment',
+      input
+    })
+  )
+);
+
+results.forEach((result, i) => {
+  if (result.success) {
+    console.log(`Input ${i + 1}:`, result.data);
+  }
+});
+```
+
+### Environment-Based Configuration
+
+Use different configurations per environment:
+
+```typescript
+const config = {
+  development: {
+    baseUrl: 'http://localhost:8787',
+    apiKey: undefined,
+    timeout: 60000
+  },
+  staging: {
+    baseUrl: 'https://staging.conductor.dev',
+    apiKey: process.env.STAGING_API_KEY,
+    timeout: 30000
+  },
+  production: {
+    baseUrl: 'https://api.conductor.dev',
+    apiKey: process.env.PRODUCTION_API_KEY,
+    timeout: 30000
+  }
+};
+
+const env = process.env.NODE_ENV || 'development';
+const client = new ConductorClient(config[env]);
+```
+
+### Health Monitoring
+
+Monitor API health in your application:
+
+```typescript
+async function checkHealth() {
+  try {
+    const health = await client.health();
+
+    if (health.status !== 'healthy') {
+      console.warn('API is degraded:', health.checks);
+      // Alert monitoring system
+    }
+
+    return health.status === 'healthy';
+  } catch (error) {
+    console.error('Health check failed:', error);
+    return false;
+  }
+}
+
+// Check health every 30 seconds
+setInterval(checkHealth, 30000);
+```
+
+### Request Tracking
+
+Track requests with metadata:
+
+```typescript
+const result = await client.execute({
+  member: 'process-order',
+  input: { orderId: 'ORD-123' },
+  userId: req.user.id,
+  sessionId: req.session.id,
+  metadata: {
+    source: 'web-app',
+    version: '1.2.3',
+    clientIp: req.ip,
+    userAgent: req.headers['user-agent']
+  }
+});
+
+console.log('Execution ID:', result.metadata.executionId);
+// Use executionId for tracing and debugging
+```
+
+## Framework Integration
+
+### Express.js
+
+```typescript
+import express from 'express';
+import { ConductorClient } from '@ensemble-edge/conductor/sdk';
+
+const app = express();
+const client = new ConductorClient({
+  baseUrl: process.env.CONDUCTOR_API_URL,
+  apiKey: process.env.CONDUCTOR_API_KEY
+});
+
+app.use(express.json());
+
+app.post('/api/analyze', async (req, res) => {
+  try {
+    const result = await client.execute({
+      member: 'analyze-sentiment',
+      input: { text: req.body.text },
+      userId: req.user?.id,
+      sessionId: req.session.id
+    });
+
+    if (result.success) {
+      res.json(result.data);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(3000);
+```
+
+### Next.js API Routes
+
+```typescript
+// pages/api/process.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { ConductorClient } from '@ensemble-edge/conductor/sdk';
+
+const client = new ConductorClient({
+  baseUrl: process.env.CONDUCTOR_API_URL!,
+  apiKey: process.env.CONDUCTOR_API_KEY
+});
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const result = await client.execute({
+    member: 'process-data',
+    input: req.body
+  });
+
+  if (result.success) {
+    res.status(200).json(result.data);
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+}
+```
+
+### React Hook
+
+```typescript
+// hooks/useConductor.ts
+import { useState, useCallback } from 'react';
+import { ConductorClient } from '@ensemble-edge/conductor/sdk';
+
+const client = new ConductorClient({
+  baseUrl: process.env.REACT_APP_CONDUCTOR_API_URL!,
+  apiKey: process.env.REACT_APP_CONDUCTOR_API_KEY
+});
+
+export function useConductor<T = unknown>(memberName: string) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<T | null>(null);
+
+  const execute = useCallback(async (input: unknown) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const result = await client.execute<T>({
+        member: memberName,
+        input
+      });
+
+      if (result.success) {
+        setData(result.data as T);
+      } else {
+        setError(result.error || 'Unknown error');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [memberName]);
+
+  return { execute, loading, error, data };
+}
+
+// Usage in component
+function SentimentAnalyzer() {
+  const { execute, loading, data } = useConductor('analyze-sentiment');
+
+  const handleSubmit = (text: string) => {
+    execute({ text });
+  };
+
+  return (
+    <div>
+      {loading && <p>Analyzing...</p>}
+      {data && <p>Sentiment: {data.sentiment}</p>}
+    </div>
+  );
+}
+```
+
+## Best Practices
+
+1. **Reuse client instances** - Create once, use throughout your application
+2. **Use TypeScript generics** - Get type safety for execution results
+3. **Handle errors gracefully** - Check both result.success and catch exceptions
+4. **Set appropriate timeouts** - Adjust based on expected member execution time
+5. **Add request metadata** - Include userId, sessionId for tracing
+6. **Monitor health** - Regularly check API health in production
+7. **Use environment variables** - Never hardcode API keys
+8. **Implement retries** - Add retry logic for transient failures
+9. **Log execution IDs** - Track executions for debugging
+10. **Validate inputs** - Validate data before sending to API
+
+## Error Handling
+
+### ConductorError
+
+All API errors throw `ConductorError`:
+
+```typescript
+class ConductorError extends Error {
+  code: string;         // Error code (e.g., 'TimeoutError', 'NetworkError')
+  message: string;      // Human-readable message
+  details?: unknown;    // Additional error details
+  requestId?: string;   // Request ID for support
+}
+```
+
+Common error codes:
+- `TimeoutError` - Request exceeded timeout
+- `NetworkError` - Network connectivity issue
+- `UnknownError` - Unexpected error occurred
+- `ValidationError` - Invalid input or configuration
+- `AuthenticationError` - Invalid or missing API key
+- `NotFoundError` - Member not found
+- `RateLimitError` - Too many requests
+
+### Retry Strategy
+
+Implement exponential backoff for transient errors:
+
+```typescript
+async function executeWithRetry<T>(
+  client: ConductorClient,
+  options: ExecuteOptions,
+  maxRetries = 3
+): Promise<ExecuteResult<T>> {
+  let lastError: Error;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await client.execute<T>(options);
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on validation errors
+      if (error instanceof ConductorError &&
+          error.code === 'ValidationError') {
+        throw error;
+      }
+
+      // Exponential backoff
+      const delay = Math.pow(2, attempt) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError!;
+}
+```
+
+## Troubleshooting
+
+### Connection Issues
+
+```typescript
+// Test basic connectivity
+try {
+  const isAlive = await client.alive();
+  console.log('API is alive:', isAlive);
+} catch (error) {
+  console.error('Cannot reach API:', error.message);
+  // Check baseUrl configuration
+}
+```
+
+### Authentication Errors
+
+```typescript
+// Verify API key
+try {
+  const health = await client.health();
+  console.log('Authenticated successfully');
+} catch (error) {
+  if (error.code === 'AuthenticationError') {
+    console.error('Invalid API key');
+    // Check CONDUCTOR_API_KEY environment variable
+  }
+}
+```
+
+### Timeout Issues
+
+```typescript
+// Increase timeout for long-running members
+const client = new ConductorClient({
+  baseUrl: process.env.CONDUCTOR_API_URL,
+  apiKey: process.env.CONDUCTOR_API_KEY,
+  timeout: 60000  // 60 seconds
+});
+```
+
+### Debug Mode
+
+```typescript
+// Add custom headers for debugging
+const client = new ConductorClient({
+  baseUrl: process.env.CONDUCTOR_API_URL,
+  apiKey: process.env.CONDUCTOR_API_KEY,
+  headers: {
+    'X-Debug': 'true',
+    'X-Trace-Id': generateTraceId()
+  }
+});
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="SDK Client API"
+    icon="code"
+    href="/conductor-api/sdk/client"
+  >
+    Complete SDK API reference
+  </Card>
+
+  <Card
+    title="HTTP API"
+    icon="globe"
+    href="/conductor-api/http/overview"
+  >
+    HTTP API documentation
+  </Card>
+
+  <Card
+    title="CLI Tool"
+    icon="terminal"
+    href="/conductor/api-reference/cli"
+  >
+    Command-line interface
+  </Card>
+
+  <Card
+    title="Testing Guide"
+    icon="flask"
+    href="/conductor/guides/testing"
+  >
+    Testing workflows and members
+  </Card>
+</CardGroup>
