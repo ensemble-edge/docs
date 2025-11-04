@@ -65,7 +65,8 @@ Execute workflows on Cloudflare's global network with **sub-50ms cold starts** a
 Production-ready members you can use immediately:
 - **scrape** - Web scraping with 3-tier fallback strategy
 - **validate** - Quality evaluation with 4 evaluator types
-- **rag** - RAG system with Vectorize integration
+- **autorag** - Fully managed RAG with R2 (easiest)
+- **vectorize-rag** - Manual Vectorize RAG (flexible)
 - **hitl** - Human-in-the-Loop approval workflows
 - **fetch** - HTTP client with retry logic
 - **queries** - SQL execution with Hyperdrive
@@ -199,9 +200,11 @@ members:
   </Accordion>
 
   <Accordion icon="magnifying-glass" title="RAG System">
-    Index documents, perform semantic search, generate contextualized answers.
+    Index documents from R2, perform semantic search, generate contextualized answers.
 
-    **Members**: Document chunking, Vectorize embeddings, semantic search, AI generation
+    **Options**: AutoRAG (fully managed) or Vectorize-RAG (manual control)
+
+    **Members**: AutoRAG for easy setup, or Vectorize-RAG with custom chunking/embeddings
   </Accordion>
 
   <Accordion icon="robot" title="AI-Powered API">
