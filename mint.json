@@ -242,11 +242,11 @@
     {
       "group": "Member Types API",
       "pages": [
-        "conductor-api/members/base-member",
-        "conductor-api/members/think-member",
-        "conductor-api/members/function-member",
-        "conductor-api/members/data-member",
-        "conductor-api/members/api-member"
+        "conductor-api/member-types/base-member",
+        "conductor-api/member-types/think-member",
+        "conductor-api/member-types/function-member",
+        "conductor-api/member-types/data-member",
+        "conductor-api/member-types/api-member"
       ]
     },
     {

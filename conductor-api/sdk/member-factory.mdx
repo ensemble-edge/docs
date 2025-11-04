@@ -1,0 +1,53 @@
+---
+title: "Member Factory"
+description: "Factory functions for creating members"
+---
+
+## Overview
+
+Member factory functions provide convenient ways to create member instances.
+
+```typescript
+import { createMember, createThinkMember } from '@ensemble-edge/conductor/sdk';
+
+const thinker = createThinkMember({
+  name: 'analyze',
+  config: {
+    model: '@cf/meta/llama-3.1-8b-instruct',
+    prompt: 'Analyze: ${input.text}'
+  }
+});
+```
+
+## Functions
+
+### createMember()
+
+Create any member type
+
+### createThinkMember()
+
+Create Think member
+
+### createFunctionMember()
+
+Create Function member
+
+### createDataMember()
+
+Create Data member
+
+### createAPIMember()
+
+Create API member
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Member Types" icon="shapes" href="/conductor-api/member-types/base-member">
+    Member type documentation
+  </Card>
+  <Card title="Creating Members" icon="wrench" href="/conductor/guides/creating-members">
+    Member creation guide
+  </Card>
+</CardGroup>
