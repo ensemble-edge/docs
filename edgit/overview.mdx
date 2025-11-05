@@ -11,6 +11,120 @@ description: "Git-native component versioning and deployment tracking"
 
 Edgit is a CLI tool that extends Git with component-aware functionality. It tracks components (functions, agents, configs) in a registry, uses Git tags for semantic versioning, and provides AI-powered commit message generation.
 
+---
+
+## Why Use Edgit for Everything?
+
+**Edgit is 100% Git-compatible.** Every `git` command works as an `edgit` command. Under the hood, Edgit wraps Git and adds component versioning on top—there's no fork, no replacement, no conflicts.
+
+<Info>
+  **TL;DR**: Replace `git` with `edgit` in your daily workflow. You get all Git functionality PLUS component-level versioning and deployment tracking.
+</Info>
+
+### Use Edgit Instead of Git
+
+<Tabs>
+  <Tab title="✅ Recommended">
+```bash
+# Use Edgit for everything
+edgit init
+edgit add src/
+edgit commit  # AI-powered + component tracking
+edgit push origin main
+edgit checkout -b feature/new-component
+edgit merge main
+```
+  </Tab>
+
+  <Tab title="❌ Old Pattern">
+```bash
+# Don't mix Git and Edgit
+git init
+git add src/
+edgit commit  # Why switch here?
+git push origin main
+git checkout -b feature/new-component
+```
+
+**Problem**: Mental overhead switching between `git` and `edgit`. You have to remember "when do I use which?"
+  </Tab>
+</Tabs>
+
+### Benefits of Using Edgit Everywhere
+
+<CardGroup cols={2}>
+  <Card title="Muscle Memory" icon="brain">
+    Type `edgit` for all version control operations. No mental switching between tools.
+  </Card>
+
+  <Card title="Component Awareness" icon="cube">
+    Edgit understands your components in ALL operations—not just tagging and deployment.
+  </Card>
+
+  <Card title="Future Features" icon="rocket">
+    We can enhance any Git command later (smarter merging, better diffs, conflict resolution).
+  </Card>
+
+  <Card title="Zero Conflicts" icon="check">
+    Edgit passes through to Git for standard operations. Identical behavior, zero compatibility issues.
+  </Card>
+</CardGroup>
+
+### How It Works
+
+Edgit wraps Git commands and passes them through:
+
+```bash
+# When you run:
+edgit add src/hello.ts
+
+# Edgit executes:
+git add src/hello.ts
+
+# Plus: Updates component registry if hello.ts is a registered component
+```
+
+**Standard commands** (add, push, pull, checkout, merge) → Pass through to Git
+**Enhanced commands** (commit, tag, deploy) → Add component intelligence
+
+### What About Existing Workflows?
+
+**Git aliases still work:**
+```bash
+# Your ~/.gitconfig aliases work through edgit
+edgit co -b feature  # Uses your 'co = checkout' alias
+edgit ci -m "message"  # Uses your 'ci = commit' alias
+```
+
+**CI/CD integration:**
+```yaml
+# GitHub Actions
+- name: Version component
+  run: |
+    edgit tag my-function v1.0.${{ github.run_number }}
+    edgit push origin --tags
+```
+
+**Team adoption:**
+```bash
+# Optional: Add alias for gradual transition
+alias git='edgit'
+
+# Now typing 'git' uses edgit automatically
+```
+
+### When to Use Git Directly
+
+You only need `git` in these rare cases:
+
+- Checking Git is installed: `git --version`
+- Cloning Edgit itself: `git clone https://github.com/ensemble-edge/edgit.git`
+- Debugging Git internals: `git fsck`, `git gc`
+
+**Everything else**: Use `edgit`.
+
+---
+
 ## Core Concepts
 
 <AccordionGroup>
@@ -220,7 +334,7 @@ graph TD
 
   <Step title="Create Version">
     ```bash
-    git add .
+    edgit add .
     edgit commit
     edgit tag my-function v1.0.0
     ```
