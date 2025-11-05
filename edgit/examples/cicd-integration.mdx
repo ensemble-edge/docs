@@ -42,7 +42,7 @@ jobs:
           node-version: '18'
 
       - name: Install Edgit
-        run: npm install -g @ensemble/edgit
+        run: npm install -g @ensemble-edge/edgit
 
       - name: Configure Git
         run: |
@@ -104,7 +104,7 @@ jobs:
 
       - name: Setup and Install Edgit
         run: |
-          npm install -g @ensemble/edgit
+          npm install -g @ensemble-edge/edgit
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -132,7 +132,7 @@ jobs:
 
       - name: Setup and Install Edgit
         run: |
-          npm install -g @ensemble/edgit
+          npm install -g @ensemble-edge/edgit
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -186,7 +186,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Edgit
-        run: npm install -g @ensemble/edgit
+        run: npm install -g @ensemble-edge/edgit
 
       - name: Detect changed components
         id: detect
@@ -221,7 +221,7 @@ jobs:
 
       - name: Setup and Install Edgit
         run: |
-          npm install -g @ensemble/edgit
+          npm install -g @ensemble-edge/edgit
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -259,7 +259,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Edgit
-        run: npm install -g @ensemble/edgit
+        run: npm install -g @ensemble-edge/edgit
 
       - name: Generate commit message suggestion
         env:
@@ -292,7 +292,7 @@ variables:
   EDGIT_VERSION: "latest"
 
 before_script:
-  - npm install -g @ensemble/edgit@$EDGIT_VERSION
+  - npm install -g @ensemble-edge/edgit@$EDGIT_VERSION
   - git config user.name "gitlab-ci"
   - git config user.email "gitlab-ci@example.com"
 
@@ -372,7 +372,7 @@ stages:
 discover:changes:
   stage: discover
   script:
-    - npm install -g @ensemble/edgit
+    - npm install -g @ensemble-edge/edgit
     - edgit discover scan --json > changes.json
     - cat changes.json
   artifacts:
@@ -385,7 +385,7 @@ discover:changes:
 .version:template:
   stage: version
   script:
-    - npm install -g @ensemble/edgit
+    - npm install -g @ensemble-edge/edgit
     - git config user.name "gitlab-ci"
     - git config user.email "gitlab-ci@example.com"
     - |
@@ -429,7 +429,7 @@ commands:
       - checkout
       - run:
           name: Install Edgit
-          command: npm install -g @ensemble/edgit
+          command: npm install -g @ensemble-edge/edgit
       - run:
           name: Configure Git
           command: |
@@ -522,7 +522,7 @@ pipeline {
     stages {
         stage('Setup') {
             steps {
-                sh 'npm install -g @ensemble/edgit'
+                sh 'npm install -g @ensemble-edge/edgit'
             }
         }
 

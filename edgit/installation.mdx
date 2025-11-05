@@ -39,7 +39,7 @@ git --version
     Install Edgit globally to use it across all projects:
 
     ```bash
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
     ```
 
     Verify installation:
@@ -56,7 +56,7 @@ git --version
 
     ```bash
     cd your-project
-    npm install --save-dev @ensemble/edgit
+    npm install --save-dev @ensemble-edge/edgit
     ```
 
     Use with npx:
@@ -115,7 +115,7 @@ git --version
 
     ### Using npm
     ```bash
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
     ```
 
     ### Troubleshooting
@@ -124,21 +124,21 @@ git --version
     # Option 1: Use nvm (recommended)
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
     nvm install 18
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
 
     # Option 2: Fix npm permissions
     mkdir ~/.npm-global
     npm config set prefix '~/.npm-global'
     echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc
     source ~/.zshrc
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
     ```
   </Accordion>
 
   <Accordion icon="linux" title="Linux">
     ### Using npm
     ```bash
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
     ```
 
     ### Using snap (Coming Soon)
@@ -152,17 +152,17 @@ git --version
     # Option 1: Use nvm (recommended)
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
     nvm install 18
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
 
     # Option 2: Use sudo (not recommended)
-    sudo npm install -g @ensemble/edgit
+    sudo npm install -g @ensemble-edge/edgit
     ```
   </Accordion>
 
   <Accordion icon="windows" title="Windows">
     ### Using npm (PowerShell)
     ```powershell
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
     ```
 
     ### Using scoop (Coming Soon)
@@ -180,7 +180,7 @@ git --version
     If you encounter permission errors:
     ```powershell
     # Run PowerShell as Administrator, then:
-    npm install -g @ensemble/edgit
+    npm install -g @ensemble-edge/edgit
     ```
   </Accordion>
 </AccordionGroup>
@@ -287,7 +287,7 @@ edgit commit
 <Tabs>
   <Tab title="Global Installation">
     ```bash
-    npm update -g @ensemble/edgit
+    npm update -g @ensemble-edge/edgit
     ```
 
     Check current version:
@@ -298,12 +298,12 @@ edgit commit
 
   <Tab title="Project Installation">
     ```bash
-    npm update @ensemble/edgit
+    npm update @ensemble-edge/edgit
     ```
 
     Or to latest version:
     ```bash
-    npm install @ensemble/edgit@latest --save-dev
+    npm install @ensemble-edge/edgit@latest --save-dev
     ```
   </Tab>
 
@@ -322,19 +322,19 @@ edgit commit
 <Tabs>
   <Tab title="Global Installation">
     ```bash
-    npm uninstall -g @ensemble/edgit
+    npm uninstall -g @ensemble-edge/edgit
     ```
   </Tab>
 
   <Tab title="Project Installation">
     ```bash
-    npm uninstall @ensemble/edgit
+    npm uninstall @ensemble-edge/edgit
     ```
   </Tab>
 
   <Tab title="From Source">
     ```bash
-    npm unlink @ensemble/edgit
+    npm unlink @ensemble-edge/edgit
     ```
   </Tab>
 </Tabs>
@@ -381,7 +381,7 @@ cd .. && rm -rf edgit-test
     **Problem**: Shell can't find edgit command
 
     **Solutions**:
-    1. Verify installation: `npm list -g @ensemble/edgit`
+    1. Verify installation: `npm list -g @ensemble-edge/edgit`
     2. Check npm global bin path: `npm config get prefix`
     3. Add to PATH:
        ```bash
