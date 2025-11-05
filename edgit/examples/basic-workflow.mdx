@@ -26,9 +26,9 @@ Create a new project and initialize Edgit:
 mkdir my-functions && cd my-functions
 
 # Initialize Git
-git init
-git config user.name "Your Name"
-git config user.email "your@email.com"
+edgit init
+edgit config user.name "Your Name"
+edgit config user.email "your@email.com"
 
 # Initialize Edgit
 edgit init
@@ -133,7 +133,7 @@ Stage files and commit with AI-generated message:
 
 ```bash
 # Stage all changes
-git add .
+edgit add .
 
 # Let AI generate commit message
 edgit commit
@@ -178,11 +178,11 @@ Create a remote repository and push:
 
 ```bash
 # Add remote (replace with your repository URL)
-git remote add origin git@github.com:username/my-functions.git
+edgit remote add origin git@github.com:username/my-functions.git
 
 # Push code and tags
-git push -u origin main
-git push origin --tags
+edgit push -u origin main
+edgit push origin --tags
 ```
 
 **Output**:
@@ -244,7 +244,7 @@ export function validateEmail(email: string): EmailValidationResult {
 Commit the update:
 
 ```bash
-git add src/validators/email.ts
+edgit add src/validators/email.ts
 edgit commit
 # AI: "feat(email-validator): add domain validation"
 ```
@@ -255,7 +255,7 @@ Tag the improvement as a minor version:
 
 ```bash
 edgit tag email-validator v1.1.0
-git push origin email-validator-v1.1.0
+edgit push origin email-validator-v1.1.0
 ```
 
 ## Step 10: Deploy to Production
@@ -326,7 +326,6 @@ Here's the complete sequence of commands:
 ```bash
 # 1. Setup
 mkdir my-functions && cd my-functions
-git init
 edgit init
 
 # 2. Create function
@@ -341,13 +340,13 @@ EOF
 # 3. Register and commit
 edgit add function email-validator src/validators/email.ts \
   --description "Validates email addresses"
-git add .
+edgit add .
 edgit commit  # AI generates message
 
 # 4. Version and push
 edgit tag email-validator v1.0.0
-git remote add origin git@github.com:username/my-functions.git
-git push -u origin main --tags
+edgit remote add origin git@github.com:username/my-functions.git
+edgit push -u origin main --tags
 
 # 5. Deploy
 edgit deploy email-validator v1.0.0 --to staging
