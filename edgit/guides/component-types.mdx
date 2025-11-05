@@ -3,11 +3,485 @@ title: "Component Types"
 description: "Understanding component categories and custom types"
 ---
 
-## Coming Soon
+> **Product**: Edgit
+> **Version**: v1.0.0
+> **Last Updated**: 2025-11-05
 
-Guide to component types including:
-- Built-in types (function, agent, config)
-- Custom type definition
-- Type-specific workflows
-- Metadata patterns
-- Best practices per type
+## Overview
+
+Edgit supports multiple component types to categorize and organize your code. Built-in types include functions, agents, configs, and SQL queries, plus you can define custom types.
+
+## Built-in Component Types
+
+### Function
+
+Serverless functions, utilities, and callable code.
+
+**Use For**:
+- AWS Lambda functions
+- Cloudflare Workers
+- Vercel Functions
+- Utility libraries
+- API endpoints
+
+**Registration**:
+```bash
+edgit components add my-function src/functions/my-function.ts function
+```
+
+**Common Metadata**:
+```json
+{
+  "type": "function",
+  "path": "src/functions/my-function.ts",
+  "description": "Processes user authentication",
+  "metadata": {
+    "runtime": "node18",
+    "memory": "256MB",
+    "timeout": "30s",
+    "triggers": ["http", "queue"],
+    "environment": {
+      "DATABASE_URL": "required",
+      "API_KEY": "required"
+    }
+  }
+}
+```
+
+**Example Component**:
+```typescript src/functions/auth.ts
+export async function authenticate(token: string) {
+  // Authentication logic
+  return { user: {}, valid: true };
+}
+```
+
+### Agent
+
+AI agents, bots, and autonomous systems.
+
+**Use For**:
+- Customer support bots
+- Sales automation agents
+- Data processing agents
+- AI assistants
+- Autonomous workflows
+
+**Registration**:
+```bash
+edgit components add support-bot src/agents/support.ts agent
+```
+
+**Common Metadata**:
+```json
+{
+  "type": "agent",
+  "path": "src/agents/support.ts",
+  "description": "Customer support AI agent",
+  "metadata": {
+    "provider": "openai",
+    "model": "gpt-4",
+    "maxTokens": 2000,
+    "temperature": 0.7,
+    "systemPrompt": "You are a helpful customer support agent",
+    "tools": ["knowledge-base", "ticket-system"]
+  }
+}
+```
+
+**Example Component**:
+```typescript src/agents/support.ts
+export const supportAgent = {
+  model: "gpt-4",
+  systemPrompt: "You are a helpful customer support agent",
+  async handleMessage(message: string) {
+    // Agent logic
+    return { response: "..." };
+  }
+};
+```
+
+### Config
+
+Configuration files, settings, and environment variables.
+
+**Use For**:
+- Application configs
+- Database settings
+- API configurations
+- Feature flags
+- Environment variables
+
+**Registration**:
+```bash
+edgit components add app-config config/app.json config
+```
+
+**Common Metadata**:
+```json
+{
+  "type": "config",
+  "path": "config/app.json",
+  "description": "Application configuration",
+  "metadata": {
+    "environment": "production",
+    "format": "json",
+    "schema": "config/schema.json",
+    "encrypted": false,
+    "reloadable": true
+  }
+}
+```
+
+**Example Component**:
+```json config/app.json
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432
+  },
+  "features": {
+    "newUI": true,
+    "beta": false
+  }
+}
+```
+
+### SQL
+
+SQL queries, database schemas, and migrations.
+
+**Use For**:
+- SQL queries
+- Database schemas
+- Migrations
+- Stored procedures
+- Views and indexes
+
+**Registration**:
+```bash
+edgit components add user-query queries/users.sql sql
+```
+
+**Common Metadata**:
+```json
+{
+  "type": "sql",
+  "path": "queries/users.sql",
+  "description": "User data queries",
+  "metadata": {
+    "database": "postgres",
+    "schema": "public",
+    "tables": ["users", "profiles"],
+    "readonly": false
+  }
+}
+```
+
+**Example Component**:
+```sql queries/users.sql
+-- Get active users
+SELECT id, email, created_at
+FROM users
+WHERE active = true
+ORDER BY created_at DESC;
+```
+
+## Custom Component Types
+
+Create your own component types:
+
+```bash
+# Register custom type
+edgit components add my-workflow workflows/order.yaml workflow
+
+# Register another custom type
+edgit components add my-template templates/email.hbs template
+```
+
+Custom types automatically appear in the registry:
+
+```json .edgit/components.json
+{
+  "components": {
+    "workflows": {
+      "my-workflow": {
+        "type": "workflow",
+        "path": "workflows/order.yaml"
+      }
+    },
+    "templates": {
+      "my-template": {
+        "type": "template",
+        "path": "templates/email.hbs"
+      }
+    }
+  }
+}
+```
+
+## Type-Specific Workflows
+
+### Functions
+
+```bash
+# Add function
+edgit components add payment-processor src/functions/payment.ts function
+
+# Develop and test
+npm test -- payment
+
+# Version
+edgit tag create payment-processor v1.0.0
+
+# Deploy
+edgit deploy set payment-processor v1.0.0 --to production
+```
+
+### Agents
+
+```bash
+# Add agent
+edgit components add support-agent src/agents/support.ts agent
+
+# Test agent locally
+npm run test:agent support-agent
+
+# Version
+edgit tag create support-agent v1.0.0
+
+# Deploy
+edgit deploy set support-agent v1.0.0 --to production
+```
+
+### Configs
+
+```bash
+# Add config
+edgit components add app-config config/app.json config
+
+# Validate config
+npm run validate:config config/app.json
+
+# Version
+edgit tag create app-config v1.0.0
+
+# Deploy
+edgit deploy set app-config v1.0.0 --to production
+```
+
+## Organizing Components by Type
+
+### Directory Structure
+
+```
+project/
+├── src/
+│   ├── functions/        # Function components
+│   │   ├── auth.ts
+│   │   └── payments.ts
+│   ├── agents/           # Agent components
+│   │   ├── support.ts
+│   │   └── sales.ts
+│   └── shared/           # Shared code (not components)
+├── config/               # Config components
+│   ├── app.json
+│   └── database.json
+├── queries/              # SQL components
+│   ├── users.sql
+│   └── reports.sql
+└── .edgit/
+    └── components.json
+```
+
+### Listing by Type
+
+```bash
+# List all functions
+edgit components list --type function
+
+# List all agents
+edgit components list --type agent
+
+# List all configs
+edgit components list --type config
+```
+
+## Component Metadata Patterns
+
+### Function Metadata
+
+```json
+{
+  "metadata": {
+    "runtime": "node18",
+    "memory": "256MB",
+    "timeout": "30s",
+    "triggers": ["http", "queue", "cron"],
+    "schedule": "0 0 * * *",
+    "environment": {
+      "DATABASE_URL": "required"
+    },
+    "permissions": ["s3:read", "dynamodb:write"]
+  }
+}
+```
+
+### Agent Metadata
+
+```json
+{
+  "metadata": {
+    "provider": "openai",
+    "model": "gpt-4",
+    "maxTokens": 2000,
+    "temperature": 0.7,
+    "systemPrompt": "You are...",
+    "tools": ["calculator", "search"],
+    "fallback": "human-operator",
+    "monitoring": true
+  }
+}
+```
+
+### Config Metadata
+
+```json
+{
+  "metadata": {
+    "environment": "production",
+    "format": "json",
+    "schema": "config/schema.json",
+    "encrypted": false,
+    "reloadable": true,
+    "validation": "strict",
+    "required": ["database", "api"]
+  }
+}
+```
+
+## Type Detection
+
+Edgit can automatically detect component types:
+
+```bash
+# Scan for components
+edgit discover scan
+
+# Output:
+# Found potential components:
+#   src/functions/auth.ts (function)
+#   src/agents/support.ts (agent)
+#   config/app.json (config)
+#   queries/users.sql (sql)
+
+# Register discovered components
+edgit discover scan --register
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion icon="folder-tree" title="Organization">
+    - Group components by type in directories
+    - Use clear, descriptive names
+    - Keep related components together
+    - Separate shared code from components
+  </Accordion>
+
+  <Accordion icon="tag" title="Versioning">
+    - Version each type independently
+    - Use type-specific version schemes if needed
+    - Document breaking changes per type
+    - Test type-specific deployments
+  </Accordion>
+
+  <Accordion icon="database" title="Metadata">
+    - Add meaningful metadata
+    - Document required fields
+    - Use consistent metadata structure
+    - Validate metadata in CI/CD
+  </Accordion>
+
+  <Accordion icon="shield" title="Type Safety">
+    - Validate component types
+    - Check metadata schemas
+    - Test type-specific features
+    - Document type requirements
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+### Serverless Functions
+
+```bash
+# Register functions
+edgit components add api-gateway src/functions/api.ts function
+edgit components add auth src/functions/auth.ts function
+edgit components add mailer src/functions/mailer.ts function
+
+# Version and deploy
+edgit tag create api-gateway v1.0.0
+edgit deploy set api-gateway v1.0.0 --to production
+```
+
+### AI Agents
+
+```bash
+# Register agents
+edgit components add support-bot src/agents/support.ts agent
+edgit components add sales-agent src/agents/sales.ts agent
+
+# Version and deploy
+edgit tag create support-bot v1.0.0
+edgit deploy set support-bot v1.0.0 --to production
+```
+
+### Configuration
+
+```bash
+# Register configs
+edgit components add app-config config/app.json config
+edgit components add db-config config/database.json config
+
+# Version and deploy
+edgit tag create app-config v1.0.0
+edgit deploy set app-config v1.0.0 --to production
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/edgit/configuration"
+  >
+    Configure component types
+  </Card>
+
+  <Card
+    title="Versioning Guide"
+    icon="tag"
+    href="/edgit/guides/versioning"
+  >
+    Version components by type
+  </Card>
+
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/edgit/guides/deployment"
+  >
+    Deploy different component types
+  </Card>
+
+  <Card
+    title="Monorepo Workflow"
+    icon="folder-tree"
+    href="/edgit/examples/monorepo-workflow"
+  >
+    Manage multiple types
+  </Card>
+</CardGroup>

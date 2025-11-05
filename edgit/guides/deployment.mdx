@@ -3,11 +3,373 @@ title: "Deployment Guide"
 description: "Component deployment strategies and workflows"
 ---
 
-## Coming Soon
+> **Product**: Edgit
+> **Version**: v1.0.0
+> **Last Updated**: 2025-11-05
 
-Deployment guide including:
-- Environment management
-- Deployment workflows
-- Rollback strategies
-- Blue-green deployments
-- Monitoring deployments
+## Overview
+
+Edgit provides Git tag-based deployment tracking. Deployment tags are moveable pointers that indicate which component versions are deployed to which environments.
+
+## Key Concepts
+
+<CardGroup cols={2}>
+  <Card title="Version Tags" icon="tag">
+    Immutable tags marking specific releases: `v1.0.0`, `v2.1.3`
+  </Card>
+
+  <Card title="Deployment Tags" icon="rocket">
+    Moveable tags pointing to deployed versions: `prod`, `staging`
+  </Card>
+
+  <Card title="Environments" icon="server">
+    Deployment targets: production, staging, canary, dev
+  </Card>
+
+  <Card title="Promotion" icon="arrow-up">
+    Moving components between environments safely
+  </Card>
+</CardGroup>
+
+## Basic Deployment Workflow
+
+### Deploy to Staging
+
+```bash
+# Create version tag
+edgit tag create my-component v1.0.0
+
+# Deploy to staging
+edgit deploy set my-component v1.0.0 --to staging
+
+# Push deployment tag
+git push origin components/my-component/staging --force
+```
+
+### Deploy to Production
+
+```bash
+# Promote from staging to production
+edgit deploy promote my-component --from staging --to production
+
+# Or deploy specific version directly
+edgit deploy set my-component v1.0.0 --to production
+
+# Push deployment tag
+git push origin components/my-component/production --force
+```
+
+### Check Deployment Status
+
+```bash
+# View all deployments
+edgit deploy status
+
+# View specific component
+edgit deploy status my-component
+
+# Output:
+# my-component (function)
+#   staging: v1.0.0 (deployed 2025-11-05 10:00:00)
+#   production: v0.9.0 (deployed 2025-11-04 08:00:00)
+```
+
+## Deployment Strategies
+
+### Progressive Rollout
+
+Deploy to environments incrementally:
+
+```bash
+# 1. Deploy to development
+edgit deploy set my-component v2.0.0 --to dev
+git push origin components/my-component/dev --force
+
+# 2. Test in dev, then promote to staging
+edgit deploy promote my-component --from dev --to staging
+git push origin components/my-component/staging --force
+
+# 3. Test in staging, then promote to canary
+edgit deploy promote my-component --from staging --to canary
+git push origin components/my-component/canary --force
+
+# 4. Monitor canary, then promote to production
+edgit deploy promote my-component --from canary --to production
+git push origin components/my-component/production --force
+```
+
+### Blue-Green Deployment
+
+Use separate environments for zero-downtime deployments:
+
+```bash
+# Deploy to blue environment
+edgit deploy set my-component v2.0.0 --to blue
+git push origin components/my-component/blue --force
+
+# Test blue environment
+curl https://blue.example.com/health/my-component
+
+# Switch traffic to blue (external router/load balancer)
+# ...
+
+# Update green to match blue
+edgit deploy set my-component v2.0.0 --to green
+git push origin components/my-component/green --force
+```
+
+### Canary Deployment
+
+Deploy to small subset of users first:
+
+```bash
+# Deploy to canary
+edgit deploy set my-component v2.0.0 --to canary
+
+# Monitor metrics for 1 hour
+# If healthy, promote to production
+edgit deploy promote my-component --from canary --to production
+
+# If unhealthy, rollback canary
+edgit deploy rollback my-component --env canary
+```
+
+### A/B Testing
+
+Run multiple versions simultaneously:
+
+```bash
+# Version A in production
+edgit deploy set my-component v1.9.0 --to production
+
+# Version B in ab-test environment
+edgit deploy set my-component v2.0.0 --to ab-test
+
+# Route percentage of traffic to ab-test
+# (handled by external router)
+```
+
+## Rollback Procedures
+
+### Automatic Rollback
+
+Rollback to previous version:
+
+```bash
+# Rollback to second-to-last version
+edgit deploy rollback my-component --env production
+
+# Verify
+edgit deploy status my-component
+```
+
+### Manual Rollback
+
+Rollback to specific version:
+
+```bash
+# Check deployment history
+edgit tag list my-component
+
+# Rollback to known-good version
+edgit deploy rollback my-component --env production --to v1.9.0
+
+# Push
+git push origin components/my-component/production --force
+```
+
+### Emergency Rollback Script
+
+```bash scripts/emergency-rollback.sh
+#!/bin/bash
+# Emergency rollback script
+
+component=$1
+environment=$2
+version=$3
+
+if [ -z "$component" ] || [ -z "$environment" ]; then
+  echo "Usage: $0 <component> <environment> [version]"
+  exit 1
+fi
+
+echo "Rolling back $component in $environment"
+
+if [ -z "$version" ]; then
+  # Automatic rollback to previous version
+  edgit deploy rollback $component --env $environment
+else
+  # Manual rollback to specific version
+  edgit deploy rollback $component --env $environment --to $version
+fi
+
+# Push immediately
+git push origin components/$component/$environment --force
+
+# Verify
+edgit deploy status $component
+
+echo "Rollback complete!"
+```
+
+Use it:
+
+```bash
+./scripts/emergency-rollback.sh my-component production v1.9.0
+```
+
+## Multi-Component Deployments
+
+### Deploy Multiple Components
+
+```bash
+# Deploy all components to staging
+for component in $(edgit components list --names); do
+  latest=$(edgit tag list $component | grep "^v" | tail -1)
+  if [ -n "$latest" ]; then
+    edgit deploy set $component $latest --to staging
+  fi
+done
+
+# Push all deployment tags
+git push origin --tags --force
+```
+
+### Coordinated Deployment
+
+Deploy dependent components together:
+
+```bash scripts/deploy-stack.sh
+#!/bin/bash
+# Deploy related components as a stack
+
+environment=$1
+
+# Deploy in dependency order
+edgit deploy set auth v2.0.0 --to $environment
+edgit deploy set payments v1.5.0 --to $environment
+edgit deploy set notifications v1.3.0 --to $environment
+
+# Push all
+git push origin --tags --force
+
+# Verify all deployed
+edgit deploy status
+```
+
+## Environment Management
+
+### List Environments
+
+```bash
+# List all deployment environments
+edgit deploy list
+
+# List specific environment
+edgit deploy list production
+```
+
+### Environment Configuration
+
+Define environments in registry:
+
+```json .edgit/components.json
+{
+  "version": "1.0",
+  "environments": {
+    "development": {
+      "description": "Local development",
+      "url": "http://localhost:3000"
+    },
+    "staging": {
+      "description": "Staging environment",
+      "url": "https://staging.example.com"
+    },
+    "canary": {
+      "description": "Canary deployment (10% traffic)",
+      "url": "https://canary.example.com"
+    },
+    "production": {
+      "description": "Production environment",
+      "url": "https://example.com"
+    }
+  },
+  "components": { ... }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion icon="shield" title="Safety First">
+    - Always deploy to staging before production
+    - Test thoroughly in staging
+    - Use canary deployments for risky changes
+    - Keep rollback plan ready
+    - Monitor deployments in real-time
+  </Accordion>
+
+  <Accordion icon="rocket" title="Deployment Process">
+    - Use semantic versioning for clarity
+    - Tag versions before deploying
+    - Document deployment steps
+    - Automate with CI/CD
+    - Keep deployment logs
+  </Accordion>
+
+  <Accordion icon="chart-line" title="Monitoring">
+    - Set up health checks
+    - Monitor error rates
+    - Track performance metrics
+    - Alert on anomalies
+    - Review deployment impact
+  </Accordion>
+
+  <Accordion icon="users" title="Team Coordination">
+    - Communicate deployments
+    - Use deployment windows
+    - Avoid simultaneous deployments
+    - Document rollback procedures
+    - Keep team informed
+  </Accordion>
+</AccordionGroup>
+
+## CI/CD Integration
+
+See [CI/CD Integration Guide](/edgit/examples/cicd-integration) for detailed examples.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Versioning Guide"
+    icon="tag"
+    href="/edgit/guides/versioning"
+  >
+    Semantic versioning strategies
+  </Card>
+
+  <Card
+    title="CI/CD Integration"
+    icon="gear"
+    href="/edgit/examples/cicd-integration"
+  >
+    Automate deployments
+  </Card>
+
+  <Card
+    title="Monorepo Workflow"
+    icon="folder-tree"
+    href="/edgit/examples/monorepo-workflow"
+  >
+    Multi-component deployments
+  </Card>
+
+  <Card
+    title="Troubleshooting"
+    icon="wrench"
+    href="/edgit/guides/troubleshooting"
+  >
+    Common deployment issues
+  </Card>
+</CardGroup>

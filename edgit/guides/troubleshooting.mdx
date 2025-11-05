@@ -1,13 +1,809 @@
 ---
 title: "Troubleshooting"
-description: "Common issues and solutions"
+description: "Common issues and solutions for Edgit"
 ---
 
-## Coming Soon
+> **Product**: Edgit
+> **Version**: v1.0.0
+> **Last Updated**: 2025-11-05
 
-Troubleshooting guide including:
-- Common error messages
-- Debug techniques
-- Performance issues
-- Git tag conflicts
-- AI feature problems
+## Overview
+
+This guide covers common issues you might encounter when using Edgit and provides practical solutions.
+
+## Installation Issues
+
+### Command not found: edgit
+
+**Problem**: Shell cannot find the `edgit` command after installation.
+
+**Symptoms**:
+```bash
+edgit --version
+# bash: edgit: command not found
+```
+
+**Solutions**:
+
+<Tabs>
+  <Tab title="Check Installation">
+    ```bash
+    # Verify edgit is installed
+    npm list -g @ensemble/edgit
+
+    # If not installed
+    npm install -g @ensemble/edgit
+    ```
+  </Tab>
+
+  <Tab title="Fix PATH">
+    ```bash
+    # Check npm global bin path
+    npm config get prefix
+
+    # Add to PATH (bash/zsh)
+    export PATH="$(npm config get prefix)/bin:$PATH"
+
+    # Make permanent
+    echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.bashrc
+    source ~/.bashrc
+    ```
+  </Tab>
+
+  <Tab title="Use npx">
+    ```bash
+    # Run without global install
+    npx @ensemble/edgit --version
+
+    # Add alias
+    alias edgit='npx @ensemble/edgit'
+    ```
+  </Tab>
+</Tabs>
+
+### EACCES Permission Errors
+
+**Problem**: No permission to install globally on macOS/Linux.
+
+**Symptoms**:
+```bash
+npm install -g @ensemble/edgit
+# Error: EACCES: permission denied
+```
+
+**Solutions**:
+
+<Accordion title="Use nvm (Recommended)">
+  ```bash
+  # Install nvm
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+  # Install Node.js
+  nvm install 18
+  nvm use 18
+
+  # Now install edgit (no sudo needed)
+  npm install -g @ensemble/edgit
+  ```
+</Accordion>
+
+<Accordion title="Fix npm Permissions">
+  ```bash
+  # Create npm global directory
+  mkdir ~/.npm-global
+
+  # Configure npm
+  npm config set prefix '~/.npm-global'
+
+  # Add to PATH
+  echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+  source ~/.bashrc
+
+  # Install edgit
+  npm install -g @ensemble/edgit
+  ```
+</Accordion>
+
+<Accordion title="Install Project-Local">
+  ```bash
+  # Install as dev dependency
+  cd your-project
+  npm install --save-dev @ensemble/edgit
+
+  # Use with npx
+  npx edgit --version
+
+  # Or add to package.json scripts
+  {
+    "scripts": {
+      "edgit": "edgit"
+    }
+  }
+  ```
+</Accordion>
+
+### Node.js Version Issues
+
+**Problem**: Edgit requires Node.js v18 or higher.
+
+**Symptoms**:
+```bash
+edgit --version
+# Error: Unsupported Node.js version
+```
+
+**Solution**:
+```bash
+# Check current version
+node --version
+
+# Upgrade with nvm
+nvm install 18
+nvm use 18
+nvm alias default 18
+
+# Reinstall edgit
+npm install -g @ensemble/edgit
+```
+
+## Initialization Issues
+
+### Not a Git Repository
+
+**Problem**: Running edgit commands outside a Git repository.
+
+**Symptoms**:
+```bash
+edgit init
+# fatal: not a git repository
+```
+
+**Solution**:
+```bash
+# Initialize Git first
+git init
+git add .
+git commit -m "Initial commit"
+
+# Then initialize edgit
+edgit init
+```
+
+### Registry Already Exists
+
+**Problem**: `.edgit/components.json` already exists.
+
+**Symptoms**:
+```bash
+edgit init
+# Error: Registry already exists
+```
+
+**Solutions**:
+```bash
+# View existing registry
+cat .edgit/components.json
+
+# Force reinitialize (destructive)
+rm -rf .edgit/
+edgit init
+
+# Or manually edit registry
+vim .edgit/components.json
+```
+
+## Component Management Issues
+
+### Component Not Found
+
+**Problem**: Referenced component doesn't exist in registry.
+
+**Symptoms**:
+```bash
+edgit tag create my-component v1.0.0
+# Error: Component 'my-component' not found
+```
+
+**Solutions**:
+
+<Steps>
+  <Step title="List available components">
+    ```bash
+    edgit components list
+    ```
+  </Step>
+
+  <Step title="Check component name spelling">
+    ```bash
+    # Names are case-sensitive
+    edgit components list --names
+    ```
+  </Step>
+
+  <Step title="Register the component">
+    ```bash
+    edgit components add my-component src/my-component.ts function
+    ```
+  </Step>
+</Steps>
+
+### Component Name Collision
+
+**Problem**: Component name already exists in registry.
+
+**Symptoms**:
+```bash
+edgit components add auth src/new-auth.ts function
+# Error: Component 'auth' already exists
+```
+
+**Solutions**:
+```bash
+# Use different name
+edgit components add auth-v2 src/new-auth.ts function
+
+# Or remove old component first
+edgit components remove auth
+edgit components add auth src/new-auth.ts function
+```
+
+### Cannot Remove Component with Tags
+
+**Problem**: Attempting to remove component with existing version tags.
+
+**Solution**:
+```bash
+# List component tags
+edgit tag list my-component
+
+# Delete all tags first
+edgit tag delete my-component@v1.0.0
+edgit tag delete my-component@v1.0.1
+
+# Or keep tags and just remove from registry
+edgit components remove my-component
+# (Tags remain in Git for history)
+```
+
+## Versioning Issues
+
+### Tag Already Exists
+
+**Problem**: Trying to create a version tag that already exists.
+
+**Symptoms**:
+```bash
+edgit tag create my-component v1.0.0
+# Error: Version tag v1.0.0 already exists
+```
+
+**Solutions**:
+
+<Tabs>
+  <Tab title="Use Next Version">
+    ```bash
+    # Check existing versions
+    edgit tag list my-component
+
+    # Create next version
+    edgit tag create my-component v1.0.1
+    ```
+  </Tab>
+
+  <Tab title="Delete Old Tag">
+    ```bash
+    # Delete locally
+    edgit tag delete my-component@v1.0.0
+
+    # Delete from remote
+    edgit tag delete my-component@v1.0.0 --remote
+
+    # Create new tag
+    edgit tag create my-component v1.0.0
+    ```
+  </Tab>
+
+  <Tab title="Use Deployment Tag">
+    ```bash
+    # Deployment tags can be moved
+    edgit tag create my-component staging
+    ```
+  </Tab>
+</Tabs>
+
+### Invalid Version Format
+
+**Problem**: Version doesn't follow semantic versioning.
+
+**Symptoms**:
+```bash
+edgit tag create my-component 1.0
+# Error: Invalid version format
+```
+
+**Solution**:
+```bash
+# Use semantic versioning: v{major}.{minor}.{patch}
+edgit tag create my-component v1.0.0
+
+# Versions must have three numbers
+edgit tag create my-component v1.0.1
+edgit tag create my-component v2.1.3
+```
+
+### Git Tag Not Pushed
+
+**Problem**: Local tags exist but not on remote.
+
+**Solution**:
+```bash
+# Push specific tag
+git push origin components/my-component/v1.0.0
+
+# Push all component tags
+edgit tag push
+
+# Push with force (for deployment tags)
+edgit tag push --force
+```
+
+## Deployment Issues
+
+### Deployment Tag Points to Wrong Version
+
+**Problem**: Deployment tag not pointing to expected version.
+
+**Diagnosis**:
+```bash
+# Check what version is deployed
+edgit deploy status my-component
+
+# Check tag SHA
+git rev-parse components/my-component/production
+
+# List all version tags and their SHAs
+edgit tag list my-component
+git show-ref --tags | grep my-component
+```
+
+**Solution**:
+```bash
+# Move deployment tag to correct version
+edgit deploy set my-component v1.0.0 --to production
+git push origin components/my-component/production --force
+```
+
+### Cannot Push Deployment Tags
+
+**Problem**: Git rejects deployment tag push.
+
+**Symptoms**:
+```bash
+git push origin components/my-component/production
+# ! [rejected]  components/my-component/production -> components/my-component/production (already exists)
+```
+
+**Solution**:
+```bash
+# Deployment tags need --force
+git push origin components/my-component/production --force
+
+# Or use edgit
+edgit tag push my-component --force
+```
+
+### Environment Not Showing in Status
+
+**Problem**: Deployment doesn't appear in status output.
+
+**Diagnosis**:
+```bash
+# List all tags
+git tag -l "components/my-component/*"
+
+# Check if tag exists
+git rev-parse components/my-component/staging
+```
+
+**Solution**:
+```bash
+# Create deployment tag
+edgit deploy set my-component v1.0.0 --to staging
+
+# Verify
+edgit deploy status my-component
+```
+
+## AI Feature Issues
+
+### AI Commit Messages Not Working
+
+**Problem**: AI-powered commits failing or not generating messages.
+
+**Symptoms**:
+```bash
+edgit commit
+# Error: OpenAI API request failed
+```
+
+**Solutions**:
+
+<Accordion title="Check API Key">
+  ```bash
+  # Verify key is set
+  echo $OPENAI_API_KEY
+
+  # Set if missing
+  export OPENAI_API_KEY=sk-proj-...
+
+  # Or add to .env
+  echo "OPENAI_API_KEY=sk-proj-..." >> .env
+  ```
+</Accordion>
+
+<Accordion title="Test API Key">
+  ```bash
+  # Test OpenAI connection
+  curl https://api.openai.com/v1/models \
+    -H "Authorization: Bearer $OPENAI_API_KEY"
+
+  # Should return list of models
+  ```
+</Accordion>
+
+<Accordion title="Use Manual Messages">
+  ```bash
+  # Skip AI and provide message directly
+  edgit commit -m "your commit message"
+
+  # Or use git
+  git commit -m "your commit message"
+  ```
+</Accordion>
+
+<Accordion title="Check API Quota">
+  Visit [OpenAI Usage](https://platform.openai.com/usage) to check:
+  - API key is active
+  - You have available credits
+  - No rate limit errors
+</Accordion>
+
+### AI Timeouts
+
+**Problem**: AI commit generation timing out.
+
+**Solution**:
+```bash
+# Reduce diff size
+git add specific-files
+
+# Or use manual commit
+edgit commit -m "your message"
+
+# Set longer timeout (if supported)
+export OPENAI_MAX_TIMEOUT=30000
+```
+
+## Git Operation Issues
+
+### Merge Conflicts in Registry
+
+**Problem**: Multiple branches modified `.edgit/components.json`.
+
+**Symptoms**:
+```bash
+git merge feature-branch
+# CONFLICT (content): Merge conflict in .edgit/components.json
+```
+
+**Solution**:
+
+<Steps>
+  <Step title="Accept both changes">
+    ```bash
+    # Open .edgit/components.json
+    # Manually merge both component additions
+
+    # Example merged registry:
+    {
+      "version": "1.0",
+      "components": {
+        "component-from-main": { ... },
+        "component-from-feature": { ... }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Mark as resolved">
+    ```bash
+    git add .edgit/components.json
+    git commit -m "merge: resolve component registry conflict"
+    ```
+  </Step>
+</Steps>
+
+**Prevention**:
+- Register components in separate PRs
+- Use component discovery instead of manual registration
+- Coordinate registry changes with team
+
+### Detached HEAD State
+
+**Problem**: Git commands fail because HEAD is detached.
+
+**Symptoms**:
+```bash
+edgit tag create my-component v1.0.0
+# Error: You are in 'detached HEAD' state
+```
+
+**Solution**:
+```bash
+# Check current state
+git status
+
+# Checkout a branch
+git checkout main
+
+# Or create branch from current state
+git checkout -b new-branch
+```
+
+### Remote Tracking Issues
+
+**Problem**: Tags not syncing with remote repository.
+
+**Diagnosis**:
+```bash
+# Check remote configuration
+git remote -v
+
+# List remote tags
+git ls-remote --tags origin
+```
+
+**Solution**:
+```bash
+# Fetch all tags
+git fetch --tags
+
+# Push tags to remote
+git push origin --tags
+
+# Force push deployment tags
+git push origin --tags --force
+```
+
+## Performance Issues
+
+### Slow Component Listing
+
+**Problem**: `edgit components list` is slow with many components.
+
+**Solutions**:
+```bash
+# Use filters
+edgit components list --type function
+
+# List names only (faster)
+edgit components list --names
+
+# Use JSON output for programmatic access
+edgit components list --json | jq '.[] | .name'
+```
+
+### Large Repository Performance
+
+**Problem**: Git operations slow in large monorepos.
+
+**Solutions**:
+
+<Accordion title="Shallow Clones">
+  ```bash
+  # For CI/CD (when not versioning)
+  git clone --depth 1 https://github.com/user/repo.git
+
+  # Full clone for versioning
+  git clone https://github.com/user/repo.git
+  ```
+</Accordion>
+
+<Accordion title="Git Maintenance">
+  ```bash
+  # Run Git garbage collection
+  git gc --aggressive
+
+  # Prune old references
+  git prune
+
+  # Clean up
+  git clean -fd
+  ```
+</Accordion>
+
+<Accordion title="Reduce Tag Overhead">
+  ```bash
+  # Archive old tags
+  git tag -l "components/*/v0.*" | xargs git tag -d
+
+  # Keep only recent versions
+  # (document archived versions elsewhere)
+  ```
+</Accordion>
+
+## Debugging
+
+### Enable Debug Mode
+
+```bash
+# Enable debug output
+export EDGIT_DEBUG=true
+export EDGIT_LOG_LEVEL=debug
+
+# Run command with verbose output
+edgit components list
+```
+
+### Check Registry Structure
+
+```bash
+# View registry
+cat .edgit/components.json | jq
+
+# Validate JSON syntax
+jq empty .edgit/components.json
+
+# Show specific component
+jq '.components["my-component"]' .edgit/components.json
+```
+
+### Inspect Git Tags
+
+```bash
+# List all edgit tags
+git tag -l "components/*"
+
+# Show tag details
+git show components/my-component/v1.0.0
+
+# View tag reference
+git show-ref --tags | grep my-component
+
+# Check tag SHA
+git rev-parse components/my-component/v1.0.0
+```
+
+### Verify Git Configuration
+
+```bash
+# Check Git version
+git --version
+
+# View Git config
+git config --list
+
+# Check edgit-specific config
+git config --list | grep edgit
+```
+
+## Getting Help
+
+### Built-in Help
+
+```bash
+# Main help
+edgit --help
+
+# Command-specific help
+edgit components --help
+edgit tag --help
+edgit deploy --help
+```
+
+### Community Support
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/ensemble-edge/edgit/issues">
+    Report bugs and request features
+  </Card>
+
+  <Card title="Documentation" icon="book" href="/edgit/overview">
+    Complete Edgit documentation
+  </Card>
+
+  <Card title="Examples" icon="code" href="/edgit/examples/basic-workflow">
+    Real-world usage examples
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/edgit/api-reference/cli">
+    Command-line interface documentation
+  </Card>
+</CardGroup>
+
+## Reporting Issues
+
+When reporting issues, include:
+
+<AccordionGroup>
+  <Accordion title="Environment Information">
+    ```bash
+    # Edgit version
+    edgit --version
+
+    # Node.js version
+    node --version
+
+    # npm version
+    npm --version
+
+    # Git version
+    git --version
+
+    # Operating system
+    uname -a  # macOS/Linux
+    systeminfo  # Windows
+    ```
+  </Accordion>
+
+  <Accordion title="Command Output">
+    ```bash
+    # Enable debug mode
+    export EDGIT_DEBUG=true
+
+    # Run failing command
+    edgit <command> 2>&1 | tee output.log
+
+    # Include output.log in issue
+    ```
+  </Accordion>
+
+  <Accordion title="Repository State">
+    ```bash
+    # Registry structure
+    cat .edgit/components.json
+
+    # Git status
+    git status
+
+    # Recent commits
+    git log --oneline -10
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/edgit/configuration"
+  >
+    Environment variables and settings
+  </Card>
+
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/edgit/guides/deployment"
+  >
+    Component deployment strategies
+  </Card>
+
+  <Card
+    title="Versioning Guide"
+    icon="tag"
+    href="/edgit/guides/versioning"
+  >
+    Semantic versioning with Git tags
+  </Card>
+
+  <Card
+    title="CLI Reference"
+    icon="terminal"
+    href="/edgit/api-reference/cli"
+  >
+    Complete command documentation
+  </Card>
+</CardGroup>
