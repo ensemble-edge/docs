@@ -43,7 +43,7 @@ Thank you for your interest in contributing to Ensemble Edge! This monorepo cont
 
 4. **Create a feature branch**
    ```bash
-   git checkout -b feature/your-feature-name
+   edgit checkout -b feature/your-feature-name
    ```
 
 5. **Make your changes**
@@ -59,13 +59,13 @@ Thank you for your interest in contributing to Ensemble Edge! This monorepo cont
 
 7. **Commit using conventional commits**
    ```bash
-   git add .
-   git commit -m "feat(edgit): add new tag validation"
+   edgit add .
+   edgit commit -m "feat(edgit): add new tag validation"
    ```
 
 8. **Push and create Pull Request**
    ```bash
-   git push origin feature/your-feature-name
+   edgit push origin feature/your-feature-name
    # Go to GitHub and click "New Pull Request"
    ```
 

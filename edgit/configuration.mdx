@@ -206,16 +206,16 @@ Configure Edgit behavior in Git config:
 
 ```bash
 # Set default component type
-git config edgit.defaultType function
+edgit config edgit.defaultType function
 
 # Set AI provider
-git config edgit.aiProvider openai
+edgit config edgit.aiProvider openai
 
 # Enable AI by default
-git config edgit.aiEnabled true
+edgit config edgit.aiEnabled true
 
 # View all edgit config
-git config --list | grep edgit
+edgit config --list | grep edgit
 ```
 
 ### Repository-Specific Settings
@@ -225,11 +225,11 @@ git config --list | grep edgit
 cd /path/to/project
 
 # Configure for this repo only
-git config --local edgit.defaultType agent
-git config --local edgit.tagPrefix release/
+edgit config --local edgit.defaultType agent
+edgit config --local edgit.tagPrefix release/
 
 # View repo-specific config
-git config --local --list | grep edgit
+edgit config --local --list | grep edgit
 ```
 
 ## Component Type Configuration

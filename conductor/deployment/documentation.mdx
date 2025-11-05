@@ -400,7 +400,7 @@ npm test -- order-processing.spec.ts
 npx conductor docs generate
 
 # Add generated docs to commit
-git add docs/
+edgit add docs/
 ```
 
 ### CI/CD Documentation Check
@@ -422,7 +422,7 @@ jobs:
 
       - name: Check for changes
         run: |
-          if ! git diff --quiet docs/; then
+          if ! edgit diff --quiet docs/; then
             echo "Documentation is out of date"
             echo "Run: npx conductor docs generate"
             exit 1
