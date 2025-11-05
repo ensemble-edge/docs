@@ -667,6 +667,112 @@ interface OpenTelemetryConfig {
 
 ---
 
+### Project Configuration
+
+You can configure observability settings project-wide using `conductor.config.ts`:
+
+```typescript
+// conductor.config.ts
+export default {
+  observability: {
+    /**
+     * Enable structured logging
+     */
+    logging: true,
+
+    /**
+     * Log level (debug, info, warn, error)
+     */
+    logLevel: 'info',
+
+    /**
+     * Enable Analytics Engine metrics
+     */
+    metrics: true,
+
+    /**
+     * OpenTelemetry configuration
+     */
+    opentelemetry: {
+      enabled: true,
+      endpoint: 'https://api.honeycomb.io',
+      headers: {
+        'x-honeycomb-team': process.env.HONEYCOMB_API_KEY
+      }
+    },
+
+    /**
+     * Track token usage and costs for LLM calls
+     */
+    trackTokenUsage: true
+  }
+};
+```
+
+**Configuration Options:**
+
+- **`logging`** - Enable/disable structured logging (default: `true`)
+- **`logLevel`** - Minimum log level: `debug`, `info`, `warn`, or `error` (default: `info`)
+- **`metrics`** - Enable/disable Analytics Engine metrics (default: `true`)
+- **`opentelemetry.enabled`** - Enable OpenTelemetry integration (default: `false`)
+- **`opentelemetry.endpoint`** - OTLP exporter URL
+- **`opentelemetry.headers`** - Authentication headers for external platform
+- **`trackTokenUsage`** - Track LLM token usage and costs (default: `true`)
+
+**Platform-Specific Examples:**
+
+<Tabs>
+  <Tab title="Datadog">
+```typescript
+opentelemetry: {
+  enabled: true,
+  endpoint: 'https://http-intake.logs.datadoghq.com',
+  headers: {
+    'DD-API-KEY': process.env.DATADOG_API_KEY
+  }
+}
+```
+  </Tab>
+
+  <Tab title="Honeycomb">
+```typescript
+opentelemetry: {
+  enabled: true,
+  endpoint: 'https://api.honeycomb.io',
+  headers: {
+    'x-honeycomb-team': process.env.HONEYCOMB_API_KEY
+  }
+}
+```
+  </Tab>
+
+  <Tab title="New Relic">
+```typescript
+opentelemetry: {
+  enabled: true,
+  endpoint: 'https://otlp.nr-data.net',
+  headers: {
+    'api-key': process.env.NEW_RELIC_LICENSE_KEY
+  }
+}
+```
+  </Tab>
+
+  <Tab title="Langfuse">
+```typescript
+opentelemetry: {
+  enabled: true,
+  endpoint: 'https://cloud.langfuse.com/api/public/ingestion',
+  headers: {
+    'Authorization': `Bearer ${process.env.LANGFUSE_SECRET_KEY}`
+  }
+}
+```
+  </Tab>
+</Tabs>
+
+---
+
 ## Best Practices
 
 ### 1. Use Structured Context
