@@ -140,6 +140,7 @@
         "conductor/concepts/scoring",
         "conductor/concepts/caching",
         "conductor/concepts/routing",
+        "conductor/concepts/observability",
         "conductor/concepts/ab-testing",
         "conductor/concepts/glossary"
       ]
