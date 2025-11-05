@@ -197,9 +197,9 @@ After installation, initialize Edgit in your repository:
 
     If you don't have a Git repository yet:
     ```bash
-    git init
-    git add .
-    git commit -m "Initial commit"
+    edgit init
+    edgit add .
+    edgit commit -m "Initial commit"
     ```
   </Step>
 
@@ -223,8 +223,8 @@ After installation, initialize Edgit in your repository:
 
   <Step title="Commit the registry">
     ```bash
-    git add .edgit/
-    git commit -m "chore: initialize edgit"
+    edgit add .edgit/
+    edgit commit -m "chore: initialize edgit"
     ```
   </Step>
 
@@ -310,7 +310,7 @@ edgit commit
   <Tab title="From Source">
     ```bash
     cd /path/to/edgit
-    git pull
+    edgit pull
     npm install
     npm run build
     ```
@@ -345,7 +345,7 @@ To completely remove Edgit from a project:
 rm -rf .edgit/
 
 # Remove tags (optional - only if you want to remove all version history)
-git tag -l "*-v*" | xargs git tag -d
+edgit tag -l "*-v*" | xargs edgit tag -d
 ```
 
 ## Verification
@@ -361,7 +361,6 @@ edgit --help
 
 # Initialize test repository
 mkdir edgit-test && cd edgit-test
-git init
 edgit init
 
 # Add test component

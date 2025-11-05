@@ -36,14 +36,14 @@ This guide walks you through installing Edgit, initializing your repository, and
   <Step title="Navigate to your Git repository">
     ```bash
     cd /path/to/your/project
-    git status  # Verify you're in a Git repo
+    edgit status  # Verify you're in a Git repo
     ```
 
     <Tip>
       Don't have a repository? Create one:
       ```bash
       mkdir my-project && cd my-project
-      git init
+      edgit init
       ```
     </Tip>
   </Step>
@@ -104,7 +104,7 @@ This guide walks you through installing Edgit, initializing your repository, and
 
   <Step title="Commit your changes">
     ```bash
-    git add src/hello.ts .edgit/
+    edgit add src/hello.ts .edgit/
     edgit commit  # AI will generate a commit message
     ```
 
@@ -128,12 +128,12 @@ This guide walks you through installing Edgit, initializing your repository, and
 
   <Step title="Push to remote">
     ```bash
-    git push origin hello-v1.0.0
+    edgit push origin hello-v1.0.0
     ```
 
     Or push all tags:
     ```bash
-    git push --tags
+    edgit push --tags
     ```
   </Step>
 
@@ -253,12 +253,12 @@ echo "export const api = () => fetch('/api')" > src/api.ts
 edgit add function api src/api.ts --description "API client"
 
 # 2. Stage and commit
-git add src/api.ts .edgit/
+edgit add src/api.ts .edgit/
 edgit commit  # AI generates: "feat: add API client function"
 
 # 3. Tag development version
 edgit tag api v0.1.0
-git push origin api-v0.1.0
+edgit push origin api-v0.1.0
 
 # 4. Deploy to staging
 edgit deploy api v0.1.0 --to staging
@@ -266,7 +266,7 @@ edgit deploy api v0.1.0 --to staging
 # 5. Test in staging...
 # 6. Tag production version
 edgit tag api v1.0.0
-git push origin api-v1.0.0
+edgit push origin api-v1.0.0
 
 # 7. Deploy to production
 edgit deploy api v1.0.0 --to production
@@ -323,8 +323,8 @@ edgit status api
     **Solution**: Run `edgit init` first
     ```bash
     edgit init
-    git add .edgit/
-    git commit -m "chore: initialize edgit"
+    edgit add .edgit/
+    edgit commit -m "chore: initialize edgit"
     ```
   </Accordion>
 
@@ -333,10 +333,10 @@ edgit status api
 
     **Solution**: Initialize Git first
     ```bash
-    git init
-    git add .
-    git commit -m "Initial commit"
     edgit init
+    edgit add .
+    edgit commit -m "Initial commit"
+    edgit init  # Initialize edgit registry
     ```
   </Accordion>
 
