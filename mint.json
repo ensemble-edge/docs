@@ -178,7 +178,8 @@
         "conductor/member-types/function",
         "conductor/member-types/data",
         "conductor/member-types/api",
-        "conductor/member-types/email"
+        "conductor/member-types/email",
+        "conductor/member-types/sms"
       ]
     },
     {

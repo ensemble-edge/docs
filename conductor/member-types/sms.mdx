@@ -1,0 +1,700 @@
+---
+title: "SMS Member"
+description: "Send SMS messages with templates, batch processing, and multi-provider support"
+---
+
+## Overview
+
+The **SMS Member** enables Conductor ensembles to send SMS messages with:
+- **Multiple providers**: Twilio, Vonage, AWS SNS
+- **Template rendering**: Simple variable interpolation
+- **Batch sending**: Rate-limited mass SMS delivery
+- **MMS support**: Send images and media via MMS
+- **E.164 validation**: Automatic phone number format validation
+- **Personalization**: Per-recipient data in batch sends
+
+## Quick Start
+
+```yaml
+members:
+  - name: send-otp
+    type: SMS
+    config:
+      provider:
+        provider: twilio
+        twilio:
+          accountSid: ${env.TWILIO_ACCOUNT_SID}
+          authToken: ${env.TWILIO_AUTH_TOKEN}
+        from: ${env.TWILIO_PHONE_NUMBER}
+
+flow:
+  - member: send-otp
+    input:
+      to: +1234567890
+      body: "Your verification code is: {{code}}"
+      data:
+        code: "123456"
+```
+
+## SMS Providers
+
+### Twilio (Recommended)
+
+Industry-leading SMS provider with global coverage and reliable delivery.
+
+```yaml
+config:
+  provider:
+    provider: twilio
+    twilio:
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      messagingServiceSid: ${env.TWILIO_MESSAGING_SERVICE_SID}  # Optional
+    from: +1234567890
+```
+
+**Setup**:
+1. Sign up at [Twilio](https://www.twilio.com/)
+2. Get your Account SID and Auth Token from the console
+3. Purchase a phone number or create a Messaging Service
+4. Set secrets in Wrangler:
+```bash
+wrangler secret put TWILIO_ACCOUNT_SID
+wrangler secret put TWILIO_AUTH_TOKEN
+wrangler secret put TWILIO_PHONE_NUMBER
+```
+
+**Rate Limits**:
+- Standard: 100 SMS per second
+- Messaging Service: 1,000 SMS per second
+- Free trial: 1 SMS per second
+
+### Vonage (formerly Nexmo)
+
+Cost-effective SMS with strong international coverage.
+
+```yaml
+config:
+  provider:
+    provider: vonage
+    vonage:
+      apiKey: ${env.VONAGE_API_KEY}
+      apiSecret: ${env.VONAGE_API_SECRET}
+    from: "Acme"  # Alphanumeric sender ID or phone number
+```
+
+**Setup**:
+1. Sign up at [Vonage](https://www.vonage.com/)
+2. Get your API Key and Secret
+3. Set secrets:
+```bash
+wrangler secret put VONAGE_API_KEY
+wrangler secret put VONAGE_API_SECRET
+```
+
+### AWS SNS
+
+Integrate with AWS infrastructure for SMS delivery.
+
+```yaml
+config:
+  provider:
+    provider: aws-sns
+    awsSns:
+      accessKeyId: ${env.AWS_ACCESS_KEY_ID}
+      secretAccessKey: ${env.AWS_SECRET_ACCESS_KEY}
+      region: us-east-1
+```
+
+## Basic Usage
+
+### Simple SMS
+
+```yaml
+- member: send-sms
+  input:
+    to: +1234567890
+    body: "Hello! This is a test message."
+```
+
+### OTP Verification
+
+```yaml
+- member: send-otp
+  input:
+    to: ${input.phone}
+    body: "Your verification code is: {{code}}. It will expire in {{expiryMinutes}} minutes."
+    data:
+      code: ${input.otp}
+      expiryMinutes: 5
+```
+
+### Multiple Recipients
+
+```yaml
+- member: send-alert
+  input:
+    to:
+      - +1234567890
+      - +1234567891
+      - +1234567892
+    body: "System alert: {{message}}"
+    data:
+      message: "Database backup completed successfully"
+```
+
+## Batch Sending
+
+Send personalized SMS to multiple recipients with rate limiting.
+
+```yaml
+- member: send-alerts
+  input:
+    recipients:
+      - phone: +1234567890
+        data:
+          name: Alice
+          amount: "1,234"
+      - phone: +1234567891
+        data:
+          name: Bob
+          amount: "5,678"
+      - phone: +1234567892
+        data:
+          name: Charlie
+          amount: "9,012"
+
+    body: "Hi {{name}}, your account balance is ${{amount}}. Reply STOP to unsubscribe."
+
+    commonData:
+      companyName: Acme Bank
+```
+
+**Output**:
+```json
+{
+  "sent": 3,
+  "failed": 0,
+  "messageIds": ["SM123", "SM124", "SM125"],
+  "errors": []
+}
+```
+
+## Rate Limiting
+
+Control sending rate to respect provider limits:
+
+```yaml
+config:
+  provider:
+    provider: twilio
+    twilio:
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+    from: ${env.TWILIO_PHONE_NUMBER}
+  rateLimit: 3  # 3 SMS per second
+```
+
+**Recommended Rates**:
+- **Twilio Free Trial**: 1 SMS/sec
+- **Twilio Standard**: 10-50 SMS/sec
+- **Vonage**: 10 SMS/sec
+- **AWS SNS**: 20 SMS/sec
+
+## MMS Support
+
+Send images and media with your messages (Twilio only):
+
+```yaml
+- member: send-mms
+  input:
+    to: +1234567890
+    body: "Check out this image!"
+    mediaUrl:
+      - https://example.com/image.jpg
+      - https://example.com/image2.png
+```
+
+**Supported Media**:
+- Images: JPG, PNG, GIF
+- Max size: 5 MB
+- Multiple URLs supported
+
+## Template Rendering
+
+Use simple variable interpolation in message bodies:
+
+```yaml
+- member: send-welcome
+  input:
+    to: ${user.phone}
+    body: |
+      Welcome {{name}}!
+
+      Your account has been created.
+      Login at: {{loginUrl}}
+
+      Need help? Reply to this message.
+    data:
+      name: ${user.name}
+      loginUrl: https://app.example.com/login
+```
+
+**Template Features**:
+- Simple `{{variable}}` syntax
+- Works in message body
+- Per-recipient data in batch sends
+- Common data shared across batches
+
+## Phone Number Formats
+
+All phone numbers must be in E.164 format:
+
+```
++[country code][number]
+```
+
+**Examples**:
+- US: `+1234567890`
+- UK: `+442071234567`
+- France: `+33123456789`
+- Japan: `+81312345678`
+
+**Invalid Formats** (will be rejected):
+- `1234567890` - Missing +
+- `+1 (234) 567-890` - Contains formatting
+- `+1-234-567-890` - Contains dashes
+
+## Error Handling
+
+Handle SMS failures gracefully:
+
+```yaml
+- type: try
+  steps:
+    - member: send-primary
+      input:
+        to: ${input.phone}
+        body: "Important alert: {{message}}"
+        data:
+          message: ${input.alert}
+
+  catch:
+    # Log error and try backup provider
+    - member: log-error
+      type: Function
+      input:
+        error: ${send-primary.error}
+
+    - member: send-backup
+      input:
+        to: ${input.phone}
+        body: "Important alert: {{message}}"
+        data:
+          message: ${input.alert}
+```
+
+## Complete Examples
+
+### OTP Verification Workflow
+
+```yaml
+name: otp-verification
+description: Send OTP code via SMS
+
+members:
+  - name: generate-otp
+    type: Function
+    code: |
+      export default async function ({ input }) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        return { code, expiresAt: Date.now() + 5 * 60 * 1000 };
+      }
+
+  - name: send-otp
+    type: SMS
+    config:
+      provider:
+        provider: twilio
+        twilio:
+          accountSid: ${env.TWILIO_ACCOUNT_SID}
+          authToken: ${env.TWILIO_AUTH_TOKEN}
+        from: ${env.TWILIO_PHONE_NUMBER}
+
+  - name: store-otp
+    type: Data
+    config:
+      storage: kv
+      binding: OTP_CACHE
+
+flow:
+  # Generate OTP
+  - member: generate-otp
+
+  # Send via SMS
+  - member: send-otp
+    input:
+      to: ${input.phone}
+      body: "Your verification code is: {{code}}. Valid for 5 minutes."
+      data:
+        code: ${generate-otp.output.code}
+
+  # Store for verification
+  - member: store-otp
+    input:
+      operation: put
+      key: otp:${input.phone}
+      value:
+        code: ${generate-otp.output.code}
+        expiresAt: ${generate-otp.output.expiresAt}
+      ttl: 300
+
+output:
+  success: true
+  messageId: ${send-otp.output.messageId}
+  expiresAt: ${generate-otp.output.expiresAt}
+```
+
+### Batch Order Notifications
+
+```yaml
+name: order-notifications
+description: Send batch SMS notifications for completed orders
+
+members:
+  - name: fetch-orders
+    type: Data
+    config:
+      storage: d1
+      binding: DB
+
+  - name: send-notifications
+    type: SMS
+    config:
+      provider:
+        provider: twilio
+        twilio:
+          accountSid: ${env.TWILIO_ACCOUNT_SID}
+          authToken: ${env.TWILIO_AUTH_TOKEN}
+        from: ${env.TWILIO_PHONE_NUMBER}
+      rateLimit: 5  # 5 SMS per second
+
+flow:
+  # Fetch completed orders
+  - member: fetch-orders
+    input:
+      operation: query
+      query: |
+        SELECT customer_phone, customer_name, order_id, total
+        FROM orders
+        WHERE status = 'completed' AND notified = 0
+        LIMIT 100
+
+  # Send notifications
+  - member: send-notifications
+    input:
+      recipients: |
+        ${fetch-orders.output.results.map(order => ({
+          phone: order.customer_phone,
+          data: {
+            name: order.customer_name,
+            orderId: order.order_id,
+            total: order.total
+          }
+        }))}
+      body: |
+        Hi {{name}}! Your order #{{orderId}} is ready for pickup.
+        Total: ${{total}}
+
+        Questions? Reply to this message.
+      commonData:
+        storeName: "Acme Store"
+
+output:
+  sent: ${send-notifications.output.sent}
+  failed: ${send-notifications.output.failed}
+  errors: ${send-notifications.output.errors}
+```
+
+### Two-Factor Authentication
+
+```yaml
+name: 2fa-sms
+description: Send 2FA code via SMS
+
+members:
+  - name: get-user
+    type: Data
+    config:
+      storage: d1
+      binding: DB
+
+  - name: generate-code
+    type: Function
+    code: |
+      export default async function () {
+        return {
+          code: Math.floor(100000 + Math.random() * 900000).toString()
+        };
+      }
+
+  - name: send-2fa
+    type: SMS
+    config:
+      provider:
+        provider: twilio
+        twilio:
+          accountSid: ${env.TWILIO_ACCOUNT_SID}
+          authToken: ${env.TWILIO_AUTH_TOKEN}
+        from: ${env.TWILIO_PHONE_NUMBER}
+
+  - name: log-attempt
+    type: Data
+    config:
+      storage: d1
+      binding: DB
+
+flow:
+  # Get user
+  - member: get-user
+    input:
+      operation: query
+      query: "SELECT phone FROM users WHERE id = ?"
+      params: [${input.userId}]
+
+  # Generate code
+  - member: generate-code
+
+  # Send SMS
+  - member: send-2fa
+    input:
+      to: ${get-user.output.results[0].phone}
+      body: |
+        Your {{appName}} verification code is: {{code}}
+
+        This code will expire in 10 minutes.
+        Never share this code with anyone.
+      data:
+        code: ${generate-code.output.code}
+        appName: "MyApp"
+
+  # Log attempt
+  - member: log-attempt
+    input:
+      operation: execute
+      query: |
+        INSERT INTO auth_attempts (user_id, code, created_at)
+        VALUES (?, ?, datetime('now'))
+      params:
+        - ${input.userId}
+        - ${generate-code.output.code}
+
+output:
+  success: true
+  messageId: ${send-2fa.output.messageId}
+  code: ${generate-code.output.code}
+```
+
+## Configuration Reference
+
+### Provider Config
+
+```yaml
+provider:
+  provider: twilio | vonage | aws-sns
+  from: string  # Sender phone number or alphanumeric ID
+
+  # Twilio-specific
+  twilio:
+    accountSid: string
+    authToken: string
+    messagingServiceSid: string  # Optional
+
+  # Vonage-specific
+  vonage:
+    apiKey: string
+    apiSecret: string
+
+  # AWS SNS-specific
+  awsSns:
+    accessKeyId: string
+    secretAccessKey: string
+    region: string
+```
+
+### Member Config
+
+```yaml
+config:
+  provider: ProviderConfig  # See above
+  rateLimit: number  # SMS per second (default: 10)
+```
+
+### Input Schema
+
+```yaml
+input:
+  # Single SMS
+  to: string | string[]  # Recipients (E.164 format, required)
+  from: string  # Override sender (optional)
+  body: string  # Message body (required)
+  mediaUrl: string[]  # MMS media URLs (optional, Twilio only)
+  data: object  # Template variables (optional)
+  metadata: Record<string, unknown>  # Custom metadata (optional)
+
+  # Batch SMS
+  recipients: Array<{
+    phone: string  # E.164 format
+    data: object  # Per-recipient data
+  }>
+  commonData: object  # Data shared by all recipients
+```
+
+### Output Schema
+
+**Single SMS**:
+```yaml
+output:
+  messageId: string  # Provider message ID
+  status: sent | queued | failed
+  provider: string  # Provider name
+  timestamp: string  # ISO 8601 timestamp
+  error: string  # Error message (if failed)
+```
+
+**Batch SMS**:
+```yaml
+output:
+  sent: number  # Successfully sent count
+  failed: number  # Failed count
+  messageIds: string[]  # All message IDs
+  errors: Array<{  # Failed messages
+    phone: string
+    error: string
+  }>
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion icon="shield-check" title="Security">
+    - Store credentials in secrets, not environment variables
+    - Validate phone numbers before sending
+    - Implement rate limiting to prevent abuse
+    - Use messaging services for high-volume sends
+    - Never send sensitive data via SMS (use encrypted channels)
+  </Accordion>
+
+  <Accordion icon="gauge" title="Performance">
+    - Use batch sending for multiple recipients
+    - Set appropriate rate limits per provider
+    - Use messaging services for better throughput
+    - Cache frequent recipient lists
+    - Monitor delivery rates and adjust
+  </Accordion>
+
+  <Accordion icon="list-check" title="Compliance">
+    - Always include opt-out instructions (e.g., "Reply STOP")
+    - Respect local regulations (TCPA, GDPR, etc.)
+    - Only send to opted-in recipients
+    - Honor unsubscribe requests immediately
+    - Keep audit logs of all sends
+  </Accordion>
+
+  <Accordion icon="dollar-sign" title="Cost Optimization">
+    - Use shortest message that conveys intent
+    - Avoid unnecessary sends
+    - Monitor per-country pricing
+    - Use alphanumeric sender IDs where allowed
+    - Consider message concatenation costs
+  </Accordion>
+
+  <Accordion icon="code" title="Development">
+    - Test with TestConductor mocks
+    - Use templates for maintainability
+    - Log all SMS operations
+    - Handle errors gracefully with fallbacks
+    - Monitor delivery reports
+  </Accordion>
+</AccordionGroup>
+
+## SMS vs Email
+
+| Feature | SMS | Email |
+|---------|-----|-------|
+| **Delivery** | 98% open rate | 20% open rate |
+| **Speed** | Instant | Minutes to hours |
+| **Cost** | $0.0075-$0.04/message | $0.0001-$0.001/email |
+| **Length** | 160 chars (1 SMS) | Unlimited |
+| **Media** | MMS only | Full HTML, attachments |
+| **Best for** | Alerts, OTP, time-sensitive | Newsletters, receipts, long-form |
+
+## Troubleshooting
+
+### SMS Not Delivering
+
+1. **Check phone number format** - Must be E.164 (+1234567890)
+2. **Verify provider credentials** - Ensure Account SID/Auth Token are correct
+3. **Check rate limits** - You may be hitting provider throttles
+4. **Review provider logs** - Check Twilio/Vonage console for errors
+5. **Test with your own number** - Confirm basic functionality
+
+### Rate Limit Errors
+
+```yaml
+# Increase rate limit delay
+config:
+  rateLimit: 1  # 1 SMS per second instead of 10
+```
+
+### Invalid Phone Numbers
+
+```typescript
+// Validate before sending
+function validateE164(phone: string): boolean {
+  return /^\+[1-9]\d{1,14}$/.test(phone);
+}
+```
+
+### Message Too Long
+
+- Single SMS: 160 characters (GSM-7)
+- Unicode/Emoji: 70 characters per segment
+- Concatenated SMS: Up to 1600 characters (10 segments)
+- Consider shortening or using URL shorteners
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Testing"
+    icon="vial"
+    href="/conductor/guides/testing"
+  >
+    Test SMS workflows
+  </Card>
+
+  <Card
+    title="Email Member"
+    icon="envelope"
+    href="/conductor/member-types/email"
+  >
+    Compare with Email
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="code"
+    href="/conductor/examples/notification-workflows"
+  >
+    SMS workflow examples
+  </Card>
+
+  <Card
+    title="Deployment"
+    icon="rocket"
+    href="/conductor/deployment/secrets"
+  >
+    Configure SMS secrets
+  </Card>
+</CardGroup>
