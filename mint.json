@@ -177,7 +177,8 @@
         "conductor/member-types/think",
         "conductor/member-types/function",
         "conductor/member-types/data",
-        "conductor/member-types/api"
+        "conductor/member-types/api",
+        "conductor/member-types/email"
       ]
     },
     {

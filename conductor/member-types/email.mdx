@@ -1,0 +1,544 @@
+---
+title: "Email Member"
+description: "Send emails with templates, batch processing, and multi-provider support"
+---
+
+## Overview
+
+The **Email Member** enables Conductor ensembles to send emails with:
+- **Multiple providers**: Cloudflare Email, Resend, SMTP
+- **Template rendering**: Handlebars with KV storage support
+- **Batch sending**: Rate-limited mass email delivery
+- **Email tracking**: Custom headers for analytics
+- **Attachments**: File attachments support
+- **HTML & Plain text**: Automatic plain text generation
+
+## Quick Start
+
+```yaml
+members:
+  - name: send-welcome
+    type: Email
+    config:
+      provider:
+        provider: cloudflare
+        from: noreply@example.com
+      templatesKv: TEMPLATES
+
+flow:
+  - member: send-welcome
+    input:
+      to: user@example.com
+      subject: Welcome!
+      template: kv://templates/email/welcome@latest
+      data:
+        name: Alice
+        appUrl: https://example.com
+```
+
+## Email Providers
+
+### Cloudflare Email (Recommended)
+
+Zero-configuration email sending via Cloudflare Email Routing.
+
+```yaml
+config:
+  provider:
+    provider: cloudflare
+    from: noreply@example.com
+    fromName: Your App
+    cloudflare:
+      dkim: true  # Enable DKIM signing
+```
+
+**wrangler.toml**:
+```toml
+[[send_email]]
+name = "EMAIL"
+destination_address_list = "allowed-recipients"  # Optional
+```
+
+### Resend
+
+Best developer experience with simple API.
+
+```yaml
+config:
+  provider:
+    provider: resend
+    resend:
+      apiKey: ${env.RESEND_API_KEY}
+    from: noreply@example.com
+```
+
+### SMTP
+
+Generic SMTP for any mail server.
+
+```yaml
+config:
+  provider:
+    provider: smtp
+    smtp:
+      host: smtp.example.com
+      port: 587
+      secure: true
+      auth:
+        user: ${env.SMTP_USER}
+        pass: ${env.SMTP_PASS}
+    from: noreply@example.com
+```
+
+## Templates
+
+### Inline HTML
+
+```yaml
+- member: send-email
+  input:
+    to: user@example.com
+    subject: Hello
+    html: |
+      <html>
+        <body>
+          <h1>Hello {{name}}!</h1>
+          <p>Welcome to {{appName}}</p>
+        </body>
+      </html>
+    data:
+      name: Alice
+      appName: My App
+```
+
+### KV Templates
+
+Store versioned templates in KV for instant updates without Worker rebuilds.
+
+```yaml
+- member: send-email
+  input:
+    to: user@example.com
+    subject: Welcome
+    template: kv://templates/email/welcome@v1.0.0
+    data:
+      name: Alice
+      activationUrl: https://example.com/activate/123
+```
+
+**Template in KV** (`kv://templates/email/welcome@v1.0.0`):
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      body { font-family: Arial, sans-serif; }
+      .button { background: #0066cc; color: white; padding: 12px 24px; }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome {{name}}!</h1>
+    <p>Click below to activate your account:</p>
+    <a href="{{activationUrl}}" class="button">Activate Account</a>
+  </body>
+</html>
+```
+
+### Template Versions
+
+```yaml
+# Use specific version
+template: kv://templates/email/welcome@v1.0.0
+
+# Use latest
+template: kv://templates/email/welcome@latest
+
+# Use main branch
+template: kv://templates/email/welcome@main
+```
+
+## Batch Sending
+
+Send personalized emails to multiple recipients with rate limiting.
+
+```yaml
+- member: send-newsletter
+  input:
+    recipients:
+      - email: user1@example.com
+        data:
+          name: Alice
+          lastPurchase: "Laptop"
+      - email: user2@example.com
+        data:
+          name: Bob
+          lastPurchase: "Phone"
+      - email: user3@example.com
+        data:
+          name: Charlie
+          lastPurchase: "Tablet"
+
+    template: kv://templates/email/newsletter
+    subject: Your Weekly Newsletter
+
+    commonData:
+      companyName: Acme Corp
+      unsubscribeUrl: https://example.com/unsubscribe
+```
+
+**Output**:
+```json
+{
+  "sent": 3,
+  "failed": 0,
+  "messageIds": ["msg-1", "msg-2", "msg-3"],
+  "errors": []
+}
+```
+
+## Rate Limiting
+
+Control sending rate to respect provider limits:
+
+```yaml
+config:
+  provider:
+    provider: resend
+    resend:
+      apiKey: ${env.RESEND_API_KEY}
+    from: noreply@example.com
+  rateLimit: 5  # 5 emails per second
+```
+
+## Email Tracking
+
+Enable tracking headers for analytics:
+
+```yaml
+config:
+  provider:
+    provider: cloudflare
+    from: noreply@example.com
+  tracking: true  # Adds X-Conductor-* headers
+```
+
+**Headers added**:
+- `X-Conductor-Tracking: enabled`
+- `X-Conductor-Ensemble: ensemble-name`
+
+## Attachments
+
+Send files with your emails:
+
+```yaml
+- member: send-invoice
+  input:
+    to: customer@example.com
+    subject: Your Invoice
+    html: "<h1>Invoice attached</h1>"
+    attachments:
+      - filename: invoice.pdf
+        content: ${state.invoicePdfBase64}
+        contentType: application/pdf
+      - filename: receipt.txt
+        content: "Thank you for your purchase!"
+        contentType: text/plain
+```
+
+## CC & BCC
+
+```yaml
+- member: send-email
+  input:
+    to: user@example.com
+    cc:
+      - manager@example.com
+      - team@example.com
+    bcc: archive@example.com
+    subject: Project Update
+    html: "<p>Update content</p>"
+```
+
+## Reply-To
+
+Set a different reply address:
+
+```yaml
+- member: send-email
+  input:
+    to: user@example.com
+    from: noreply@example.com
+    replyTo: support@example.com
+    subject: Support Ticket
+    html: "<p>Reply to this email for support</p>"
+```
+
+## Custom Headers
+
+Add custom email headers:
+
+```yaml
+- member: send-email
+  input:
+    to: user@example.com
+    subject: Newsletter
+    html: "<p>Content</p>"
+    headers:
+      X-Campaign-ID: campaign-123
+      X-Customer-Segment: premium
+      List-Unsubscribe: <https://example.com/unsubscribe>
+```
+
+## Tags & Metadata
+
+Organize and track emails:
+
+```yaml
+- member: send-email
+  input:
+    to: user@example.com
+    subject: Order Confirmation
+    html: "<p>Order confirmed</p>"
+    tags:
+      - transactional
+      - order-confirmation
+    metadata:
+      orderId: order-789
+      customerId: cust-123
+```
+
+## Error Handling
+
+Handle email failures gracefully:
+
+```yaml
+- type: try
+  steps:
+    - member: send-primary
+      input:
+        to: ${input.email}
+        subject: Important Update
+        html: "<p>Content</p>"
+
+  catch:
+    # Use backup provider
+    - member: send-backup
+      input:
+        to: ${input.email}
+        subject: Important Update
+        html: "<p>Content</p>"
+```
+
+## Complete Example
+
+```yaml
+name: welcome-email-workflow
+description: Send welcome email with template and tracking
+
+members:
+  - name: send-welcome
+    type: Email
+    config:
+      provider:
+        provider: cloudflare
+        from: welcome@example.com
+        fromName: Welcome Team
+      templatesKv: TEMPLATES
+      rateLimit: 10
+      tracking: true
+
+flow:
+  # Load user data
+  - member: get-user
+    type: Data
+    input:
+      operation: get
+      key: user:${input.userId}
+
+  # Send welcome email
+  - member: send-welcome
+    input:
+      to: ${get-user.output.email}
+      subject: Welcome to ${get-user.output.accountType} Plan!
+      template: kv://templates/email/welcome@latest
+      data:
+        name: ${get-user.output.name}
+        planName: ${get-user.output.accountType}
+        activationUrl: https://app.example.com/activate/${input.userId}
+        supportEmail: support@example.com
+      tags:
+        - welcome
+        - ${get-user.output.accountType}
+      metadata:
+        userId: ${input.userId}
+        signupDate: ${get-user.output.createdAt}
+
+output:
+  success: true
+  messageId: ${send-welcome.output.messageId}
+  status: ${send-welcome.output.status}
+  timestamp: ${send-welcome.output.timestamp}
+```
+
+## Configuration Reference
+
+### Provider Config
+
+```yaml
+provider:
+  provider: cloudflare | resend | smtp
+  from: string  # Sender email
+  fromName: string  # Sender name (optional)
+
+  # Provider-specific options
+  cloudflare:
+    binding: string  # KV binding name (default: EMAIL)
+    dkim: boolean  # Enable DKIM (default: true)
+
+  resend:
+    apiKey: string  # Resend API key
+    domain: string  # Custom domain (optional)
+
+  smtp:
+    host: string  # SMTP server
+    port: number  # SMTP port
+    secure: boolean  # Use TLS
+    auth:
+      user: string  # Username
+      pass: string  # Password
+```
+
+### Member Config
+
+```yaml
+config:
+  provider: ProviderConfig  # See above
+  templatesKv: string  # KV binding for templates (optional)
+  rateLimit: number  # Emails per second (default: 10)
+  tracking: boolean  # Enable tracking headers (default: false)
+```
+
+### Input Schema
+
+```yaml
+input:
+  # Single email
+  to: string | string[]  # Recipients (required)
+  cc: string | string[]  # CC recipients (optional)
+  bcc: string | string[]  # BCC recipients (optional)
+  from: string  # Override sender (optional)
+  replyTo: string  # Reply-to address (optional)
+  subject: string  # Email subject (required)
+  html: string  # HTML content (optional)
+  text: string  # Plain text content (optional)
+  template: string  # Template reference (optional)
+  data: object  # Template variables (optional)
+  attachments: EmailAttachment[]  # File attachments (optional)
+  headers: Record<string, string>  # Custom headers (optional)
+  tags: string[]  # Email tags (optional)
+  metadata: Record<string, unknown>  # Custom metadata (optional)
+
+  # Batch email
+  recipients: Array<{
+    email: string
+    data: object  # Per-recipient data
+  }>
+  commonData: object  # Data shared by all recipients
+```
+
+### Output Schema
+
+**Single Email**:
+```yaml
+output:
+  messageId: string  # Provider message ID
+  status: sent | queued | failed
+  provider: string  # Provider name
+  timestamp: string  # ISO 8601 timestamp
+```
+
+**Batch Email**:
+```yaml
+output:
+  sent: number  # Successfully sent count
+  failed: number  # Failed count
+  messageIds: string[]  # All message IDs
+  errors: Array<{  # Failed emails
+    email: string
+    error: string
+  }>
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion icon="shield-check" title="Security">
+    - Store API keys in secrets, not environment variables
+    - Use DKIM signing for authentication
+    - Validate recipient email addresses
+    - Implement rate limiting to prevent abuse
+    - Use separate providers for transactional vs marketing emails
+  </Accordion>
+
+  <Accordion icon="gauge" title="Performance">
+    - Use batch sending for multiple recipients
+    - Store templates in KV for instant updates
+    - Set appropriate rate limits per provider
+    - Cache rendered templates when possible
+    - Use async execution for non-critical emails
+  </Accordion>
+
+  <Accordion icon="list-check" title="Deliverability">
+    - Always provide plain text version
+    - Use descriptive subject lines
+    - Include unsubscribe links
+    - Implement proper SPF/DKIM/DMARC records
+    - Test templates across email clients
+    - Monitor bounce and complaint rates
+  </Accordion>
+
+  <Accordion icon="code" title="Development">
+    - Use templates for maintainability
+    - Version templates with Edgit
+    - Test with TestConductor mocks
+    - Log all email operations
+    - Handle errors gracefully with fallbacks
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Template Guide"
+    icon="file-code"
+    href="/conductor/guides/templates"
+  >
+    Learn template rendering
+  </Card>
+
+  <Card
+    title="Testing"
+    icon="vial"
+    href="/conductor/guides/testing"
+  >
+    Test email workflows
+  </Card>
+
+  <Card
+    title="Deployment"
+    icon="rocket"
+    href="/conductor/deployment/bindings"
+  >
+    Configure email bindings
+  </Card>
+
+  <Card
+    title="Examples"
+    icon="code"
+    href="/conductor/examples/email-workflows"
+  >
+    Email workflow examples
+  </Card>
+</CardGroup>
