@@ -409,6 +409,170 @@ webhooks:
     ttl: ${input.cached ? 3600 : 0}  # User controls caching
 ```
 
+### HTML Member with Components
+
+```yaml
+- member: render-page
+  type: HTML
+  template:
+    inline: |
+      {{> template://components/header}}  # Component cached for 1 hour
+      <main>{{content}}</main>
+      {{> template://components/footer}}  # Component cached for 1 hour
+  data:
+    content: "Page content here"
+```
+
+Components loaded via `template://` URIs are automatically cached. See [Component Caching](#component-caching) below.
+
+## Component Caching
+
+Components (templates, prompts, queries, configs, forms, pages) loaded via the ComponentLoader use Conductor's standard caching system.
+
+### Default Component Caching
+
+All components are cached for 1 hour by default:
+
+```typescript
+import { createComponentLoader } from '@ensemble-edge/conductor';
+
+const componentLoader = createComponentLoader({
+  kv: env.COMPONENTS,
+  cache: conductorCache,
+  logger: conductorLogger
+});
+
+// Loads from KV, caches for 1 hour
+const header = await componentLoader.load('template://components/header@v1.0.0');
+```
+
+### Custom Component Cache Configuration
+
+Override cache behavior per component:
+
+```typescript
+// Cache for 24 hours (static content)
+const footer = await componentLoader.load('template://components/footer@v1.0.0', {
+  cache: { ttl: 86400 }
+});
+
+// Cache for 5 minutes (dynamic content)
+const news = await componentLoader.load('template://components/news@latest', {
+  cache: { ttl: 300 }
+});
+
+// Bypass cache (force fresh load)
+const liveData = await componentLoader.load('template://components/live-data@latest', {
+  cache: { bypass: true }
+});
+```
+
+### Component Cache Keys
+
+Components use a consistent cache key format:
+
+```
+conductor:cache:components:template://components/header@v1.0.0
+conductor:cache:components:prompt://analyze-company@v2.0.0
+conductor:cache:components:form://contact@latest
+```
+
+The cache key includes:
+- **Prefix**: `conductor:cache:components:`
+- **Protocol**: `template://`, `prompt://`, `query://`, etc.
+- **Path**: Component path
+- **Version**: Explicit version or `@latest`
+
+### Component Cache Invalidation
+
+**Per-Version Caching**: Each version is cached independently
+```typescript
+// These use separate cache entries
+await componentLoader.load('template://header@v1.0.0');
+await componentLoader.load('template://header@v2.0.0');
+```
+
+**Manual Invalidation**:
+```typescript
+await componentLoader.invalidateCache('template://components/header@v1.0.0');
+```
+
+**Version Updates**: Deploy new version without clearing cache
+```bash
+# Old version still cached
+edgit tag create header v1.1.0
+edgit deploy set header v1.1.0 --to production
+
+# v1.0.0 cache remains, v1.1.0 starts fresh
+```
+
+### Component Cache Strategies
+
+**Static Components (Long TTL)**:
+```typescript
+// Headers, footers, layouts - rarely change
+await componentLoader.load('template://layouts/main@v1.0.0', {
+  cache: { ttl: 86400 } // 24 hours
+});
+```
+
+**Dynamic Components (Short TTL)**:
+```typescript
+// News, metrics, live data - changes frequently
+await componentLoader.load('template://components/stock-ticker@latest', {
+  cache: { ttl: 60 } // 1 minute
+});
+```
+
+**Volatile Components (Bypass Cache)**:
+```typescript
+// Testing, forced updates, real-time requirements
+await componentLoader.load('template://components/debug@latest', {
+  cache: { bypass: true }
+});
+```
+
+### Component Caching in HTML Member
+
+The HTML member automatically integrates with ComponentLoader:
+
+```yaml
+flow:
+  - member: render-dashboard
+    type: HTML
+    template:
+      inline: |
+        {{> template://components/header@v1.0.0}}
+        <div class="metrics">
+          {{> template://components/metrics@latest}}
+        </div>
+        {{> template://components/footer@v1.0.0}}
+    data:
+      pageTitle: "Dashboard"
+```
+
+**Caching Behavior**:
+- `header@v1.0.0`: Cached for 1 hour (default)
+- `metrics@latest`: Cached for 1 hour (default)
+- `footer@v1.0.0`: Cached for 1 hour (default)
+
+For custom cache control, load components programmatically:
+
+```typescript
+const metrics = await componentLoader.load('template://components/metrics@latest', {
+  cache: { ttl: 300 } // 5 minutes for dynamic metrics
+});
+
+// Pass pre-loaded content to template
+const result = await htmlMember.execute({
+  input: {
+    data: {
+      metricsContent: metrics
+    }
+  }
+});
+```
+
 ## Best Practices
 
 ### 1. Start with Longer TTLs
@@ -448,7 +612,26 @@ config:
   routing: direct  # Misses gateway cache
 ```
 
-### 4. Monitor Cache Hit Rates
+### 4. Cache Components Appropriately
+
+```typescript
+// ✅ Long TTL for static components
+await componentLoader.load('template://layouts/main@v1.0.0', {
+  cache: { ttl: 86400 } // 24 hours
+});
+
+// ✅ Short TTL for dynamic components
+await componentLoader.load('template://components/news@latest', {
+  cache: { ttl: 300 } // 5 minutes
+});
+
+// ❌ Don't bypass cache unnecessarily
+await componentLoader.load('template://header@v1.0.0', {
+  cache: { bypass: true } // Only for testing/forced updates
+});
+```
+
+### 5. Monitor Cache Hit Rates
 
 ```typescript
 // Track effectiveness

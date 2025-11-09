@@ -1,0 +1,893 @@
+---
+title: 'HTML Member'
+description: 'Render HTML templates with cookie support'
+icon: 'code'
+---
+
+The **HTML Member** renders HTML templates with support for multiple template engines, cookie management, CSS inlining, and template loading from KV or R2 storage.
+
+Perfect for:
+- **Web Pages**: Dashboards, login pages, admin panels
+- **Email Templates**: HTML emails with CSS inlining
+- **Dynamic Content**: Server-rendered HTML with data binding
+- **Session Management**: Cookie-based authentication and state
+
+## Quick Start
+
+### Basic Template Rendering
+
+```yaml
+name: simple-page
+members:
+  - name: render-page
+    type: HTML
+    config:
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>{{title}}</title>
+          </head>
+          <body>
+            <h1>{{heading}}</h1>
+            <p>{{content}}</p>
+          </body>
+          </html>
+
+flow:
+  - member: render-page
+    input:
+      data:
+        title: "Welcome"
+        heading: "Hello World"
+        content: "This is a simple HTML page"
+```
+
+### Dashboard with Components
+
+```yaml
+name: dashboard
+members:
+  - name: render-dashboard
+    type: HTML
+    config:
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>{{companyName}} Dashboard</title>
+            <!-- Global CSS from R2 -->
+            <link href="/assets/styles/reset.css" rel="stylesheet">
+            <link href="/assets/styles/utilities.css" rel="stylesheet">
+          </head>
+          <body>
+            {{> template://components/header@v1.0.0
+              title="{{companyName}} Dashboard"
+            }}
+
+            <div class="dashboard">
+              <h1>{{companyName}} Metrics</h1>
+
+              {{#each metrics}}
+              {{> template://components/metric-card@v1.0.0
+                label=this.label
+                value=this.value
+                trend=this.trend
+              }}
+              {{/each}}
+            </div>
+
+            {{> template://components/footer@v1.0.0}}
+          </body>
+          </html>
+
+flow:
+  - member: render-dashboard
+    input:
+      data:
+        companyName: ${input.companyName}
+        metrics: ${input.metrics}
+```
+
+**Component Structure (metric-card@v1.0.0):**
+```html
+<div class="metric-card">
+  <div class="label">{{label}}</div>
+  <div class="value">{{value}}</div>
+  {{#if trend}}
+  <div class="trend trend-{{trend}}">{{trend}}</div>
+  {{/if}}
+  <style>
+    .metric-card {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+    .trend-up { color: green; }
+    .trend-down { color: red; }
+  </style>
+</div>
+```
+
+## Template Engines
+
+### Simple Engine (Default)
+
+Built-in lightweight engine with `{{variable}}` syntax:
+
+```yaml
+template:
+  inline: |
+    <h1>{{title}}</h1>
+    <p>{{description}}</p>
+
+    {{#if showButton}}
+    <button>{{buttonText}}</button>
+    {{/if}}
+
+    <ul>
+    {{#each items}}
+      <li>{{name}}</li>
+    {{/each}}
+    </ul>
+```
+
+**Supported Features:**
+- Variables: `{{variable}}`
+- Nested paths: `{{user.name}}`
+- Conditionals: `{{#if condition}}...{{/if}}`
+- Loops: `{{#each array}}...{{/each}}`
+- Loop variables: `{{@index}}`, `{{@first}}`, `{{@last}}`, `{{this}}`
+
+### Template Helpers
+
+Built-in helpers:
+
+```yaml
+data:
+  name: "john doe"
+  amount: 1234.56
+  date: "2025-01-09"
+  price: 99.99
+
+# Template:
+# {{uppercase name}} -> JOHN DOE
+# {{capitalize name}} -> John Doe
+# {{currency price "USD"}} -> $99.99
+# {{formatDate date}} -> January 9, 2025
+```
+
+## Template Loading
+
+### Inline Templates
+
+Best for small templates or development:
+
+```yaml
+template:
+  inline: "<h1>{{title}}</h1>"
+```
+
+### KV Templates (Edgit-Versioned)
+
+Load versioned templates from KV storage:
+
+```yaml
+template:
+  kv: "templates/dashboard@v1.0.0"
+```
+
+**Template structure in KV:**
+```
+templates/
+  dashboard@v1.0.0
+  dashboard@v2.0.0
+  email/welcome@latest
+```
+
+### R2 Templates (Static Assets)
+
+Load static templates from R2:
+
+```yaml
+template:
+  r2: "templates/email-base.html"
+```
+
+**Use R2 for:**
+- Shared base templates
+- Large template files
+- Static, rarely-changing content
+
+### Template Source Shortcuts
+
+```yaml
+# Inline (default)
+template: "<h1>Hello</h1>"
+
+# KV with protocol
+template: "kv://templates/home@latest"
+
+# R2 with protocol
+template: "r2://templates/base.html"
+```
+
+## Component System
+
+The HTML member supports reusable components loaded from KV storage with versioning and caching.
+
+### Using Components (Partials)
+
+Load components within templates using the `template://` protocol:
+
+```yaml
+members:
+  - name: render-page
+    type: HTML
+    config:
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>{{title}}</title>
+          </head>
+          <body>
+            {{> template://components/header@v1.0.0}}
+
+            <main>
+              <h1>{{pageTitle}}</h1>
+              {{> template://components/content-card
+                title="Welcome"
+                description="Get started with our platform"
+              }}
+            </main>
+
+            {{> template://components/footer@latest}}
+          </body>
+          </html>
+
+flow:
+  - member: render-page
+    input:
+      data:
+        title: "My Site - Home"
+        pageTitle: "Welcome Home"
+```
+
+### Component URI Format
+
+```
+{protocol}://{path}[@{version}]
+```
+
+**Protocols:**
+- `template://` - HTML/Handlebars templates
+- `component://` - Compiled JSX components (future)
+- `form://` - Form definitions (future)
+- `page://` - Full page components (future)
+
+**Examples:**
+```yaml
+{{> template://components/header}}              # Uses @latest
+{{> template://components/header@latest}}       # Explicit @latest
+{{> template://components/header@v1.0.0}}       # Specific version
+{{> template://components/header@prod}}         # Tagged version
+```
+
+### Component Parameters
+
+Pass data to components:
+
+```yaml
+{{> template://components/card
+  title="Feature 1"
+  description="Amazing feature"
+  link="/features/1"
+}}
+
+{{> template://components/alert
+  type="success"
+  message="Operation completed"
+}}
+```
+
+### Component Caching
+
+Components are automatically cached using Conductor's standard cache system:
+
+**Default Caching:**
+- All components cached for 1 hour (3600 seconds)
+- Cache key: `conductor:cache:components:{uri}`
+- Per-version caching (v1.0.0 cached separately from v2.0.0)
+
+**Cache Benefits:**
+- First load: ~5-10ms (KV fetch)
+- Subsequent loads: ~0.1ms (edge cache hit)
+- Automatic per-version invalidation
+
+See [Component Caching](/conductor/concepts/caching#component-caching) for advanced configuration.
+
+### Deploying Components
+
+Using Edgit CLI:
+
+```bash
+# Add component
+edgit components add header ./templates/components/header.html template
+
+# Create version tag
+edgit tag create header v1.0.0
+
+# Deploy to production
+edgit deploy set header v1.0.0 --to production
+
+# Update latest pointer
+edgit deploy set header v1.0.0 --to production --alias latest
+```
+
+Manual KV storage:
+
+```bash
+# Store versioned component
+wrangler kv key put "templates/components/header@v1.0.0" \
+  --path="./templates/components/header.html" \
+  --namespace-id="YOUR_COMPONENTS_KV"
+
+# Create latest alias
+wrangler kv key put "templates/components/header@latest" \
+  --path="./templates/components/header.html" \
+  --namespace-id="YOUR_COMPONENTS_KV"
+```
+
+### Component Best Practices
+
+**Version Pinning:**
+```yaml
+# ✅ Production - pin specific versions
+{{> template://components/header@v1.0.0}}
+
+# ⚠️ Development - use @latest
+{{> template://components/header@latest}}
+```
+
+**Component Organization:**
+```
+templates/components/
+  header@v1.0.0
+  header@v1.1.0
+  footer@v1.0.0
+  card@v1.0.0
+  card@v2.0.0
+  alert@latest
+
+templates/layouts/
+  main@v1.0.0
+  admin@v1.0.0
+```
+
+**Atomic Versioning:**
+- CSS/JS inline in component
+- Deploy all related changes together
+- Use semantic versioning (v1.0.0, v1.1.0, v2.0.0)
+
+## Cookie Management
+
+### Reading Cookies
+
+Cookies are available in template data:
+
+```yaml
+members:
+  - name: render-page
+    type: HTML
+    config:
+      template:
+        inline: |
+          {{#if cookies.session}}
+          <p>Logged in as: {{cookies.username}}</p>
+          {{/if}}
+
+flow:
+  - member: render-page
+    input:
+      cookies: ${input.cookies}  # Pass from request
+```
+
+### Setting Cookies
+
+```yaml
+flow:
+  - member: render-page
+    input:
+      setCookies:
+        - name: session
+          value: ${session.id}
+          options:
+            httpOnly: true
+            secure: true
+            maxAge: 604800  # 7 days
+            sameSite: lax
+```
+
+**Cookie returned in `Set-Cookie` headers:**
+```
+session=xyz789; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax
+```
+
+### Signed Cookies
+
+Prevent cookie tampering with HMAC signatures:
+
+```yaml
+members:
+  - name: secure-page
+    type: HTML
+    config:
+      cookieSecret: ${env.COOKIE_SECRET}
+      template:
+        inline: "<h1>Secure Page</h1>"
+
+flow:
+  - member: secure-page
+    input:
+      setCookies:
+        - name: session
+          value: ${user.id}
+          options:
+            signed: true
+            httpOnly: true
+```
+
+**Signed cookie format:**
+```
+session=user123.Ab12Cd34Ef56...signature
+```
+
+### Deleting Cookies
+
+```yaml
+flow:
+  - member: render-page
+    input:
+      deleteCookies:
+        - session
+        - remember_me
+```
+
+**Returns expired cookies:**
+```
+session=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+```
+
+### Cookie Options
+
+```yaml
+setCookies:
+  - name: my_cookie
+    value: ${value}
+    options:
+      maxAge: 3600           # Seconds (1 hour)
+      expires: ${expires}    # Date object
+      domain: example.com    # Cookie domain
+      path: /admin           # Cookie path
+      secure: true           # HTTPS only
+      httpOnly: true         # No JavaScript access
+      sameSite: strict       # CSRF protection
+      signed: true           # HMAC signature
+```
+
+## Render Options
+
+### CSS Inlining (Email Compatibility)
+
+```yaml
+config:
+  template:
+    inline: |
+      <style>
+        .header { color: red; }
+      </style>
+      <div class="header">Title</div>
+  renderOptions:
+    inlineCss: true
+```
+
+**Output:**
+```html
+<div class="header" style="color: red;">Title</div>
+```
+
+<Note>
+CSS inlining is essential for email clients that strip `<style>` tags.
+</Note>
+
+### HTML Minification
+
+```yaml
+config:
+  renderOptions:
+    minify: true
+```
+
+Removes:
+- HTML comments
+- Whitespace between tags
+- Leading/trailing whitespace
+
+### Pretty Printing
+
+```yaml
+config:
+  renderOptions:
+    pretty: true  # Development only
+```
+
+## Complete Examples
+
+### Login Page with Session Management
+
+```yaml
+name: login-page
+members:
+  - name: render-login
+    type: HTML
+    config:
+      cookieSecret: ${env.COOKIE_SECRET}
+      defaultCookieOptions:
+        httpOnly: true
+        secure: true
+        sameSite: lax
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Login</title>
+            <link href="/assets/styles/reset.css" rel="stylesheet">
+          </head>
+          <body>
+            {{#if cookies.session}}
+            <p>Already logged in as {{cookies.username}}</p>
+            {{/if}}
+
+            {{#if message}}
+            <div class="alert alert-{{messageType}}">
+              {{message}}
+            </div>
+            {{/if}}
+
+            <form method="POST" action="/auth/login">
+              <input type="email" name="email" value="{{email}}" required>
+              <input type="password" name="password" required>
+              <button type="submit">Sign In</button>
+            </form>
+          </body>
+          </html>
+
+flow:
+  - member: render-login
+    input:
+      data:
+        message: ${input.message}
+        messageType: ${input.messageType}
+        email: ${input.email}
+      cookies: ${input.cookies}
+      setCookies: ${input.setCookies}
+      deleteCookies: ${input.deleteCookies}
+```
+
+**Usage:**
+
+```typescript
+// Render login form
+const response = await executor.execute('login-page', {
+  message: null,
+  email: ''
+});
+
+// After successful login, set cookies
+const response = await executor.execute('login-page', {
+  message: 'Login successful!',
+  messageType: 'success',
+  email: 'user@example.com',
+  setCookies: [
+    {
+      name: 'session',
+      value: sessionId,
+      options: { maxAge: 604800 }  // 7 days
+    },
+    {
+      name: 'username',
+      value: 'user@example.com'
+    }
+  ]
+});
+
+// Logout - delete cookies
+const response = await executor.execute('login-page', {
+  message: 'You have been logged out',
+  messageType: 'success',
+  email: '',
+  deleteCookies: ['session', 'username']
+});
+```
+
+### Email Template with CSS Inlining
+
+```yaml
+name: html-email
+members:
+  - name: render-email
+    type: HTML
+    config:
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                background-color: #f5f7fa;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background: white;
+              }
+              .header {
+                background: #2D1B69;
+                color: white;
+                padding: 40px;
+                text-align: center;
+              }
+              .button {
+                background: #4FD1C5;
+                color: white;
+                padding: 12px 24px;
+                text-decoration: none;
+                border-radius: 6px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Welcome, {{name}}!</h1>
+              </div>
+              <div class="content">
+                <p>{{message}}</p>
+                <a href="{{actionUrl}}" class="button">{{buttonText}}</a>
+              </div>
+            </div>
+          </body>
+          </html>
+      renderOptions:
+        inlineCss: true
+        minify: false
+
+flow:
+  - member: render-email
+    input:
+      data:
+        name: ${input.name}
+        message: ${input.message}
+        actionUrl: ${input.actionUrl}
+        buttonText: ${input.buttonText}
+```
+
+### Analytics Dashboard
+
+```yaml
+name: analytics-dashboard
+members:
+  - name: render-dashboard
+    type: HTML
+    config:
+      template:
+        kv: "templates/dashboard@latest"
+
+flow:
+  - member: render-dashboard
+    input:
+      data:
+        metrics: ${input.metrics}
+        charts: ${input.charts}
+        user: ${input.user}
+```
+
+## Configuration Reference
+
+### Member Config
+
+```yaml
+type: HTML
+config:
+  # Template source (required)
+  template:
+    inline: string         # Inline template string
+    kv: string            # KV key for template
+    r2: string            # R2 key for template
+    engine: string        # Template engine (default: auto-detect)
+
+  # Render options
+  renderOptions:
+    inlineCss: boolean    # Inline CSS for emails
+    minify: boolean       # Minify HTML output
+    pretty: boolean       # Pretty print (dev only)
+    baseUrl: string       # Base URL for assets
+
+  # Cookie configuration
+  cookieSecret: string    # Secret for signed cookies
+  defaultCookieOptions:
+    maxAge: number        # Default max age
+    secure: boolean       # Default secure flag
+    httpOnly: boolean     # Default httpOnly flag
+    sameSite: string      # Default sameSite ('strict' | 'lax' | 'none')
+    domain: string        # Default domain
+    path: string          # Default path
+```
+
+### Input
+
+```yaml
+input:
+  # Template data (variables)
+  data:
+    key: value
+
+  # Cookie management
+  cookies:                # Request cookies to read
+    cookieName: value
+  setCookies:            # Cookies to set
+    - name: string
+      value: string
+      options: CookieOptions
+  deleteCookies:         # Cookie names to delete
+    - cookieName
+
+  # Override config
+  template: TemplateSource
+  renderOptions: RenderOptions
+```
+
+### Output
+
+```typescript
+{
+  html: string                    // Rendered HTML
+  cookies?: string[]              // Set-Cookie headers
+  readCookies?: Record<string, string>  // Cookies read from input
+  engine: 'simple' | 'handlebars' | 'liquid' | 'mjml'
+  metadata: {
+    renderTime: number            // Milliseconds
+    templateSize: number          // Bytes
+    outputSize: number            // Bytes
+    cssInlined: boolean
+    minified: boolean
+  }
+}
+```
+
+## Best Practices
+
+### Template Organization
+
+**Inline Templates:**
+- Small, simple templates
+- Development and prototyping
+- Templates that change frequently
+
+**KV Templates (Edgit-Versioned):**
+- Production templates
+- Version-controlled content
+- Templates needing rollback capability
+- Template-specific CSS/JS (inline in template)
+
+**R2 Templates (Static):**
+- Shared base templates
+- Large template files
+- Rarely-changing content
+
+### Asset Strategy
+
+**Static assets (R2):**
+```yaml
+/assets/images/logo.svg      # Shared images
+/assets/fonts/inter.woff2    # Web fonts
+/assets/styles/reset.css     # Global CSS
+```
+
+**Template-specific (inline):**
+```html
+<style>
+  /* Dashboard-specific styles */
+  .dashboard { ... }
+</style>
+```
+
+<Tip>
+Inline template-specific CSS/JS for atomic versioning. Use R2 for shared assets.
+</Tip>
+
+### Cookie Security
+
+1. **Always use `httpOnly`** for session cookies
+2. **Enable `secure`** in production (HTTPS)
+3. **Set `sameSite: 'strict'` or 'lax'** for CSRF protection
+4. **Sign sensitive cookies** with `cookieSecret`
+5. **Use short `maxAge`** for sensitive data
+
+```yaml
+cookieSecret: ${env.COOKIE_SECRET}
+defaultCookieOptions:
+  httpOnly: true
+  secure: true
+  sameSite: strict
+```
+
+### Email Templates
+
+1. **Always inline CSS** (`inlineCss: true`)
+2. **Use tables for layout** (better email client support)
+3. **Avoid external stylesheets** (many clients block them)
+4. **Test in multiple email clients**
+5. **Keep width d 600px**
+
+### Performance
+
+1. **Cache templates** from KV/R2
+2. **Minify production HTML** (`minify: true`)
+3. **Use CDN for static assets** (R2 + Cloudflare CDN)
+4. **Avoid heavy client-side JavaScript** in templates
+5. **Inline critical CSS only**
+
+## Troubleshooting
+
+### Template Not Found
+
+```
+Error: Template not found in KV: templates/home
+```
+
+**Solutions:**
+- Verify KV key exists
+- Check KV namespace binding in `wrangler.toml`
+- Ensure TEMPLATES binding is available in env
+
+### Cookie Not Set
+
+**Check:**
+1. Cookie name is valid (no special characters)
+2. `cookieSecret` is set if using signed cookies
+3. Cookie value is not empty
+4. `setCookies` array is properly formatted
+
+### CSS Not Inlined
+
+**Requirements:**
+- `renderOptions.inlineCss: true`
+- CSS in `<style>` tags
+- Simple selectors (class/id)
+
+<Note>
+The built-in CSS inliner is basic. For production emails, consider using a dedicated CSS inlining library.
+</Note>
+
+### Variables Not Replaced
+
+**Check:**
+1. Variable syntax: `{{variable}}` not `${variable}`
+2. Variable exists in `data` object
+3. Nested paths are correct: `{{user.name}}`
+4. Template engine is 'simple' (default)
+
+## Next Steps
+
+- [Email Member](/conductor/member-types/email) - Send emails with HTML templates
+- [PDF Member](/conductor/member-types/pdf) - Convert HTML to PDF
+- [Template Versioning](/conductor/guides/template-versioning) - Version control with Edgit
+- [Cookie Authentication](/conductor/guides/cookie-auth) - Session management patterns

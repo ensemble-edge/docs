@@ -1,0 +1,663 @@
+---
+title: "HTML Components Example"
+description: "Building reusable UI components with versioning and caching"
+---
+
+## Overview
+
+This example demonstrates Conductor's component system for building maintainable, reusable HTML templates with versioning, caching, and seamless updates.
+
+**Key Features:**
+- Reusable components with `template://` protocol
+- Semantic versioning (v1.0.0, v2.0.0)
+- Automatic edge caching (1 hour default)
+- Atomic deployments with Edgit
+- Per-version cache isolation
+
+## Project Structure
+
+```
+html-components/
+├── templates/
+│   ├── components/
+│   │   ├── header.html          # Site header
+│   │   ├── footer.html          # Site footer
+│   │   ├── metric-card.html     # Metric display card
+│   │   └── alert.html           # Alert banner
+│   └── layouts/
+│       └── main.html            # Main page layout
+├── ensembles/
+│   └── dashboard.yaml           # Dashboard ensemble
+└── wrangler.toml                # Component KV binding
+```
+
+## Step 1: Create Components
+
+### Header Component
+
+```html
+<!-- templates/components/header.html -->
+<header class="site-header">
+  <div class="container">
+    <h1 class="logo">{{title}}</h1>
+    <nav>
+      {{#each navigation}}
+      <a href="{{url}}" class="nav-link">{{name}}</a>
+      {{/each}}
+    </nav>
+  </div>
+
+  <style>
+    .site-header {
+      background: #2D1B69;
+      color: white;
+      padding: 1rem 0;
+    }
+    .site-header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    .nav-link {
+      color: white;
+      margin-left: 1.5rem;
+      text-decoration: none;
+    }
+  </style>
+</header>
+```
+
+### Metric Card Component
+
+```html
+<!-- templates/components/metric-card.html -->
+<div class="metric-card">
+  <div class="metric-label">{{label}}</div>
+  <div class="metric-value">{{value}}</div>
+  {{#if trend}}
+  <div class="metric-trend trend-{{trend}}">
+    {{#if (eq trend "up")}}↑{{/if}}
+    {{#if (eq trend "down")}}↓{{/if}}
+    {{change}}%
+  </div>
+  {{/if}}
+
+  <style>
+    .metric-card {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .metric-label {
+      color: #6B7280;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+    .metric-value {
+      font-size: 2rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .metric-trend {
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+    }
+    .trend-up { color: #10B981; }
+    .trend-down { color: #EF4444; }
+  </style>
+</div>
+```
+
+### Alert Component
+
+```html
+<!-- templates/components/alert.html -->
+<div class="alert alert-{{type}}">
+  {{#if title}}
+  <strong>{{title}}</strong>
+  {{/if}}
+  <p>{{message}}</p>
+</div>
+
+<style>
+  .alert {
+    padding: 1rem 1.5rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+  }
+  .alert-success {
+    background: #D1FAE5;
+    color: #065F46;
+    border-left: 4px solid #10B981;
+  }
+  .alert-error {
+    background: #FEE2E2;
+    color: #991B1B;
+    border-left: 4px solid #EF4444;
+  }
+  .alert-info {
+    background: #DBEAFE;
+    color: #1E40AF;
+    border-left: 4px solid #3B82F6;
+  }
+</style>
+```
+
+### Footer Component
+
+```html
+<!-- templates/components/footer.html -->
+<footer class="site-footer">
+  <div class="container">
+    <p>&copy; {{year}} {{companyName}}. All rights reserved.</p>
+    <div class="footer-links">
+      {{#each footerLinks}}
+      <a href="{{url}}">{{name}}</a>
+      {{/each}}
+    </div>
+  </div>
+
+  <style>
+    .site-footer {
+      background: #F9FAFB;
+      padding: 2rem 0;
+      margin-top: 4rem;
+      border-top: 1px solid #E5E7EB;
+    }
+    .site-footer .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer-links a {
+      color: #6B7280;
+      margin-left: 1.5rem;
+      text-decoration: none;
+    }
+  </style>
+</footer>
+```
+
+## Step 2: Deploy Components
+
+### Using Edgit CLI
+
+```bash
+# Add components to project
+edgit components add header templates/components/header.html template
+edgit components add metric-card templates/components/metric-card.html template
+edgit components add alert templates/components/alert.html template
+edgit components add footer templates/components/footer.html template
+
+# Create v1.0.0 tags
+edgit tag create header v1.0.0
+edgit tag create metric-card v1.0.0
+edgit tag create alert v1.0.0
+edgit tag create footer v1.0.0
+
+# Deploy to production
+edgit deploy set header v1.0.0 --to production
+edgit deploy set metric-card v1.0.0 --to production
+edgit deploy set alert v1.0.0 --to production
+edgit deploy set footer v1.0.0 --to production
+
+# Create @latest aliases
+edgit deploy set header v1.0.0 --to production --alias latest
+edgit deploy set metric-card v1.0.0 --to production --alias latest
+edgit deploy set alert v1.0.0 --to production --alias latest
+edgit deploy set footer v1.0.0 --to production --alias latest
+```
+
+### Manual KV Storage
+
+```bash
+# Store components with version
+wrangler kv key put "templates/components/header@v1.0.0" \
+  --path="./templates/components/header.html" \
+  --namespace-id="YOUR_COMPONENTS_KV"
+
+wrangler kv key put "templates/components/metric-card@v1.0.0" \
+  --path="./templates/components/metric-card.html" \
+  --namespace-id="YOUR_COMPONENTS_KV"
+
+# Create @latest pointers
+wrangler kv key put "templates/components/header@latest" \
+  --path="./templates/components/header.html" \
+  --namespace-id="YOUR_COMPONENTS_KV"
+```
+
+## Step 3: Configure KV Binding
+
+```toml
+# wrangler.toml
+name = "my-dashboard"
+
+[[kv_namespaces]]
+binding = "COMPONENTS"
+id = "your_kv_namespace_id"
+preview_id = "your_preview_kv_namespace_id"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your_cache_namespace_id"
+```
+
+## Step 4: Create Dashboard Ensemble
+
+```yaml
+# ensembles/dashboard.yaml
+name: dashboard
+description: Analytics dashboard with reusable components
+
+members:
+  - name: render-dashboard
+    type: HTML
+    config:
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{{pageTitle}}</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+              .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+              .metrics-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 1.5rem;
+                margin: 2rem 0;
+              }
+            </style>
+          </head>
+          <body>
+            {{> template://components/header@v1.0.0
+              title="Analytics Dashboard"
+              navigation=navigation
+            }}
+
+            <main class="container">
+              {{#if alert}}
+              {{> template://components/alert@v1.0.0
+                type=alert.type
+                title=alert.title
+                message=alert.message
+              }}
+              {{/if}}
+
+              <h2 style="margin: 2rem 0 1rem;">Key Metrics</h2>
+
+              <div class="metrics-grid">
+                {{#each metrics}}
+                {{> template://components/metric-card@v1.0.0
+                  label=this.label
+                  value=this.value
+                  trend=this.trend
+                  change=this.change
+                }}
+                {{/each}}
+              </div>
+            </main>
+
+            {{> template://components/footer@v1.0.0
+              year=currentYear
+              companyName="Acme Corp"
+              footerLinks=footerLinks
+            }}
+          </body>
+          </html>
+
+flow:
+  - member: render-dashboard
+    input:
+      data:
+        pageTitle: "Analytics Dashboard"
+        navigation:
+          - name: "Dashboard"
+            url: "/dashboard"
+          - name: "Reports"
+            url: "/reports"
+          - name: "Settings"
+            url: "/settings"
+        alert: ${input.alert}
+        metrics: ${input.metrics}
+        currentYear: 2025
+        footerLinks:
+          - name: "Privacy"
+            url: "/privacy"
+          - name: "Terms"
+            url: "/terms"
+          - name: "Support"
+            url: "/support"
+
+output:
+  html: ${render-dashboard.output.html}
+  cached: ${render-dashboard.output.metadata.cached}
+```
+
+## Step 5: Execute the Ensemble
+
+```typescript
+import { Executor } from '@ensemble-edge/conductor';
+
+const executor = new Executor({
+  env: {
+    COMPONENTS: env.COMPONENTS,
+    CACHE: env.CACHE
+  },
+  ctx
+});
+
+const result = await executor.executeEnsemble('dashboard', {
+  alert: {
+    type: 'success',
+    title: 'Welcome!',
+    message: 'Your dashboard loaded successfully.'
+  },
+  metrics: [
+    {
+      label: 'Total Users',
+      value: '12,543',
+      trend: 'up',
+      change: 12.5
+    },
+    {
+      label: 'Revenue',
+      value: '$45,231',
+      trend: 'up',
+      change: 8.3
+    },
+    {
+      label: 'Active Sessions',
+      value: '892',
+      trend: 'down',
+      change: -3.2
+    },
+    {
+      label: 'Avg. Response Time',
+      value: '245ms',
+      trend: 'down',
+      change: -15.4
+    }
+  ]
+});
+
+return new Response(result.html, {
+  headers: { 'Content-Type': 'text/html' }
+});
+```
+
+## Component Caching
+
+### Automatic Caching
+
+All components are cached automatically:
+
+```typescript
+// First request: Loads from KV (~5-10ms per component)
+// Components: header@v1.0.0, metric-card@v1.0.0, alert@v1.0.0, footer@v1.0.0
+
+// Subsequent requests: Serves from cache (~0.1ms per component)
+// 40x faster!
+```
+
+**Cache Keys:**
+```
+conductor:cache:components:template://components/header@v1.0.0
+conductor:cache:components:template://components/metric-card@v1.0.0
+conductor:cache:components:template://components/alert@v1.0.0
+conductor:cache:components:template://components/footer@v1.0.0
+```
+
+### Custom Cache Configuration
+
+For programmatic control:
+
+```typescript
+import { createComponentLoader } from '@ensemble-edge/conductor';
+
+const componentLoader = createComponentLoader({
+  kv: env.COMPONENTS,
+  cache: conductorCache,
+  logger: conductorLogger
+});
+
+// Static component - cache for 24 hours
+const header = await componentLoader.load('template://components/header@v1.0.0', {
+  cache: { ttl: 86400 }
+});
+
+// Dynamic component - cache for 5 minutes
+const liveMetrics = await componentLoader.load('template://components/live-metrics@latest', {
+  cache: { ttl: 300 }
+});
+
+// Force fresh load - bypass cache
+const debugInfo = await componentLoader.load('template://components/debug@latest', {
+  cache: { bypass: true }
+});
+```
+
+## Updating Components
+
+### Version Updates (Zero Downtime)
+
+```bash
+# Create v2.0.0 with new features
+edgit tag create metric-card v2.0.0
+edgit deploy set metric-card v2.0.0 --to production
+
+# v1.0.0 still cached and serving - no interruption
+# v2.0.0 starts fresh cache
+```
+
+Update ensemble to use new version:
+
+```yaml
+{{> template://components/metric-card@v2.0.0  # <-- Updated version
+  label=this.label
+  value=this.value
+}}
+```
+
+**Rollback if needed:**
+```yaml
+{{> template://components/metric-card@v1.0.0  # <-- Rollback
+  label=this.label
+  value=this.value
+}}
+```
+
+### Latest Pointer Updates
+
+```bash
+# Update @latest to point to v2.0.0
+edgit deploy set metric-card v2.0.0 --to production --alias latest
+
+# All @latest references now use v2.0.0
+# Old @latest cache expires naturally (1 hour)
+```
+
+## Performance Analysis
+
+### Without Components (Inline Templates)
+
+```yaml
+# Large inline template (~15KB)
+template:
+  inline: |
+    <!DOCTYPE html>
+    <html>
+      <!-- 15KB of HTML, CSS, repeated across ensembles -->
+    </html>
+```
+
+**Issues:**
+- ❌ Large ensemble files
+- ❌ Duplicated code
+- ❌ Hard to maintain
+- ❌ No versioning
+- ❌ No caching
+
+### With Components
+
+```yaml
+# Small ensemble (~2KB) + components (cached)
+{{> template://components/header@v1.0.0}}
+{{> template://components/metric-card@v1.0.0}}
+{{> template://components/footer@v1.0.0}}
+```
+
+**Benefits:**
+- ✅ Small ensemble files (2KB vs 15KB)
+- ✅ Reusable components
+- ✅ Easy maintenance
+- ✅ Semantic versioning
+- ✅ Edge caching (1-hour TTL)
+- ✅ Atomic deployments
+- ✅ Zero-downtime updates
+
+**Performance:**
+- First load: 5ms × 4 components = 20ms
+- Cached load: 0.1ms × 4 components = 0.4ms
+- **50x faster** after caching!
+
+## Best Practices
+
+### 1. Version Pin in Production
+
+```yaml
+# ✅ Production - pin specific versions
+{{> template://components/header@v1.0.0}}
+{{> template://components/footer@v1.0.0}}
+
+# ⚠️ Development/Staging - use @latest
+{{> template://components/header@latest}}
+```
+
+### 2. Inline Component CSS
+
+```html
+<!-- Component is atomic - CSS included -->
+<div class="metric-card">
+  {{content}}
+  <style>
+    .metric-card { /* styles */ }
+  </style>
+</div>
+```
+
+### 3. Semantic Versioning
+
+```bash
+v1.0.0  # Initial release
+v1.0.1  # Bug fix (CSS adjustment)
+v1.1.0  # Minor feature (add icon support)
+v2.0.0  # Breaking change (new HTML structure)
+```
+
+### 4. Cache Strategy
+
+```typescript
+// Static components (header, footer) - long TTL
+await componentLoader.load('template://components/header@v1.0.0', {
+  cache: { ttl: 86400 } // 24 hours
+});
+
+// Dynamic components (live data) - short TTL
+await componentLoader.load('template://components/live-ticker@latest', {
+  cache: { ttl: 60 } // 1 minute
+});
+
+// Testing - bypass cache
+await componentLoader.load('template://components/test@latest', {
+  cache: { bypass: true }
+});
+```
+
+### 5. Component Organization
+
+```
+templates/components/
+  # Versioned components
+  header@v1.0.0
+  header@v2.0.0
+  footer@v1.0.0
+  metric-card@v1.0.0
+  metric-card@v1.1.0
+
+  # Latest pointers (auto-updated)
+  header@latest → v2.0.0
+  footer@latest → v1.0.0
+  metric-card@latest → v1.1.0
+```
+
+## Troubleshooting
+
+### Component Not Found
+
+```
+Error: Component not found: template://components/header@v1.0.0
+KV key: templates/components/header@v1.0.0
+```
+
+**Solutions:**
+1. Verify component is deployed to KV
+2. Check COMPONENTS binding in wrangler.toml
+3. Confirm version exists: `wrangler kv key list --namespace-id=...`
+
+### Component Not Updating
+
+**Cause:** Cache still serving old version
+
+**Solutions:**
+```typescript
+// Option 1: Deploy new version
+edgit tag create header v1.0.1
+edgit deploy set header v1.0.1 --to production
+
+// Option 2: Manual cache invalidation
+await componentLoader.invalidateCache('template://components/header@v1.0.0');
+
+// Option 3: Wait for cache expiry (1 hour default)
+```
+
+### Slow First Load
+
+**Expected:** First load fetches from KV (~5-10ms per component)
+
+**Optimization:**
+```typescript
+// Warm cache on worker startup
+addEventListener('fetch', event => {
+  event.waitUntil(warmComponentCache());
+});
+
+async function warmComponentCache() {
+  await Promise.all([
+    componentLoader.load('template://components/header@v1.0.0'),
+    componentLoader.load('template://components/footer@v1.0.0')
+  ]);
+}
+```
+
+## Next Steps
+
+- [Caching Guide](/conductor/concepts/caching) - Advanced cache strategies
+- [HTML Member](/conductor/member-types/html) - Full HTML member reference
+- [Edgit Integration](/conductor/guides/edgit-integration) - Component versioning
+- [Performance Guide](/conductor/guides/performance) - Optimization techniques
