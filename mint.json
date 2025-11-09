@@ -140,7 +140,7 @@
         "conductor/concepts/state",
         "conductor/concepts/scoring",
         "conductor/concepts/caching",
-        "conductor/concepts/routing",
+        "conductor/concepts/ai-routing",
         "conductor/concepts/observability",
         "conductor/concepts/ab-testing",
         "conductor/concepts/glossary"
@@ -187,6 +187,13 @@
         "conductor/member-types/html",
         "conductor/member-types/pdf",
         "conductor/member-types/docs"
+      ]
+    },
+    {
+      "group": "HTTP Routing",
+      "pages": [
+        "conductor/routing/overview",
+        "conductor/routing/authentication"
       ]
     },
     {
