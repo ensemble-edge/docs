@@ -4,13 +4,25 @@ description: 'Render HTML templates with cookie support'
 icon: 'code'
 ---
 
+<Note>
+**HTML vs Page Member:**
+Use **HTML** for templates and fragments (emails, PDFs, reusable components).
+Use **Page** for complete web pages with routing, SEO, and hydration.
+See [Page member](./page) for full-featured web pages.
+</Note>
+
 The **HTML Member** renders HTML templates with support for multiple template engines, cookie management, CSS inlining, and template loading from KV or R2 storage.
 
 Perfect for:
-- **Web Pages**: Dashboards, login pages, admin panels
 - **Email Templates**: HTML emails with CSS inlining
+- **PDF Content**: HTML-to-PDF conversion content
+- **Reusable Components**: Shared templates across pages
+- **Template Fragments**: Partials for email/PDF workflows
 - **Dynamic Content**: Server-rendered HTML with data binding
-- **Session Management**: Cookie-based authentication and state
+
+<Warning>
+For full web pages with routing and SEO, use the [Page member](./page) instead. The HTML member is for templates and fragments only - it does not handle routing, authentication, or client-side hydration.
+</Warning>
 
 ## Quick Start
 

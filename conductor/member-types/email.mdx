@@ -470,6 +470,202 @@ output:
   }>
 ```
 
+## Advanced Workflows
+
+### PDF Invoices via Email
+
+Generate a PDF and email it as an attachment:
+
+```yaml
+name: send-invoice-email
+description: Generate PDF invoice and email to customer
+
+members:
+  - name: generate-invoice-pdf
+    type: PDF
+    config:
+      browser:
+        binding: BROWSER
+      storage:
+        enabled: true
+        binding: STORAGE
+
+  - name: email-invoice
+    type: Email
+    config:
+      provider:
+        type: resend
+        apiKey: $env.RESEND_API_KEY
+        from: billing@example.com
+
+flow:
+  # Step 1: Generate PDF from HTML
+  - member: generate-invoice-pdf
+    input:
+      html: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial; padding: 40px; }
+            .header { text-align: center; margin-bottom: 40px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background-color: #4CAF50; color: white; }
+            .total { font-size: 1.2em; font-weight: bold; text-align: right; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Invoice #{{invoiceNumber}}</h1>
+            <p>Date: {{date}}</p>
+          </div>
+          <p><strong>Bill To:</strong> {{customer.name}}</p>
+          <table>
+            <thead>
+              <tr><th>Description</th><th>Quantity</th><th>Price</th><th>Total</th></tr>
+            </thead>
+            <tbody>
+              {{#each items}}
+              <tr>
+                <td>{{this.description}}</td>
+                <td>{{this.quantity}}</td>
+                <td>${{this.price}}</td>
+                <td>${{this.total}}</td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+          <div class="total">Total: ${{totalAmount}}</div>
+        </body>
+        </html>
+      data:
+        invoiceNumber: $input.invoiceNumber
+        date: $now
+        customer: $input.customer
+        items: $input.items
+        totalAmount: $input.totalAmount
+      pdfOptions:
+        format: A4
+        printBackground: true
+      filename: invoice-{{invoiceNumber}}.pdf
+      disposition: attachment
+    output: pdfResult
+
+  # Step 2: Email PDF as attachment
+  - member: email-invoice
+    input:
+      to: $input.customer.email
+      subject: Invoice #{{invoiceNumber}} from Your Company
+      html: |
+        <h2>Hi {{customer.name}},</h2>
+        <p>Thank you for your business! Please find your invoice attached.</p>
+        <p><strong>Invoice #:</strong> {{invoiceNumber}}</p>
+        <p><strong>Amount:</strong> ${{totalAmount}}</p>
+        <p>If you have any questions, please don't hesitate to contact us.</p>
+        <p>Best regards,<br>Your Company</p>
+      data:
+        customer: $input.customer
+        invoiceNumber: $input.invoiceNumber
+        totalAmount: $input.totalAmount
+      attachments:
+        - filename: $pdfResult.filename
+          content: $pdfResult.pdf
+          contentType: application/pdf
+          encoding: base64
+
+output:
+  emailSent: $email-invoice
+  pdfUrl: $pdfResult.url
+  pdfSize: $pdfResult.size
+```
+
+### Data Export via Email
+
+Export data to CSV/Excel and email as attachment:
+
+```yaml
+name: export-and-email
+description: Export data from KV and email as CSV attachment
+
+members:
+  - name: export-data
+    type: Data
+    config:
+      storage: kv
+      operation: export
+      binding: DATA_KV
+
+  - name: send-export
+    type: Email
+    config:
+      provider:
+        type: cloudflare
+        from: reports@example.com
+
+flow:
+  # Step 1: Export data to CSV
+  - member: export-data
+    input:
+      prefix: users:
+      format: csv  # or json, xlsx, ndjson
+      exportOptions:
+        headers: true
+        fields: ['id', 'email', 'name', 'created_at']
+    output: exportResult
+
+  # Step 2: Prepare attachment (convert to base64 if needed)
+  - member: prepare-attachment
+    type: Function
+    config:
+      handler: |
+        function prepareAttachment(context) {
+          const { exportResult } = context.input;
+          // Data is already in the right format from export
+          return {
+            filename: `user-export-${Date.now()}.csv`,
+            content: btoa(exportResult.data), // Convert to base64
+            contentType: exportResult.contentType
+          };
+        }
+    input:
+      exportResult: $export-data
+    output: attachment
+
+  # Step 3: Email the export
+  - member: send-export
+    input:
+      to: admin@example.com
+      subject: User Data Export - {{date}}
+      data:
+        date: $now
+        count: $export-data.count
+      html: |
+        <h2>Data Export Report</h2>
+        <p>Your requested data export is attached.</p>
+        <ul>
+          <li><strong>Format:</strong> CSV</li>
+          <li><strong>Records:</strong> {{count}}</li>
+          <li><strong>Generated:</strong> {{date}}</li>
+        </ul>
+      attachments:
+        - filename: $attachment.filename
+          content: $attachment.content
+          contentType: $attachment.contentType
+          encoding: base64
+
+output:
+  emailSent: $send-export
+  recordCount: $export-data.count
+```
+
+<Tip>
+For complete working examples, see:
+- [pdf-email.yaml](https://github.com/ensemble-edge/conductor/blob/main/catalog/cloud/cloudflare/templates/ensembles/examples/pdf-email.yaml)
+- [data-export-email.yaml](https://github.com/ensemble-edge/conductor/blob/main/catalog/cloud/cloudflare/templates/ensembles/examples/data-export-email.yaml)
+- [pdf-download.yaml](https://github.com/ensemble-edge/conductor/blob/main/catalog/cloud/cloudflare/templates/ensembles/examples/pdf-download.yaml)
+</Tip>
+
 ## Best Practices
 
 <AccordionGroup>

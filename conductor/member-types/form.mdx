@@ -1,0 +1,986 @@
+---
+title: "Form Member"
+description: "Generate secure, validated HTML forms with multi-step support"
+---
+
+## Overview
+
+The **Form Member** enables Conductor ensembles to generate and validate HTML forms with:
+- **14+ field types**: text, email, password, number, select, checkbox, radio, textarea, date, file, and more
+- **Server-side validation**: required, pattern, min/max, email, URL, custom validators
+- **Security features**: CSRF protection, CAPTCHA integration, honeypot fields, rate limiting
+- **Multi-step forms**: Wizard-style forms with conditional steps
+- **Customizable styling**: Built-in styles, Tailwind, Bootstrap, or custom CSS
+- **Three operation modes**: render, validate, submit
+
+## Quick Start
+
+```yaml
+members:
+  - name: contact-form
+    type: Form
+    config:
+      title: Contact Us
+      fields:
+        - name: name
+          type: text
+          label: Name
+          validation:
+            required: true
+
+        - name: email
+          type: email
+          label: Email
+          validation:
+            required: true
+            email: true
+
+        - name: message
+          type: textarea
+          label: Message
+          rows: 5
+          validation:
+            required: true
+            minLength: 10
+
+      submitText: Send Message
+      csrf:
+        enabled: true
+        secret: ${CSRF_SECRET}
+
+flow:
+  - member: contact-form
+    input:
+      mode: render  # Generate HTML form
+```
+
+**Output**:
+```json
+{
+  "html": "<form class=\"conductor-form\">...</form>",
+  "csrfToken": "abc123...",
+  "valid": true
+}
+```
+
+## Field Types
+
+### Text Input Fields
+
+```yaml
+fields:
+  # Basic text
+  - name: username
+    type: text
+    label: Username
+    placeholder: johndoe
+    autocomplete: username
+
+  # Email with validation
+  - name: email
+    type: email
+    label: Email Address
+    validation:
+      required: true
+      email: true
+
+  # Password
+  - name: password
+    type: password
+    label: Password
+    autocomplete: new-password
+    validation:
+      required: true
+      minLength: 8
+
+  # Number with constraints
+  - name: age
+    type: number
+    label: Age
+    min: 18
+    max: 120
+    validation:
+      required: true
+
+  # Phone number
+  - name: phone
+    type: tel
+    label: Phone
+    placeholder: (555) 123-4567
+    autocomplete: tel
+
+  # URL
+  - name: website
+    type: url
+    label: Website
+    placeholder: https://example.com
+    validation:
+      url: true
+```
+
+### Selection Fields
+
+```yaml
+fields:
+  # Dropdown select
+  - name: country
+    type: select
+    label: Country
+    options:
+      - label: United States
+        value: US
+      - label: Canada
+        value: CA
+      - label: United Kingdom
+        value: GB
+    validation:
+      required: true
+
+  # Multi-select
+  - name: interests
+    type: select
+    label: Interests
+    multiple: true
+    options:
+      - Technology
+      - Design
+      - Business
+      - Marketing
+
+  # Radio buttons
+  - name: plan
+    type: radio
+    label: Choose a plan
+    options:
+      - label: Free ($0/mo)
+        value: free
+      - label: Pro ($10/mo)
+        value: pro
+      - label: Enterprise (Contact us)
+        value: enterprise
+    validation:
+      required: true
+
+  # Checkbox
+  - name: terms
+    type: checkbox
+    label: I agree to the Terms of Service
+    validation:
+      required: Please accept the terms
+```
+
+### Text and Date Fields
+
+```yaml
+fields:
+  # Textarea
+  - name: bio
+    type: textarea
+    label: Biography
+    rows: 6
+    cols: 50
+    placeholder: Tell us about yourself...
+    validation:
+      maxLength: 500
+
+  # Date
+  - name: birthdate
+    type: date
+    label: Date of Birth
+    max: ${TODAY}
+    validation:
+      required: true
+
+  # Time
+  - name: appointment
+    type: time
+    label: Preferred Time
+
+  # Date and time
+  - name: event
+    type: datetime-local
+    label: Event Date & Time
+```
+
+### File Upload
+
+```yaml
+fields:
+  - name: avatar
+    type: file
+    label: Profile Picture
+    accept: image/png,image/jpeg,image/gif
+    help: Max 5MB, PNG/JPG/GIF only
+```
+
+### Hidden Fields
+
+```yaml
+fields:
+  - name: referral_code
+    type: hidden
+    default: abc123
+```
+
+## Validation Rules
+
+### Required Fields
+
+```yaml
+validation:
+  # Simple required
+  required: true
+
+  # Custom error message
+  required: This field is required
+```
+
+### String Length
+
+```yaml
+validation:
+  # Minimum length
+  minLength: 3
+
+  # With custom message
+  minLength:
+    value: 3
+    message: Must be at least 3 characters
+
+  # Maximum length
+  maxLength:
+    value: 100
+    message: Must be at most 100 characters
+```
+
+### Number Constraints
+
+```yaml
+validation:
+  # Minimum value
+  min: 18
+
+  # With custom message
+  min:
+    value: 18
+    message: Must be 18 or older
+
+  # Maximum value
+  max:
+    value: 120
+    message: Must be at most 120
+```
+
+### Pattern Matching (Regex)
+
+```yaml
+validation:
+  # Simple pattern
+  pattern: ^[a-zA-Z0-9]+$
+
+  # With custom message
+  pattern:
+    regex: ^[a-zA-Z0-9]+$
+    message: Only letters and numbers allowed
+```
+
+**Common patterns**:
+```yaml
+# Username (alphanumeric, 3-20 chars)
+pattern:
+  regex: ^[a-zA-Z0-9]{3,20}$
+  message: Username must be 3-20 alphanumeric characters
+
+# Zipcode (US, 5 digits)
+pattern:
+  regex: ^\d{5}$
+  message: Must be a valid 5-digit zipcode
+
+# Phone (US format)
+pattern:
+  regex: ^\(\d{3}\) \d{3}-\d{4}$
+  message: Format: (555) 123-4567
+```
+
+### Email and URL
+
+```yaml
+validation:
+  # Email validation
+  email: true
+
+  # Custom message
+  email: Please enter a valid email address
+
+  # URL validation
+  url: true
+
+  # Custom message
+  url: Please enter a valid URL (e.g., https://example.com)
+```
+
+### Field Matching
+
+```yaml
+fields:
+  - name: password
+    type: password
+    label: Password
+
+  - name: confirmPassword
+    type: password
+    label: Confirm Password
+    validation:
+      # Simple match
+      matches: password
+
+      # With custom message
+      matches:
+        field: password
+        message: Passwords must match
+```
+
+### Custom Validation
+
+```yaml
+validation:
+  # Reference custom validator function from context
+  custom: validateCreditCard
+```
+
+## Security Features
+
+### CSRF Protection
+
+Protects against Cross-Site Request Forgery attacks with signed tokens.
+
+```yaml
+config:
+  csrf:
+    enabled: true
+    secret: ${CSRF_SECRET}  # Strong secret key
+    fieldName: _csrf        # Optional, default: _csrf
+    expiresIn: 3600         # Optional, default: 1 hour (in seconds)
+```
+
+**KV Namespace** (wrangler.toml):
+```toml
+[[kv_namespaces]]
+binding = "CSRF_TOKENS"
+id = "your-csrf-kv-namespace-id"
+```
+
+The CSRF token is:
+- Automatically included as a hidden field in rendered forms
+- Validated on form submission
+- One-time use (deleted after validation)
+- Time-limited (expires after configured duration)
+
+### CAPTCHA Integration
+
+Prevent bot submissions with CAPTCHA verification.
+
+#### Cloudflare Turnstile (Recommended)
+
+```yaml
+config:
+  captcha:
+    type: turnstile
+    siteKey: ${TURNSTILE_SITE_KEY}
+    secretKey: ${TURNSTILE_SECRET_KEY}
+    theme: auto  # auto, light, dark
+    size: normal # normal, compact
+```
+
+#### Google reCAPTCHA
+
+```yaml
+config:
+  captcha:
+    type: recaptcha
+    siteKey: ${RECAPTCHA_SITE_KEY}
+    secretKey: ${RECAPTCHA_SECRET_KEY}
+    theme: light
+```
+
+#### hCaptcha
+
+```yaml
+config:
+  captcha:
+    type: hcaptcha
+    siteKey: ${HCAPTCHA_SITE_KEY}
+    secretKey: ${HCAPTCHA_SECRET_KEY}
+```
+
+### Honeypot Fields
+
+Detect bots with invisible fields that humans won't fill out.
+
+```yaml
+config:
+  honeypot: _website  # Field name for honeypot
+```
+
+The honeypot field is:
+- Automatically added to the form
+- Hidden via CSS (position: absolute; left: -9999px)
+- Has tabindex="-1" and aria-hidden="true"
+- If filled, submission is rejected (bot detected)
+
+### Rate Limiting
+
+Prevent abuse with IP-based rate limiting.
+
+```yaml
+config:
+  rateLimit:
+    max: 5       # Maximum submissions
+    window: 3600 # Time window in seconds (1 hour)
+```
+
+**KV Namespace** (wrangler.toml):
+```toml
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "your-rate-limit-kv-namespace-id"
+```
+
+**Response when rate limited**:
+```json
+{
+  "valid": false,
+  "errors": [
+    {
+      "field": "_form",
+      "message": "Rate limit exceeded. Please try again later.",
+      "rule": "rate_limit"
+    }
+  ],
+  "rateLimit": {
+    "remaining": 0,
+    "reset": 1699999999
+  }
+}
+```
+
+## Multi-Step Forms
+
+Create wizard-style forms with multiple steps.
+
+```yaml
+config:
+  title: User Registration
+  steps:
+    # Step 1: Account
+    - id: account
+      title: Account Information
+      description: Create your account credentials
+      fields:
+        - name: username
+          type: text
+          label: Username
+          validation:
+            required: true
+            minLength: 3
+
+        - name: email
+          type: email
+          label: Email
+          validation:
+            required: true
+            email: true
+
+        - name: password
+          type: password
+          label: Password
+          validation:
+            required: true
+            minLength: 8
+
+    # Step 2: Profile
+    - id: profile
+      title: Personal Information
+      fields:
+        - name: firstName
+          type: text
+          label: First Name
+          validation:
+            required: true
+
+        - name: lastName
+          type: text
+          label: Last Name
+          validation:
+            required: true
+
+        - name: country
+          type: select
+          label: Country
+          options:
+            - US
+            - CA
+            - UK
+          validation:
+            required: true
+
+    # Step 3: Preferences
+    - id: preferences
+      title: Preferences
+      fields:
+        - name: newsletter
+          type: checkbox
+          label: Subscribe to newsletter
+
+        - name: interests
+          type: select
+          label: Interests
+          multiple: true
+          options:
+            - Technology
+            - Design
+            - Business
+```
+
+### Working with Multi-Step Forms
+
+**Step 1: Render first step**
+```yaml
+- member: registration-form
+  input:
+    mode: render
+```
+
+Output:
+```json
+{
+  "html": "<form>...</form>",
+  "currentStep": "account",
+  "csrfToken": "..."
+}
+```
+
+**Step 2: Submit and validate**
+```yaml
+- member: registration-form
+  input:
+    mode: submit
+    currentStep: account
+    data:
+      username: johndoe
+      email: john@example.com
+      password: secret123
+```
+
+Output:
+```json
+{
+  "valid": true,
+  "currentStep": "account",
+  "nextStep": "profile",
+  "isLastStep": false,
+  "data": {
+    "username": "johndoe",
+    "email": "john@example.com"
+  }
+}
+```
+
+**Step 3: Continue to next step**
+```yaml
+- member: registration-form
+  input:
+    mode: render
+    currentStep: profile
+```
+
+**Final step completion**:
+```json
+{
+  "valid": true,
+  "currentStep": "preferences",
+  "isLastStep": true,
+  "data": { ... }
+}
+```
+
+## Operation Modes
+
+### Render Mode
+
+Generate HTML form for display.
+
+```yaml
+input:
+  mode: render
+  data:  # Optional: pre-populate fields
+    name: John Doe
+    email: john@example.com
+```
+
+**Output**:
+```json
+{
+  "html": "<form>...</form>",
+  "csrfToken": "abc123...",
+  "currentStep": "step1",
+  "valid": true
+}
+```
+
+### Validate Mode
+
+Validate form data without rendering.
+
+```yaml
+input:
+  mode: validate
+  data:
+    name: ""
+    email: invalid-email
+```
+
+**Output**:
+```json
+{
+  "valid": false,
+  "errors": [
+    {
+      "field": "name",
+      "message": "This field is required",
+      "rule": "required"
+    },
+    {
+      "field": "email",
+      "message": "Please enter a valid email",
+      "rule": "email"
+    }
+  ]
+}
+```
+
+### Submit Mode
+
+Validate and determine next step (for multi-step forms).
+
+```yaml
+input:
+  mode: submit
+  currentStep: step1
+  data:
+    email: john@example.com
+```
+
+**Output**:
+```json
+{
+  "valid": true,
+  "currentStep": "step1",
+  "nextStep": "step2",
+  "isLastStep": false,
+  "data": {
+    "email": "john@example.com"
+  }
+}
+```
+
+## Styling
+
+### Default Styles
+
+Include built-in responsive styles:
+
+```yaml
+config:
+  style:
+    includeDefaultStyles: true  # Default: true
+```
+
+The default styles provide:
+- Clean, modern design
+- Responsive layout
+- Focus states
+- Error styling
+- Mobile-friendly
+
+### Custom CSS Classes
+
+```yaml
+config:
+  style:
+    classes:
+      form: my-form
+      field: form-group
+      label: form-label
+      input: form-control
+      error: error-message
+      help: help-text
+      button: btn btn-primary
+```
+
+### CSS Frameworks
+
+#### Tailwind CSS
+
+```yaml
+config:
+  style:
+    framework: tailwind
+    includeDefaultStyles: false
+    classes:
+      form: max-w-2xl mx-auto p-6
+      field: mb-6
+      label: block text-sm font-medium text-gray-700 mb-2
+      input: w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500
+      error: mt-1 text-sm text-red-600
+      help: mt-1 text-sm text-gray-500
+      button: w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold
+```
+
+#### Bootstrap
+
+```yaml
+config:
+  style:
+    framework: bootstrap
+    includeDefaultStyles: false
+    classes:
+      form: container
+      field: mb-3
+      label: form-label
+      input: form-control
+      error: invalid-feedback
+      help: form-text
+      button: btn btn-primary btn-lg
+```
+
+## Complete Examples
+
+### Contact Form
+
+```yaml
+name: contact-form
+members:
+  - name: render-form
+    type: Form
+    config:
+      title: Contact Us
+      description: Send us a message
+      fields:
+        - name: name
+          type: text
+          label: Name
+          validation:
+            required: true
+            minLength: 2
+
+        - name: email
+          type: email
+          label: Email
+          validation:
+            required: true
+            email: true
+
+        - name: subject
+          type: select
+          label: Subject
+          options:
+            - General Inquiry
+            - Technical Support
+            - Sales
+          validation:
+            required: true
+
+        - name: message
+          type: textarea
+          label: Message
+          rows: 6
+          validation:
+            required: true
+            minLength: 10
+
+      submitText: Send Message
+      honeypot: _url
+      csrf:
+        enabled: true
+        secret: ${CSRF_SECRET}
+      rateLimit:
+        max: 5
+        window: 3600
+
+  - name: send-email
+    type: Email
+    config:
+      from: support@example.com
+      to: team@example.com
+      subject: "Contact Form: {{subject}}"
+      template: |
+        <h3>New Contact Form Submission</h3>
+        <p><strong>From:</strong> {{name}} ({{email}})</p>
+        <p><strong>Subject:</strong> {{subject}}</p>
+        <p><strong>Message:</strong></p>
+        <p>{{message}}</p>
+    input:
+      name: $render-form.data.name
+      email: $render-form.data.email
+      subject: $render-form.data.subject
+      message: $render-form.data.message
+    condition: $render-form.valid
+```
+
+### User Registration (Multi-Step)
+
+See full example: [user-registration.yaml](/conductor/examples/user-registration)
+
+## Configuration Reference
+
+### FormMemberConfig
+
+```typescript
+interface FormMemberConfig {
+  // Form metadata
+  title?: string;
+  description?: string;
+  submitText?: string;          // Default: "Submit"
+  successMessage?: string;
+
+  // Fields (single-step)
+  fields?: FormField[];
+
+  // Steps (multi-step)
+  steps?: FormStep[];
+
+  // Form behavior
+  action?: string;              // Form action URL
+  method?: 'POST' | 'GET';     // Default: POST
+
+  // Security
+  captcha?: CaptchaConfig;
+  csrf?: CsrfConfig;
+  honeypot?: string;            // Honeypot field name
+  rateLimit?: RateLimitConfig;
+
+  // Styling
+  style?: FormStyle;
+  template?: string;            // Custom template path
+  embeddable?: boolean;         // Default: true
+}
+```
+
+### FormMemberInput
+
+```typescript
+interface FormMemberInput {
+  // Operation mode
+  mode?: 'render' | 'validate' | 'submit';  // Default: render
+
+  // Form data
+  data?: Record<string, unknown>;
+
+  // Multi-step
+  currentStep?: string;
+
+  // Request context (for rate limiting)
+  request?: {
+    ip?: string;
+    userAgent?: string;
+    headers?: Record<string, string>;
+  };
+}
+```
+
+### FormMemberOutput
+
+```typescript
+interface FormMemberOutput {
+  // Rendered HTML (mode=render)
+  html?: string;
+
+  // Validation
+  valid?: boolean;
+  errors?: ValidationError[];
+
+  // Sanitized data
+  data?: Record<string, unknown>;
+
+  // Multi-step
+  currentStep?: string;
+  nextStep?: string;
+  isLastStep?: boolean;
+
+  // Security
+  csrfToken?: string;
+  rateLimit?: {
+    remaining: number;
+    reset: number;  // Unix timestamp
+  };
+}
+```
+
+## Best Practices
+
+### Security
+
+1. **Always use CSRF protection** for forms that modify data
+2. **Enable rate limiting** to prevent abuse
+3. **Use CAPTCHA** for public-facing forms
+4. **Add honeypot fields** as an additional bot filter
+5. **Validate on server-side** (never trust client-side validation alone)
+6. **Use strong secrets** for CSRF tokens
+
+### Validation
+
+1. **Provide clear error messages** that guide users to fix issues
+2. **Validate early** but don't block user progress unnecessarily
+3. **Use appropriate field types** (email, tel, url) for better UX
+4. **Set reasonable constraints** (min/max lengths, pattern matching)
+5. **Test validation** thoroughly with edge cases
+
+### User Experience
+
+1. **Use placeholder text** to show expected format
+2. **Add help text** for complex fields
+3. **Mark required fields** clearly with asterisks (*)
+4. **Group related fields** logically
+5. **Keep forms short** - only ask for necessary information
+6. **Use multi-step forms** for long forms to reduce cognitive load
+
+### Performance
+
+1. **Pre-populate fields** with known data to reduce user effort
+2. **Use autocomplete attributes** for better browser autofill
+3. **Cache form HTML** when possible (if not user-specific)
+4. **Minimize validation complexity** for faster response times
+
+## Troubleshooting
+
+### Form not rendering
+
+- Check that either `fields` or `steps` is configured (not both)
+- Verify CSRF secret is set if CSRF is enabled
+- Check CAPTCHA siteKey is provided if CAPTCHA is enabled
+
+### Validation not working
+
+- Ensure `mode: validate` or `mode: submit` is set in input
+- Check validation rules are correctly formatted
+- Verify field names match between config and input data
+
+### CSRF errors
+
+- Ensure CSRF_TOKENS KV namespace is bound in wrangler.toml
+- Check CSRF secret is set and consistent
+- Verify token isn't expired (default: 1 hour)
+
+### Rate limiting issues
+
+- Ensure RATE_LIMIT KV namespace is bound
+- Check rate limit configuration (max, window)
+- Verify IP address is available in request context
+
+## Next Steps
+
+- [Form Examples](/conductor/examples/contact-form)
+- [State Management](/conductor/concepts/state)
+- [Email Member](/conductor/member-types/email)
+- [HTML Member](/conductor/member-types/html)

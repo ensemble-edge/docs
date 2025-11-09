@@ -182,8 +182,11 @@
         "conductor/member-types/api",
         "conductor/member-types/email",
         "conductor/member-types/sms",
+        "conductor/member-types/form",
+        "conductor/member-types/page",
         "conductor/member-types/html",
-        "conductor/member-types/pdf"
+        "conductor/member-types/pdf",
+        "conductor/member-types/docs"
       ]
     },
     {

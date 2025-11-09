@@ -55,6 +55,39 @@ conductor config
 
 ## Available Commands
 
+### init
+
+Initialize a new Conductor project:
+
+```bash
+# Create new project with examples
+conductor init my-project
+
+# Create minimal project without examples
+conductor init my-project --no-examples
+
+# Force overwrite existing directory
+conductor init my-project --force
+
+# Use specific template
+conductor init my-project --template cloudflare
+```
+
+**Options**:
+- `--no-examples` - Skip example files (ensembles, members, templates, etc.) for a clean start
+- `-f, --force` - Overwrite existing directory if it exists
+- `--template <name>` - Use specific project template (default: cloudflare)
+
+**What gets created**:
+- Project structure with `members/`, `ensembles/`, `templates/`, etc.
+- Starter configuration files
+- Example files (unless `--no-examples` is used)
+- README with quickstart instructions
+
+<Tip>
+Use `--no-examples` when creating production projects to start with a clean slate. Examples are helpful for learning but add clutter to production codebases.
+</Tip>
+
 ### exec
 
 Execute a member locally or remotely:
@@ -192,18 +225,50 @@ conductor replay exec_abc123 --from-step 3
 
 ### docs
 
-Generate API documentation:
+Generate API documentation with optional AI enhancement:
 
 ```bash
-# Generate OpenAPI spec
-conductor docs generate
+# Generate OpenAPI spec (YAML by default)
+conductor docs
 
-# Output to file
-conductor docs generate --output openapi.json
+# Generate with AI-powered descriptions
+conductor docs --ai
 
-# Generate for specific ensembles
-conductor docs generate --ensemble user-onboarding
+# Output to specific file
+conductor docs --output openapi.json
+
+# Generate as JSON instead of YAML
+conductor docs --json
+
+# Validate existing OpenAPI spec
+conductor docs validate
+conductor docs validate openapi.json
 ```
+
+**Options**:
+- `--ai` - Use AI to enhance documentation (requires `docs-writer` member in your project)
+- `-o, --output <path>` - Output file path (default: `./openapi.yaml`)
+- `--json` - Output as JSON instead of YAML
+
+**AI-Powered Documentation**:
+
+When you use the `--ai` flag, Conductor automatically:
+1. Scans your ensembles and members
+2. Generates base OpenAPI spec
+3. Uses your `docs-writer` member to enhance descriptions with AI
+4. Produces high-quality, context-aware API documentation
+
+<Tip>
+The `--ai` flag requires a `docs-writer` member (Think type) in your `members/` directory. See the [AI Documentation Guide](/conductor/guides/ai-documentation) for setup instructions.
+</Tip>
+
+**What gets excluded**:
+- All files in `/examples/` directories are automatically skipped
+- Example ensembles and members don't appear in generated docs
+- Only production endpoints are documented
+
+**Subcommands**:
+- `conductor docs validate [file]` - Validate OpenAPI specification format
 
 ### config
 

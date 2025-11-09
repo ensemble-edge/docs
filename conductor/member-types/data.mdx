@@ -492,6 +492,121 @@ flow:
       offset: ${input.page * input.limit}
 ```
 
+## Data Export
+
+Export data in multiple formats (CSV, JSON, Excel, NDJSON) with streaming support for large datasets:
+
+```yaml
+members:
+  - name: export-users
+    type: Data
+    config:
+      storage: kv
+      operation: export  # New export operation
+      binding: DATA_KV
+
+flow:
+  - member: export-users
+    input:
+      prefix: users:  # Export all keys starting with "users:"
+      format: csv  # csv, json, xlsx, or ndjson
+      exportOptions:
+        headers: true  # Include CSV headers
+        fields: ['id', 'email', 'name', 'created_at']  # Field order
+        pretty: true  # Pretty-print JSON (ignored for CSV)
+        sheetName: "Users"  # Excel sheet name
+      streaming: false  # Set to true for large datasets
+    output: exportResult
+```
+
+**Supported Formats**:
+- `csv` - Comma-separated values with optional headers
+- `json` - JSON array with optional pretty-printing
+- `xlsx` - Excel spreadsheet with custom sheet name
+- `ndjson` - Newline-delimited JSON (one object per line)
+
+**Export Options**:
+```yaml
+exportOptions:
+  headers: true  # Include headers (CSV/Excel)
+  fields: ['field1', 'field2']  # Custom field order
+  pretty: true  # Pretty-print JSON
+  delimiter: ','  # CSV delimiter (default: comma)
+  sheetName: "Data"  # Excel sheet name
+  batchSize: 100  # Streaming batch size
+```
+
+**Output**:
+```yaml
+{
+  success: true,
+  streaming: false,
+  data: "<exported content>",  # String or ReadableStream
+  contentType: "text/csv",  # MIME type
+  extension: "csv",  # File extension
+  size: 12345,  # Bytes (if known)
+  count: 100  # Number of records
+}
+```
+
+### Streaming Large Datasets
+
+For exports with >1000 records, enable streaming to avoid memory limits:
+
+```yaml
+- member: export-large-dataset
+  input:
+    prefix: analytics:
+    format: csv
+    streaming: true  # Enable streaming mode
+    exportOptions:
+      batchSize: 100  # Process in batches of 100
+```
+
+When `streaming: true`:
+- Output is a `ReadableStream` instead of string
+- Data is processed in batches to save memory
+- Suitable for millions of records
+- Works with Workers streaming responses
+
+### Export with Filters
+
+Combine with query operation for filtered exports:
+
+```yaml
+flow:
+  # Step 1: Query filtered data
+  - member: query-active-users
+    type: Data
+    config:
+      storage: kv
+      operation: query
+    input:
+      prefix: users:
+      filter:
+        status: active
+      sort: created_at:desc
+    output: filtered
+
+  # Step 2: Export filtered results
+  - member: export-filtered
+    type: Data
+    config:
+      storage: kv
+      operation: export
+    input:
+      data: $filtered.items  # Use queried data
+      format: xlsx
+      exportOptions:
+        sheetName: "Active Users"
+        fields: ['id', 'email', 'name', 'status']
+    output: exportResult
+```
+
+<Tip>
+See the [email.mdx Advanced Workflows section](/conductor/member-types/email#advanced-workflows) for complete examples of exporting data and emailing as attachments.
+</Tip>
+
 ## Error Handling
 
 ```yaml

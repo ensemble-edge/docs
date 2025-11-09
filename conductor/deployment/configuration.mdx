@@ -380,6 +380,314 @@ service = "my-tail-worker"
 environment = "production"
 ```
 
+## Routing Configuration
+
+### UnifiedRouter Setup
+
+Conductor includes a powerful UnifiedRouter for managing authentication and routing across all members. Configuration is managed via `conductor.config.ts`:
+
+```typescript
+// conductor.config.ts
+import type { ConductorConfig } from '@ensemble-edge/conductor';
+
+const config: ConductorConfig = {
+  routing: {
+    auth: {
+      // Global defaults (apply to all routes)
+      global: {
+        requirement: 'required',
+        methods: ['bearer']
+      },
+
+      // Type-specific defaults
+      defaults: {
+        pages: {
+          requirement: 'required',
+          methods: ['cookie'],
+          onFailure: {
+            action: 'redirect',
+            redirectTo: '/login',
+            preserveReturn: true
+          }
+        },
+        api: {
+          requirement: 'required',
+          methods: ['bearer', 'apiKey']
+        },
+        webhooks: {
+          requirement: 'required',
+          methods: ['custom']
+        },
+        docs: {
+          requirement: 'public'
+        }
+      },
+
+      // Path-based rules (override type defaults)
+      rules: [
+        // Public routes
+        { pattern: '/', auth: { requirement: 'public' } },
+        { pattern: '/login', auth: { requirement: 'public' } },
+        { pattern: '/signup', auth: { requirement: 'public' } },
+
+        // Admin routes
+        {
+          pattern: '/admin/*',
+          auth: {
+            requirement: 'required',
+            methods: ['cookie', 'bearer'],
+            roles: ['admin'],
+            onFailure: {
+              action: 'page',
+              page: 'error-403'
+            }
+          },
+          priority: 10
+        },
+
+        // API routes with rate limiting
+        {
+          pattern: '/api/public/*',
+          auth: {
+            requirement: 'public',
+            rateLimit: {
+              requests: 1000,
+              window: 3600,
+              keyBy: 'ip'
+            }
+          }
+        }
+      ],
+
+      // Custom webhook validators
+      customValidators: {
+        stripe: {
+          type: 'stripe',
+          secretEnvVar: 'STRIPE_WEBHOOK_SECRET',
+          tolerance: 300
+        },
+        github: {
+          type: 'github',
+          secretEnvVar: 'GITHUB_WEBHOOK_SECRET'
+        }
+      }
+    }
+  }
+};
+
+export default config;
+```
+
+### Authentication Methods
+
+Configure authentication methods with environment variables:
+
+#### Bearer Token (JWT)
+
+```toml
+[vars]
+JWT_SECRET = "your-secret-key-min-32-chars"
+JWT_ISSUER = "https://your-domain.com"
+JWT_AUDIENCE = "https://api.your-domain.com"
+```
+
+**Important**: Use `npx wrangler secret put JWT_SECRET` for production secrets, not `vars`.
+
+#### API Key (KV Storage)
+
+```toml
+[[kv_namespaces]]
+binding = "API_KEYS"
+id = "your-api-keys-kv-id"
+
+[vars]
+API_KEY_KV_NAMESPACE = "API_KEYS"
+API_KEY_HEADER = "X-API-Key"
+```
+
+Create KV namespace:
+```bash
+npx wrangler kv:namespace create API_KEYS
+```
+
+#### Cookie Session (KV Storage)
+
+```toml
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "your-sessions-kv-id"
+
+[vars]
+SESSION_KV_NAMESPACE = "SESSIONS"
+SESSION_COOKIE_NAME = "__session"
+SESSION_DOMAIN = ".example.com"
+SESSION_MAX_AGE = "86400"  # 24 hours
+```
+
+Set session secret:
+```bash
+npx wrangler secret put SESSION_SECRET
+```
+
+#### Unkey Integration
+
+```bash
+# Set via secrets (recommended)
+npx wrangler secret put UNKEY_ROOT_KEY
+npx wrangler secret put UNKEY_API_ID
+```
+
+#### Custom Validators (Webhooks)
+
+```bash
+# Stripe webhooks
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+
+# GitHub webhooks
+npx wrangler secret put GITHUB_WEBHOOK_SECRET
+
+# Twilio webhooks
+npx wrangler secret put TWILIO_AUTH_TOKEN
+```
+
+### Route Configuration in Members
+
+Members can specify routes with authentication:
+
+**Page Member** (`pages/dashboard/page.yaml`):
+```yaml
+name: dashboard
+type: page
+description: User dashboard
+
+route:
+  path: /dashboard  # or use "default" for auto-resolution
+  methods: [GET]
+  auth:
+    requirement: required
+    methods: [cookie]
+    onFailure:
+      action: redirect
+      redirectTo: /login
+```
+
+**API Member** (`members/users-api.yaml`):
+```yaml
+name: users-api
+type: api
+description: User management API
+
+route:
+  path: /api/users
+  methods: [GET, POST]
+  auth:
+    requirement: required
+    methods: [bearer, apiKey]
+    permissions: [users:read, users:write]
+```
+
+**Docs Member** (`members/api-docs.yaml`):
+```yaml
+name: api-docs
+type: docs
+description: API documentation
+
+route:
+  path: default  # Auto-resolves to /api-docs
+  auth:
+    requirement: optional  # View without auth, test with auth
+    methods: [bearer, apiKey, cookie]
+```
+
+**Webhook Member** (`members/stripe-webhook.yaml`):
+```yaml
+name: stripe-webhook
+type: webhook
+description: Stripe payment webhooks
+
+route:
+  path: /webhooks/stripe
+  methods: [POST]
+  auth:
+    requirement: required
+    methods: [custom]
+    customValidator: stripe  # Uses config from conductor.config.ts
+```
+
+### Default Path Resolution
+
+Use `route: default` to automatically resolve the path from the file location:
+
+| File Path | Resolved Route |
+|-----------|---------------|
+| `pages/login/page.yaml` | `/login` |
+| `pages/admin/dashboard/page.yaml` | `/admin/dashboard` |
+| `pages/index/page.yaml` | `/` |
+| `members/api-docs.yaml` | `/api-docs` |
+
+### Priority-Based Routing
+
+Routes are matched by priority (lower number = higher priority):
+
+| Member Type | Default Priority |
+|-------------|-----------------|
+| Static | 1 |
+| Health | 5 |
+| Auth | 10 |
+| API | 30 |
+| Webhooks | 40 |
+| Forms | 50 |
+| Docs | 70 |
+| Pages | 90 |
+
+Override with explicit priority:
+```yaml
+route:
+  path: /admin/dashboard
+  priority: 10  # Higher priority than default page routes
+```
+
+### Complete Configuration Example
+
+```toml
+# wrangler.toml
+name = "conductor-app"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# AI binding
+[ai]
+binding = "AI"
+
+# Authentication KV namespaces
+[[kv_namespaces]]
+binding = "API_KEYS"
+id = "your-api-keys-id"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "your-sessions-id"
+
+# Configuration variables
+[vars]
+ENVIRONMENT = "production"
+API_KEY_KV_NAMESPACE = "API_KEYS"
+SESSION_KV_NAMESPACE = "SESSIONS"
+SESSION_COOKIE_NAME = "__session"
+SESSION_DOMAIN = ".example.com"
+SESSION_MAX_AGE = "86400"
+JWT_ISSUER = "https://example.com"
+JWT_AUDIENCE = "https://api.example.com"
+
+# Secrets (set with: npx wrangler secret put SECRET_NAME)
+# - JWT_SECRET
+# - SESSION_SECRET
+# - STRIPE_WEBHOOK_SECRET
+# - GITHUB_WEBHOOK_SECRET
+# - UNKEY_ROOT_KEY
+# - UNKEY_API_ID
+```
+
 ## Cron Triggers
 
 ```toml
