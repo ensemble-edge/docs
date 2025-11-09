@@ -1,0 +1,778 @@
+---
+title: "Conductor Commands"
+description: "Flow control commands for orchestrating complex AI workflows"
+---
+
+## What are Conductor Commands?
+
+Conductor Commands are YAML-based flow control primitives that enable you to build sophisticated AI workflows with branching, loops, parallel execution, error handling, and advanced patterns like map-reduce. Think of them as the control structures of a programming language, but declarative and designed for edge execution.
+
+Commands operate on **steps** (member executions) and coordinate how they execute in relation to each other, enabling patterns from simple sequential flows to complex multi-agent orchestration.
+
+## Command Categories
+
+<CardGroup cols={3}>
+  <Card title="Parallel Execution" icon="network-wired" href="#parallel">
+    Run multiple steps concurrently for better performance
+  </Card>
+
+  <Card title="Loops" icon="arrows-rotate" href="#loops">
+    Iterate over data with foreach and while commands
+  </Card>
+
+  <Card title="Conditional Logic" icon="code-branch" href="#conditionals">
+    Branch execution with if/then/else and switch
+  </Card>
+
+  <Card title="Error Handling" icon="shield-halved" href="#error-handling">
+    Graceful error recovery with try/catch/finally
+  </Card>
+
+  <Card title="Advanced Patterns" icon="diagram-project" href="#advanced-patterns">
+    Map-reduce and other sophisticated workflows
+  </Card>
+
+  <Card title="Step-Level Features" icon="sliders" href="#step-level-features">
+    Dependencies, conditions, timeouts, and retries
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+Here's a real-world ensemble that uses multiple commands:
+
+```yaml
+name: company-intelligence
+description: Gather and analyze company data with parallel execution and error handling
+
+flow:
+  # Parallel data gathering
+  - type: parallel
+    waitFor: all
+    steps:
+      - member: scrape-website
+        input:
+          url: ${input.domain}
+
+      - member: fetch-funding-data
+        input:
+          company: ${input.company}
+
+      - member: search-news
+        input:
+          query: ${input.company}
+
+  # Conditional analysis
+  - type: branch
+    condition: ${scrape-website.output.success}
+    then:
+      - member: analyze-company
+        input:
+          websiteData: ${scrape-website.output.data}
+          fundingData: ${fetch-funding-data.output}
+          newsData: ${search-news.output}
+    else:
+      - member: minimal-analysis
+        input:
+          fundingData: ${fetch-funding-data.output}
+          newsData: ${search-news.output}
+
+  # Error handling for report generation
+  - type: try
+    steps:
+      - member: generate-report
+        input:
+          analysis: ${analyze-company.output}
+    catch:
+      - member: log-error
+        input:
+          error: ${error.message}
+      - member: send-fallback-report
+        input:
+          rawData: ${scrape-website.output}
+
+output:
+  report: ${generate-report.output}
+  metadata:
+    sources: [website, funding, news]
+    timestamp: ${timestamp}
+```
+
+## Parallel
+
+Execute multiple steps concurrently for improved performance.
+
+**Syntax:**
+```yaml
+- type: parallel
+  waitFor: all  # or 'any'
+  steps:
+    - member: step-1
+    - member: step-2
+    - member: step-3
+```
+
+**Parameters:**
+- `waitFor` (optional): `all` (default) waits for all steps to complete, `any` returns after first completion
+
+**Use Cases:**
+- Fetching data from multiple APIs simultaneously
+- Running multiple AI models in parallel for comparison
+- Concurrent database queries
+- Independent validation checks
+
+**Example:**
+```yaml
+- type: parallel
+  waitFor: all
+  steps:
+    - member: analyze-with-gpt4
+      input:
+        text: ${input.text}
+
+    - member: analyze-with-claude
+      input:
+        text: ${input.text}
+
+    - member: analyze-with-llama
+      input:
+        text: ${input.text}
+
+# Use results from all three models
+- member: consensus-scorer
+  input:
+    gpt4: ${analyze-with-gpt4.output}
+    claude: ${analyze-with-claude.output}
+    llama: ${analyze-with-llama.output}
+```
+
+<Info>
+  **Performance:** Parallel execution can significantly reduce total workflow time. A workflow with 3 steps that each take 1 second runs in ~1 second with parallel vs ~3 seconds sequential.
+</Info>
+
+## Loops
+
+### ForEach
+
+Iterate over an array of items, executing a step for each item.
+
+**Syntax:**
+```yaml
+- type: foreach
+  items: ${input.companies}  # Expression resolving to array
+  maxConcurrency: 3  # Optional: parallel executions
+  breakWhen: ${step.output.shouldStop}  # Optional: early exit
+  step:
+    member: process-company
+    input:
+      company: ${item}  # Current iteration item
+      index: ${index}   # Current iteration index
+```
+
+**Parameters:**
+- `items`: Expression that resolves to an array
+- `maxConcurrency` (optional): Maximum parallel executions (default: 1)
+- `breakWhen` (optional): Expression to exit loop early
+- `step`: Step definition to execute for each item
+
+**Special Variables:**
+- `${item}`: Current item from the array
+- `${index}`: Current iteration index (0-based)
+
+**Use Cases:**
+- Processing lists of records
+- Batch AI inference
+- Multi-target data collection
+- Bulk validation
+
+**Example:**
+```yaml
+- type: foreach
+  items: ${input.urls}
+  maxConcurrency: 5
+  step:
+    member: scrape
+    input:
+      url: ${item}
+    retry:
+      attempts: 3
+      backoff: exponential
+
+# Collect all results
+- member: aggregate-results
+  input:
+    results: ${scrape.output}  # Array of all outputs
+```
+
+### While
+
+Execute steps repeatedly while a condition is true.
+
+**Syntax:**
+```yaml
+- type: while
+  condition: ${state.continueProcessing}  # Boolean expression
+  maxIterations: 100  # Safety limit
+  steps:
+    - member: process-batch
+    - member: check-completion
+      input:
+        processed: ${process-batch.output.count}
+```
+
+**Parameters:**
+- `condition`: Expression that resolves to boolean
+- `maxIterations` (optional): Maximum loop iterations (prevents infinite loops)
+- `steps`: Array of steps to execute each iteration
+
+**Use Cases:**
+- Pagination through API results
+- Iterative refinement of AI outputs
+- Processing until quality threshold met
+- Queue-based workflows
+
+**Example:**
+```yaml
+- member: initialize-queue
+  input:
+    items: ${input.items}
+
+- type: while
+  condition: ${state.hasMore}
+  maxIterations: 50
+  steps:
+    - member: fetch-page
+      input:
+        page: ${state.currentPage}
+
+    - member: process-items
+      input:
+        items: ${fetch-page.output.items}
+
+    - member: update-state
+      input:
+        hasMore: ${fetch-page.output.hasNextPage}
+        currentPage: ${state.currentPage + 1}
+```
+
+<Warning>
+  **Safety Limits:** Always set `maxIterations` on while loops to prevent infinite execution. Cloudflare Workers have a 30-second CPU time limit for HTTP requests.
+</Warning>
+
+## Conditionals
+
+### Branch
+
+Conditional execution with if/then/else logic.
+
+**Syntax:**
+```yaml
+- type: branch
+  condition: ${validate.output.score > 0.8}
+  then:
+    - member: high-quality-path
+      input:
+        data: ${validate.output.data}
+  else:
+    - member: low-quality-path
+      input:
+        data: ${validate.output.data}
+    - member: request-review
+```
+
+**Parameters:**
+- `condition`: Expression that resolves to boolean
+- `then`: Steps to execute if condition is true
+- `else` (optional): Steps to execute if condition is false
+
+**Use Cases:**
+- Quality-based routing
+- Feature flags
+- A/B testing
+- Fallback strategies
+
+**Example:**
+```yaml
+- member: validate-data
+  input:
+    data: ${input.data}
+
+- type: branch
+  condition: ${validate-data.output.isValid}
+  then:
+    - member: process-valid-data
+      input:
+        data: ${input.data}
+  else:
+    - member: log-validation-error
+      input:
+        errors: ${validate-data.output.errors}
+    - member: send-error-notification
+      input:
+        message: "Data validation failed"
+```
+
+### Switch
+
+Multi-way branching based on a value.
+
+**Syntax:**
+```yaml
+- type: switch
+  value: ${classify.output.category}  # Expression to evaluate
+  cases:
+    urgent:
+      - member: handle-urgent
+        input:
+          data: ${input.data}
+
+    normal:
+      - member: handle-normal
+        input:
+          data: ${input.data}
+
+    low-priority:
+      - member: handle-low-priority
+        input:
+          data: ${input.data}
+
+  default:
+    - member: handle-unknown
+      input:
+        data: ${input.data}
+```
+
+**Parameters:**
+- `value`: Expression to evaluate (string, number, boolean)
+- `cases`: Map of possible values to step arrays
+- `default` (optional): Steps to execute if no case matches
+
+**Use Cases:**
+- Category-based routing
+- Multi-tenant workflows
+- Content type handling
+- Priority-based processing
+
+**Example:**
+```yaml
+- member: classify-request
+  input:
+    request: ${input.request}
+
+- type: switch
+  value: ${classify-request.output.type}
+  cases:
+    email:
+      - member: process-email
+      - member: send-email-response
+
+    chat:
+      - member: process-chat
+      - member: send-chat-response
+
+    api:
+      - member: process-api
+      - member: send-api-response
+
+  default:
+    - member: log-unknown-type
+    - member: send-error-response
+```
+
+## Error Handling
+
+### Try/Catch/Finally
+
+Graceful error handling with optional cleanup.
+
+**Syntax:**
+```yaml
+- type: try
+  steps:
+    - member: risky-operation
+      input:
+        data: ${input.data}
+
+    - member: process-result
+      input:
+        result: ${risky-operation.output}
+
+  catch:
+    - member: log-error
+      input:
+        error: ${error.message}
+        stack: ${error.stack}
+
+    - member: send-alert
+      input:
+        message: "Operation failed"
+
+  finally:
+    - member: cleanup
+      input:
+        resourceId: ${risky-operation.output.id}
+```
+
+**Parameters:**
+- `steps`: Steps to attempt
+- `catch` (optional): Steps to execute on error
+- `finally` (optional): Steps to always execute (even on error)
+
+**Special Variables (in catch block):**
+- `${error.message}`: Error message
+- `${error.stack}`: Stack trace
+- `${error.code}`: Error code (if available)
+
+**Use Cases:**
+- External API calls with fallbacks
+- Database operations with rollback
+- Resource cleanup
+- Error logging and alerting
+
+**Example:**
+```yaml
+- type: try
+  steps:
+    - member: fetch-external-data
+      input:
+        url: ${input.apiUrl}
+      timeout: 5000
+
+    - member: transform-data
+      input:
+        raw: ${fetch-external-data.output}
+
+  catch:
+    - member: use-cached-data
+      input:
+        cacheKey: ${input.cacheKey}
+
+    - member: log-cache-fallback
+      input:
+        reason: ${error.message}
+
+  finally:
+    - member: update-metrics
+      input:
+        success: ${error ? false : true}
+        duration: ${duration}
+```
+
+<Info>
+  **Catch Scope:** Error details are only available in the catch block via `${error.*}` variables.
+</Info>
+
+## Advanced Patterns
+
+### Map-Reduce
+
+Parallel processing with aggregation.
+
+**Syntax:**
+```yaml
+- type: map-reduce
+  items: ${input.documents}  # Array to process
+  maxConcurrency: 10  # Parallel map operations
+  map:
+    member: analyze-document
+    input:
+      document: ${item}
+  reduce:
+    member: aggregate-analysis
+    input:
+      results: ${map.output}  # Array of all map outputs
+```
+
+**Parameters:**
+- `items`: Expression resolving to array
+- `maxConcurrency` (optional): Parallel map executions
+- `map`: Step to execute for each item
+- `reduce`: Step to aggregate all map outputs
+
+**Use Cases:**
+- Large-scale document processing
+- Distributed computation
+- Batch AI inference with aggregation
+- Multi-source data aggregation
+
+**Example:**
+```yaml
+- type: map-reduce
+  items: ${input.reviews}
+  maxConcurrency: 20
+  map:
+    member: sentiment-analysis
+    input:
+      text: ${item.text}
+      reviewId: ${item.id}
+  reduce:
+    member: calculate-overall-sentiment
+    input:
+      sentiments: ${map.output}
+      totalReviews: ${input.reviews.length}
+
+output:
+  overallSentiment: ${calculate-overall-sentiment.output.score}
+  breakdown: ${calculate-overall-sentiment.output.distribution}
+```
+
+## Step-Level Features
+
+Individual steps can have additional configuration regardless of the command they're in.
+
+### Dependencies
+
+Explicit step ordering with `depends_on`.
+
+**Syntax:**
+```yaml
+flow:
+  - member: fetch-user
+    id: user  # Required for dependencies
+    input:
+      userId: ${input.userId}
+
+  - member: fetch-orders
+    id: orders
+    input:
+      userId: ${input.userId}
+
+  - member: generate-report
+    depends_on: [user, orders]  # Wait for both
+    input:
+      user: ${user.output}
+      orders: ${orders.output}
+```
+
+**Use Cases:**
+- Fine-grained control over parallel execution
+- Complex dependency graphs
+- Resource coordination
+
+### Conditional Execution
+
+Skip steps with `when` condition.
+
+**Syntax:**
+```yaml
+- member: expensive-operation
+  when: ${input.enableExpensiveFeature}  # Only run if true
+  input:
+    data: ${input.data}
+```
+
+**Use Cases:**
+- Feature flags
+- Optional processing
+- Environment-specific steps
+
+### Timeouts
+
+Limit step execution time.
+
+**Syntax:**
+```yaml
+- member: external-api
+  timeout: 5000  # 5 seconds in milliseconds
+  onTimeout:
+    fallback: null  # Value to use on timeout
+    error: false  # Don't treat as error
+  input:
+    url: ${input.url}
+```
+
+**Parameters:**
+- `timeout`: Maximum execution time in milliseconds
+- `onTimeout.fallback`: Value to use if timeout occurs
+- `onTimeout.error`: Treat timeout as error (default: true)
+
+### Retry Logic
+
+Automatic retry with backoff strategies.
+
+**Syntax:**
+```yaml
+- member: flaky-operation
+  retry:
+    attempts: 3
+    backoff: exponential  # or 'linear', 'fixed'
+    initialDelay: 1000  # 1 second
+    maxDelay: 10000  # 10 seconds max
+    retryOn: ['RATE_LIMIT', 'TIMEOUT']  # Specific error codes
+  input:
+    data: ${input.data}
+```
+
+**Parameters:**
+- `attempts`: Maximum retry attempts
+- `backoff`: Strategy - `fixed`, `linear`, or `exponential`
+- `initialDelay` (optional): First retry delay (ms)
+- `maxDelay` (optional): Maximum delay between retries
+- `retryOn` (optional): Only retry specific error codes
+
+**Backoff Strategies:**
+- `fixed`: Same delay between all retries
+- `linear`: Delay increases linearly (delay, 2*delay, 3*delay)
+- `exponential`: Delay doubles each time (delay, 2*delay, 4*delay, 8*delay)
+
+**Example:**
+```yaml
+- member: call-rate-limited-api
+  retry:
+    attempts: 5
+    backoff: exponential
+    initialDelay: 1000
+    maxDelay: 30000
+    retryOn: ['RATE_LIMIT', 'TIMEOUT']
+  timeout: 10000
+  input:
+    endpoint: ${input.endpoint}
+```
+
+## Command Composition
+
+Commands can be nested to create sophisticated workflows:
+
+```yaml
+flow:
+  # Parallel branches, each with error handling
+  - type: parallel
+    steps:
+      - type: try
+        steps:
+          - member: fetch-source-1
+        catch:
+          - member: use-cached-source-1
+
+      - type: try
+        steps:
+          - member: fetch-source-2
+        catch:
+          - member: use-cached-source-2
+
+  # Conditional processing with loops
+  - type: branch
+    condition: ${fetch-source-1.output.hasItems}
+    then:
+      - type: foreach
+        items: ${fetch-source-1.output.items}
+        maxConcurrency: 5
+        step:
+          member: process-item
+          retry:
+            attempts: 3
+            backoff: exponential
+    else:
+      - member: log-no-items
+
+  # Final aggregation with error handling
+  - type: try
+    steps:
+      - member: aggregate-results
+        timeout: 10000
+    catch:
+      - member: partial-results
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion icon="gauge-high" title="Performance Optimization">
+    - Use `parallel` for independent operations
+    - Set appropriate `maxConcurrency` in foreach (5-10 is often optimal)
+    - Add timeouts to prevent hanging operations
+    - Use `waitFor: any` when only first result matters
+  </Accordion>
+
+  <Accordion icon="shield" title="Error Resilience">
+    - Always wrap external calls in try/catch
+    - Use retry logic for transient failures
+    - Set `maxIterations` on all while loops
+    - Provide fallback values for timeouts
+  </Accordion>
+
+  <Accordion icon="code" title="Code Organization">
+    - Use meaningful step IDs for complex flows
+    - Prefer branch over nested conditions
+    - Use switch for 3+ branches
+    - Keep nesting depth reasonable (3-4 levels max)
+  </Accordion>
+
+  <Accordion icon="magnifying-glass" title="Debugging">
+    - Add logging members at key points
+    - Use state to track progress through loops
+    - Set step IDs for easier output reference
+    - Include metadata in outputs for tracing
+  </Accordion>
+
+  <Accordion icon="coins" title="Cost Management">
+    - Cache expensive AI operations
+    - Use parallel sparingly (more compute = higher cost)
+    - Set `maxConcurrency` to prevent runaway costs
+    - Add conditional guards for expensive paths
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+<CardGroup cols={2}>
+  <Card
+    title="Parallel Processing"
+    icon="network-wired"
+    href="/conductor/examples/parallel-processing"
+  >
+    Multi-source data gathering with parallel execution
+  </Card>
+
+  <Card
+    title="Conditional Logic"
+    icon="code-branch"
+    href="/conductor/examples/conditional-logic"
+  >
+    Quality-based routing and fallback strategies
+  </Card>
+
+  <Card
+    title="Error Handling"
+    icon="shield-halved"
+    href="/conductor/examples/error-handling"
+  >
+    Graceful degradation with try/catch
+  </Card>
+
+  <Card
+    title="Company Intelligence"
+    icon="building"
+    href="/conductor/examples/company-intelligence"
+  >
+    Real-world workflow using multiple commands
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={3}>
+  <Card
+    title="GraphExecutor API"
+    icon="code"
+    href="/conductor-api/core/graph-executor"
+  >
+    Implementation details and advanced usage
+  </Card>
+
+  <Card
+    title="Ensembles"
+    icon="file-music"
+    href="/conductor/concepts/ensembles"
+  >
+    Learn about ensemble structure and execution
+  </Card>
+
+  <Card
+    title="State Management"
+    icon="database"
+    href="/conductor/concepts/state"
+  >
+    Using state with commands
+  </Card>
+</CardGroup>

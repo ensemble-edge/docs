@@ -128,7 +128,8 @@
       "group": "Conductor",
       "pages": [
         "conductor/overview",
-        "conductor/architecture"
+        "conductor/architecture",
+        "conductor/commands"
       ]
     },
     {
