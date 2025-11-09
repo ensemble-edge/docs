@@ -13,6 +13,160 @@ Edgit supports multiple component types to categorize and organize your code. Bu
 
 ## Built-in Component Types
 
+### Template 🎨
+
+HTML/Email/PDF templates for web applications and communications.
+
+**Use For**:
+- Email templates (welcome emails, invoices, newsletters)
+- HTML page templates (dashboards, reports, landing pages)
+- PDF document templates (invoices, reports, certificates)
+- Reusable UI components (headers, footers, cards)
+- Multi-format responsive designs (MJML, Handlebars, HTML)
+
+**Registration**:
+```bash
+edgit components add welcome-email templates/email/welcome.html template
+edgit components add invoice templates/pdf/invoice.html template
+edgit components add header templates/components/header.html template
+```
+
+**Common Metadata**:
+```json
+{
+  "type": "template",
+  "path": "templates/email/welcome.html",
+  "description": "Welcome email for new users",
+  "metadata": {
+    "engine": "handlebars",
+    "format": "html",
+    "category": "email",
+    "responsive": true,
+    "variables": ["name", "appName", "activationUrl"],
+    "usedBy": ["send-welcome-member"],
+    "preview": "templates/email/welcome.preview.png"
+  }
+}
+```
+
+**Example Component**:
+```html templates/email/welcome.html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Welcome to {{appName}}</title>
+</head>
+<body>
+  <h1>Welcome, {{name}}!</h1>
+  <p>Thanks for joining {{appName}}. Click below to activate your account:</p>
+  <a href="{{activationUrl}}">Activate Account</a>
+</body>
+</html>
+```
+
+**Conductor Integration**:
+Templates integrate seamlessly with [Conductor's HTML, Email, and PDF members](/conductor/member-types/html). Reference templates using the `template://` protocol:
+
+```yaml
+members:
+  - name: send-welcome
+    type: Email
+    config:
+      template: template://email/welcome@v1.0.0
+      data:
+        name: ${input.userName}
+        appName: "MyApp"
+```
+
+**Why Templates in Edgit?**
+- **Instant updates**: Deploy template changes without rebuilding your application
+- **Version control**: A/B test different template versions simultaneously
+- **Multiverse**: Access multiple versions for gradual rollouts
+- **Edge caching**: Templates cached globally for fast loading
+- **Zero-downtime updates**: Update templates without restarting workers
+
+---
+
+### Prompt 🤖
+
+AI prompts, system messages, and instructions for LLM-powered applications.
+
+**Use For**:
+- AI agent system prompts (customer support, sales bots)
+- Think member prompts (data analysis, content generation)
+- Chat templates (conversation starters, guides)
+- Few-shot learning examples
+- Prompt engineering experiments
+
+**Registration**:
+```bash
+edgit components add company-analysis prompts/company-analysis.md prompt
+edgit components add support-agent prompts/support.md prompt
+edgit components add summarizer prompts/summarize.md prompt
+```
+
+**Common Metadata**:
+```json
+{
+  "type": "prompt",
+  "path": "prompts/company-analysis.md",
+  "description": "Analyze company data and generate insights",
+  "metadata": {
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-20241022",
+    "temperature": 0.7,
+    "maxTokens": 4096,
+    "variables": ["company_name", "industry", "data"],
+    "outputFormat": "structured-json",
+    "usedBy": ["analyze-company-member"],
+    "category": "analysis"
+  }
+}
+```
+
+**Example Component**:
+```markdown prompts/company-analysis.md
+You are an expert business analyst specializing in market research.
+
+Analyze the following company data:
+- Company: {{company_name}}
+- Industry: {{industry}}
+- Data: {{data}}
+
+Provide a detailed analysis covering:
+1. Market position and competitive advantages
+2. Growth opportunities and risks
+3. Financial health indicators
+4. Strategic recommendations
+
+Format your response as structured JSON with clear sections.
+```
+
+**Conductor Integration**:
+Prompts power [Conductor's Think members](/conductor/member-types/think). Reference prompts using the `prompt://` protocol:
+
+```yaml
+members:
+  - name: analyze-company
+    type: Think
+    config:
+      prompt: prompt://company-analysis@v2.0.0
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      data:
+        company_name: ${input.companyName}
+        industry: ${input.industry}
+```
+
+**Why Prompts in Edgit?**
+- **Rapid iteration**: Test prompt improvements without redeploying code
+- **Version control**: Track prompt evolution and A/B test variations
+- **Collaboration**: Share prompts across teams with version history
+- **Instant deployment**: Update AI behavior in production immediately
+- **Multiverse testing**: Run multiple prompt versions simultaneously
+
+---
+
 ### Function
 
 Serverless functions, utilities, and callable code.
@@ -222,6 +376,49 @@ Custom types automatically appear in the registry:
 
 ## Type-Specific Workflows
 
+### Templates
+
+```bash
+# Add template
+edgit components add welcome-email templates/email/welcome.html template
+
+# Preview template locally
+npm run preview:template welcome-email
+
+# Version
+edgit tag create welcome-email v1.0.0
+
+# Deploy
+edgit deploy set welcome-email v1.0.0 --to production
+
+# A/B test new version
+edgit tag create welcome-email v2.0.0
+edgit deploy set welcome-email v2.0.0 --to staging
+# Test both versions simultaneously
+# template://welcome-email@v1.0.0 vs template://welcome-email@v2.0.0
+```
+
+### Prompts
+
+```bash
+# Add prompt
+edgit components add company-analysis prompts/company-analysis.md prompt
+
+# Test prompt locally with sample data
+npm run test:prompt company-analysis
+
+# Version
+edgit tag create company-analysis v1.0.0
+
+# Deploy
+edgit deploy set company-analysis v1.0.0 --to production
+
+# Iterate on prompt improvements
+edgit tag create company-analysis v1.1.0
+edgit deploy set company-analysis v1.1.0 --to production
+# Zero-downtime: v1.0.0 still available during rollout
+```
+
 ### Functions
 
 ```bash
@@ -412,6 +609,46 @@ edgit discover scan --register
 </AccordionGroup>
 
 ## Examples
+
+### Email Templates
+
+```bash
+# Register email templates
+edgit components add welcome-email templates/email/welcome.html template
+edgit components add invoice templates/email/invoice.html template
+edgit components add newsletter templates/email/newsletter.html template
+
+# Version and deploy
+edgit tag create welcome-email v1.0.0
+edgit deploy set welcome-email v1.0.0 --to production
+
+# Use in Conductor ensemble
+# members:
+#   - name: send-welcome
+#     type: Email
+#     config:
+#       template: template://welcome-email@v1.0.0
+```
+
+### AI Prompts
+
+```bash
+# Register prompts
+edgit components add data-analyst prompts/data-analyst.md prompt
+edgit components add summarizer prompts/summarizer.md prompt
+edgit components add code-reviewer prompts/code-reviewer.md prompt
+
+# Version and deploy
+edgit tag create data-analyst v1.0.0
+edgit deploy set data-analyst v1.0.0 --to production
+
+# Use in Conductor ensemble
+# members:
+#   - name: analyze-data
+#     type: Think
+#     config:
+#       prompt: prompt://data-analyst@v1.0.0
+```
 
 ### Serverless Functions
 

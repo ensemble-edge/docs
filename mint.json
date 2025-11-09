@@ -153,6 +153,8 @@
         "conductor/guides/creating-members",
         "conductor/guides/state-management",
         "conductor/guides/ai-integration",
+        "conductor/guides/templates",
+        "conductor/guides/versioning-components",
         "conductor/guides/testing",
         "conductor/guides/deployment",
         "conductor/guides/edgit-integration",
@@ -204,6 +206,7 @@
       "pages": [
         "conductor/examples/hello-world",
         "conductor/examples/html-components",
+        "conductor/examples/email-campaign",
         "conductor/examples/company-intelligence",
         "conductor/examples/parallel-processing",
         "conductor/examples/conditional-logic",

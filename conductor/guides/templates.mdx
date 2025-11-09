@@ -1,0 +1,822 @@
+---
+title: "Working with Templates"
+description: "Version, deploy, and manage HTML/Email/PDF templates in Conductor"
+---
+
+## Overview
+
+Conductor's template system enables you to create versioned, reusable HTML/Email/PDF templates that can be updated independently from your application code. Templates are stored in Edgit, cached at the edge, and loaded dynamically at runtime.
+
+Perfect for teams that need to:
+- Update email templates without redeploying code
+- A/B test different template versions simultaneously
+- Maintain separate template versions across environments
+- Share templates across multiple ensembles and members
+- Deploy template updates with zero downtime
+
+## Quick Example
+
+```bash
+# Create a welcome email template
+mkdir -p templates/email
+cat > templates/email/welcome.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Welcome to {{appName}}</title>
+</head>
+<body>
+  <h1>Welcome, {{name}}!</h1>
+  <p>Thanks for joining {{appName}}.</p>
+  <a href="{{activationUrl}}">Activate Your Account</a>
+</body>
+</html>
+EOF
+
+# Register in Edgit
+edgit components add welcome-email templates/email/welcome.html template
+
+# Version it
+edgit tag create welcome-email v1.0.0
+
+# Deploy to Cloudflare KV
+edgit deploy set welcome-email v1.0.0 --to production
+```
+
+**Use in Conductor:**
+```yaml
+# ensemble.yaml
+members:
+  - name: send-welcome
+    type: Email
+    config:
+      template: template://welcome-email@v1.0.0
+      data:
+        name: ${input.userName}
+        appName: "MyApp"
+        activationUrl: ${input.activationUrl}
+```
+
+## Why Templates in Conductor?
+
+### Instant Updates
+Update templates without rebuilding or redeploying your application:
+```bash
+# Update the template file
+vim templates/email/welcome.html
+
+# Commit changes
+git add templates/email/welcome.html
+git commit -m "improve welcome email copy"
+
+# Version and deploy
+edgit tag create welcome-email v1.1.0
+edgit deploy set welcome-email v1.1.0 --to production
+
+# New version loads instantly - no code deployment needed
+```
+
+### Zero-Downtime Deployments
+Each template version is cached independently at the edge:
+```bash
+# Deploy v2.0.0 to staging
+edgit deploy set welcome-email v2.0.0 --to staging
+
+# Test thoroughly with: template://welcome-email@staging
+
+# Promote to production (atomic operation)
+edgit deploy set welcome-email v2.0.0 --to production
+
+# Rollback if needed (also atomic)
+edgit deploy set welcome-email v1.1.0 --to production
+```
+
+### A/B Testing
+Run multiple template versions simultaneously:
+```yaml
+members:
+  - name: send-welcome-control
+    type: Email
+    config:
+      template: template://welcome-email@v1.0.0  # Control group
+
+  - name: send-welcome-variant
+    type: Email
+    config:
+      template: template://welcome-email@v2.0.0  # Test variant
+```
+
+### Component Independence
+Templates evolve separately from application code:
+```bash
+# Frontend on v3.0.0, API on v2.5.0, templates on different versions
+template://welcome-email@v1.0.0    # Stable version
+template://invoice@v2.1.0          # Updated recently
+template://newsletter@v1.5.0       # Testing new design
+```
+
+## Template Types
+
+### Email Templates
+
+HTML emails with Handlebars syntax:
+
+```html
+<!-- templates/email/welcome.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>{{subject}}</title>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    .button { background-color: #007bff; color: white; }
+  </style>
+</head>
+<body>
+  <h1>{{greeting}}, {{name}}!</h1>
+  <p>{{message}}</p>
+  {{#if actionUrl}}
+    <a href="{{actionUrl}}" class="button">{{actionText}}</a>
+  {{/if}}
+  <footer>{{companyName}}</footer>
+</body>
+</html>
+```
+
+**Conductor Integration:**
+```yaml
+members:
+  - name: send-email
+    type: Email
+    config:
+      template: template://welcome-email@v1.0.0
+      from: noreply@example.com
+      to: ${input.userEmail}
+      subject: Welcome to ${input.appName}
+      data:
+        greeting: "Hello"
+        name: ${input.userName}
+        message: "Thanks for signing up!"
+        actionUrl: ${input.confirmationUrl}
+        actionText: "Confirm Email"
+        companyName: "Acme Corp"
+```
+
+### HTML Page Templates
+
+Full HTML pages with dynamic data:
+
+```html
+<!-- templates/pages/dashboard.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{title}} - Dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav>{{>header}}</nav>
+
+  <main>
+    <h1>{{title}}</h1>
+
+    <div class="metrics">
+      {{#each metrics}}
+        <div class="metric-card">
+          <h3>{{this.label}}</h3>
+          <p class="value">{{this.value}}</p>
+          <span class="change {{this.trend}}">{{this.change}}</span>
+        </div>
+      {{/each}}
+    </div>
+
+    <section class="alerts">
+      {{#each alerts}}
+        <div class="alert alert-{{this.level}}">
+          <strong>{{this.title}}</strong>
+          <p>{{this.message}}</p>
+        </div>
+      {{/each}}
+    </section>
+  </main>
+
+  <footer>{{>footer}}</footer>
+</body>
+</html>
+```
+
+**Conductor Integration:**
+```yaml
+members:
+  - name: render-dashboard
+    type: HTML
+    config:
+      template: template://dashboard@v2.0.0
+      data:
+        title: "System Dashboard"
+        metrics:
+          - label: "Active Users"
+            value: ${member.get-users.output.count}
+            change: "+12%"
+            trend: "up"
+          - label: "Revenue"
+            value: ${member.get-revenue.output.total}
+            change: "+8%"
+            trend: "up"
+        alerts: ${member.get-alerts.output.alerts}
+```
+
+### PDF Templates
+
+HTML templates rendered as PDFs:
+
+```html
+<!-- templates/pdf/invoice.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Invoice #{{invoiceNumber}}</title>
+  <style>
+    @page { size: A4; margin: 2cm; }
+    body { font-family: Arial, sans-serif; }
+    .header { text-align: center; }
+    .items { width: 100%; border-collapse: collapse; }
+    .items th, .items td { border: 1px solid #ddd; padding: 8px; }
+    .total { text-align: right; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Invoice</h1>
+    <p>Invoice #{{invoiceNumber}}</p>
+    <p>Date: {{date}}</p>
+  </div>
+
+  <div class="bill-to">
+    <h3>Bill To:</h3>
+    <p>{{customerName}}</p>
+    <p>{{customerAddress}}</p>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Quantity</th>
+        <th>Price</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each items}}
+        <tr>
+          <td>{{this.description}}</td>
+          <td>{{this.quantity}}</td>
+          <td>${{this.price}}</td>
+          <td>${{this.total}}</td>
+        </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <p class="total">Total: ${{total}}</p>
+</body>
+</html>
+```
+
+**Conductor Integration:**
+```yaml
+members:
+  - name: generate-invoice
+    type: PDF
+    config:
+      template: template://invoice@v1.0.0
+      data:
+        invoiceNumber: ${input.invoiceNumber}
+        date: ${input.date}
+        customerName: ${input.customerName}
+        customerAddress: ${input.customerAddress}
+        items: ${member.calculate-items.output.items}
+        total: ${member.calculate-items.output.total}
+```
+
+### Component Templates
+
+Reusable UI fragments loaded via partials:
+
+```html
+<!-- templates/components/header.html -->
+<header class="site-header">
+  <div class="logo">
+    <img src="{{logoUrl}}" alt="{{appName}}">
+  </div>
+  <nav>
+    <ul>
+      {{#each navItems}}
+        <li><a href="{{this.url}}">{{this.label}}</a></li>
+      {{/each}}
+    </ul>
+  </nav>
+  <div class="user-menu">
+    {{#if user}}
+      <span>{{user.name}}</span>
+      <a href="/logout">Logout</a>
+    {{else}}
+      <a href="/login">Login</a>
+    {{/if}}
+  </div>
+</header>
+```
+
+**Use as Partial:**
+```html
+<!-- Main template -->
+<!DOCTYPE html>
+<html>
+<head><title>{{title}}</title></head>
+<body>
+  {{>component://header@v1.0.0}}
+  <main>{{content}}</main>
+  {{>component://footer@v1.0.0}}
+</body>
+</html>
+```
+
+## Template Workflow
+
+### 1. Create Template
+
+Organize templates by type and purpose:
+
+```bash
+# Directory structure
+templates/
+├── email/
+│   ├── welcome.html
+│   ├── reset-password.html
+│   └── invoice.html
+├── pages/
+│   ├── dashboard.html
+│   ├── report.html
+│   └── error.html
+├── pdf/
+│   ├── invoice.html
+│   └── receipt.html
+└── components/
+    ├── header.html
+    ├── footer.html
+    └── metric-card.html
+```
+
+### 2. Register in Edgit
+
+Register each template as a component:
+
+```bash
+# Register email templates
+edgit components add welcome-email templates/email/welcome.html template
+edgit components add reset-password templates/email/reset-password.html template
+edgit components add invoice-email templates/email/invoice.html template
+
+# Register page templates
+edgit components add dashboard templates/pages/dashboard.html template
+edgit components add report templates/pages/report.html template
+
+# Register components
+edgit components add header templates/components/header.html template
+edgit components add footer templates/components/footer.html template
+```
+
+### 3. Version Templates
+
+Create semantic versions:
+
+```bash
+# Initial version
+edgit tag create welcome-email v1.0.0
+
+# Bug fix (typo correction)
+edgit tag create welcome-email v1.0.1
+
+# Minor update (improved copy)
+edgit tag create welcome-email v1.1.0
+
+# Major redesign (breaking changes to variables)
+edgit tag create welcome-email v2.0.0
+```
+
+### 4. Deploy to KV
+
+Deploy templates to Cloudflare KV for edge access:
+
+```bash
+# Deploy to production
+edgit deploy set welcome-email v1.0.0 --to production
+
+# Deploy to staging for testing
+edgit deploy set welcome-email v2.0.0 --to staging
+
+# Deploy to regional environments
+edgit deploy set welcome-email v1.5.0 --to us-west
+edgit deploy set welcome-email v1.4.0 --to eu-central
+```
+
+### 5. Reference in Ensembles
+
+Use templates in your ensemble definitions:
+
+```yaml
+# ensemble.yaml
+members:
+  - name: send-welcome
+    type: Email
+    config:
+      template: template://welcome-email@v1.0.0
+
+  - name: send-welcome-beta
+    type: Email
+    config:
+      template: template://welcome-email@v2.0.0
+```
+
+## Template Caching
+
+### Default Caching
+
+Templates are cached at the edge for 1 hour by default:
+
+```typescript
+// ComponentLoader caches templates automatically
+const componentLoader = createComponentLoader({
+  kv: env.COMPONENTS,
+  cache: repositoryCache,  // 1-hour TTL
+  logger: context.logger
+});
+
+// Cache key format: conductor:cache:components:template://welcome-email@v1.0.0
+```
+
+### Custom Cache Configuration
+
+Override cache settings per template:
+
+```yaml
+members:
+  - name: render-static-page
+    type: HTML
+    config:
+      template: template://header@v1.0.0
+      cache:
+        ttl: 86400  # Cache for 24 hours (static content)
+
+  - name: render-dynamic-page
+    type: HTML
+    config:
+      template: template://dashboard@v2.0.0
+      cache:
+        ttl: 300  # Cache for 5 minutes (dynamic data)
+
+  - name: render-live-page
+    type: HTML
+    config:
+      template: template://live-data@latest
+      cache:
+        bypass: true  # Always fetch fresh (no caching)
+```
+
+### Cache Invalidation
+
+Invalidate template cache after updates:
+
+```bash
+# Deploy new version
+edgit tag create welcome-email v1.1.0
+edgit deploy set welcome-email v1.1.0 --to production
+
+# Cache automatically updates on next request
+# Each version is cached independently:
+# - template://welcome-email@v1.0.0 (still cached)
+# - template://welcome-email@v1.1.0 (new cache entry)
+```
+
+### Cache Performance
+
+**Without Caching:**
+```
+Request → KV Lookup → Template Load → Parse → Render
+~50-100ms per request
+```
+
+**With Edge Caching:**
+```
+Request → Cache Hit → Render
+~1-5ms per request (50-100x faster!)
+```
+
+## Template Variables
+
+### Variable Syntax
+
+Handlebars variables in templates:
+
+```html
+<!-- Simple variables -->
+<h1>{{title}}</h1>
+<p>{{description}}</p>
+
+<!-- Nested properties -->
+<p>{{user.name}}</p>
+<p>{{user.email}}</p>
+
+<!-- Array iteration -->
+{{#each items}}
+  <li>{{this.name}} - ${{this.price}}</li>
+{{/each}}
+
+<!-- Conditionals -->
+{{#if isPremium}}
+  <div class="premium-badge">Premium</div>
+{{else}}
+  <div class="free-badge">Free</div>
+{{/if}}
+
+<!-- Helpers -->
+<p>Created: {{formatDate createdAt}}</p>
+<p>Price: {{formatCurrency price}}</p>
+```
+
+### Passing Data
+
+Pass variables from ensemble to template:
+
+```yaml
+members:
+  - name: send-email
+    type: Email
+    config:
+      template: template://welcome-email@v1.0.0
+      data:
+        # Static values
+        appName: "MyApp"
+        companyName: "Acme Corp"
+
+        # Input variables
+        userName: ${input.userName}
+        userEmail: ${input.userEmail}
+
+        # Member outputs
+        stats: ${member.get-stats.output}
+        subscription: ${member.get-subscription.output}
+
+        # Computed values
+        activationUrl: "https://myapp.com/activate?token=${input.token}"
+```
+
+### Variable Validation
+
+Document required variables in Edgit metadata:
+
+```bash
+# Add metadata when registering
+edgit components add welcome-email templates/email/welcome.html template \
+  --metadata '{
+    "variables": ["name", "appName", "activationUrl"],
+    "description": "Welcome email for new users",
+    "category": "email"
+  }'
+```
+
+## Best Practices
+
+### Template Organization
+
+**Group by Type and Purpose:**
+```bash
+templates/
+├── email/
+│   ├── onboarding/
+│   │   ├── welcome.html
+│   │   └── tutorial.html
+│   ├── transactional/
+│   │   ├── receipt.html
+│   │   └── reset-password.html
+│   └── marketing/
+│       ├── newsletter.html
+│       └── promotion.html
+├── pages/
+│   ├── public/
+│   │   ├── landing.html
+│   │   └── pricing.html
+│   └── app/
+│       ├── dashboard.html
+│       └── settings.html
+└── components/
+    ├── layout/
+    │   ├── header.html
+    │   └── footer.html
+    └── widgets/
+        ├── metric-card.html
+        └── alert.html
+```
+
+### Naming Conventions
+
+**Use Descriptive, Hyphenated Names:**
+```bash
+# Good
+edgit components add welcome-email templates/email/welcome.html template
+edgit components add invoice-receipt templates/pdf/invoice.html template
+edgit components add user-dashboard templates/pages/dashboard.html template
+
+# Avoid
+edgit components add email1 templates/email/welcome.html template
+edgit components add template templates/pdf/invoice.html template
+edgit components add page templates/pages/dashboard.html template
+```
+
+### Versioning Strategy
+
+**Follow Semantic Versioning:**
+```bash
+# Patch: Bug fixes, typos, minor style tweaks
+v1.0.1: Fix typo in welcome message
+v1.0.2: Correct spacing in footer
+
+# Minor: New features, backward-compatible changes
+v1.1.0: Add optional promotional banner section
+v1.2.0: Support dark mode via CSS variables
+
+# Major: Breaking changes to variables or structure
+v2.0.0: Rename 'userName' to 'user.name' (breaking)
+v3.0.0: Complete redesign with new variable structure
+```
+
+### Testing Templates
+
+**Test Before Production:**
+```bash
+# Deploy to staging
+edgit deploy set welcome-email v2.0.0 --to staging
+
+# Test with staging environment
+curl -X POST https://api.myapp.com/send-email \
+  -H "X-Environment: staging" \
+  -d '{"email": "test@example.com"}'
+
+# Verify output, check variables, test edge cases
+
+# Promote to production when ready
+edgit deploy set welcome-email v2.0.0 --to production
+```
+
+### Component Reuse
+
+**Create Reusable Components:**
+```html
+<!-- templates/components/cta-button.html -->
+<a href="{{url}}" class="cta-button {{style}}">
+  {{text}}
+</a>
+
+<!-- Use in multiple templates -->
+{{>component://cta-button@v1.0.0 url=activationUrl text="Activate Account" style="primary"}}
+{{>component://cta-button@v1.0.0 url=dashboardUrl text="Go to Dashboard" style="secondary"}}
+```
+
+### Error Handling
+
+**Provide Fallback Values:**
+```html
+<!-- Use default values for optional variables -->
+<h1>Welcome{{#if name}}, {{name}}{{/if}}!</h1>
+<p>{{message "Thanks for joining!"}}</p>
+
+<!-- Handle missing data gracefully -->
+{{#if items}}
+  {{#each items}}
+    <li>{{this.name}}</li>
+  {{/each}}
+{{else}}
+  <p>No items available.</p>
+{{/if}}
+```
+
+## Troubleshooting
+
+### Template Not Found
+
+**Problem:** `Template not found: template://welcome-email@v1.0.0`
+
+**Solutions:**
+```bash
+# Check if template exists in Edgit
+edgit components list | grep welcome-email
+
+# Check if version exists
+edgit tag list welcome-email
+
+# Verify deployment
+edgit deploy status welcome-email
+
+# Redeploy if needed
+edgit deploy set welcome-email v1.0.0 --to production
+```
+
+### Variables Not Rendering
+
+**Problem:** Variables showing as `{{variableName}}` in output
+
+**Solutions:**
+```yaml
+# Check data is passed correctly
+members:
+  - name: send-email
+    type: Email
+    config:
+      template: template://welcome-email@v1.0.0
+      data:
+        name: ${input.userName}  # Ensure variable exists
+
+# Verify variable names match template
+# Template: {{userName}}
+# Data: userName: "John"  ✓
+# Data: name: "John"      ✗ (mismatch)
+```
+
+### Cache Not Updating
+
+**Problem:** Template changes not appearing
+
+**Solutions:**
+```bash
+# Create new version (don't reuse existing versions)
+edgit tag create welcome-email v1.1.0  # Not v1.0.0 again
+
+# Deploy new version
+edgit deploy set welcome-email v1.1.0 --to production
+
+# Update ensemble to reference new version
+# template://welcome-email@v1.1.0
+
+# Or bypass cache for testing
+# cache: { bypass: true }
+```
+
+### Performance Issues
+
+**Problem:** Slow template loading
+
+**Solutions:**
+```yaml
+# Increase cache TTL for static templates
+members:
+  - name: render-page
+    type: HTML
+    config:
+      template: template://header@v1.0.0
+      cache:
+        ttl: 86400  # 24 hours for static content
+
+# Use component caching
+# Cache key: conductor:cache:components:template://header@v1.0.0
+
+# Monitor cache hit rate
+# Check logs for "Component cache hit" vs "Component cache miss"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="HTML Member Type"
+    icon="file-code"
+    href="/conductor/member-types/html"
+  >
+    Learn about HTML, Email, and PDF generation
+  </Card>
+
+  <Card
+    title="Component Types"
+    icon="puzzle-piece"
+    href="/edgit/guides/component-types"
+  >
+    Explore all Edgit component types
+  </Card>
+
+  <Card
+    title="Caching Strategies"
+    icon="database"
+    href="/conductor/concepts/caching"
+  >
+    Optimize template caching for performance
+  </Card>
+
+  <Card
+    title="HTML Components Example"
+    icon="code"
+    href="/conductor/examples/html-components"
+  >
+    Complete dashboard with versioned templates
+  </Card>
+</CardGroup>
