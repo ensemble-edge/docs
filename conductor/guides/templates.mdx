@@ -115,11 +115,91 @@ template://invoice@v2.1.0          # Updated recently
 template://newsletter@v1.5.0       # Testing new design
 ```
 
+## Template Engines
+
+Conductor supports four template engines for rendering HTML, Email, and SMS content:
+
+### Simple (Default)
+
+Basic variable substitution with `{{variable}}` syntax. Fast and lightweight, perfect for simple templates:
+
+```html
+<h1>Welcome, {{name}}!</h1>
+<p>Your account {{email}} has been activated.</p>
+```
+
+### Handlebars
+
+Full-featured template engine with helpers, conditionals, loops, and partials. Best for complex templates:
+
+```html
+<h1>{{greeting}}, {{name}}!</h1>
+{{#if isPremium}}
+  <div class="premium-badge">Premium Member</div>
+{{/if}}
+{{#each items}}
+  <li>{{this.name}} - ${{this.price}}</li>
+{{/each}}
+```
+
+**Built-in helpers**: `eq`, `ne`, `lt`, `gt`, `and`, `or`, `upper`, `lower`, `capitalize`, `truncate`, `formatDate`, `formatCurrency`, and more.
+
+### Liquid
+
+Shopify's template language with powerful filters. Ideal for e-commerce and content-heavy applications:
+
+```html
+<h1>Welcome, {{ name | capitalize }}!</h1>
+<p>Total: {{ price | money_with_currency: "USD" }}</p>
+<p>Posted {{ createdAt | time_ago }}</p>
+{{ content | strip_html | truncate: 200 }}
+```
+
+**Built-in filters**: `money`, `phone`, `pluralize`, `excerpt`, `strip_html`, `highlight`, `file_size`, `time_ago`, and all standard Liquid filters.
+
+### MJML
+
+Responsive email framework that generates cross-client compatible HTML emails:
+
+```xml
+<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-text>Welcome, {{name}}!</mj-text>
+        <mj-button href="{{activationUrl}}">Activate Account</mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
+```
+
+**Note**: MJML combines with Handlebars for dynamic content (use `{{variables}}` inside MJML tags). MJML has Node.js dependencies and may not work in all Cloudflare Workers environments.
+
+### Choosing an Engine
+
+Specify the template engine in your member configuration:
+
+```yaml
+members:
+  - name: send-email
+    type: email
+    config:
+      templateEngine: handlebars  # or 'simple', 'liquid', 'mjml'
+      template: template://welcome-email@v1.0.0
+      data:
+        name: ${input.userName}
+```
+
+**Engine Availability:**
+- **HTML & Email**: `simple` (default), `handlebars`, `liquid`, `mjml`
+- **SMS**: `simple` (default), `handlebars`, `liquid`
+
 ## Template Types
 
 ### Email Templates
 
-HTML emails with Handlebars syntax:
+HTML emails with your chosen template engine syntax:
 
 ```html
 <!-- templates/email/welcome.html -->

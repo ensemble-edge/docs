@@ -222,7 +222,18 @@ Send images and media with your messages (Twilio only):
 
 ## Template Rendering
 
-Use simple variable interpolation in message bodies:
+SMS member supports three template engines for rendering message content:
+
+```yaml
+config:
+  templateEngine: handlebars  # 'simple' (default), 'handlebars', or 'liquid'
+  provider:
+    # ... provider config
+```
+
+### Simple (Default)
+
+Basic `{{variable}}` substitution. Fast and lightweight:
 
 ```yaml
 - member: send-welcome
@@ -230,21 +241,43 @@ Use simple variable interpolation in message bodies:
     to: ${user.phone}
     body: |
       Welcome {{name}}!
-
       Your account has been created.
       Login at: {{loginUrl}}
-
-      Need help? Reply to this message.
     data:
       name: ${user.name}
       loginUrl: https://app.example.com/login
 ```
 
-**Template Features**:
-- Simple `{{variable}}` syntax
-- Works in message body
-- Per-recipient data in batch sends
-- Common data shared across batches
+### Handlebars
+
+Full-featured with helpers and conditionals:
+
+```yaml
+config:
+  templateEngine: handlebars
+
+input:
+  body: |
+    Welcome {{capitalize name}}!
+    {{#if isPremium}}
+    You have premium access.
+    {{/if}}
+    Balance: {{formatCurrency balance "USD"}}
+```
+
+### Liquid
+
+Shopify template language with filters:
+
+```yaml
+config:
+  templateEngine: liquid
+
+input:
+  body: |
+    Welcome {{ name | capitalize }}!
+    Order total: {{ price | money: "USD" }}
+    Placed {{ createdAt | time_ago }}
 
 ## Phone Number Formats
 

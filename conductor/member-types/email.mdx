@@ -158,6 +158,66 @@ template: kv://templates/email/welcome@latest
 template: kv://templates/email/welcome@main
 ```
 
+## Template Engines
+
+Email member supports four template engines for rendering email content:
+
+```yaml
+config:
+  templateEngine: handlebars  # 'simple' (default), 'handlebars', 'liquid', or 'mjml'
+  template: kv://templates/email/welcome
+```
+
+### Simple (Default)
+
+Basic `{{variable}}` substitution. Fast and lightweight:
+
+```html
+<h1>Welcome, {{name}}!</h1>
+<p>Your order {{orderId}} is confirmed.</p>
+```
+
+### Handlebars
+
+Full-featured with helpers and conditionals:
+
+```html
+<h1>{{capitalize greeting}}, {{name}}!</h1>
+{{#if isPremium}}
+  <div class="premium-offer">Special offer for you!</div>
+{{/if}}
+<p>Total: {{formatCurrency total "USD"}}</p>
+```
+
+### Liquid
+
+Shopify template language with filters:
+
+```html
+<h1>Welcome, {{ name | capitalize }}!</h1>
+<p>Order total: {{ price | money_with_currency: "USD" }}</p>
+<p>Placed {{ createdAt | time_ago }}</p>
+```
+
+### MJML
+
+Responsive email framework (compiles to HTML):
+
+```xml
+<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-text>Welcome, {{name}}!</mj-text>
+        <mj-button href="{{confirmUrl}}">Confirm Email</mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
+```
+
+**Note**: MJML may not work in all Cloudflare Workers environments due to Node.js dependencies.
+
 ## Batch Sending
 
 Send personalized emails to multiple recipients with rate limiting.

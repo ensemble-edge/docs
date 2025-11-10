@@ -125,51 +125,96 @@ flow:
 
 ## Template Engines
 
+The HTML member supports four template engines. Specify your choice in the config:
+
+```yaml
+config:
+  templateEngine: handlebars  # or 'simple', 'liquid', 'mjml'
+  template:
+    inline: "..."
+```
+
 ### Simple Engine (Default)
 
-Built-in lightweight engine with `{{variable}}` syntax:
+Built-in lightweight engine with `{{variable}}` syntax. Fast and minimal:
 
 ```yaml
-template:
-  inline: |
-    <h1>{{title}}</h1>
-    <p>{{description}}</p>
-
-    {{#if showButton}}
-    <button>{{buttonText}}</button>
-    {{/if}}
-
-    <ul>
-    {{#each items}}
-      <li>{{name}}</li>
-    {{/each}}
-    </ul>
+config:
+  templateEngine: simple  # default, can be omitted
+  template:
+    inline: |
+      <h1>{{title}}</h1>
+      <p>{{description}}</p>
+      {{#if showButton}}
+        <button>{{buttonText}}</button>
+      {{/if}}
 ```
 
-**Supported Features:**
-- Variables: `{{variable}}`
-- Nested paths: `{{user.name}}`
-- Conditionals: `{{#if condition}}...{{/if}}`
-- Loops: `{{#each array}}...{{/each}}`
-- Loop variables: `{{@index}}`, `{{@first}}`, `{{@last}}`, `{{this}}`
+**Features:**
+- Variables: `{{variable}}`, `{{user.name}}`
+- Conditionals: `{{#if}}...{{/if}}`
+- Loops: `{{#each}}...{{/each}}`
+- Loop vars: `{{@index}}`, `{{@first}}`, `{{@last}}`
 
-### Template Helpers
+### Handlebars Engine
 
-Built-in helpers:
+Full-featured template engine with helpers, partials, and advanced logic:
 
 ```yaml
-data:
-  name: "john doe"
-  amount: 1234.56
-  date: "2025-01-09"
-  price: 99.99
-
-# Template:
-# {{uppercase name}} -> JOHN DOE
-# {{capitalize name}} -> John Doe
-# {{currency price "USD"}} -> $99.99
-# {{formatDate date}} -> January 9, 2025
+config:
+  templateEngine: handlebars
+  template:
+    inline: |
+      <h1>{{greeting}}, {{capitalize name}}!</h1>
+      {{#if isPremium}}
+        <div class="badge">Premium</div>
+      {{/if}}
+      {{#each items}}
+        <li>{{this.name}} - {{formatCurrency this.price "USD"}}</li>
+      {{/each}}
 ```
+
+**Built-in Helpers**: `eq`, `ne`, `lt`, `gt`, `and`, `or`, `upper`, `lower`, `capitalize`, `truncate`, `formatDate`, `formatCurrency`, `json`, `default`, and more.
+
+### Liquid Engine
+
+Shopify's template language with powerful filters. Perfect for e-commerce:
+
+```yaml
+config:
+  templateEngine: liquid
+  template:
+    inline: |
+      <h1>Welcome, {{ name | capitalize }}!</h1>
+      <p>Total: {{ price | money_with_currency: "USD" }}</p>
+      <p>Posted {{ createdAt | time_ago }}</p>
+      {{ content | strip_html | excerpt: 200 }}
+```
+
+**Built-in Filters**: `money`, `phone`, `pluralize`, `excerpt`, `strip_html`, `highlight`, `file_size`, `time_ago`, plus all standard Liquid filters.
+
+### MJML Engine
+
+Responsive email framework that compiles to cross-client HTML:
+
+```yaml
+config:
+  templateEngine: mjml
+  template:
+    inline: |
+      <mjml>
+        <mj-body>
+          <mj-section>
+            <mj-column>
+              <mj-text>Welcome, {{name}}!</mj-text>
+              <mj-button href="{{actionUrl}}">Get Started</mj-button>
+            </mj-column>
+          </mj-section>
+        </mj-body>
+      </mjml>
+```
+
+**Note**: Use `{{variables}}` for dynamic content. MJML has Node.js dependencies and may not work in all Cloudflare Workers environments.
 
 ## Template Loading
 
