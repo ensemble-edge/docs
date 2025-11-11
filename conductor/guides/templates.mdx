@@ -50,7 +50,7 @@ members:
   - name: send-welcome
     type: Email
     config:
-      template: template://welcome-email@v1.0.0
+      template: templates/welcome-email@v1.0.0
       data:
         name: ${input.userName}
         appName: "MyApp"
@@ -82,7 +82,7 @@ Each template version is cached independently at the edge:
 # Deploy v2.0.0 to staging
 edgit deploy set welcome-email v2.0.0 --to staging
 
-# Test thoroughly with: template://welcome-email@staging
+# Test thoroughly with: templates/welcome-email@staging
 
 # Promote to production (atomic operation)
 edgit deploy set welcome-email v2.0.0 --to production
@@ -98,21 +98,21 @@ members:
   - name: send-welcome-control
     type: Email
     config:
-      template: template://welcome-email@v1.0.0  # Control group
+      template: templates/welcome-email@v1.0.0  # Control group
 
   - name: send-welcome-variant
     type: Email
     config:
-      template: template://welcome-email@v2.0.0  # Test variant
+      template: templates/welcome-email@v2.0.0  # Test variant
 ```
 
 ### Component Independence
 Templates evolve separately from application code:
 ```bash
 # Frontend on v3.0.0, API on v2.5.0, templates on different versions
-template://welcome-email@v1.0.0    # Stable version
-template://invoice@v2.1.0          # Updated recently
-template://newsletter@v1.5.0       # Testing new design
+templates/welcome-email@v1.0.0    # Stable version
+templates/invoice@v2.1.0          # Updated recently
+templates/newsletter@v1.5.0       # Testing new design
 ```
 
 ## Template Engines
@@ -186,7 +186,7 @@ members:
     type: email
     config:
       templateEngine: handlebars  # or 'simple', 'liquid', 'mjml'
-      template: template://welcome-email@v1.0.0
+      template: templates/welcome-email@v1.0.0
       data:
         name: ${input.userName}
 ```
@@ -230,7 +230,7 @@ members:
   - name: send-email
     type: Email
     config:
-      template: template://welcome-email@v1.0.0
+      template: templates/welcome-email@v1.0.0
       from: noreply@example.com
       to: ${input.userEmail}
       subject: Welcome to ${input.appName}
@@ -292,7 +292,7 @@ members:
   - name: render-dashboard
     type: HTML
     config:
-      template: template://dashboard@v2.0.0
+      template: templates/dashboard@v2.0.0
       data:
         title: "System Dashboard"
         metrics:
@@ -371,7 +371,7 @@ members:
   - name: generate-invoice
     type: PDF
     config:
-      template: template://invoice@v1.0.0
+      template: templates/invoice@v1.0.0
       data:
         invoiceNumber: ${input.invoiceNumber}
         date: ${input.date}
@@ -512,12 +512,12 @@ members:
   - name: send-welcome
     type: Email
     config:
-      template: template://welcome-email@v1.0.0
+      template: templates/welcome-email@v1.0.0
 
   - name: send-welcome-beta
     type: Email
     config:
-      template: template://welcome-email@v2.0.0
+      template: templates/welcome-email@v2.0.0
 ```
 
 ## Template Caching
@@ -534,7 +534,7 @@ const componentLoader = createComponentLoader({
   logger: context.logger
 });
 
-// Cache key format: conductor:cache:components:template://welcome-email@v1.0.0
+// Cache key format: conductor:cache:components:templates/welcome-email@v1.0.0
 ```
 
 ### Custom Cache Configuration
@@ -546,21 +546,21 @@ members:
   - name: render-static-page
     type: HTML
     config:
-      template: template://header@v1.0.0
+      template: templates/header@v1.0.0
       cache:
         ttl: 86400  # Cache for 24 hours (static content)
 
   - name: render-dynamic-page
     type: HTML
     config:
-      template: template://dashboard@v2.0.0
+      template: templates/dashboard@v2.0.0
       cache:
         ttl: 300  # Cache for 5 minutes (dynamic data)
 
   - name: render-live-page
     type: HTML
     config:
-      template: template://live-data@latest
+      template: templates/live-data@latest
       cache:
         bypass: true  # Always fetch fresh (no caching)
 ```
@@ -576,8 +576,8 @@ edgit deploy set welcome-email v1.1.0 --to production
 
 # Cache automatically updates on next request
 # Each version is cached independently:
-# - template://welcome-email@v1.0.0 (still cached)
-# - template://welcome-email@v1.1.0 (new cache entry)
+# - templates/welcome-email@v1.0.0 (still cached)
+# - templates/welcome-email@v1.1.0 (new cache entry)
 ```
 
 ### Cache Performance
@@ -635,7 +635,7 @@ members:
   - name: send-email
     type: Email
     config:
-      template: template://welcome-email@v1.0.0
+      template: templates/welcome-email@v1.0.0
       data:
         # Static values
         appName: "MyApp"
@@ -786,7 +786,7 @@ edgit deploy set welcome-email v2.0.0 --to production
 
 ### Template Not Found
 
-**Problem:** `Template not found: template://welcome-email@v1.0.0`
+**Problem:** `Template not found: templates/welcome-email@v1.0.0`
 
 **Solutions:**
 ```bash
@@ -814,7 +814,7 @@ members:
   - name: send-email
     type: Email
     config:
-      template: template://welcome-email@v1.0.0
+      template: templates/welcome-email@v1.0.0
       data:
         name: ${input.userName}  # Ensure variable exists
 
@@ -837,7 +837,7 @@ edgit tag create welcome-email v1.1.0  # Not v1.0.0 again
 edgit deploy set welcome-email v1.1.0 --to production
 
 # Update ensemble to reference new version
-# template://welcome-email@v1.1.0
+# templates/welcome-email@v1.1.0
 
 # Or bypass cache for testing
 # cache: { bypass: true }
@@ -854,12 +854,12 @@ members:
   - name: render-page
     type: HTML
     config:
-      template: template://header@v1.0.0
+      template: templates/header@v1.0.0
       cache:
         ttl: 86400  # 24 hours for static content
 
 # Use component caching
-# Cache key: conductor:cache:components:template://header@v1.0.0
+# Cache key: conductor:cache:components:templates/header@v1.0.0
 
 # Monitor cache hit rate
 # Check logs for "Component cache hit" vs "Component cache miss"

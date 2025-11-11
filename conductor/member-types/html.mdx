@@ -75,7 +75,7 @@ members:
             <link href="/assets/styles/utilities.css" rel="stylesheet">
           </head>
           <body>
-            {{> template://components/header@v1.0.0
+            {{> templates/components/header@v1.0.0
               title="{{companyName}} Dashboard"
             }}
 
@@ -83,7 +83,7 @@ members:
               <h1>{{companyName}} Metrics</h1>
 
               {{#each metrics}}
-              {{> template://components/metric-card@v1.0.0
+              {{> templates/components/metric-card@v1.0.0
                 label=this.label
                 value=this.value
                 trend=this.trend
@@ -91,7 +91,7 @@ members:
               {{/each}}
             </div>
 
-            {{> template://components/footer@v1.0.0}}
+            {{> templates/components/footer@v1.0.0}}
           </body>
           </html>
 
@@ -277,7 +277,7 @@ The HTML member supports reusable components loaded from KV storage with version
 
 ### Using Components (Partials)
 
-Load components within templates using the `template://` protocol:
+Load components within templates using the `templates/` protocol:
 
 ```yaml
 members:
@@ -292,17 +292,17 @@ members:
             <title>{{title}}</title>
           </head>
           <body>
-            {{> template://components/header@v1.0.0}}
+            {{> templates/components/header@v1.0.0}}
 
             <main>
               <h1>{{pageTitle}}</h1>
-              {{> template://components/content-card
+              {{> templates/components/content-card
                 title="Welcome"
                 description="Get started with our platform"
               }}
             </main>
 
-            {{> template://components/footer@latest}}
+            {{> templates/components/footer@latest}}
           </body>
           </html>
 
@@ -321,17 +321,17 @@ flow:
 ```
 
 **Protocols:**
-- `template://` - HTML/Handlebars templates
+- `templates/` - HTML/Handlebars templates
 - `component://` - Compiled JSX components (future)
 - `form://` - Form definitions (future)
 - `page://` - Full page components (future)
 
 **Examples:**
 ```yaml
-{{> template://components/header}}              # Uses @latest
-{{> template://components/header@latest}}       # Explicit @latest
-{{> template://components/header@v1.0.0}}       # Specific version
-{{> template://components/header@prod}}         # Tagged version
+{{> templates/components/header}}              # Uses @latest
+{{> templates/components/header@latest}}       # Explicit @latest
+{{> templates/components/header@v1.0.0}}       # Specific version
+{{> templates/components/header@prod}}         # Tagged version
 ```
 
 ### Component Parameters
@@ -339,13 +339,13 @@ flow:
 Pass data to components:
 
 ```yaml
-{{> template://components/card
+{{> templates/components/card
   title="Feature 1"
   description="Amazing feature"
   link="/features/1"
 }}
 
-{{> template://components/alert
+{{> templates/components/alert
   type="success"
   message="Operation completed"
 }}
@@ -404,10 +404,10 @@ wrangler kv key put "templates/components/header@latest" \
 **Version Pinning:**
 ```yaml
 # ✅ Production - pin specific versions
-{{> template://components/header@v1.0.0}}
+{{> templates/components/header@v1.0.0}}
 
 # ⚠️ Development - use @latest
-{{> template://components/header@latest}}
+{{> templates/components/header@latest}}
 ```
 
 **Component Organization:**

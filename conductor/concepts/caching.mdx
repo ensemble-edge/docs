@@ -416,14 +416,14 @@ webhooks:
   type: HTML
   template:
     inline: |
-      {{> template://components/header}}  # Component cached for 1 hour
+      {{> templates/components/header}}  # Component cached for 1 hour
       <main>{{content}}</main>
-      {{> template://components/footer}}  # Component cached for 1 hour
+      {{> templates/components/footer}}  # Component cached for 1 hour
   data:
     content: "Page content here"
 ```
 
-Components loaded via `template://` URIs are automatically cached. See [Component Caching](#component-caching) below.
+Components loaded via `templates/` URIs are automatically cached. See [Component Caching](#component-caching) below.
 
 ## Component Caching
 
@@ -443,7 +443,7 @@ const componentLoader = createComponentLoader({
 });
 
 // Loads from KV, caches for 1 hour
-const header = await componentLoader.load('template://components/header@v1.0.0');
+const header = await componentLoader.load('templates/components/header@v1.0.0');
 ```
 
 ### Custom Component Cache Configuration
@@ -452,17 +452,17 @@ Override cache behavior per component:
 
 ```typescript
 // Cache for 24 hours (static content)
-const footer = await componentLoader.load('template://components/footer@v1.0.0', {
+const footer = await componentLoader.load('templates/components/footer@v1.0.0', {
   cache: { ttl: 86400 }
 });
 
 // Cache for 5 minutes (dynamic content)
-const news = await componentLoader.load('template://components/news@latest', {
+const news = await componentLoader.load('templates/components/news@latest', {
   cache: { ttl: 300 }
 });
 
 // Bypass cache (force fresh load)
-const liveData = await componentLoader.load('template://components/live-data@latest', {
+const liveData = await componentLoader.load('templates/components/live-data@latest', {
   cache: { bypass: true }
 });
 ```
@@ -472,14 +472,14 @@ const liveData = await componentLoader.load('template://components/live-data@lat
 Components use a consistent cache key format:
 
 ```
-conductor:cache:components:template://components/header@v1.0.0
-conductor:cache:components:prompt://analyze-company@v2.0.0
+conductor:cache:components:templates/components/header@v1.0.0
+conductor:cache:components:prompts/analyze-company@v2.0.0
 conductor:cache:components:form://contact@latest
 ```
 
 The cache key includes:
 - **Prefix**: `conductor:cache:components:`
-- **Protocol**: `template://`, `prompt://`, `query://`, etc.
+- **Protocol**: `templates/`, `prompts/`, `query://`, etc.
 - **Path**: Component path
 - **Version**: Explicit version or `@latest`
 
@@ -488,13 +488,13 @@ The cache key includes:
 **Per-Version Caching**: Each version is cached independently
 ```typescript
 // These use separate cache entries
-await componentLoader.load('template://header@v1.0.0');
-await componentLoader.load('template://header@v2.0.0');
+await componentLoader.load('templates/header@v1.0.0');
+await componentLoader.load('templates/header@v2.0.0');
 ```
 
 **Manual Invalidation**:
 ```typescript
-await componentLoader.invalidateCache('template://components/header@v1.0.0');
+await componentLoader.invalidateCache('templates/components/header@v1.0.0');
 ```
 
 **Version Updates**: Deploy new version without clearing cache
@@ -511,7 +511,7 @@ edgit deploy set header v1.1.0 --to production
 **Static Components (Long TTL)**:
 ```typescript
 // Headers, footers, layouts - rarely change
-await componentLoader.load('template://layouts/main@v1.0.0', {
+await componentLoader.load('templates/layouts/main@v1.0.0', {
   cache: { ttl: 86400 } // 24 hours
 });
 ```
@@ -519,7 +519,7 @@ await componentLoader.load('template://layouts/main@v1.0.0', {
 **Dynamic Components (Short TTL)**:
 ```typescript
 // News, metrics, live data - changes frequently
-await componentLoader.load('template://components/stock-ticker@latest', {
+await componentLoader.load('templates/components/stock-ticker@latest', {
   cache: { ttl: 60 } // 1 minute
 });
 ```
@@ -527,7 +527,7 @@ await componentLoader.load('template://components/stock-ticker@latest', {
 **Volatile Components (Bypass Cache)**:
 ```typescript
 // Testing, forced updates, real-time requirements
-await componentLoader.load('template://components/debug@latest', {
+await componentLoader.load('templates/components/debug@latest', {
   cache: { bypass: true }
 });
 ```
@@ -542,11 +542,11 @@ flow:
     type: HTML
     template:
       inline: |
-        {{> template://components/header@v1.0.0}}
+        {{> templates/components/header@v1.0.0}}
         <div class="metrics">
-          {{> template://components/metrics@latest}}
+          {{> templates/components/metrics@latest}}
         </div>
-        {{> template://components/footer@v1.0.0}}
+        {{> templates/components/footer@v1.0.0}}
     data:
       pageTitle: "Dashboard"
 ```
@@ -559,7 +559,7 @@ flow:
 For custom cache control, load components programmatically:
 
 ```typescript
-const metrics = await componentLoader.load('template://components/metrics@latest', {
+const metrics = await componentLoader.load('templates/components/metrics@latest', {
   cache: { ttl: 300 } // 5 minutes for dynamic metrics
 });
 
@@ -616,17 +616,17 @@ config:
 
 ```typescript
 // ✅ Long TTL for static components
-await componentLoader.load('template://layouts/main@v1.0.0', {
+await componentLoader.load('templates/layouts/main@v1.0.0', {
   cache: { ttl: 86400 } // 24 hours
 });
 
 // ✅ Short TTL for dynamic components
-await componentLoader.load('template://components/news@latest', {
+await componentLoader.load('templates/components/news@latest', {
   cache: { ttl: 300 } // 5 minutes
 });
 
 // ❌ Don't bypass cache unnecessarily
-await componentLoader.load('template://header@v1.0.0', {
+await componentLoader.load('templates/header@v1.0.0', {
   cache: { bypass: true } // Only for testing/forced updates
 });
 ```

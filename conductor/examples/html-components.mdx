@@ -8,7 +8,7 @@ description: "Building reusable UI components with versioning and caching"
 This example demonstrates Conductor's component system for building maintainable, reusable HTML templates with versioning, caching, and seamless updates.
 
 **Key Features:**
-- Reusable components with `template://` protocol
+- Reusable components with `templates/` protocol
 - Semantic versioning (v1.0.0, v2.0.0)
 - Automatic edge caching (1 hour default)
 - Atomic deployments with Edgit
@@ -285,14 +285,14 @@ members:
             </style>
           </head>
           <body>
-            {{> template://components/header@v1.0.0
+            {{> templates/components/header@v1.0.0
               title="Analytics Dashboard"
               navigation=navigation
             }}
 
             <main class="container">
               {{#if alert}}
-              {{> template://components/alert@v1.0.0
+              {{> templates/components/alert@v1.0.0
                 type=alert.type
                 title=alert.title
                 message=alert.message
@@ -303,7 +303,7 @@ members:
 
               <div class="metrics-grid">
                 {{#each metrics}}
-                {{> template://components/metric-card@v1.0.0
+                {{> templates/components/metric-card@v1.0.0
                   label=this.label
                   value=this.value
                   trend=this.trend
@@ -313,7 +313,7 @@ members:
               </div>
             </main>
 
-            {{> template://components/footer@v1.0.0
+            {{> templates/components/footer@v1.0.0
               year=currentYear
               companyName="Acme Corp"
               footerLinks=footerLinks
@@ -417,10 +417,10 @@ All components are cached automatically:
 
 **Cache Keys:**
 ```
-conductor:cache:components:template://components/header@v1.0.0
-conductor:cache:components:template://components/metric-card@v1.0.0
-conductor:cache:components:template://components/alert@v1.0.0
-conductor:cache:components:template://components/footer@v1.0.0
+conductor:cache:components:templates/components/header@v1.0.0
+conductor:cache:components:templates/components/metric-card@v1.0.0
+conductor:cache:components:templates/components/alert@v1.0.0
+conductor:cache:components:templates/components/footer@v1.0.0
 ```
 
 ### Custom Cache Configuration
@@ -437,17 +437,17 @@ const componentLoader = createComponentLoader({
 });
 
 // Static component - cache for 24 hours
-const header = await componentLoader.load('template://components/header@v1.0.0', {
+const header = await componentLoader.load('templates/components/header@v1.0.0', {
   cache: { ttl: 86400 }
 });
 
 // Dynamic component - cache for 5 minutes
-const liveMetrics = await componentLoader.load('template://components/live-metrics@latest', {
+const liveMetrics = await componentLoader.load('templates/components/live-metrics@latest', {
   cache: { ttl: 300 }
 });
 
 // Force fresh load - bypass cache
-const debugInfo = await componentLoader.load('template://components/debug@latest', {
+const debugInfo = await componentLoader.load('templates/components/debug@latest', {
   cache: { bypass: true }
 });
 ```
@@ -468,7 +468,7 @@ edgit deploy set metric-card v2.0.0 --to production
 Update ensemble to use new version:
 
 ```yaml
-{{> template://components/metric-card@v2.0.0  # <-- Updated version
+{{> templates/components/metric-card@v2.0.0  # <-- Updated version
   label=this.label
   value=this.value
 }}
@@ -476,7 +476,7 @@ Update ensemble to use new version:
 
 **Rollback if needed:**
 ```yaml
-{{> template://components/metric-card@v1.0.0  # <-- Rollback
+{{> templates/components/metric-card@v1.0.0  # <-- Rollback
   label=this.label
   value=this.value
 }}
@@ -517,9 +517,9 @@ template:
 
 ```yaml
 # Small ensemble (~2KB) + components (cached)
-{{> template://components/header@v1.0.0}}
-{{> template://components/metric-card@v1.0.0}}
-{{> template://components/footer@v1.0.0}}
+{{> templates/components/header@v1.0.0}}
+{{> templates/components/metric-card@v1.0.0}}
+{{> templates/components/footer@v1.0.0}}
 ```
 
 **Benefits:**
@@ -542,11 +542,11 @@ template:
 
 ```yaml
 # ✅ Production - pin specific versions
-{{> template://components/header@v1.0.0}}
-{{> template://components/footer@v1.0.0}}
+{{> templates/components/header@v1.0.0}}
+{{> templates/components/footer@v1.0.0}}
 
 # ⚠️ Development/Staging - use @latest
-{{> template://components/header@latest}}
+{{> templates/components/header@latest}}
 ```
 
 ### 2. Inline Component CSS
@@ -574,17 +574,17 @@ v2.0.0  # Breaking change (new HTML structure)
 
 ```typescript
 // Static components (header, footer) - long TTL
-await componentLoader.load('template://components/header@v1.0.0', {
+await componentLoader.load('templates/components/header@v1.0.0', {
   cache: { ttl: 86400 } // 24 hours
 });
 
 // Dynamic components (live data) - short TTL
-await componentLoader.load('template://components/live-ticker@latest', {
+await componentLoader.load('templates/components/live-ticker@latest', {
   cache: { ttl: 60 } // 1 minute
 });
 
 // Testing - bypass cache
-await componentLoader.load('template://components/test@latest', {
+await componentLoader.load('templates/components/test@latest', {
   cache: { bypass: true }
 });
 ```
@@ -611,7 +611,7 @@ templates/components/
 ### Component Not Found
 
 ```
-Error: Component not found: template://components/header@v1.0.0
+Error: Component not found: templates/components/header@v1.0.0
 KV key: templates/components/header@v1.0.0
 ```
 
@@ -631,7 +631,7 @@ edgit tag create header v1.0.1
 edgit deploy set header v1.0.1 --to production
 
 // Option 2: Manual cache invalidation
-await componentLoader.invalidateCache('template://components/header@v1.0.0');
+await componentLoader.invalidateCache('templates/components/header@v1.0.0');
 
 // Option 3: Wait for cache expiry (1 hour default)
 ```
@@ -649,8 +649,8 @@ addEventListener('fetch', event => {
 
 async function warmComponentCache() {
   await Promise.all([
-    componentLoader.load('template://components/header@v1.0.0'),
-    componentLoader.load('template://components/footer@v1.0.0')
+    componentLoader.load('templates/components/header@v1.0.0'),
+    componentLoader.load('templates/components/footer@v1.0.0')
   ]);
 }
 ```

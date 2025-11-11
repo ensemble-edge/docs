@@ -444,7 +444,7 @@ members:
     type: Think
     condition: ${member.get-user-profile.output.segment === 'premium'}
     config:
-      prompt: prompt://personalize-email@v1.0.0
+      prompt: prompts/personalize-email@v1.0.0
       provider: anthropic
       model: claude-3-5-sonnet-20241022
       temperature: 0.7
@@ -493,7 +493,7 @@ members:
     type: Email
     condition: ${member.assign-variant.output.variant === 'v1'}
     config:
-      template: template://welcome-v1@v1.0.0
+      template: templates/welcome-v1@v1.0.0
       from: welcome@myapp.com
       to: ${member.get-user-profile.output.email}
       subject: Welcome to MyApp
@@ -509,7 +509,7 @@ members:
     type: Email
     condition: ${member.assign-variant.output.variant === 'v2'}
     config:
-      template: template://welcome-v2@v2.0.0
+      template: templates/welcome-v2@v2.0.0
       from: welcome@myapp.com
       to: ${member.get-user-profile.output.email}
       subject: "🎉 Your MyApp account is ready!"
@@ -525,7 +525,7 @@ members:
     type: Email
     condition: ${member.assign-variant.output.variant === 'personalized'}
     config:
-      template: template://welcome-personalized@v3.0.0
+      template: templates/welcome-personalized@v3.0.0
       from: welcome@myapp.com
       to: ${member.get-user-profile.output.email}
       subject: ${member.personalize-content.output.personalizedMessage}
@@ -645,10 +645,10 @@ edgit deploy set welcome-v2 v2.0.0 --to canary
 
 # Phase 4: Full rollout to 100%
 edgit deploy set welcome-v2 v2.0.0 --to production
-# Update ensemble: template://welcome-v2@v2.0.0
+# Update ensemble: templates/welcome-v2@v2.0.0
 
 # Phase 5: Keep personalized for premium segment
-# Premium users continue using: template://welcome-personalized@v3.0.0
+# Premium users continue using: templates/welcome-personalized@v3.0.0
 ```
 
 ## Step 8: Continuous Improvement
@@ -674,7 +674,7 @@ members:
   - name: send-email-v2
     type: Email
     config:
-      template: template://welcome-v2@v2.0.0
+      template: templates/welcome-v2@v2.0.0
       subject: ${member.assign-subject.output.subject}
       # ... rest of config
 ```
@@ -693,7 +693,7 @@ edgit tag create welcome-v2 v2.0.1 \
 edgit deploy set welcome-v2 v2.0.1 --to production
 
 # Update ensemble reference
-# template://welcome-v2@v2.0.1
+# templates/welcome-v2@v2.0.1
 ```
 
 ### Add Seasonal Variations
@@ -708,8 +708,8 @@ edgit tag create welcome-holiday v1.0.0
 edgit deploy set welcome-holiday v1.0.0 --to production
 
 # Use conditionally
-# template://welcome-holiday@v1.0.0 (if holiday season)
-# template://welcome-v2@v2.0.1 (regular)
+# templates/welcome-holiday@v1.0.0 (if holiday season)
+# templates/welcome-v2@v2.0.1 (regular)
 ```
 
 ## Performance Metrics
