@@ -517,13 +517,65 @@ input:
 
 ## Integration with Worker
 
-The PageRouter automatically handles all your pages:
+<Note type="success">
+**Auto-Discovery Available**: Pages are automatically discovered at build time - no manual imports needed! See the [Auto-Discovery Guide](/conductor/guides/auto-discovery) for the modern approach.
+</Note>
+
+### Modern Approach (Recommended)
+
+With auto-discovery, pages are automatically imported and registered:
+
+```typescript
+import { PageRouter, PageMember } from '@ensemble-edge/conductor';
+import { parse as parseYAML } from 'yaml';
+
+// Pages automatically discovered via virtual module
+import { pages as discoveredPages } from 'virtual:conductor-pages';
+
+// Initialize router
+const pageRouter = new PageRouter({
+  indexFiles: ['index'],
+  notFoundPage: 'error-404'
+});
+
+// Convert discovered pages to pagesMap
+const pagesMap = new Map(
+  discoveredPages.map((page) => {
+    const config = parseYAML(page.config);
+    return [page.name, { config, member: new PageMember(config) }];
+  })
+);
+
+// Register routes
+await pageRouter.discoverPages(pagesMap);
+
+// In your fetch handler
+export default {
+  async fetch(request, env, ctx) {
+    const pageResponse = await pageRouter.handle(request, env, ctx);
+    if (pageResponse) return pageResponse;
+
+    return new Response('Not Found', { status: 404 });
+  }
+};
+```
+
+**Benefits:**
+- ✅ No manual imports - just create pages in `pages/` directory
+- ✅ Automatic updates when pages are added/removed
+- ✅ Hot Module Replacement during development
+- ✅ 3-33x faster builds with Vite + Rolldown
+
+### Legacy Approach (Manual)
+
+<details>
+<summary>Click to see manual import approach (not recommended)</summary>
 
 ```typescript
 import { PageRouter } from '@ensemble-edge/conductor';
 import { PageMember } from '@ensemble-edge/conductor/members/page';
 
-// Import page configs
+// Import page configs manually (tedious!)
 import indexConfig from '../pages/index/page.yaml';
 import dashboardConfig from '../pages/dashboard/page.yaml';
 
@@ -533,7 +585,7 @@ const pageRouter = new PageRouter({
   baseUrl: ''
 });
 
-// Register pages
+// Register pages manually
 const pagesMap = new Map([
   ['index', { config: indexConfig, member: new PageMember(indexConfig) }],
   ['dashboard', { config: dashboardConfig, member: new PageMember(dashboardConfig) }]
@@ -545,16 +597,21 @@ await pageRouter.discoverPages(pagesMap);
 // In your fetch handler
 export default {
   async fetch(request, env, ctx) {
-    // Try page routing
     const pageResponse = await pageRouter.handle(request, env, ctx);
-    if (pageResponse) {
-      return pageResponse;
-    }
+    if (pageResponse) return pageResponse;
 
-    // Other handlers...
     return new Response('Not Found', { status: 404 });
   }
 };
+```
+
+**Why this approach is outdated:**
+- ❌ Manual import for every new page
+- ❌ Merge conflicts on import statements
+- ❌ Easy to forget to add new pages
+- ❌ Slower builds
+
+</details>
 ```
 
 ## Best Practices
