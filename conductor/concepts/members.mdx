@@ -389,13 +389,26 @@ Members are discovered in this order:
 
 1. **Built-in members** (`scrape`, `validate`, `rag`, `hitl`, `fetch`, `queries`)
 2. **User-defined members** (in your project's `members/` directory)
-3. **Versioned members** (name@version via Edgit - planned)
 
 ```yaml
 flow:
   - member: scrape                    # Built-in
   - member: my-custom-member          # User-defined
-  - member: my-prompt@v1.2.0         # Versioned (future)
+```
+
+**Note**: The `member` field references member definitions, not versioned components. To use versioned components (prompts, templates, etc.) within members, reference them in the member's configuration:
+
+```yaml
+flow:
+  - name: analyze
+    type: Think
+    config:
+      prompt: prompts/analyst@v1.2.0    # Versioned prompt via Edgit
+
+  - name: send-email
+    type: Email
+    config:
+      template: templates/welcome@v2.0.0  # Versioned template via Edgit
 ```
 
 ## Creating Custom Members
