@@ -165,6 +165,25 @@ cache:
   ttl: 3600  # Cache for 1 hour
 ```
 
+<Info>
+**Why Not Traditional SSG?**
+
+Conductor doesn't use build-time Static Site Generation (SSG). Instead, we use **edge caching + cache warming** for a superior approach:
+
+- **Real-time updates** - No rebuild required, cache expires naturally
+- **Dynamic personalization** - Serve personalized content at edge speed
+- **Instant deployment** - No build step, deploy in seconds
+- **Zero cold starts** - Content cached globally at the edge
+- **Smart invalidation** - Purge specific pages with cache tags
+
+Traditional SSG requires rebuilding the entire site for every content change. With Conductor's edge-first approach, you get sub-50ms response times globally without sacrificing flexibility.
+
+**Learn more:**
+- [Caching & Cache Warming](/conductor/concepts/caching) - Comprehensive caching guide
+- [Cache Warming Setup](/conductor/concepts/caching#cache-warming) - Pre-populate edge cache on deploy
+- [Scheduled Cache Refresh](/conductor/concepts/caching#scheduled-cache-refresh) - Keep popular routes warm
+</Info>
+
 ### Hybrid Rendering
 
 SSR with client-side hydration for interactivity:

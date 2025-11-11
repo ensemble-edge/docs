@@ -272,23 +272,157 @@ flow:
 
 ### Cache Warming
 
-Pre-populate cache for common requests:
+Pre-populate your cache to ensure fast responses for your users from the first request. Conductor provides both automated and manual cache warming strategies.
+
+#### Automated Cache Warming
+
+Enable automatic cache warming for any member by adding `warming: true` or `prewarm: true` to the cache configuration:
+
+```yaml
+flow:
+  # Page member with cache warming
+  - member: homepage
+    type: Page
+    cache:
+      ttl: 3600
+      warming: true  # Auto-warm this route
+
+  # API member with cache warming
+  - member: get-pricing
+    type: API
+    config:
+      url: "https://api.example.com/pricing"
+    cache:
+      ttl: 7200
+      prewarm: true  # Alternative syntax
+
+  # Think member with cache warming
+  - member: generate-faq
+    type: Think
+    config:
+      provider: openai
+      model: gpt-4o
+    cache:
+      ttl: 86400
+      warming: true
+```
+
+**How it works:**
+- Works with ANY member type (Page, API, Data, Think, Function, HTML, etc.)
+- Routes are automatically extracted and warmed during deployment
+- Cache is refreshed based on TTL to prevent expiration
+- No additional configuration required
+
+#### Priority Ordering
+
+Cache warming executes routes in priority order:
+
+1. **Critical** - Routes with highest traffic/importance
+2. **High** - Important routes that benefit from warming
+3. **Medium** - Standard routes (default)
+4. **Low** - Optional routes
+
+```yaml
+flow:
+  - member: landing-page
+    cache:
+      ttl: 3600
+      warming: true
+      priority: critical  # Warmed first
+
+  - member: product-catalog
+    cache:
+      ttl: 7200
+      warming: true
+      priority: high
+
+  - member: blog-archive
+    cache:
+      ttl: 86400
+      warming: true
+      priority: low
+```
+
+#### NPM Scripts
+
+Use built-in scripts to warm your cache:
+
+```bash
+# Warm cache after deployment
+npm run deploy:warm
+
+# Warm cache manually anytime
+npm run warm-cache
+
+# Warm specific routes
+npm run warm-cache -- --routes=/api/pricing,/api/products
+```
+
+#### Example Output
+
+```bash
+$ npm run warm-cache
+
+Cache Warming Results:
+  Critical: 3/3 warmed (100%)
+  High: 8/8 warmed (100%)
+  Medium: 15/15 warmed (100%)
+  Low: 5/5 warmed (100%)
+
+Total: 31/31 routes warmed in 4.2s
+Cache coverage: 100%
+```
+
+#### Scheduled Cache Refresh
+
+Keep your cache fresh with scheduled refreshes:
 
 ```typescript
-import { Executor } from '@ensemble-edge/conductor';
+// src/scheduled.ts
+import { scheduledCacheRefresh } from '@ensemble-edge/conductor/utils/cache-warming';
 
-// Warm cache with common queries
-const commonQueries = [
-  'How do I get started?',
-  'What are the pricing plans?',
-  'How do I deploy?'
-];
-
-for (const query of commonQueries) {
-  await executor.executeEnsemble('answer-question', { query });
-  // Results now cached for future users
-}
+export default {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    // Refresh cache every 6 hours
+    await scheduledCacheRefresh(env, ctx);
+  }
+};
 ```
+
+Configure schedule in `wrangler.toml`:
+
+```toml
+[triggers]
+crons = ["0 */6 * * *"]  # Every 6 hours
+```
+
+#### Manual Cache Warming
+
+For programmatic control, use the cache warming utilities directly:
+
+```typescript
+import { warmCache, extractWarmableRoutes } from '@ensemble-edge/conductor/utils/cache-warming';
+
+// Extract routes from your ensemble configuration
+const routes = extractWarmableRoutes(ensembleConfig);
+
+// Warm all routes
+const results = await warmCache(routes, env.BASE_URL);
+
+console.log(`Warmed ${results.success}/${results.total} routes`);
+
+// Warm specific routes
+await warmCache([
+  { path: '/api/pricing', priority: 'critical' },
+  { path: '/api/products', priority: 'high' }
+], env.BASE_URL);
+```
+
+**Common use cases:**
+- Pre-populate cache for frequently accessed endpoints
+- Warm cache after content updates
+- Ensure fast first-request performance
+- Prepare cache before traffic spikes
 
 ## Cache Invalidation
 
@@ -358,6 +492,239 @@ webhooks:
       type: signature
       secret: ${env.WEBHOOK_SECRET}
 ```
+
+## Cache Tags
+
+Cache tags enable smart, targeted cache invalidation. Instead of clearing individual cache entries or purging everything, you can invalidate groups of related cache entries using tags.
+
+### Configuration
+
+Add tags to any cached member:
+
+```yaml
+flow:
+  - member: get-user-profile
+    type: API
+    config:
+      url: "https://api.example.com/users/${input.userId}"
+    cache:
+      ttl: 3600
+      tags:
+        - user:${input.userId}
+        - profile
+        - api
+
+  - member: get-user-posts
+    type: API
+    config:
+      url: "https://api.example.com/users/${input.userId}/posts"
+    cache:
+      ttl: 1800
+      tags:
+        - user:${input.userId}
+        - posts
+        - api
+
+  - member: render-dashboard
+    type: Page
+    cache:
+      ttl: 7200
+      tags:
+        - user:${input.userId}
+        - dashboard
+        - ui
+```
+
+### Purging by Tag
+
+Invalidate all cache entries with a specific tag using the Cloudflare API:
+
+```typescript
+// Purge all cache for a specific user
+async function purgeUserCache(userId: string, zoneId: string, apiToken: string) {
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tags: [`user:${userId}`]
+      })
+    }
+  );
+
+  return response.json();
+}
+
+// Purge all API responses
+await purgeByTag('api', zoneId, apiToken);
+
+// Purge all dashboard pages
+await purgeByTag('dashboard', zoneId, apiToken);
+```
+
+### Tag Strategies
+
+#### Hierarchical Tags
+
+Organize tags by levels of granularity:
+
+```yaml
+cache:
+  ttl: 3600
+  tags:
+    - org:${input.orgId}                    # Organization level
+    - org:${input.orgId}:team:${input.teamId}  # Team level
+    - org:${input.orgId}:user:${input.userId}  # User level
+```
+
+**Benefits:**
+- Purge entire organization: `org:acme-corp`
+- Purge specific team: `org:acme-corp:team:engineering`
+- Purge specific user: `org:acme-corp:user:john`
+
+#### User-Specific Tags
+
+Track cache entries by user:
+
+```yaml
+cache:
+  ttl: 3600
+  tags:
+    - user:${input.userId}
+    - user:${input.userId}:preferences
+    - user:${input.userId}:session
+```
+
+**Use cases:**
+- User logs out: Purge `user:${userId}`
+- User updates preferences: Purge `user:${userId}:preferences`
+- Session expires: Purge `user:${userId}:session`
+
+#### Time-Based Tags
+
+Tag cache entries by time period:
+
+```yaml
+cache:
+  ttl: 86400
+  tags:
+    - report
+    - report:${input.year}
+    - report:${input.year}:${input.month}
+    - report:${input.year}:${input.month}:${input.day}
+```
+
+**Use cases:**
+- Regenerate all reports: Purge `report`
+- Update yearly reports: Purge `report:2024`
+- Refresh monthly data: Purge `report:2024:11`
+
+#### Content-Type Tags
+
+Organize by content type:
+
+```yaml
+cache:
+  ttl: 3600
+  tags:
+    - content:${input.contentType}
+    - content:${input.contentType}:${input.id}
+    - category:${input.category}
+```
+
+**Use cases:**
+- Republish all blog posts: Purge `content:blog`
+- Update specific article: Purge `content:blog:123`
+- Refresh category: Purge `category:technology`
+
+### Integration with Webhooks
+
+Combine cache tags with webhooks for automatic invalidation:
+
+```yaml
+webhooks:
+  - path: "/user-updated"
+    ensemble: purge-user-cache
+    auth:
+      type: signature
+      secret: ${env.WEBHOOK_SECRET}
+```
+
+```typescript
+// members/purge-user-cache/index.ts
+export default async function purgeUserCache({ input, env }) {
+  const { userId } = input;
+
+  // Purge all cache entries for this user
+  await fetch(
+    `https://api.cloudflare.com/client/v4/zones/${env.CF_ZONE_ID}/purge_cache`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.CF_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tags: [`user:${userId}`]
+      })
+    }
+  );
+
+  return { purged: `user:${userId}` };
+}
+```
+
+### Best Practices for Cache Tags
+
+<AccordionGroup>
+  <Accordion title="Use Consistent Naming" icon="tag">
+    Establish naming conventions for tags across your application:
+    - `user:${id}` for user-specific data
+    - `org:${id}` for organization data
+    - `content:${type}:${id}` for content
+    - `api` for external API responses
+  </Accordion>
+
+  <Accordion title="Balance Granularity" icon="layer-group">
+    Too few tags: Invalidate more than necessary
+    Too many tags: Complex management, higher overhead
+
+    Aim for 3-7 tags per cache entry that represent different invalidation scenarios.
+  </Accordion>
+
+  <Accordion title="Document Tag Strategy" icon="book">
+    Maintain documentation of your tag hierarchy:
+    - What each tag represents
+    - When to purge each tag
+    - Tag dependencies and relationships
+  </Accordion>
+
+  <Accordion title="Monitor Tag Usage" icon="chart-bar">
+    Track which tags are purged most frequently to optimize your caching strategy:
+    - Frequently purged tags might need shorter TTLs
+    - Rarely purged tags can have longer TTLs
+  </Accordion>
+</AccordionGroup>
+
+### Cloudflare Zone Configuration
+
+To use cache tags, ensure your Cloudflare zone is properly configured:
+
+```toml
+# wrangler.toml
+[vars]
+CF_ZONE_ID = "your-zone-id"
+
+[secrets]
+CF_API_TOKEN = "your-api-token-with-cache-purge-permissions"
+```
+
+**Required API Token Permissions:**
+- Zone > Cache Purge > Edit
 
 ## Cache Configuration Examples
 
@@ -671,6 +1038,73 @@ const cacheKey = `conductor:${env.ENVIRONMENT}:${memberName}:${hash}`;
 // production: conductor:prod:analyze:a3f8...
 // staging: conductor:staging:analyze:a3f8...
 ```
+
+### 7. Enable Cache Warming for Critical Routes
+
+Pre-populate cache for high-traffic endpoints to ensure fast first-request performance:
+
+```yaml
+# ✅ Warm critical pages
+- member: homepage
+  cache:
+    ttl: 3600
+    warming: true
+    priority: critical
+
+# ✅ Warm frequently accessed APIs
+- member: get-pricing
+  cache:
+    ttl: 7200
+    warming: true
+    priority: high
+
+# ❌ Don't warm rarely accessed routes
+- member: admin-dashboard
+  cache:
+    ttl: 3600
+    # No warming needed - low traffic
+```
+
+**Benefits:**
+- Eliminate cold start latency
+- Ensure consistent performance
+- Reduce load on origin services
+- Improve user experience
+
+### 8. Use Cache Tags for Smart Invalidation
+
+Organize cache entries with tags for targeted purging:
+
+```yaml
+# ✅ Tag related cache entries
+- member: get-user-data
+  cache:
+    ttl: 3600
+    tags:
+      - user:${input.userId}
+      - profile
+
+# ✅ Purge by tag when data changes
+# Invalidate all cache for user:123
+# instead of clearing entire cache
+
+# ❌ Don't use too many tags
+cache:
+  tags:
+    - tag1
+    - tag2
+    - tag3
+    - tag4
+    - tag5
+    - tag6
+    - tag7  # Too many - stick to 3-7 meaningful tags
+```
+
+**When to use tags:**
+- User-specific data that needs coordinated invalidation
+- Content that changes together (e.g., all blog posts)
+- Hierarchical data (organization > team > user)
+- Time-based content (reports by year/month/day)
 
 ## Cost Analysis
 
