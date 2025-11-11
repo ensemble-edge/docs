@@ -196,15 +196,48 @@ You only need `git` in these rare cases:
     # production: v1.0.0 (deployed 2025-11-01)
     ```
   </Accordion>
+
+  <Accordion icon="list" title="Component Listing & Discovery">
+    Explore your components with multiple output formats and discover unregistered component files in your repository.
+
+    ```bash
+    # Visual tree showing all components with deployment indicators
+    edgit components list --format tree
+    # Output:
+    # email-processor (function)
+    # ├── v1.0.0 [prod]
+    # ├── v0.9.0 [staging]
+    # └── v0.1.0
+    #
+    # support-agent (agent)
+    # └── v2.1.0 [prod, staging]
+
+    # Find unregistered component files
+    edgit components list --untracked
+    # Shows files detected as components but not in registry
+
+    # Scan repository for potential components
+    edgit discover scan --type prompt
+    # Finds all prompt-like files in repository
+
+    # Analyze specific file
+    edgit discover detect src/new-function.ts
+    # Shows: type, confidence, suggested name
+    ```
+  </Accordion>
 </AccordionGroup>
 
 ## Key Features
 
 ### Component Management
 - **Registry-based tracking**: All components in one place
-- **Multiple types**: Functions, agents, configs, custom types
+- **Multiple types**: Functions, agents, prompts, SQL queries, configs, custom types
 - **Metadata support**: Description, dependencies, configuration
 - **Path-based detection**: Automatically detect component changes in commits
+- **Visual exploration**: Tree, table, JSON, and YAML output formats
+- **Discovery tools**: Scan repository for potential components
+- **Untracked detection**: Find component files not yet registered
+- **Deployment indicators**: See which versions are deployed where
 
 ### Versioning
 - **Git-native tags**: Use existing Git infrastructure

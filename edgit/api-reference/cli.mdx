@@ -104,39 +104,105 @@ edgit add workflow order-flow workflows/order.yaml
 
 ### `edgit components list`
 
-List all registered components.
+List all registered components with version history and deployment indicators.
 
 ```bash
 edgit components list [options]
 ```
 
-<ParamField path="--type" type="string">
-  Filter by component type
+<ParamField path="--format" type="string" default="table">
+  Output format: `table`, `json`, `yaml`, `tree`
 </ParamField>
 
-<ParamField path="--format" type="string" default="table">
-  Output format: `table`, `json`, `yaml`
+<ParamField path="--type" type="string">
+  Filter by component type (function, agent, prompt, sql, config)
+</ParamField>
+
+<ParamField path="--tags-only" type="boolean">
+  Show only components with version tags
+</ParamField>
+
+<ParamField path="--tracked" type="boolean">
+  Show only tracked components (in registry)
+</ParamField>
+
+<ParamField path="--untracked" type="boolean">
+  Show only untracked components (detected but not registered)
+</ParamField>
+
+<ParamField path="--limit" type="number">
+  Maximum number of versions to show per component
 </ParamField>
 
 **Examples**:
 
 ```bash
-# List all components
+# List all components (table format, default)
 edgit components list
 
-# List only functions
-edgit components list --type function
+# Visual tree with deployment indicators
+edgit components list --format tree
 
-# JSON output
+# JSON output for scripting
 edgit components list --format json
+
+# Show only prompts
+edgit components list --type prompt
+
+# Find unregistered component files
+edgit components list --untracked
+
+# Show only components with versions
+edgit components list --tags-only
+
+# Limit version history
+edgit components list --limit 5 --format tree
+
+# Combine filters
+edgit components list --type function --tracked --format json
 ```
 
-**Output**:
+**Table Output** (default):
 ```
-Type      Name              Path                          Description
-function  email-processor   src/functions/email.ts        Processes incoming emails
-agent     support-bot       src/agents/support.ts         Customer support automation
-config    app-settings      config/app.json               Application settings
+Component         Type      Latest Version  Versions  Deployment
+---------------------------------------------------------------
+email-processor   function  v1.2.0          5         prod: v1.2.0
+support-bot       agent     v2.1.0          12        prod: v2.0.0, staging: v2.1.0
+app-settings      config    v1.0.0          1         (none)
+```
+
+**Tree Output** (with deployment indicators):
+```
+email-processor (function)
+├── v1.2.0 [prod, staging]  ← Currently deployed
+├── v1.1.0
+├── v1.0.0
+└── v0.9.0
+
+support-bot (agent)
+├── v2.1.0 [staging]
+├── v2.0.0 [prod]
+└── v1.5.0
+
+app-settings (config)
+└── v1.0.0
+```
+
+**JSON Output**:
+```json
+[
+  {
+    "name": "email-processor",
+    "type": "function",
+    "path": "src/functions/email.ts",
+    "versions": ["v1.2.0", "v1.1.0", "v1.0.0"],
+    "latestVersion": "v1.2.0",
+    "deployments": {
+      "prod": "v1.2.0",
+      "staging": "v1.2.0"
+    }
+  }
+]
 ```
 
 ### `edgit components show <name>`
@@ -372,6 +438,155 @@ edgit commit --amend --no-edit
 - Generates conventional commit format
 - Falls back to git commit if AI unavailable
 - Uses existing message if `-m` provided
+
+## Component Discovery
+
+### `edgit discover scan`
+
+Scan the repository for potential components that can be managed by Edgit.
+
+```bash
+edgit discover scan [options]
+```
+
+<ParamField path="--type" type="string">
+  Filter by component type (prompt, agent, sql, config)
+</ParamField>
+
+<ParamField path="--pattern" type="string">
+  Scan files matching specific glob pattern
+</ParamField>
+
+<ParamField path="--tracked-only" type="boolean">
+  Only scan git-tracked files (exclude untracked)
+</ParamField>
+
+<ParamField path="--with-headers" type="boolean">
+  Only show files with version headers
+</ParamField>
+
+<ParamField path="--output" type="string" default="table">
+  Output format: `table`, `json`, `simple`
+</ParamField>
+
+**Examples**:
+
+```bash
+# Scan all files (tracked and untracked)
+edgit discover scan
+
+# Find only prompt components
+edgit discover scan --type prompt
+
+# Scan specific file pattern
+edgit discover scan --pattern "*.md"
+edgit discover scan --pattern "scripts/**/*.py"
+
+# Only git-tracked files
+edgit discover scan --tracked-only
+
+# JSON output for scripting
+edgit discover scan --output json
+```
+
+**Output**:
+```
+File                          Type    Confidence  Status        Suggested Name
+-----------------------------------------------------------------------------
+prompts/extraction.md         prompt  high        untracked     extraction-prompt
+agents/support.ts             agent   high        registered    support-agent
+queries/company.sql           sql     medium      untracked     company-query
+```
+
+### `edgit discover detect <file>`
+
+Analyze a specific file to detect what type of component it is.
+
+```bash
+edgit discover detect <file>
+```
+
+<ParamField path="file" type="string" required>
+  Path to file to analyze
+</ParamField>
+
+**Example**:
+
+```bash
+edgit discover detect prompts/new-prompt.md
+```
+
+**Output**:
+```
+File: prompts/new-prompt.md
+Type: prompt
+Confidence: high
+Registered: no
+Suggested name: new-prompt
+
+Matched patterns:
+  - prompts/**/*
+  - *.md in prompts directory
+
+Next steps:
+  edgit init  # Register this component
+```
+
+### `edgit discover patterns`
+
+Manage component detection patterns.
+
+```bash
+edgit discover patterns <action> [options]
+```
+
+**Actions**:
+- `list` - Show all detection patterns
+- `add <type> <pattern>` - Add custom pattern
+- `remove <type> <pattern>` - Remove pattern
+
+**Examples**:
+
+```bash
+# List all patterns
+edgit discover patterns list
+
+# Add custom prompt pattern
+edgit discover patterns add prompt "*.prompt.txt"
+
+# Add custom agent pattern
+edgit discover patterns add agent "workers/**/*.ts"
+
+# Remove pattern
+edgit discover patterns remove prompt "*.old.md"
+```
+
+**Output**:
+```
+Component Detection Patterns:
+
+prompt:
+  - prompts/**/*
+  - *.prompt.md
+  - instructions/**/*
+  - templates/**/*
+
+agent:
+  - agents/**/*
+  - scripts/**/*.{js,ts,py,sh,bash}
+  - *.agent.*
+
+sql:
+  - queries/**/*
+  - sql/**/*
+  - *.sql
+  - *.query.*
+
+config:
+  - configs/**/*
+  - *.config.*
+  - *.{yaml,yml,json,toml,ini}
+```
 
 ## Deployment
 

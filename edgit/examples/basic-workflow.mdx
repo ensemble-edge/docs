@@ -301,21 +301,63 @@ Deployments:
 
 ## Step 12: View Component Details
 
-List all components and view details:
+List all components and view details with multiple output formats:
 
 ```bash
-# List all components
+# List all components (table format - default)
 edgit components list
 ```
 
 **Output**:
 ```
-Type      Name              Path                        Description
-function  email-validator   src/validators/email.ts     Validates email addresses...
+🧩 Components (1 total):
+
+📁 function:
+   📦 email-validator: v1.1.0 (2 versions) [staging,production]
 ```
 
+### Tree Format with Version History
+
 ```bash
-# View detailed history
+# Visual tree showing all versions and deployment indicators
+edgit components list --format tree
+```
+
+**Output**:
+```
+Repository Components:
+
+└─ function (1 components)
+   └─ email-validator
+      ├─ v1.1.0 (abc5678, 2025-11-01) ← production
+      └─ v1.0.0 (abc1234, 2025-11-01) ← staging
+```
+
+### JSON Format for Automation
+
+```bash
+# Export component data as JSON
+edgit components list --format json
+```
+
+**Output**:
+```json
+[
+  {
+    "name": "email-validator",
+    "type": "function",
+    "path": "src/validators/email.ts",
+    "versions": ["v1.0.0", "v1.1.0"],
+    "deploymentTags": ["staging", "production"],
+    "versionCount": 2
+  }
+]
+```
+
+### Detailed Component Information
+
+```bash
+# View detailed history for a specific component
 edgit components show email-validator --versions --deployments
 ```
 
@@ -353,7 +395,8 @@ edgit deploy email-validator v1.0.0 --to staging
 edgit deploy email-validator v1.0.0 --to production
 
 # 6. Check status
-edgit status email-validator
+edgit components list --format tree  # Visual overview
+edgit status email-validator         # Detailed component info
 ```
 
 ## Next Steps

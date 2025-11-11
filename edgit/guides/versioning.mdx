@@ -194,7 +194,7 @@ git push origin --tags
 ### View Component Versions
 
 ```bash
-# List all versions
+# List all versions for a specific component
 edgit tag list my-component
 
 # Output:
@@ -203,6 +203,41 @@ edgit tag list my-component
 
 # Show specific version details
 edgit tag show my-component@v1.0.0
+```
+
+### Visual Version Overview
+
+Use `edgit components list` to see all components and their version history:
+
+```bash
+# Tree format shows version hierarchy with deployment indicators
+edgit components list --format tree
+
+# Output:
+# Repository Components:
+#
+# └─ function (3 components)
+#    ├─ my-component
+#    │  ├─ v2.0.0 (abc1234, 2025-11-10) ← staging
+#    │  ├─ v1.1.0 (def5678, 2025-11-05) ← production
+#    │  ├─ v1.0.1 (ghi9012, 2025-11-02)
+#    │  └─ v1.0.0 (jkl3456, 2025-11-01)
+
+# Table format shows quick summary
+edgit components list --format table
+
+# Output:
+# 🧩 Components (3 total):
+#
+# 📁 function:
+#    📦 my-component: v2.0.0 (4 versions) [staging,production]
+
+# Filter by type to focus on specific components
+edgit components list --type function --format tree
+
+# Limit version history for large projects
+edgit components list --limit 5 --format tree
+# Shows only 5 most recent versions per component
 ```
 
 ### Version Comparison
