@@ -117,64 +117,45 @@ templates/newsletter@v1.5.0       # Testing new design
 
 ## Template Engines
 
-Conductor supports four template engines for rendering HTML, Email, and SMS content:
+Conductor supports template engines optimized for edge-first rendering:
 
-### Simple (Default)
+### Liquid (Default, Recommended)
 
-Basic variable substitution with `{{variable}}` syntax. Fast and lightweight, perfect for simple templates:
-
-```html
-<h1>Welcome, {{name}}!</h1>
-<p>Your account {{email}} has been activated.</p>
-```
-
-### Handlebars
-
-Full-featured template engine with helpers, conditionals, loops, and partials. Best for complex templates:
-
-```html
-<h1>{{greeting}}, {{name}}!</h1>
-{{#if isPremium}}
-  <div class="premium-badge">Premium Member</div>
-{{/if}}
-{{#each items}}
-  <li>{{this.name}} - ${{this.price}}</li>
-{{/each}}
-```
-
-**Built-in helpers**: `eq`, `ne`, `lt`, `gt`, `and`, `or`, `upper`, `lower`, `capitalize`, `truncate`, `formatDate`, `formatCurrency`, and more.
-
-### Liquid
-
-Shopify's template language with powerful filters. Ideal for e-commerce and content-heavy applications:
+Shopify's template language with powerful filters. Edge-compatible and industry standard - the best choice for modern applications:
 
 ```html
 <h1>Welcome, {{ name | capitalize }}!</h1>
 <p>Total: {{ price | money_with_currency: "USD" }}</p>
 <p>Posted {{ createdAt | time_ago }}</p>
 {{ content | strip_html | truncate: 200 }}
+{% if isPremium %}
+  <div class="premium-badge">Premium Member</div>
+{% endif %}
+{% for item in items %}
+  <li>{{item.name}} - {{item.price | money}}</li>
+{% endfor %}
 ```
 
-**Built-in filters**: `money`, `phone`, `pluralize`, `excerpt`, `strip_html`, `highlight`, `file_size`, `time_ago`, and all standard Liquid filters.
+**Why Liquid?**
+- **Edge-compatible**: No CSP issues, works perfectly with Cloudflare Workers
+- **Industry standard**: Used by Shopify, Jekyll, and millions of sites
+- **Real-time rendering**: Optimized for edge rendering at global scale
+- **Rich filters**: `money`, `phone`, `pluralize`, `excerpt`, `strip_html`, `highlight`, `file_size`, `time_ago`, and all standard Liquid filters
+- **Production-ready**: Battle-tested in high-traffic e-commerce applications
 
-### MJML
+### Simple
 
-Responsive email framework that generates cross-client compatible HTML emails:
+Basic variable substitution with `{{variable}}` syntax. Fast and lightweight for simple templates:
 
-```xml
-<mjml>
-  <mj-body>
-    <mj-section>
-      <mj-column>
-        <mj-text>Welcome, {{name}}!</mj-text>
-        <mj-button href="{{activationUrl}}">Activate Account</mj-button>
-      </mj-column>
-    </mj-section>
-  </mj-body>
-</mjml>
+```html
+<h1>Welcome, {{name}}!</h1>
+<p>Your account {{email}} has been activated.</p>
 ```
 
-**Note**: MJML combines with Handlebars for dynamic content (use `{{variables}}` inside MJML tags). MJML has Node.js dependencies and may not work in all Cloudflare Workers environments.
+**Use Simple for:**
+- Basic variable substitution only
+- Maximum performance with minimal features
+- Legacy template compatibility
 
 ### Choosing an Engine
 
@@ -185,21 +166,24 @@ members:
   - name: send-email
     type: email
     config:
-      templateEngine: handlebars  # or 'simple', 'liquid', 'mjml'
+      templateEngine: liquid  # 'liquid' (default), 'simple'
       template: templates/welcome-email@v1.0.0
       data:
         name: ${input.userName}
 ```
 
 **Engine Availability:**
-- **HTML & Email**: `simple` (default), `handlebars`, `liquid`, `mjml`
-- **SMS**: `simple` (default), `handlebars`, `liquid`
+- **HTML & Email**: `liquid` (default), `simple`
+- **SMS**: `liquid` (default), `simple`
+- **Page**: `liquid` (default), `simple`
+
+**Note about Handlebars**: Previously supported Handlebars uses `new Function()` which is blocked by Cloudflare Workers Content Security Policy (CSP). This makes it incompatible with edge deployments. Use Liquid instead for edge-compatible templates with advanced features like conditionals, loops, and filters.
 
 ## Template Types
 
 ### Email Templates
 
-HTML emails with your chosen template engine syntax:
+HTML emails with Liquid template syntax for edge-compatible rendering:
 
 ```html
 <!-- templates/email/welcome.html -->
@@ -214,11 +198,11 @@ HTML emails with your chosen template engine syntax:
   </style>
 </head>
 <body>
-  <h1>{{greeting}}, {{name}}!</h1>
+  <h1>{{greeting}}, {{ name | capitalize }}!</h1>
   <p>{{message}}</p>
-  {{#if actionUrl}}
+  {% if actionUrl %}
     <a href="{{actionUrl}}" class="button">{{actionText}}</a>
-  {{/if}}
+  {% endif %}
   <footer>{{companyName}}</footer>
 </body>
 </html>
@@ -245,7 +229,7 @@ members:
 
 ### HTML Page Templates
 
-Full HTML pages with dynamic data:
+Full HTML pages with dynamic data using Liquid:
 
 ```html
 <!-- templates/pages/dashboard.html -->
@@ -256,32 +240,32 @@ Full HTML pages with dynamic data:
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <nav>{{>header}}</nav>
+  <nav>{% include 'header' %}</nav>
 
   <main>
     <h1>{{title}}</h1>
 
     <div class="metrics">
-      {{#each metrics}}
+      {% for metric in metrics %}
         <div class="metric-card">
-          <h3>{{this.label}}</h3>
-          <p class="value">{{this.value}}</p>
-          <span class="change {{this.trend}}">{{this.change}}</span>
+          <h3>{{metric.label}}</h3>
+          <p class="value">{{metric.value}}</p>
+          <span class="change {{metric.trend}}">{{metric.change}}</span>
         </div>
-      {{/each}}
+      {% endfor %}
     </div>
 
     <section class="alerts">
-      {{#each alerts}}
-        <div class="alert alert-{{this.level}}">
-          <strong>{{this.title}}</strong>
-          <p>{{this.message}}</p>
+      {% for alert in alerts %}
+        <div class="alert alert-{{alert.level}}">
+          <strong>{{alert.title}}</strong>
+          <p>{{alert.message}}</p>
         </div>
-      {{/each}}
+      {% endfor %}
     </section>
   </main>
 
-  <footer>{{>footer}}</footer>
+  <footer>{% include 'footer' %}</footer>
 </body>
 </html>
 ```
@@ -309,7 +293,7 @@ members:
 
 ### PDF Templates
 
-HTML templates rendered as PDFs:
+HTML templates rendered as PDFs using Liquid:
 
 ```html
 <!-- templates/pdf/invoice.html -->
@@ -349,14 +333,14 @@ HTML templates rendered as PDFs:
       </tr>
     </thead>
     <tbody>
-      {{#each items}}
+      {% for item in items %}
         <tr>
-          <td>{{this.description}}</td>
-          <td>{{this.quantity}}</td>
-          <td>${{this.price}}</td>
-          <td>${{this.total}}</td>
+          <td>{{item.description}}</td>
+          <td>{{item.quantity}}</td>
+          <td>${{item.price}}</td>
+          <td>${{item.total}}</td>
         </tr>
-      {{/each}}
+      {% endfor %}
     </tbody>
   </table>
 
@@ -383,7 +367,7 @@ members:
 
 ### Component Templates
 
-Reusable UI fragments loaded via partials:
+Reusable UI fragments loaded via includes:
 
 ```html
 <!-- templates/components/header.html -->
@@ -393,32 +377,32 @@ Reusable UI fragments loaded via partials:
   </div>
   <nav>
     <ul>
-      {{#each navItems}}
-        <li><a href="{{this.url}}">{{this.label}}</a></li>
-      {{/each}}
+      {% for item in navItems %}
+        <li><a href="{{item.url}}">{{item.label}}</a></li>
+      {% endfor %}
     </ul>
   </nav>
   <div class="user-menu">
-    {{#if user}}
+    {% if user %}
       <span>{{user.name}}</span>
       <a href="/logout">Logout</a>
-    {{else}}
+    {% else %}
       <a href="/login">Login</a>
-    {{/if}}
+    {% endif %}
   </div>
 </header>
 ```
 
-**Use as Partial:**
+**Use as Include:**
 ```html
 <!-- Main template -->
 <!DOCTYPE html>
 <html>
 <head><title>{{title}}</title></head>
 <body>
-  {{>component://header@v1.0.0}}
+  {% include 'component://header@v1.0.0' %}
   <main>{{content}}</main>
-  {{>component://footer@v1.0.0}}
+  {% include 'component://footer@v1.0.0' %}
 </body>
 </html>
 ```
@@ -598,7 +582,7 @@ Request → Cache Hit → Render
 
 ### Variable Syntax
 
-Handlebars variables in templates:
+Liquid variables in templates:
 
 ```html
 <!-- Simple variables -->
@@ -610,20 +594,21 @@ Handlebars variables in templates:
 <p>{{user.email}}</p>
 
 <!-- Array iteration -->
-{{#each items}}
-  <li>{{this.name}} - ${{this.price}}</li>
-{{/each}}
+{% for item in items %}
+  <li>{{item.name}} - ${{item.price}}</li>
+{% endfor %}
 
 <!-- Conditionals -->
-{{#if isPremium}}
+{% if isPremium %}
   <div class="premium-badge">Premium</div>
-{{else}}
+{% else %}
   <div class="free-badge">Free</div>
-{{/if}}
+{% endif %}
 
-<!-- Helpers -->
-<p>Created: {{formatDate createdAt}}</p>
-<p>Price: {{formatCurrency price}}</p>
+<!-- Filters (Liquid's alternative to helpers) -->
+<p>Created: {{ createdAt | date: "%Y-%m-%d" }}</p>
+<p>Price: {{ price | money_with_currency: "USD" }}</p>
+<p>Name: {{ name | capitalize }}</p>
 ```
 
 ### Passing Data
@@ -769,17 +754,17 @@ edgit deploy set welcome-email v2.0.0 --to production
 **Provide Fallback Values:**
 ```html
 <!-- Use default values for optional variables -->
-<h1>Welcome{{#if name}}, {{name}}{{/if}}!</h1>
-<p>{{message "Thanks for joining!"}}</p>
+<h1>Welcome{% if name %}, {{name}}{% endif %}!</h1>
+<p>{{ message | default: "Thanks for joining!" }}</p>
 
 <!-- Handle missing data gracefully -->
-{{#if items}}
-  {{#each items}}
-    <li>{{this.name}}</li>
-  {{/each}}
-{{else}}
+{% if items.size > 0 %}
+  {% for item in items %}
+    <li>{{item.name}}</li>
+  {% endfor %}
+{% else %}
   <p>No items available.</p>
-{{/if}}
+{% endif %}
 ```
 
 ## Troubleshooting

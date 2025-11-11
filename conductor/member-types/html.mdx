@@ -125,96 +125,60 @@ flow:
 
 ## Template Engines
 
-The HTML member supports four template engines. Specify your choice in the config:
+The HTML member supports template engines optimized for edge rendering. Specify your choice in the config:
 
 ```yaml
 config:
-  templateEngine: handlebars  # or 'simple', 'liquid', 'mjml'
+  templateEngine: liquid  # 'liquid' (default), 'simple'
   template:
     inline: "..."
 ```
 
-### Simple Engine (Default)
+### Liquid Engine (Default, Recommended)
 
-Built-in lightweight engine with `{{variable}}` syntax. Fast and minimal:
-
-```yaml
-config:
-  templateEngine: simple  # default, can be omitted
-  template:
-    inline: |
-      <h1>{{title}}</h1>
-      <p>{{description}}</p>
-      {{#if showButton}}
-        <button>{{buttonText}}</button>
-      {{/if}}
-```
-
-**Features:**
-- Variables: `{{variable}}`, `{{user.name}}`
-- Conditionals: `{{#if}}...{{/if}}`
-- Loops: `{{#each}}...{{/each}}`
-- Loop vars: `{{@index}}`, `{{@first}}`, `{{@last}}`
-
-### Handlebars Engine
-
-Full-featured template engine with helpers, partials, and advanced logic:
+Shopify's template language with powerful filters. Edge-compatible and perfect for modern applications:
 
 ```yaml
 config:
-  templateEngine: handlebars
-  template:
-    inline: |
-      <h1>{{greeting}}, {{capitalize name}}!</h1>
-      {{#if isPremium}}
-        <div class="badge">Premium</div>
-      {{/if}}
-      {{#each items}}
-        <li>{{this.name}} - {{formatCurrency this.price "USD"}}</li>
-      {{/each}}
-```
-
-**Built-in Helpers**: `eq`, `ne`, `lt`, `gt`, `and`, `or`, `upper`, `lower`, `capitalize`, `truncate`, `formatDate`, `formatCurrency`, `json`, `default`, and more.
-
-### Liquid Engine
-
-Shopify's template language with powerful filters. Perfect for e-commerce:
-
-```yaml
-config:
-  templateEngine: liquid
+  templateEngine: liquid  # default, can be omitted
   template:
     inline: |
       <h1>Welcome, {{ name | capitalize }}!</h1>
       <p>Total: {{ price | money_with_currency: "USD" }}</p>
       <p>Posted {{ createdAt | time_ago }}</p>
       {{ content | strip_html | excerpt: 200 }}
+      {% if isPremium %}
+        <div class="badge">Premium</div>
+      {% endif %}
+      {% for item in items %}
+        <li>{{item.name}} - {{item.price | money}}</li>
+      {% endfor %}
 ```
 
-**Built-in Filters**: `money`, `phone`, `pluralize`, `excerpt`, `strip_html`, `highlight`, `file_size`, `time_ago`, plus all standard Liquid filters.
+**Why Liquid?**
+- Edge-compatible - no CSP issues
+- Industry standard (Shopify, Jekyll)
+- Real-time rendering at the edge
+- Rich filter library (`money`, `phone`, `pluralize`, `excerpt`, `strip_html`, `highlight`, `file_size`, `time_ago`, plus all standard Liquid filters)
 
-### MJML Engine
+### Simple Engine
 
-Responsive email framework that compiles to cross-client HTML:
+Built-in lightweight engine with `{{variable}}` syntax. Fast and minimal for basic templates:
 
 ```yaml
 config:
-  templateEngine: mjml
+  templateEngine: simple
   template:
     inline: |
-      <mjml>
-        <mj-body>
-          <mj-section>
-            <mj-column>
-              <mj-text>Welcome, {{name}}!</mj-text>
-              <mj-button href="{{actionUrl}}">Get Started</mj-button>
-            </mj-column>
-          </mj-section>
-        </mj-body>
-      </mjml>
+      <h1>{{title}}</h1>
+      <p>{{description}}</p>
 ```
 
-**Note**: Use `{{variables}}` for dynamic content. MJML has Node.js dependencies and may not work in all Cloudflare Workers environments.
+**Features:**
+- Variables: `{{variable}}`, `{{user.name}}`
+- Basic substitution only
+
+**Note about Handlebars**: Previously supported Handlebars uses `new Function()` which is blocked by Cloudflare Workers CSP. Use Liquid instead for edge-compatible templates with advanced features like conditionals, loops, and filters.
 
 ## Template Loading
 
@@ -296,10 +260,10 @@ members:
 
             <main>
               <h1>{{pageTitle}}</h1>
-              {{> templates/components/content-card
-                title="Welcome"
-                description="Get started with our platform"
-              }}
+              {% include 'templates/components/content-card'
+                title: "Welcome",
+                description: "Get started with our platform"
+              %}
             </main>
 
             {{> templates/components/footer@latest}}

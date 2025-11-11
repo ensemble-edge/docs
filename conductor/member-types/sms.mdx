@@ -7,7 +7,7 @@ description: "Send SMS messages with templates, batch processing, and multi-prov
 
 The **SMS Member** enables Conductor ensembles to send SMS messages with:
 - **Multiple providers**: Twilio, Vonage, AWS SNS
-- **Template rendering**: Simple variable interpolation
+- **Template rendering**: Liquid templates for dynamic content
 - **Batch sending**: Rate-limited mass SMS delivery
 - **MMS support**: Send images and media via MMS
 - **E.164 validation**: Automatic phone number format validation
@@ -222,18 +222,43 @@ Send images and media with your messages (Twilio only):
 
 ## Template Rendering
 
-SMS member supports three template engines for rendering message content:
+SMS member supports template engines for rendering message content:
 
 ```yaml
 config:
-  templateEngine: handlebars  # 'simple' (default), 'handlebars', or 'liquid'
+  templateEngine: liquid  # 'liquid' (default), 'simple'
   provider:
     # ... provider config
 ```
 
-### Simple (Default)
+### Liquid (Default, Recommended)
 
-Basic `{{variable}}` substitution. Fast and lightweight:
+Shopify template language with powerful filters. Edge-compatible and perfect for dynamic content:
+
+```yaml
+config:
+  templateEngine: liquid
+
+input:
+  body: |
+    Welcome {{ name | capitalize }}!
+    Order total: {{ price | money: "USD" }}
+    Placed {{ createdAt | time_ago }}
+    {% if isPremium %}
+    You have premium access.
+    {% endif %}
+    Balance: {{ balance | money_with_currency: "USD" }}
+```
+
+**Why Liquid?**
+- Edge-compatible - no CSP issues
+- Industry standard (Shopify, Jekyll)
+- Real-time rendering at the edge
+- Rich filter library for formatting
+
+### Simple
+
+Basic `{{variable}}` substitution. Fast and lightweight for simple templates:
 
 ```yaml
 - member: send-welcome
@@ -248,36 +273,7 @@ Basic `{{variable}}` substitution. Fast and lightweight:
       loginUrl: https://app.example.com/login
 ```
 
-### Handlebars
-
-Full-featured with helpers and conditionals:
-
-```yaml
-config:
-  templateEngine: handlebars
-
-input:
-  body: |
-    Welcome {{capitalize name}}!
-    {{#if isPremium}}
-    You have premium access.
-    {{/if}}
-    Balance: {{formatCurrency balance "USD"}}
-```
-
-### Liquid
-
-Shopify template language with filters:
-
-```yaml
-config:
-  templateEngine: liquid
-
-input:
-  body: |
-    Welcome {{ name | capitalize }}!
-    Order total: {{ price | money: "USD" }}
-    Placed {{ createdAt | time_ago }}
+**Note about Handlebars**: Previously supported Handlebars uses `new Function()` which is blocked by Cloudflare Workers CSP. Use Liquid instead for edge-compatible templates.
 
 ## Phone Number Formats
 

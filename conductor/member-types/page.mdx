@@ -408,13 +408,13 @@ component: |
     </header>
 
     <div class="stats-grid">
-      {{#each metrics}}
+      {% for metric in metrics %}
       <div class="stat-card">
-        <h3>{{this.label}}</h3>
-        <p class="stat-value">{{this.value}}</p>
-        <span class="stat-change {{this.trend}}">{{this.change}}</span>
+        <h3>{{metric.label}}</h3>
+        <p class="stat-value">{{metric.value}}</p>
+        <span class="stat-change {{metric.trend}}">{{metric.change}}</span>
       </div>
-      {{/each}}
+      {% endfor %}
     </div>
 
     <div class="chart-container"

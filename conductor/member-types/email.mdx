@@ -7,7 +7,7 @@ description: "Send emails with templates, batch processing, and multi-provider s
 
 The **Email Member** enables Conductor ensembles to send emails with:
 - **Multiple providers**: Cloudflare Email, Resend, SMTP
-- **Template rendering**: Handlebars with KV storage support
+- **Template rendering**: Liquid templates with KV storage support
 - **Batch sending**: Rate-limited mass email delivery
 - **Email tracking**: Custom headers for analytics
 - **Attachments**: File attachments support
@@ -160,63 +160,43 @@ template: kv://templates/email/welcome@main
 
 ## Template Engines
 
-Email member supports four template engines for rendering email content:
+Email member supports template engines for rendering email content:
 
 ```yaml
 config:
-  templateEngine: handlebars  # 'simple' (default), 'handlebars', 'liquid', or 'mjml'
+  templateEngine: liquid  # 'liquid' (default), 'simple'
   template: kv://templates/email/welcome
 ```
 
-### Simple (Default)
+### Liquid (Default, Recommended)
 
-Basic `{{variable}}` substitution. Fast and lightweight:
+Shopify template language with powerful filters. Edge-compatible and industry standard:
+
+```html
+<h1>Welcome, {{ name | capitalize }}!</h1>
+<p>Order total: {{ price | money_with_currency: "USD" }}</p>
+<p>Placed {{ createdAt | time_ago }}</p>
+{% if isPremium %}
+  <div class="premium-offer">Special offer for you!</div>
+{% endif %}
+```
+
+**Why Liquid?**
+- Edge-compatible - no CSP issues
+- Industry standard (Shopify, Jekyll)
+- Real-time rendering at the edge
+- Rich filter library for common tasks
+
+### Simple
+
+Basic `{{variable}}` substitution. Fast and lightweight for simple templates:
 
 ```html
 <h1>Welcome, {{name}}!</h1>
 <p>Your order {{orderId}} is confirmed.</p>
 ```
 
-### Handlebars
-
-Full-featured with helpers and conditionals:
-
-```html
-<h1>{{capitalize greeting}}, {{name}}!</h1>
-{{#if isPremium}}
-  <div class="premium-offer">Special offer for you!</div>
-{{/if}}
-<p>Total: {{formatCurrency total "USD"}}</p>
-```
-
-### Liquid
-
-Shopify template language with filters:
-
-```html
-<h1>Welcome, {{ name | capitalize }}!</h1>
-<p>Order total: {{ price | money_with_currency: "USD" }}</p>
-<p>Placed {{ createdAt | time_ago }}</p>
-```
-
-### MJML
-
-Responsive email framework (compiles to HTML):
-
-```xml
-<mjml>
-  <mj-body>
-    <mj-section>
-      <mj-column>
-        <mj-text>Welcome, {{name}}!</mj-text>
-        <mj-button href="{{confirmUrl}}">Confirm Email</mj-button>
-      </mj-column>
-    </mj-section>
-  </mj-body>
-</mjml>
-```
-
-**Note**: MJML may not work in all Cloudflare Workers environments due to Node.js dependencies.
+**Note about Handlebars**: Previously supported Handlebars uses `new Function()` which is blocked by Cloudflare Workers CSP. Use Liquid instead for edge-compatible templates.
 
 ## Batch Sending
 
@@ -586,14 +566,14 @@ flow:
               <tr><th>Description</th><th>Quantity</th><th>Price</th><th>Total</th></tr>
             </thead>
             <tbody>
-              {{#each items}}
+              {% for item in items %}
               <tr>
-                <td>{{this.description}}</td>
-                <td>{{this.quantity}}</td>
-                <td>${{this.price}}</td>
-                <td>${{this.total}}</td>
+                <td>{{item.description}}</td>
+                <td>{{item.quantity}}</td>
+                <td>${{item.price}}</td>
+                <td>${{item.total}}</td>
               </tr>
-              {{/each}}
+              {% endfor %}
             </tbody>
           </table>
           <div class="total">Total: ${{totalAmount}}</div>
