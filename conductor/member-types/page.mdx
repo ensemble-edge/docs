@@ -34,16 +34,15 @@ name: about
 type: Page
 description: About page
 
-config:
-  # No route config needed - automatically serves at /about
+# No route config needed - automatically serves at /about
 
-  renderMode: ssr
+renderMode: ssr
 
-  component: |
-    <div class="about-page">
-      <h1>About {{company}}</h1>
-      <p>{{description}}</p>
-    </div>
+component: |
+  <div class="about-page">
+    <h1>About {{company}}</h1>
+    <p>{{description}}</p>
+  </div>
 
 input:
   company: Acme Corp
@@ -60,12 +59,11 @@ Create `pages/index/page.yaml` for your homepage:
 name: index
 type: Page
 
-config:
-  component: |
-    <div class="hero">
-      <h1>Welcome to {{siteName}}</h1>
-      <a href="/login" class="cta-button">Get Started</a>
-    </div>
+component: |
+  <div class="hero">
+    <h1>Welcome to {{siteName}}</h1>
+    <a href="/login" class="cta-button">Get Started</a>
+  </div>
 
 input:
   siteName: My App
@@ -94,16 +92,15 @@ Use `:param` syntax for dynamic segments:
 name: blog-post
 type: Page
 
-config:
-  route:
-    path: /blog/:slug
-    methods: [GET]
+route:
+  path: /blog/:slug
+  methods: [GET]
 
-  component: |
-    <article>
-      <h1>{{post.title}}</h1>
-      <div>{{{post.content}}}</div>
-    </article>
+component: |
+  <article>
+    <h1>{{post.title}}</h1>
+    <div>{{{post.content}}}</div>
+  </article>
 ```
 
 Access parameters via `$input.slug`:
@@ -121,15 +118,14 @@ input:
 Override conventions with explicit routes:
 
 ```yaml
-config:
-  route:
-    path: /dashboard
-    methods: [GET, POST]
-    aliases: ["/admin", "/panel"]  # Also respond to these paths
-    auth: required  # Requires authentication
-    rateLimit:
-      requests: 100
-      window: 60  # 100 requests per 60 seconds
+route:
+  path: /dashboard
+  methods: [GET, POST]
+  aliases: ["/admin", "/panel"]  # Also respond to these paths
+  auth: required  # Requires authentication
+  rateLimit:
+    requests: 100
+    window: 60  # 100 requests per 60 seconds
 ```
 
 **Auth Options:**
@@ -144,14 +140,13 @@ config:
 Default mode - renders HTML on the server:
 
 ```yaml
-config:
-  renderMode: ssr
+renderMode: ssr
 
-  component: |
-    <div>
-      <h1>{{title}}</h1>
-      <p>Rendered on: {{serverTime}}</p>
-    </div>
+component: |
+  <div>
+    <h1>{{title}}</h1>
+    <p>Rendered on: {{serverTime}}</p>
+  </div>
 
 input:
   title: Dashboard
@@ -163,12 +158,11 @@ input:
 For pages that don't change often:
 
 ```yaml
-config:
-  renderMode: static
+renderMode: static
 
-  cache:
-    enabled: true
-    ttl: 3600  # Cache for 1 hour
+cache:
+  enabled: true
+  ttl: 3600  # Cache for 1 hour
 ```
 
 ### Hybrid Rendering
@@ -176,11 +170,10 @@ config:
 SSR with client-side hydration for interactivity:
 
 ```yaml
-config:
-  renderMode: hybrid
+renderMode: hybrid
 
-  hydration:
-    strategy: htmx
+hydration:
+  strategy: htmx
 ```
 
 ## Client-Side Hydration
@@ -190,21 +183,20 @@ config:
 Add interactive features with minimal JavaScript:
 
 ```yaml
-config:
-  hydration:
-    strategy: htmx
-    htmx:
-      enabled: true
-      version: "1.9.10"
-      extensions: ["json-enc"]
+hydration:
+  strategy: htmx
+  htmx:
+    enabled: true
+    version: "1.9.10"
+    extensions: ["json-enc"]
 
-  component: |
-    <div>
-      <button hx-post="/api/like" hx-target="#likes">
-        ❤️ Like
-      </button>
-      <span id="likes">{{likes}} likes</span>
-    </div>
+component: |
+  <div>
+    <button hx-post="/api/like" hx-target="#likes">
+      ❤️ Like
+    </button>
+    <span id="likes">{{likes}} likes</span>
+  </div>
 ```
 
 **Built-in htmx Patterns:**
@@ -219,10 +211,9 @@ config:
 Enhance forms and links automatically:
 
 ```yaml
-config:
-  hydration:
-    strategy: progressive
-    progressive:
+hydration:
+  strategy: progressive
+  progressive:
       enhanceForms: true
       enhanceLinks: true
 ```
@@ -232,10 +223,9 @@ config:
 Hydrate specific components only:
 
 ```yaml
-config:
-  hydration:
-    strategy: islands
-    islands:
+hydration:
+  strategy: islands
+  islands:
       - id: user-menu
         component: UserMenu
         loadOn: interaction
@@ -252,9 +242,8 @@ config:
 For static content only:
 
 ```yaml
-config:
-  hydration:
-    strategy: none
+hydration:
+  strategy: none
 ```
 
 ## SEO Configuration
@@ -262,32 +251,30 @@ config:
 ### Basic SEO
 
 ```yaml
-config:
-  seo:
-    title: About Us | Acme Corp
-    description: Learn more about Acme Corp and our mission
-    canonical: /about
-    robots: index, follow
+seo:
+  title: About Us | Acme Corp
+  description: Learn more about Acme Corp and our mission
+  canonical: /about
+  robots: index, follow
 ```
 
 ### Open Graph (Social Sharing)
 
 ```yaml
-config:
-  seo:
-    title: Amazing Product Launch
-    description: We're launching something incredible
-    canonical: /products/new-launch
+seo:
+  title: Amazing Product Launch
+  description: We're launching something incredible
+  canonical: /products/new-launch
 
-  head:
-    og:
+head:
+  og:
       title: Amazing Product Launch
       description: Check out our new product!
       image: https://yoursite.com/og-image.jpg
       type: website
       url: https://yoursite.com/products/new-launch
 
-    twitter:
+  twitter:
       card: summary_large_image
       site: "@yourcompany"
       title: Amazing Product Launch
@@ -298,9 +285,8 @@ config:
 ### Structured Data (JSON-LD)
 
 ```yaml
-config:
-  seo:
-    jsonLd:
+seo:
+  jsonLd:
       - "@context": "https://schema.org"
         "@type": "Product"
         name: "{{product.name}}"
@@ -317,18 +303,17 @@ config:
 Reuse layouts across multiple pages:
 
 ```yaml
-config:
-  layout:
-    name: main
-    props:
-      sidebar: true
-      header: true
-      footer: true
+layout:
+  name: main
+  props:
+    sidebar: true
+    header: true
+    footer: true
 
-  component: |
-    <!-- Page content goes here -->
-    <h1>{{title}}</h1>
-    <p>{{content}}</p>
+component: |
+  <!-- Page content goes here -->
+  <h1>{{title}}</h1>
+  <p>{{content}}</p>
 ```
 
 The layout wraps your page content automatically.
@@ -338,22 +323,20 @@ The layout wraps your page content automatically.
 ### Enable Edge Caching
 
 ```yaml
-config:
-  cache:
-    enabled: true
-    ttl: 1800  # 30 minutes
-    vary: ["Cookie"]  # Vary by Cookie header
-    staleWhileRevalidate: 300  # Serve stale for 5 min while revalidating
+cache:
+  enabled: true
+  ttl: 1800  # 30 minutes
+  vary: ["Cookie"]  # Vary by Cookie header
+  staleWhileRevalidate: 300  # Serve stale for 5 min while revalidating
 ```
 
 ### Cache by User
 
 ```yaml
-config:
-  cache:
-    enabled: true
-    ttl: 300
-    vary: ["Cookie", "Authorization"]
+cache:
+  enabled: true
+  ttl: 300
+  vary: ["Cookie", "Authorization"]
 ```
 
 ### Disable Caching
@@ -361,9 +344,8 @@ config:
 For user-specific or real-time pages:
 
 ```yaml
-config:
-  cache:
-    enabled: false
+cache:
+  enabled: false
 ```
 
 ## Styling
@@ -371,9 +353,8 @@ config:
 ### Inline Styles
 
 ```yaml
-config:
-  head:
-    styles:
+head:
+  styles:
       - |
         body {
           font-family: system-ui, sans-serif;
@@ -389,9 +370,8 @@ config:
 ### External Stylesheets
 
 ```yaml
-config:
-  head:
-    links:
+head:
+  links:
       - rel: stylesheet
         href: https://cdn.jsdelivr.net/npm/tailwindcss@3/dist/tailwind.min.css
 
@@ -408,98 +388,97 @@ name: dashboard
 type: Page
 description: User analytics dashboard
 
-config:
-  # Routing
-  route:
-    path: /dashboard
-    methods: [GET]
-    auth: required
-    rateLimit:
-      requests: 100
-      window: 60
+# Routing
+route:
+  path: /dashboard
+  methods: [GET]
+  auth: required
+  rateLimit:
+    requests: 100
+    window: 60
 
-  # Rendering
-  renderMode: ssr
+# Rendering
+renderMode: ssr
 
-  # Component
-  component: |
-    <div class="dashboard">
-      <header>
-        <h1>Welcome back, {{user.name}}!</h1>
-      </header>
+# Component
+component: |
+  <div class="dashboard">
+    <header>
+      <h1>Welcome back, {{user.name}}!</h1>
+    </header>
 
-      <div class="stats-grid">
-        {{#each metrics}}
-        <div class="stat-card">
-          <h3>{{this.label}}</h3>
-          <p class="stat-value">{{this.value}}</p>
-          <span class="stat-change {{this.trend}}">{{this.change}}</span>
-        </div>
-        {{/each}}
+    <div class="stats-grid">
+      {{#each metrics}}
+      <div class="stat-card">
+        <h3>{{this.label}}</h3>
+        <p class="stat-value">{{this.value}}</p>
+        <span class="stat-change {{this.trend}}">{{this.change}}</span>
       </div>
-
-      <div class="chart-container"
-           hx-get="/api/chart-data"
-           hx-trigger="load"
-           hx-swap="innerHTML">
-        Loading chart...
-      </div>
+      {{/each}}
     </div>
 
-  # Hydration
-  hydration:
-    strategy: htmx
-    htmx:
-      enabled: true
-      version: "1.9.10"
+    <div class="chart-container"
+         hx-get="/api/chart-data"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      Loading chart...
+    </div>
+  </div>
 
-  # SEO
-  seo:
-    title: Dashboard
-    description: Your analytics dashboard
-    canonical: /dashboard
-    robots: noindex, nofollow  # Don't index authenticated pages
-
-  # Caching
-  cache:
+# Hydration
+hydration:
+  strategy: htmx
+  htmx:
     enabled: true
-    ttl: 300
-    vary: ["Cookie"]
+    version: "1.9.10"
 
-  # Styles
-  head:
-    meta:
-      - name: viewport
-        content: width=device-width, initial-scale=1
+# SEO
+seo:
+  title: Dashboard
+  description: Your analytics dashboard
+  canonical: /dashboard
+  robots: noindex, nofollow  # Don't index authenticated pages
 
-    links:
-      - rel: stylesheet
-        href: /assets/dashboard.css
+# Caching
+cache:
+  enabled: true
+  ttl: 300
+  vary: ["Cookie"]
 
-    styles:
-      - |
-        .dashboard {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 2rem;
-        }
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 1.5rem;
-          margin: 2rem 0;
-        }
-        .stat-card {
-          background: white;
-          padding: 1.5rem;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+# Styles
+head:
+  meta:
+    - name: viewport
+      content: width=device-width, initial-scale=1
+
+  links:
+    - rel: stylesheet
+      href: /assets/dashboard.css
+
+  styles:
+    - |
+      .dashboard {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+      }
+      .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
 
 # Page input
 input:
   user:
-    name: John Doe
+  name: John Doe
     email: john@example.com
 
   metrics:
@@ -574,10 +553,9 @@ type: Page
 ### 2. Enable Caching for Static Pages
 
 ```yaml
-config:
-  cache:
-    enabled: true
-    ttl: 3600
+cache:
+  enabled: true
+  ttl: 3600
 ```
 
 ### 3. Use htmx for Interactivity
@@ -585,9 +563,8 @@ config:
 Avoid heavy JavaScript frameworks:
 
 ```yaml
-config:
-  hydration:
-    strategy: htmx
+hydration:
+  strategy: htmx
 ```
 
 ### 4. Optimize SEO
@@ -595,18 +572,16 @@ config:
 Always provide title, description, and meta tags:
 
 ```yaml
-config:
-  seo:
-    title: Your Page Title
-    description: Clear description under 160 characters
+seo:
+  title: Your Page Title
+  description: Clear description under 160 characters
 ```
 
 ### 5. Disable Caching for User Pages
 
 ```yaml
-config:
-  cache:
-    enabled: false  # For authenticated pages
+cache:
+  enabled: false  # For authenticated pages
 ```
 
 ### 6. Use Dynamic Routes
@@ -614,9 +589,8 @@ config:
 For content-driven pages:
 
 ```yaml
-config:
-  route:
-    path: /blog/:slug
+route:
+  path: /blog/:slug
 ```
 
 ## Default Error Pages
@@ -655,14 +629,14 @@ route:
 renderMode: ssr
 
 component: |
-    <div class="error-page">
-      <div class="error-content">
-        <div class="error-code">404</div>
-        <h1>Page Not Found</h1>
-        <p>The page you're looking for doesn't exist.</p>
-        <a href="/">Go Home</a>
-      </div>
+  <div class="error-page">
+    <div class="error-content">
+      <div class="error-code">404</div>
+      <h1>Page Not Found</h1>
+      <p>The page you're looking for doesn't exist.</p>
+      <a href="/">Go Home</a>
     </div>
+  </div>
 
 seo:
   title: "404 - Page Not Found"
@@ -793,7 +767,7 @@ route:
   # Authentication
   auth:
     requirement: string  # public, optional, required
-    methods: string[]    # bearer, apiKey, cookie, unkey, custom
+  methods: string[]    # bearer, apiKey, cookie, unkey, custom
     roles: string[]      # Required roles
     permissions: string[] # Required permissions
     onFailure:
@@ -808,7 +782,7 @@ route:
   # CORS configuration
   cors:
     origins: string[]    # Allowed origins or '*'
-    methods: string[]    # Allowed HTTP methods
+  methods: string[]    # Allowed HTTP methods
     credentials: boolean # Allow credentials
     maxAge: number       # Preflight cache (seconds)
 
