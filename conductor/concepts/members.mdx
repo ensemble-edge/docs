@@ -20,20 +20,40 @@ In Conductor's musical metaphor, **members are the musicians** in your orchestra
 </Note>
 
 <CardGroup cols={2}>
-  <Card title="Think Members" icon="brain">
+  <Card title="Think" icon="brain" href="/conductor/member-types/think">
     AI reasoning with LLMs (GPT-4, Claude, Workers AI)
   </Card>
 
-  <Card title="Function Members" icon="code">
+  <Card title="Function" icon="code" href="/conductor/member-types/function">
     JavaScript/TypeScript business logic
   </Card>
 
-  <Card title="Data Members" icon="database">
+  <Card title="Data" icon="database" href="/conductor/member-types/data">
     Storage operations (KV, D1, R2, Vectorize)
   </Card>
 
-  <Card title="API Members" icon="globe">
+  <Card title="API" icon="globe" href="/conductor/member-types/api">
     HTTP requests to external services
+  </Card>
+
+  <Card title="Email" icon="envelope" href="/conductor/member-types/email">
+    Email sending with templates and multi-provider support
+  </Card>
+
+  <Card title="SMS" icon="message" href="/conductor/member-types/sms">
+    SMS messaging with Twilio, Vonage, and AWS SNS
+  </Card>
+
+  <Card title="HTML" icon="window" href="/conductor/member-types/html">
+    HTML rendering with templates and cookie management
+  </Card>
+
+  <Card title="PDF" icon="file-pdf" href="/conductor/member-types/pdf">
+    PDF generation from HTML with R2 storage
+  </Card>
+
+  <Card title="Page" icon="browser" href="/conductor/member-types/page">
+    Full-stack pages with SSR, dynamic routing, and htmx
   </Card>
 </CardGroup>
 
@@ -413,24 +433,16 @@ flow:
 
 ## Creating Custom Members
 
-Use the SDK factory functions for simplified member creation:
+Export an async function that receives input and returns output:
 
 ```typescript
-import { createFunctionMember } from '@ensemble-edge/conductor/sdk';
+// members/your-member/index.ts
+export default async function yourMember({ input, env, ctx }) {
+  // Your logic here
+  const result = await processData(input.data);
 
-export default createFunctionMember({
-  async handler({ input, state, setState, env }) {
-    // Your logic here
-    const result = await processData(input.data);
-
-    // Optionally update shared state
-    if (setState) {
-      setState({ processedData: result });
-    }
-
-    return { result };
-  }
-});
+  return { result };
+}
 ```
 
 ## Related Documentation
