@@ -1,75 +1,695 @@
 ---
 title: "A/B Testing Prompts"
-description: "Test prompt variations"
+description: "Test prompt variations to find optimal configurations"
 ---
 
-# A/B Testing Prompts Playbook
+# A/B Testing Prompts
 
-**Compare prompts. Find what works best.**
+**Compare prompts systematically. Find what works best. Deploy instantly.**
 
-## Basic A/B Test
+## Overview
+
+A/B testing is a **core architectural principle** of Ensemble Edge. By combining Edgit's multiverse versioning with Conductor's edge-native execution, you can test prompt variations at unprecedented scale and speed.
+
+**Key Advantage:** Version prompts independently, test optimal combinations from different points in history, and deploy winners globally in < 50ms.
+
+## Basic Prompt A/B Test
+
+Test two prompt versions with 50/50 traffic split:
 
 ```yaml
-ensemble: test-prompts
+ensemble: test-extraction-prompts
 
 agents:
-  # Variant A: 50%
-  - name: variant-a
-    condition: ${input.user_id % 2 === 0}
-    operation: think
+  # Route based on user ID for consistent experience
+  - name: route-variant
+    operation: code
     config:
-      prompt: "Prompt A: ${input.query}"
+      script: |
+        return {
+          variant: input.userId % 2 === 0 ? 'a' : 'b'
+        };
 
-  # Variant B: 50%
-  - name: variant-b
-    condition: ${input.user_id % 2 === 1}
+  # Variant A: Conservative prompt
+  - name: extract-a
+    condition: ${route-variant.output.variant === 'a'}
     operation: think
+    component: extraction-prompt@v1.0.0  # Versioned prompt
     config:
-      prompt: "Prompt B: ${input.query}"
+      model: claude-3-5-sonnet-20241022
+      provider: anthropic
+    input:
+      document: ${input.document}
 
-  # Log results
-  - name: log
+  # Variant B: Aggressive prompt
+  - name: extract-b
+    condition: ${route-variant.output.variant === 'b'}
+    operation: think
+    component: extraction-prompt@v2.0.0  # New version
+    config:
+      model: claude-3-5-sonnet-20241022
+      provider: anthropic
+    input:
+      document: ${input.document}
+
+  # Log results for analysis
+  - name: log-results
     operation: storage
     config:
       type: d1
       query: |
-        INSERT INTO ab_test_results (user_id, variant, output, timestamp)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO ab_test_results
+        (user_id, variant, execution_time, quality_score, timestamp)
+        VALUES (?, ?, ?, ?, ?)
       params:
-        - ${input.user_id}
-        - ${variant-a.executed ? 'a' : 'b'}
-        - ${variant-a.output || variant-b.output}
+        - ${input.userId}
+        - ${route-variant.output.variant}
+        - ${extract-a.executionTime || extract-b.executionTime}
+        - ${extract-a.score || extract-b.score}
         - ${Date.now()}
 ```
 
+**Deploy both versions:**
+
+```bash
+# Deploy variant A (conservative)
+edgit deploy set extraction-prompt v1.0.0 --to prod
+
+# Deploy variant B (aggressive)
+edgit deploy set extraction-prompt v2.0.0 --to prod
+
+# Both versions live simultaneously at the edge
+```
+
 ## Model Comparison
+
+Test different AI models for optimal cost/quality balance:
 
 ```yaml
 ensemble: compare-models
 
 agents:
-  - name: gpt-4o
-    condition: ${input.user_id % 2 === 0}
+  - name: route
+    operation: code
+    config:
+      script: |
+        const hash = input.userId.split('').reduce((a, b) => {
+          return ((a << 5) - a) + b.charCodeAt(0);
+        }, 0);
+        return { variant: Math.abs(hash) % 3 };
+
+  # Variant A: GPT-4o (high quality, high cost)
+  - name: analyze-gpt4
+    condition: ${route.output.variant === 0}
     operation: think
+    component: analysis-prompt@v1.0.0
     config:
       provider: openai
       model: gpt-4o
+      temperature: 0.3
+    input:
+      data: ${input.data}
 
-  - name: claude
-    condition: ${input.user_id % 2 === 1}
+  # Variant B: Claude Sonnet (balanced)
+  - name: analyze-claude
+    condition: ${route.output.variant === 1}
     operation: think
+    component: analysis-prompt@v1.0.0  # Same prompt, different model
     config:
       provider: anthropic
-      model: claude-3-5-sonnet
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.3
+    input:
+      data: ${input.data}
+
+  # Variant C: Workers AI (low cost, edge-native)
+  - name: analyze-workersai
+    condition: ${route.output.variant === 2}
+    operation: ml
+    component: analysis-prompt@v1.0.0
+    config:
+      model: '@cf/meta/llama-3.1-8b-instruct'
+      provider: cloudflare
+    input:
+      data: ${input.data}
+
+  # Track metrics
+  - name: track-metrics
+    operation: code
+    config:
+      script: |
+        const result = input.result;
+        const variant = ['gpt4', 'claude', 'workersai'][input.variantIndex];
+
+        env.ANALYTICS?.writeDataPoint({
+          blobs: ['model-comparison', variant, input.userId],
+          doubles: [result.executionTime, result.cost, result.qualityScore]
+        });
+
+        return { logged: true };
+    input:
+      variantIndex: ${route.output.variant}
+      result: ${analyze-gpt4.output || analyze-claude.output || analyze-workersai.output}
+```
+
+**Measure:**
+- Quality scores (Conductor's built-in scoring)
+- Execution time and cost
+- User satisfaction metrics
+- Downstream conversion rates
+
+## Temperature Optimization
+
+Test different temperature settings for creativity vs consistency:
+
+```yaml
+ensemble: optimize-temperature
+
+agents:
+  - name: assign-temperature
+    operation: code
+    config:
+      script: |
+        const temps = [0.3, 0.5, 0.7, 0.9];
+        const index = input.userId % temps.length;
+        return { temperature: temps[index] };
+
+  - name: generate-content
+    operation: think
+    component: creative-prompt@v1.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+      provider: anthropic
+      temperature: ${assign-temperature.output.temperature}
+    input:
+      topic: ${input.topic}
+
+  # Validate output quality
+  - name: validate-quality
+    operation: think
+    config:
+      model: gpt-4o-mini
+      provider: openai
+      systemPrompt: |
+        Evaluate content quality on:
+        - Creativity
+        - Coherence
+        - Factual accuracy
+        - Engagement
+
+        Return score 0.0-1.0
+    input:
+      content: ${generate-content.output.text}
+      temperature: ${assign-temperature.output.temperature}
+
+  - name: log-temperature-test
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO temperature_tests
+        (temperature, quality_score, creativity_score, coherence_score)
+        VALUES (?, ?, ?, ?)
+      params:
+        - ${assign-temperature.output.temperature}
+        - ${validate-quality.output.overallScore}
+        - ${validate-quality.output.creativityScore}
+        - ${validate-quality.output.coherenceScore}
+```
+
+## Prompt Structure Testing
+
+Test different prompt structures:
+
+```yaml
+ensemble: test-prompt-structures
+
+agents:
+  - name: select-structure
+    operation: code
+    config:
+      script: |
+        const structures = ['chain-of-thought', 'direct', 'few-shot'];
+        return { structure: structures[input.userId % structures.length] };
+
+  # Chain of thought
+  - name: cot-prompt
+    condition: ${select-structure.output.structure === 'chain-of-thought'}
+    operation: think
+    component: cot-extraction@v1.0.0
+    config:
+      model: gpt-4o
+      provider: openai
+    input:
+      document: ${input.document}
+
+  # Direct instruction
+  - name: direct-prompt
+    condition: ${select-structure.output.structure === 'direct'}
+    operation: think
+    component: direct-extraction@v1.0.0
+    config:
+      model: gpt-4o
+      provider: openai
+    input:
+      document: ${input.document}
+
+  # Few-shot examples
+  - name: fewshot-prompt
+    condition: ${select-structure.output.structure === 'few-shot'}
+    operation: think
+    component: fewshot-extraction@v1.0.0
+    config:
+      model: gpt-4o
+      provider: openai
+    input:
+      document: ${input.document}
+```
+
+**Prompt examples:**
+
+```markdown
+<!-- components/prompts/cot-extraction-v1.0.0.md -->
+Extract key information from the document.
+
+Think through this step by step:
+1. First, identify the document type
+2. Then, locate key data points
+3. Finally, structure the extracted information
+
+Document: {{document}}
+```
+
+```markdown
+<!-- components/prompts/direct-extraction-v1.0.0.md -->
+Extract the following from the document:
+- Name
+- Date
+- Amount
+- Description
+
+Document: {{document}}
+```
+
+```markdown
+<!-- components/prompts/fewshot-extraction-v1.0.0.md -->
+Extract key information as shown in these examples:
+
+Example 1:
+Input: "Invoice #123 dated 2024-01-15 for $500"
+Output: {"id": "123", "date": "2024-01-15", "amount": 500}
+
+Example 2:
+Input: "Receipt from 01/20/2024 total: $75.50"
+Output: {"date": "2024-01-20", "amount": 75.50}
+
+Now extract from: {{document}}
+```
+
+## Multivariate Testing
+
+Test multiple dimensions simultaneously:
+
+```yaml
+ensemble: multivariate-prompt-test
+
+agents:
+  - name: assign-variant
+    operation: code
+    config:
+      script: |
+        const hash = input.userId;
+        const prompts = ['conservative', 'aggressive'];
+        const models = ['gpt-4o', 'claude-sonnet'];
+        const temps = [0.3, 0.7];
+
+        return {
+          prompt: prompts[hash % 2],
+          model: models[Math.floor(hash / 2) % 2],
+          temperature: temps[Math.floor(hash / 4) % 2],
+          variant: `${prompts[hash % 2]}-${models[Math.floor(hash / 2) % 2]}-${temps[Math.floor(hash / 4) % 2]}`
+        };
+
+  - name: extract
+    operation: think
+    component: extraction-${assign-variant.output.prompt}@v1.0.0
+    config:
+      model: ${assign-variant.output.model}
+      provider: ${assign-variant.output.model.includes('gpt') ? 'openai' : 'anthropic'}
+      temperature: ${assign-variant.output.temperature}
+    input:
+      document: ${input.document}
+
+  - name: log-multivariate
+    operation: storage
+    config:
+      type: analytics
+      dataPoint:
+        blobs:
+          - multivariate-test
+          - ${assign-variant.output.variant}
+        doubles:
+          - ${extract.executionTime}
+          - ${extract.cost}
+          - ${extract.qualityScore}
+```
+
+**This tests 2 × 2 × 2 = 8 variants:**
+- conservative + gpt-4o + 0.3
+- conservative + gpt-4o + 0.7
+- conservative + claude + 0.3
+- conservative + claude + 0.7
+- aggressive + gpt-4o + 0.3
+- aggressive + gpt-4o + 0.7
+- aggressive + claude + 0.3
+- aggressive + claude + 0.7
+
+## Progressive Rollout
+
+Gradually increase traffic to winning variant:
+
+```yaml
+ensemble: progressive-rollout
+
+agents:
+  - name: get-rollout-percentage
+    operation: storage
+    config:
+      type: kv
+      key: prompt-v2-rollout-percentage
+      defaultValue: 5  # Start at 5%
+
+  - name: select-version
+    operation: code
+    config:
+      script: |
+        const rolloutPct = input.rolloutPercentage;
+        const random = Math.random() * 100;
+        return {
+          version: random < rolloutPct ? 'v2.0.0' : 'v1.0.0',
+          isNewVersion: random < rolloutPct
+        };
+    input:
+      rolloutPercentage: ${get-rollout-percentage.output.value}
+
+  - name: extract
+    operation: think
+    component: extraction-prompt@${select-version.output.version}
+    config:
+      model: claude-3-5-sonnet-20241022
+      provider: anthropic
+    input:
+      document: ${input.document}
+
+  # Auto-increment rollout if quality good
+  - name: update-rollout
+    condition: ${select-version.output.isNewVersion && extract.qualityScore > 0.9}
+    operation: code
+    config:
+      script: |
+        const currentPct = input.currentPercentage;
+        const newPct = Math.min(currentPct + 5, 100);
+
+        await env.KV.put('prompt-v2-rollout-percentage', newPct.toString());
+
+        return {
+          oldPercentage: currentPct,
+          newPercentage: newPct
+        };
+    input:
+      currentPercentage: ${get-rollout-percentage.output.value}
+```
+
+## Measuring Results
+
+### Built-in Quality Scoring
+
+Every execution automatically emits quality metrics:
+
+```yaml
+ensemble: scored-comparison
+
+agents:
+  - name: extract
+    operation: think
+    component: extraction-prompt@${input.version}
+    config:
+      model: claude-3-5-sonnet-20241022
+      scoring:
+        enabled: true
+        criteria:
+          accuracy: "Extracted data matches source"
+          completeness: "All required fields present"
+          format: "Output follows JSON schema"
+        thresholds:
+          minimum: 0.8
+```
+
+**Conductor automatically tracks:**
+- Quality score (0.0-1.0)
+- Execution time (ms)
+- Token usage and cost
+- Cache hit/miss
+- Retry count
+
+### Analytics Engine
+
+Query test results:
+
+```sql
+-- Compare variants
+SELECT
+  blob2 as variant,
+  COUNT(*) as executions,
+  AVG(double1) as avg_execution_time_ms,
+  AVG(double2) as avg_cost,
+  AVG(double3) as avg_quality_score
+FROM analytics
+WHERE blob1 = 'prompt-ab-test'
+  AND timestamp > NOW() - INTERVAL '7 days'
+GROUP BY variant
+ORDER BY avg_quality_score DESC
+```
+
+### Statistical Significance
+
+Check if results are significant:
+
+```typescript
+import { tTest } from '@ensemble-edge/conductor/utils';
+
+// Get results for both variants
+const variantA = await getResults('v1.0.0');
+const variantB = await getResults('v2.0.0');
+
+// Require minimum samples
+const MIN_SAMPLES = 1000;
+if (variantA.samples < MIN_SAMPLES || variantB.samples < MIN_SAMPLES) {
+  console.log('Need more samples');
+  return;
+}
+
+// Calculate p-value
+const pValue = tTest(variantA.scores, variantB.scores);
+const CONFIDENCE = 0.95;
+
+if (pValue < (1 - CONFIDENCE)) {
+  const winner = variantA.mean > variantB.mean ? 'A' : 'B';
+  console.log(`Variant ${winner} wins with ${CONFIDENCE * 100}% confidence`);
+
+  // Promote winner
+  await promoteVersion(winner === 'A' ? 'v1.0.0' : 'v2.0.0');
+}
+```
+
+## Edge-Native Advantages
+
+### Instant Deployment
+
+```bash
+# Deploy new prompt version globally in < 50ms
+edgit deploy set extraction-prompt v2.0.0 --to prod
+
+# Instant rollback if quality drops
+edgit deploy set extraction-prompt v1.0.0 --to prod
+```
+
+**No build step. No container deployment. No waiting.**
+
+### Geographic Testing
+
+Test variants by region:
+
+```typescript
+export default {
+  async fetch(request: Request, env: Env) {
+    const colo = request.cf?.colo; // Airport code (e.g., "SJC")
+
+    // Route US West to variant B, rest to variant A
+    const variant = ['SJC', 'LAX', 'SEA'].includes(colo) ? 'v2.0.0' : 'v1.0.0';
+
+    return conductorClient.execute({
+      ensemble: 'extraction-pipeline',
+      input: {
+        ...input,
+        promptVersion: variant
+      }
+    });
+  }
+};
+```
+
+### Deterministic User Routing
+
+Ensure consistent experience:
+
+```typescript
+function hashUserId(userId: string): number {
+  return userId.split('').reduce((acc, char) => {
+    return ((acc << 5) - acc) + char.charCodeAt(0);
+  }, 0);
+}
+
+function getVariant(userId: string): 'a' | 'b' {
+  const hash = hashUserId(userId);
+  return Math.abs(hash) % 100 < 50 ? 'a' : 'b';
+}
+
+// Same user always gets same variant
+const variant = getVariant(request.headers.get('x-user-id'));
+```
+
+## Best Practices
+
+### 1. Version Prompts in Edgit
+
+```bash
+# Register prompt as component
+edgit components add prompt extraction-prompt components/prompts/extraction.md
+
+# Create versions
+edgit tag create extraction-prompt v1.0.0
+edgit tag create extraction-prompt v2.0.0
+
+# Deploy independently
+edgit deploy set extraction-prompt v1.0.0 --to prod
+```
+
+### 2. Test One Dimension at a Time
+
+Start simple:
+
+```yaml
+# ✅ Good: Test prompt only
+variant-a: extraction-prompt@v1.0.0 + gpt-4o + temp 0.3
+variant-b: extraction-prompt@v2.0.0 + gpt-4o + temp 0.3
+
+# ❌ Bad: Change everything
+variant-a: extraction-prompt@v1.0.0 + gpt-4o + temp 0.3
+variant-b: different-prompt@v1.0.0 + claude + temp 0.7
+```
+
+### 3. Require Minimum Samples
+
+Don't declare winners prematurely:
+
+```typescript
+const MIN_SAMPLES = 1000;
+const MIN_DAYS = 7;
+
+if (samples < MIN_SAMPLES || daysSinceStart < MIN_DAYS) {
+  return { status: 'collecting_data' };
+}
+```
+
+### 4. Monitor Business Metrics
+
+Track actual outcomes:
+
+```typescript
+// ✅ Good
+await logMetric({
+  variant,
+  qualityScore: result.score,
+  userConverted: await checkConversion(userId),
+  revenue: await getRevenue(userId)
+});
+
+// ❌ Bad - optimize proxy without checking actual goal
+await logMetric({
+  variant,
+  clicks: clickCount
+});
+```
+
+### 5. Use Gradual Rollout
+
+Start small:
+
+```
+Week 1: 5% traffic to variant B
+Week 2: 25% if successful
+Week 3: 50% if still successful
+Week 4: 100% (promote to default)
+```
+
+## Testing
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('prompt-ab-test', () => {
+  it('should route variants correctly', async () => {
+    const conductor = await TestConductor.create();
+
+    // Test variant A
+    const resultA = await conductor.executeEnsemble('test-extraction-prompts', {
+      userId: 2,  // Even = variant A
+      document: 'Test document'
+    });
+    expect(resultA.output.variant).toBe('a');
+
+    // Test variant B
+    const resultB = await conductor.executeEnsemble('test-extraction-prompts', {
+      userId: 3,  // Odd = variant B
+      document: 'Test document'
+    });
+    expect(resultB.output.variant).toBe('b');
+  });
+
+  it('should log results correctly', async () => {
+    const conductor = await TestConductor.create();
+
+    await conductor.executeEnsemble('test-extraction-prompts', {
+      userId: 123,
+      document: 'Test'
+    });
+
+    const logs = await conductor.getStorageWrites('d1');
+    expect(logs).toHaveLength(1);
+    expect(logs[0].table).toBe('ab_test_results');
+  });
+});
 ```
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="Multivariate Testing" icon="vials" href="/conductor/playbooks/multivariate-agent-testing">
-    Multiple dimensions
+    Test multiple dimensions simultaneously
   </Card>
   <Card title="Progressive Deployment" icon="truck-ramp-box" href="/conductor/playbooks/progressive-deployment">
-    Gradual rollouts
+    Gradual rollouts and automatic promotion
+  </Card>
+  <Card title="A/B Testing Core Concepts" icon="flask" href="/conductor/core-concepts/ab-testing">
+    Deep dive into experimentation architecture
+  </Card>
+  <Card title="Edgit Versioning" icon="code-branch" href="/edgit/guides/versioning-components-agents">
+    Version prompts independently
   </Card>
 </CardGroup>
+
+<Note>
+  A/B testing is not a feature—it's a fundamental architectural capability of Ensemble Edge. Version prompts independently, deploy instantly at the edge, and let Conductor measure quality automatically.
+</Note>
