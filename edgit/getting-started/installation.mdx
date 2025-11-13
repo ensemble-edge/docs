@@ -72,7 +72,7 @@ edgit commit  # AI generates: "feat(test): add test function"
   <Accordion title="Command not found: edgit">
     Your PATH doesn't include npm global bin directory.
 
-    **Fix:**
+    Fix:
     ```bash
     # Find npm global bin path
     npm config get prefix
@@ -88,14 +88,14 @@ edgit commit  # AI generates: "feat(test): add test function"
   <Accordion title="Permission errors (EACCES)">
     Don't have permission to install globally.
 
-    **Fix (recommended):** Use nvm
+    Fix (recommended): Use nvm
     ```bash
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
     nvm install 18
     npm install -g @ensemble-edge/edgit
     ```
 
-    **Fix (alternative):** Install locally per project
+    Fix (alternative): Install locally per project
     ```bash
     npm install --save-dev @ensemble-edge/edgit
     npx edgit --version
@@ -105,12 +105,12 @@ edgit commit  # AI generates: "feat(test): add test function"
   <Accordion title="AI commits not working">
     API key isn't set or is invalid.
 
-    **Check:**
+    Check:
     ```bash
     echo $OPENAI_API_KEY  # Should start with sk-
     ```
 
-    **Test the key:**
+    Test the key:
     ```bash
     curl https://api.openai.com/v1/models \
       -H "Authorization: Bearer $OPENAI_API_KEY"
