@@ -38,7 +38,7 @@ Test it:
 curl https://my-conductor-app.your-subdomain.workers.dev?name=World
 ```
 
-**You're live.** Your ensemble is running in 300+ cities worldwide with <50ms cold starts.
+**You're live.** Your ensemble is running in 300+ cities worldwide with &lt;50ms cold starts.
 
 ## Deployment Checklist
 
@@ -471,9 +471,9 @@ Check usage in Cloudflare dashboard:
 
 <AccordionGroup>
   <Accordion title="Deployment fails with 'binding not found'">
-    **Problem**: Missing resource binding
+    Problem: Missing resource binding
 
-    **Fix**: Create the resource and add ID to `wrangler.toml`
+    Fix: Create the resource and add ID to `wrangler.toml`
     ```bash
     # Create KV namespace
     wrangler kv:namespace create CACHE
@@ -486,9 +486,9 @@ Check usage in Cloudflare dashboard:
   </Accordion>
 
   <Accordion title="500 errors in production">
-    **Problem**: Runtime error in worker
+    Problem: Runtime error in worker
 
-    **Fix**: Check logs
+    Fix: Check logs
     ```bash
     wrangler tail --status=error
     ```
@@ -496,9 +496,9 @@ Check usage in Cloudflare dashboard:
   </Accordion>
 
   <Accordion title="Slow cold starts">
-    **Problem**: Large bundle size
+    Problem: Large bundle size
 
-    **Fix**: Optimize bundle
+    Fix: Optimize bundle
     ```bash
     # Check bundle size
     wrangler deploy --dry-run --outdir=dist
@@ -510,9 +510,9 @@ Check usage in Cloudflare dashboard:
   </Accordion>
 
   <Accordion title="AI operations failing">
-    **Problem**: Missing AI binding or quota exceeded
+    Problem: Missing AI binding or quota exceeded
 
-    **Fix**:
+    Fix:
     1. Check `wrangler.toml` has `[ai] binding = "AI"`
     2. Check usage in Cloudflare dashboard
     3. Consider paid plan for higher limits

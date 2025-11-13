@@ -1,6 +1,6 @@
 ---
 title: "Core Concepts"
-description: "Components → Agents → Ensembles: The building blocks of Ensemble Edge"
+description: "Components -> Agents -> Ensembles: The building blocks of Ensemble Edge"
 ---
 
 # Core Concepts
@@ -11,9 +11,9 @@ Three layers. Clean separation. Infinite flexibility.
 
 ```
 Components (What You Version)
-    ↓
+    |
 Agents (What Executes)
-    ↓
+    |
 Ensembles (What Orchestrates)
 ```
 
@@ -118,43 +118,43 @@ Operations are the execution primitives. Think of them as the "verb" of what an 
 
 <CardGroup cols={2}>
   <Card title="think" icon="brain">
-    **AI reasoning** - LLMs, embeddings, classification
+    AI reasoning - LLMs, embeddings, classification
   </Card>
 
   <Card title="code" icon="code">
-    **JavaScript/TypeScript** - Business logic, transformations
+    JavaScript/TypeScript - Business logic, transformations
   </Card>
 
   <Card title="storage" icon="database">
-    **Database operations** - KV, D1, R2, Vectorize
+    Database operations - KV, D1, R2, Vectorize
   </Card>
 
   <Card title="http" icon="globe">
-    **HTTP requests** - External APIs, webhooks
+    HTTP requests - External APIs, webhooks
   </Card>
 
   <Card title="tools" icon="wrench">
-    **MCP/skills access** - External capabilities via protocols
+    MCP/skills access - External capabilities via protocols
   </Card>
 
   <Card title="email" icon="envelope">
-    **Email operations** - Sending, templates
+    Email operations - Sending, templates
   </Card>
 
   <Card title="sms" icon="comment">
-    **SMS operations** - Twilio, etc.
+    SMS operations - Twilio, etc.
   </Card>
 
   <Card title="html" icon="file-code">
-    **HTML rendering** - Dynamic pages
+    HTML rendering - Dynamic pages
   </Card>
 
   <Card title="pdf" icon="file-pdf">
-    **PDF generation** - Reports, invoices
+    PDF generation - Reports, invoices
   </Card>
 
   <Card title="page" icon="window-maximize">
-    **Full-stack pages** - Complete web pages with forms
+    Full-stack pages - Complete web pages with forms
   </Card>
 </CardGroup>
 
@@ -419,7 +419,7 @@ Your ensembles run on Cloudflare Workers at 200+ global locations.
 
 **Conductor (Edge-Native):**
 - Distributed compute (200+ regions)
-- Fast cold starts (<50ms)
+- Fast cold starts (&lt;50ms)
 - Infinite scale (automatic)
 - Near-zero latency globally
 
@@ -446,7 +446,7 @@ agents:
 ```
 
 First request: ~200ms
-Cached request: <10ms
+Cached request: &lt;10ms
 
 ## What You Can't Do (By Design)
 
