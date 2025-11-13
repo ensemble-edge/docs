@@ -153,35 +153,43 @@ Every execution emits structured logs and metrics:
 
 ### vs. Traditional Orchestrators (Airflow, Temporal, Prefect)
 
-❌ **Them:** Centralized servers, slow cold starts, complex deployment
-✅ **Us:** Edge-native, <50ms cold starts, deploy like any Cloudflare Worker
+**Them:** Centralized servers, slow cold starts, complex deployment
+
+**Us:** Edge-native, <50ms cold starts, deploy like any Cloudflare Worker
 
 ### vs. AI Platforms (LangChain, LlamaIndex agents)
 
-❌ **Them:** Monolithic versioning, no independent component versions
-✅ **Us:** Each component versions independently, mix optimal versions from history
+**Them:** Monolithic versioning, no independent component versions
+
+**Us:** Each component versions independently, mix optimal versions from history
 
 ### vs. "No-Code" Tools
 
-❌ **Them:** Black box, vendor lock-in, UI-driven config in their database
-✅ **Us:** Full control, Git as source of truth, code-first with optional UI
+**Them:** Black box, vendor lock-in, UI-driven config in their database
+
+**Us:** Full control, Git as source of truth, code-first with optional UI
 
 ### vs. Workflow Tools (n8n, Zapier)
 
-❌ **Them:** Visual builders, JSON config, centralized execution
-✅ **Us:** YAML in Git, edge execution, developer-first
+**Them:** Visual builders, JSON config, centralized execution
+
+**Us:** YAML in Git, edge execution, developer-first
 
 ## Architecture Overview
 
 ```
 Components (Git Tags)
-    ↓
+    |
+    v
 Agents (Operations + Components)
-    ↓
+    |
+    v
 Ensembles (YAML Workflows)
-    ↓
+    |
+    v
 Conductor Runtime (Cloudflare Workers)
-    ↓
+    |
+    v
 Edge Execution (200+ locations)
 ```
 
