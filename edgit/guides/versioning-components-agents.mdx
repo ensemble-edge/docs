@@ -1,0 +1,521 @@
+---
+title: "Versioning Components & Agents"
+description: "Master independent versioning for AI components and agents"
+---
+
+# Versioning Components & Agents
+
+**The power of Edgit: version every piece independently. No more "bump the entire app to v2.0.0 because you changed one prompt."**
+
+## The Problem with Traditional Versioning
+
+Traditional approach:
+```
+v1.0.0: App + Prompt A (v1) + Config B (v1) + Query C (v1)
+v1.0.1: App + Prompt A (v2) + Config B (v1) + Query C (v1)
+v2.0.0: App + Prompt A (v2) + Config B (v2) + Query C (v1)
+```
+
+**Problem:** Can't mix Prompt A v1 with Config B v2. Everything is locked to the app version.
+
+**Edgit approach:**
+```
+Prompt A: v1.0.0, v1.1.0, v2.0.0 (independent)
+Config B: v1.0.0, v2.0.0, v3.0.0 (independent)
+Query C: v1.0.0, v1.5.0 (independent)
+```
+
+**Power:** Mix any combination. Prompt A v1 + Config B v3 + Query C v1.5. Infinite possibilities.
+
+## Component Versioning
+
+### What Gets Versioned
+
+**Components** are versioned artifacts that agents use:
+
+- **Prompts** (`.md`) - AI instructions
+- **Configs** (`.json`, `.yaml`) - Settings
+- **Queries** (`.sql`) - Database queries
+- **Scripts** (`.js`, `.ts`) - Functions
+- **Schemas** (`.json`) - Validation rules
+- **Templates** (`.html`, `.md`) - Output templates
+
+Each gets its own version history via Git tags.
+
+### Create Component Versions
+
+```bash
+# Register a prompt
+edgit components add prompt extraction-prompt components/prompts/extraction.md
+
+# Create versions as you iterate
+edgit tag create extraction-prompt v1.0.0  # Initial version
+# ... make improvements ...
+edgit tag create extraction-prompt v1.1.0  # Better extraction
+# ... major rewrite ...
+edgit tag create extraction-prompt v2.0.0  # New approach
+```
+
+### Git Tag Format
+
+Edgit uses namespaced Git tags:
+
+```bash
+components/extraction-prompt/v1.0.0
+components/extraction-prompt/v1.1.0
+components/extraction-prompt/v2.0.0
+components/extraction-prompt/prod      # Deployment tag
+components/extraction-prompt/staging   # Deployment tag
+```
+
+View them:
+```bash
+git tag | grep "components/extraction-prompt"
+```
+
+### Semantic Versioning
+
+Follow semver: `v{major}.{minor}.{patch}`
+
+**Major (v2.0.0):** Breaking changes
+```bash
+# Changed prompt output format from JSON to CSV
+edgit tag create extraction-prompt v2.0.0
+```
+
+**Minor (v1.1.0):** New features, backward compatible
+```bash
+# Added extraction of new fields
+edgit tag create extraction-prompt v1.1.0
+```
+
+**Patch (v1.0.1):** Bug fixes
+```bash
+# Fixed typo in prompt instructions
+edgit tag create extraction-prompt v1.0.1
+```
+
+### Reference Versions in Ensembles
+
+Lock to specific versions:
+
+```yaml
+ensemble: company-intel
+
+agents:
+  - name: analyzer
+    operation: think
+    component: extraction-prompt@v1.0.0  # Locked to v1.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+
+  - name: scorer
+    operation: think
+    component: validation-prompt@v2.1.0  # Different version
+```
+
+**Benefits:**
+- Predictable behavior (won't break on updates)
+- Can A/B test different versions
+- Easy rollback (just change the version)
+
+## Agent Versioning
+
+### What Are Agents?
+
+**Agents** are workers that execute tasks. They can be versioned just like components:
+
+- **Pre-built agents** (scraper, validator, RAG, HITL)
+- **Custom agent implementations**
+
+### Version Agent Implementations
+
+```bash
+# Register an agent
+edgit components add agent scraper agents/scraper/ --type=agent
+
+# Create versions
+edgit tag create scraper v1.0.0 --type=agent
+edgit tag create scraper v1.5.0 --type=agent
+edgit tag create scraper v2.0.0 --type=agent
+```
+
+### Git Tag Format for Agents
+
+Agents use a separate namespace:
+
+```bash
+agents/scraper/v1.0.0
+agents/scraper/v1.5.0
+agents/scraper/v2.0.0
+agents/scraper/prod      # Deployment tag
+agents/scraper/staging   # Deployment tag
+```
+
+**Why separate namespaces?**
+- Clear distinction between components and agents
+- No naming collisions
+- Better organization in Git
+
+### Reference Agent Versions
+
+```yaml
+ensemble: web-scraping-pipeline
+
+agents:
+  # Use specific agent version
+  - name: scraper
+    agent: scraper@v1.5.0  # Locked to v1.5.0
+    config:
+      url: https://example.com
+      extract:
+        title: "h1"
+        description: "meta[name=description]"
+
+  # Use different version for comparison
+  - name: scraper-new
+    agent: scraper@v2.0.0  # Testing v2.0.0
+    config:
+      url: https://example.com
+      extract:
+        title: "h1"
+        description: "meta[name=description]"
+```
+
+## The Versioning Multiverse
+
+The real power: **version components AND agents independently, then mix them.**
+
+### Example: Testing Matrix
+
+You have:
+- 2 agent versions (analyzer v1.0.0, v2.0.0)
+- 3 prompt versions (prompt v1.0.0, v1.5.0, v2.0.0)
+- 2 config versions (config v1.0.0, v2.0.0)
+
+**That's 12 possible combinations!**
+
+```yaml
+ensemble: multiverse-test
+
+agents:
+  # Combination 1: All stable
+  - name: variant-1
+    agent: analyzer@v1.0.0
+    component: prompt@v1.0.0
+    config: config@v1.0.0
+
+  # Combination 2: New agent, old prompt
+  - name: variant-2
+    agent: analyzer@v2.0.0
+    component: prompt@v1.0.0
+    config: config@v1.0.0
+
+  # Combination 3: Old agent, new prompt
+  - name: variant-3
+    agent: analyzer@v1.0.0
+    component: prompt@v2.0.0
+    config: config@v1.0.0
+
+  # ... 9 more combinations to test
+
+output:
+  results:
+    - variant: variant-1
+      output: ${variant-1.output}
+      quality: ${variant-1.score}
+    - variant: variant-2
+      output: ${variant-2.output}
+      quality: ${variant-2.score}
+    # Compare all variants
+```
+
+### Real-World Use Case: Progressive Testing
+
+```bash
+# Week 1: Test new prompt with stable agent
+edgit tag create analysis-prompt v2.0.0
+# Deploy: analyzer@v1.0.0 + analysis-prompt@v2.0.0
+
+# Week 2: New prompt works! Now test new agent with old prompt
+edgit tag create analyzer v2.0.0 --type=agent
+# Deploy: analyzer@v2.0.0 + analysis-prompt@v1.0.0
+
+# Week 3: Both work individually. Test together
+# Deploy: analyzer@v2.0.0 + analysis-prompt@v2.0.0
+
+# Week 4: All good! Promote to production
+edgit deploy set analyzer v2.0.0 --to prod --type=agent
+edgit deploy set analysis-prompt v2.0.0 --to prod
+```
+
+**You de-risked the rollout by testing each change independently.**
+
+## Version Strategies
+
+### Strategy 1: Lock Everything (Maximum Stability)
+
+```yaml
+agents:
+  - name: analyzer
+    agent: analyzer@v1.0.0        # Locked
+    component: prompt@v1.0.0      # Locked
+    config: config@v1.0.0         # Locked
+```
+
+**When:** Production systems that can't break
+**Trade-off:** Miss out on improvements
+
+### Strategy 2: Latest Everything (Maximum Innovation)
+
+```yaml
+agents:
+  - name: analyzer
+    agent: analyzer@latest         # Always use latest
+    component: prompt@latest       # Always use latest
+    config: config@latest          # Always use latest
+```
+
+**When:** Development/staging environments
+**Trade-off:** Might break unexpectedly
+
+### Strategy 3: Mixed (Balanced)
+
+```yaml
+agents:
+  - name: analyzer
+    agent: analyzer@v1.0.0         # Stable agent
+    component: prompt@v2.1.0       # Latest prompt (safe to iterate)
+    config: config@v1.0.0          # Stable config
+```
+
+**When:** Most production systems
+**Trade-off:** Balance between stability and improvement
+
+### Strategy 4: Canary (Gradual Rollout)
+
+```yaml
+agents:
+  # 90% get stable
+  - name: analyzer-stable
+    agent: analyzer@v1.0.0
+    component: prompt@v1.0.0
+    condition: ${Math.random() < 0.9}
+
+  # 10% get new version
+  - name: analyzer-canary
+    agent: analyzer@v2.0.0
+    component: prompt@v2.0.0
+    condition: ${Math.random() >= 0.9}
+```
+
+**When:** Rolling out risky changes
+**Trade-off:** More complex setup
+
+## Version Lifecycle
+
+### Development Flow
+
+```bash
+# 1. Create feature branch
+edgit checkout -b feature/better-extraction
+
+# 2. Modify component
+vim components/prompts/extraction.md
+
+# 3. Test locally (no version yet)
+conductor dev
+
+# 4. Merge to main
+edgit checkout main
+edgit merge feature/better-extraction
+
+# 5. Version after merge (via CI or manually)
+edgit tag create extraction-prompt v1.1.0
+
+# 6. Deploy to staging
+edgit deploy set extraction-prompt v1.1.0 --to staging
+
+# 7. Test in staging
+curl https://staging.example.com/test
+
+# 8. Promote to production
+edgit deploy set extraction-prompt v1.1.0 --to prod
+```
+
+### When to Create Versions
+
+**Do version:**
+-  After merging to main
+-  After successful tests in staging
+-  When deploying to any environment
+-  When you want to lock a working state
+
+**Don't version:**
+- L Every commit during development
+- L WIP (work in progress) changes
+- L Before testing
+- L In feature branches
+
+**Philosophy:** Versions are milestones, not checkpoints.
+
+## Version Discovery
+
+### List All Versions
+
+```bash
+# List versions of a component
+edgit tag list extraction-prompt
+# Output:
+# v1.0.0
+# v1.0.1
+# v1.1.0
+# v2.0.0
+
+# List with dates
+edgit tag list extraction-prompt --with-dates
+# Output:
+# v1.0.0 (2024-10-15)
+# v1.0.1 (2024-10-18)
+# v1.1.0 (2024-10-25)
+# v2.0.0 (2024-11-01)
+```
+
+### View Version Changes
+
+```bash
+# See what changed in a version
+git show components/extraction-prompt/v1.1.0
+
+# Compare two versions
+git diff components/extraction-prompt/v1.0.0 components/extraction-prompt/v1.1.0
+
+# View commit message
+git show components/extraction-prompt/v1.1.0 --format=%B --no-patch
+```
+
+### Find Component by Version
+
+```bash
+# Which components are at v1.0.0?
+edgit components list --version v1.0.0
+
+# Which components haven't been versioned?
+edgit components list --unversioned
+```
+
+## Best Practices
+
+### 1. Version After Testing
+
+```bash
+# L Don't
+edgit tag create my-prompt v1.0.0  # Before testing
+
+#  Do
+conductor dev  # Test locally first
+edgit tag create my-prompt v1.0.0  # Version after confirming it works
+```
+
+### 2. Use Semantic Versioning Correctly
+
+```bash
+# L Don't
+edgit tag create my-prompt v1.0.1  # Major change labeled as patch
+
+#  Do
+edgit tag create my-prompt v2.0.0  # Breaking change = major bump
+```
+
+### 3. Document Breaking Changes
+
+```bash
+# L Don't
+edgit tag create my-prompt v2.0.0 -m "Update prompt"
+
+#  Do
+edgit tag create my-prompt v2.0.0 -m "BREAKING: Changed output format from JSON to CSV"
+```
+
+### 4. Keep Old Versions
+
+```bash
+# L Don't
+git tag -d components/my-prompt/v1.0.0  # Delete old versions
+
+#  Do
+# Keep all versions - you might need to rollback
+```
+
+### 5. Test Version Combinations
+
+```bash
+# L Don't
+# Only test new agent with new prompt
+
+#  Do
+# Test all combinations:
+# - New agent + Old prompt
+# - Old agent + New prompt
+# - New agent + New prompt
+```
+
+## Troubleshooting
+
+### Version Not Found
+
+```bash
+# Error: components/my-prompt/v1.0.0 not found
+
+# Check if tag exists
+git tag | grep my-prompt
+
+# List all versions
+edgit tag list my-prompt
+
+# Tag might use different name
+edgit components list
+```
+
+### Version Conflicts
+
+```bash
+# Error: Tag already exists
+
+# Check existing tag
+git show components/my-prompt/v1.0.0
+
+# Use force to overwrite (careful!)
+edgit tag create my-prompt v1.0.0 --force
+```
+
+### Can't Reference Version in Ensemble
+
+```yaml
+# Error: Component not found: my-prompt@v1.0.0
+
+# Possible issues:
+# 1. Tag doesn't exist (check: edgit tag list my-prompt)
+# 2. Wrong component name (check: edgit components list)
+# 3. Version data not deployed (check: deployment pipeline)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment Strategies" icon="rocket" href="/edgit/guides/deployment-strategies">
+    Progressive rollouts, canaries, A/B testing
+  </Card>
+
+  <Card title="Rollback & Time Travel" icon="clock-rotate-left" href="/edgit/guides/rollback-time-travel">
+    Emergency rollbacks and debugging
+  </Card>
+
+  <Card title="A/B Testing" icon="flask" href="/edgit/guides/ab-testing-multivariate">
+    Multivariate testing with version combinations
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/edgit/reference/cli-commands">
+    Complete command documentation
+  </Card>
+</CardGroup>

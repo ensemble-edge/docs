@@ -1,0 +1,665 @@
+---
+title: "Nomenclature & Glossary"
+description: "Complete terminology reference for Ensemble Edge"
+---
+
+# Nomenclature & Glossary
+
+Clear definitions. No ambiguity. Know exactly what every term means.
+
+## Core Terms
+
+### Component
+
+**What:** A versioned artifact stored in Git that can be independently versioned and deployed.
+
+**Types:** Prompts (`.md`), configs (`.json`/`.yaml`), queries (`.sql`), scripts (`.js`/`.ts`), schemas, templates
+
+**Purpose:** Reusable building blocks that agents reference during execution
+
+**Managed by:** Edgit versioning system
+
+**Example:**
+```bash
+edgit tag create extraction-prompt v1.0.0
+edgit deploy set extraction-prompt v1.0.0 --to prod
+```
+
+**Used in:**
+```yaml
+agents:
+  - name: analyzer
+    component: extraction-prompt@v1.0.0
+```
+
+---
+
+### Agent
+
+**What:** An executable unit that performs tasks using operations and components
+
+**Types:**
+- **Custom agents** - Defined by you using operations
+- **Pre-built agents** - Ships with Conductor (scraper, validator, RAG, etc.)
+
+**Capabilities:**
+- Use components
+- Use operations
+- Access tools (MCP)
+- Call other agents
+- Call ensembles
+
+**Example:**
+```yaml
+agents:
+  - name: analyzer
+    operation: think
+    component: prompt@v2.1.0
+    config:
+      model: claude-3-5-sonnet-20241022
+```
+
+---
+
+### Operation
+
+**What:** A primitive execution type that defines HOW something runs
+
+**Purpose:** The "verb" of what an agent does - the execution primitive
+
+**Types:**
+- `think` - AI reasoning (LLMs, embeddings, classification)
+- `code` - JavaScript/TypeScript execution
+- `storage` - Database/KV/R2/D1 operations
+- `http` - HTTP requests to external services
+- `tools` - MCP/skill access
+- `email` - Email operations
+- `sms` - SMS operations
+- `html` - HTML rendering
+- `pdf` - PDF generation
+- `page` - Full-stack pages
+
+**Usage:** Operations are used BY agents, not called directly
+
+**Example:**
+```yaml
+agents:
+  - name: fetcher
+    operation: http  # Operation type
+    config:
+      url: https://api.example.com
+```
+
+---
+
+### Ensemble
+
+**What:** An orchestration workflow that coordinates multiple agents
+
+**Format:** YAML files in your Git repository
+
+**Purpose:** Defines workflow logic and execution flow
+
+**Capabilities:**
+- Orchestrate agents
+- Call other ensembles
+- Define flow control (sequential, parallel, conditional, loops)
+- Manage state
+- Map inputs/outputs
+
+**Cannot:**
+- Use operations directly (must go through agents)
+- Access components directly (must go through agents)
+
+**Example:**
+```yaml
+ensemble: company-intel
+
+agents:
+  - name: fetch
+    operation: http
+
+  - name: analyze
+    operation: think
+    component: prompt@v1.0.0
+
+  - name: store
+    operation: storage
+```
+
+**Note:** Ensembles are NOT versioned. They're like Kubernetes manifests - you update them to point to different versions of agents and components.
+
+---
+
+### Tool
+
+**What:** External capability accessed via MCP (Model Context Protocol) or other protocols
+
+**Access:** Through the `tools` operation in agents
+
+**Examples:** GitHub MCP, filesystem MCP, Claude skills, custom MCP servers
+
+**Usage:**
+```yaml
+agents:
+  - name: processor
+    operation: tools
+    config:
+      mcp_server: github
+      tool: create_issue
+    input:
+      title: "Bug report"
+      body: ${analyze.output}
+```
+
+---
+
+## Execution Terms
+
+### State
+
+**What:** Shared data across agents in an ensemble execution
+
+**Properties:**
+- Immutable (each update creates new version)
+- Scoped to ensemble execution
+- Schema-validated
+- Access-tracked
+
+**Usage:**
+```yaml
+state:
+  schema:
+    company_data: object
+    analysis: object
+
+agents:
+  - name: fetch
+    operation: http
+    state:
+      set: [company_data]  # Write
+
+  - name: analyze
+    operation: think
+    state:
+      use: [company_data]  # Read
+      set: [analysis]       # Write
+```
+
+---
+
+### Context
+
+**What:** The runtime environment and data available during agent execution
+
+**Includes:**
+- Input data
+- Previous agent outputs
+- State variables
+- Environment variables
+- Request metadata
+
+**Accessed via interpolation:**
+```yaml
+input:
+  data: ${fetch.output}           # Previous agent output
+  domain: ${input.domain}          # Ensemble input
+  company: ${state.company_data}   # State variable
+  api_key: ${env.API_KEY}          # Environment variable
+```
+
+---
+
+### Interpolation
+
+**What:** Template syntax for referencing dynamic values
+
+**Syntax:** `${source.path.to.value}`
+
+**Sources:**
+- `input.*` - Ensemble input
+- `<agent-name>.output.*` - Agent outputs
+- `state.*` - State variables
+- `env.*` - Environment variables
+
+**Examples:**
+```yaml
+${input.domain}                    # Simple value
+${fetch.output.data.company_name}  # Nested object
+${state.analyses[0].score}         # Array access
+${env.ANTHROPIC_API_KEY}           # Environment
+```
+
+---
+
+## Versioning Terms
+
+### Tag
+
+**What:** A Git tag in the format `components/{name}/{version}` or `agents/{name}/{version}`
+
+**Purpose:** Mark specific commits as versions of components or agents
+
+**Examples:**
+```bash
+components/extraction-prompt/v1.0.0
+components/extraction-prompt/prod
+
+agents/scraper/v1.5.0
+agents/scraper/prod
+```
+
+---
+
+### Deployment
+
+**What:** The act of marking a specific version as active in an environment
+
+**Environments:** Typically `prod`, `staging`, `dev`, `canary` (you define these)
+
+**Example:**
+```bash
+edgit deploy set extraction-prompt v1.0.0 --to prod
+edgit deploy set extraction-prompt v2.0.0-beta --to staging
+```
+
+---
+
+### Version Multiverse
+
+**What:** The ability to run multiple versions of components and agents simultaneously
+
+**Purpose:** A/B testing, gradual rollouts, bug reproduction
+
+**Example:**
+```yaml
+agents:
+  # Stable combination
+  - name: prod-path
+    agent: analyzer@v1.0.0
+    component: prompt@v1.0.0
+
+  # Experimental combination
+  - name: exp-path
+    agent: analyzer@v2.0.0-beta
+    component: prompt@v2.1.0
+
+  # Hybrid combination
+  - name: hybrid-path
+    agent: analyzer@v1.0.0
+    component: prompt@v2.1.0
+```
+
+---
+
+## Platform Terms
+
+### Workers
+
+**What:** Cloudflare Workers - V8 isolates that run your code at the edge
+
+**Properties:**
+- Sub-50ms cold starts
+- 200+ global locations
+- Automatic scaling
+- No server management
+
+---
+
+### KV
+
+**What:** Cloudflare KV - Distributed key-value storage
+
+**Use cases:**
+- Caching HTTP responses
+- Caching agent outputs
+- Storing deployment metadata
+
+**Properties:**
+- Eventually consistent
+- Global replication
+- Low latency reads
+
+---
+
+### D1
+
+**What:** Cloudflare D1 - Distributed SQL database
+
+**Use cases:**
+- Storing structured data
+- Analytics and reporting
+- Audit trails
+
+**Properties:**
+- SQLite-compatible
+- Strongly consistent per location
+- Global replication
+
+---
+
+### R2
+
+**What:** Cloudflare R2 - Object storage (S3-compatible)
+
+**Use cases:**
+- Document storage for RAG
+- Large file uploads
+- Backups
+
+**Properties:**
+- No egress fees
+- S3-compatible API
+- Global availability
+
+---
+
+### Vectorize
+
+**What:** Cloudflare Vectorize - Vector database for embeddings
+
+**Use cases:**
+- Semantic search
+- RAG pipelines
+- Similarity matching
+
+**Properties:**
+- Native integration with Workers AI
+- Global distribution
+- Low-latency queries
+
+---
+
+### Durable Objects
+
+**What:** Cloudflare Durable Objects - Strongly consistent, stateful objects
+
+**Use cases:**
+- HITL (human-in-the-loop) state
+- Execution state tracking
+- Coordination and locking
+
+**Properties:**
+- Strongly consistent
+- Single-threaded per object
+- Global distribution
+
+---
+
+### AI Gateway
+
+**What:** Cloudflare AI Gateway - Caching and observability layer for AI providers
+
+**Benefits:**
+- Persistent caching of LLM responses
+- Usage analytics and logging
+- Rate limiting and cost control
+- Works with OpenAI, Anthropic, Workers AI, etc.
+
+---
+
+## Conductor-Specific Terms
+
+### Catalog
+
+**What:** Pre-built components and agents that ship with Conductor
+
+**Location:** `catalog/` directory in Conductor repository
+
+**Includes:**
+- Pre-built agents (scraper, validator, RAG, etc.)
+- Example components (prompts, queries, configs)
+- Example ensembles
+
+---
+
+### Pre-built Agent
+
+**What:** Production-ready agents that ship with Conductor
+
+**Available:**
+- `scraper` - Web scraping with 3-tier fallback
+- `validator` - Quality scoring with multiple evaluators
+- `rag` - RAG pipeline with R2 storage
+- `hitl` - Human-in-the-loop approval workflows
+- `fetcher` - HTTP client with retry logic
+- `transformer` - Data transformation utilities
+- `scheduler` - Delayed/scheduled execution
+
+**Usage:**
+```yaml
+agents:
+  - name: scraper
+    agent: scraper  # Reference pre-built
+    config:
+      url: https://example.com
+```
+
+---
+
+### Flow Control
+
+**What:** Mechanisms for controlling agent execution order
+
+**Types:**
+- **Sequential** - Default, one after another
+- **Parallel** - Multiple agents run simultaneously
+- **Conditional** - Run based on conditions
+- **Loops** - Iterate over collections
+- **Retry** - Automatic retry with backoff
+
+**Example:**
+```yaml
+agents:
+  # Sequential (default)
+  - name: step1
+    operation: http
+
+  - name: step2
+    operation: think
+
+  # Parallel
+  - parallel:
+      - name: analyze-a
+        operation: think
+      - name: analyze-b
+        operation: think
+
+  # Conditional
+  - name: manual-review
+    agent: hitl
+    condition: ${step2.score < 0.8}
+
+  # Loop
+  - name: process-batch
+    operation: code
+    loop:
+      items: ${input.companies}
+
+  # Retry
+  - name: api-call
+    operation: http
+    retry:
+      max_attempts: 3
+      backoff: exponential
+```
+
+---
+
+## Edgit-Specific Terms
+
+### Component Registry
+
+**What:** The `.edgit/components.json` file that tracks all components
+
+**Contains:**
+- Component names and types
+- File paths
+- Metadata
+- Dependencies
+
+**Managed by:** Edgit automatically
+
+---
+
+### Discovery
+
+**What:** The process of finding potential components in your repository
+
+**Commands:**
+```bash
+edgit discover scan --type prompt      # Find all prompts
+edgit discover detect src/function.ts  # Analyze specific file
+edgit components list --untracked      # Show unregistered components
+```
+
+---
+
+### Deployment Tag
+
+**What:** A Git tag marking which version is deployed to an environment
+
+**Format:** `components/{name}/{environment}` or `agents/{name}/{environment}`
+
+**Example:**
+```bash
+components/extraction-prompt/prod      → v1.0.0
+components/extraction-prompt/staging   → v2.0.0-beta
+```
+
+---
+
+## Common Patterns
+
+### Component Versioning Pattern
+
+```bash
+# Create version
+edgit tag create my-component v1.0.0
+
+# Deploy to staging
+edgit deploy set my-component v1.0.0 --to staging
+
+# Test and promote to production
+edgit deploy set my-component v1.0.0 --to prod
+```
+
+---
+
+### Agent Definition Pattern
+
+```yaml
+# Custom agent using operation
+agents:
+  - name: my-agent
+    operation: think
+    component: prompt@v1.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+    input:
+      data: ${previous-agent.output}
+    condition: ${previous-agent.success}
+    retry:
+      max_attempts: 3
+```
+
+---
+
+### Ensemble Orchestration Pattern
+
+```yaml
+ensemble: my-workflow
+description: Multi-step AI workflow
+
+input:
+  domain:
+    type: string
+    required: true
+
+state:
+  schema:
+    company_data: object
+    analysis: object
+
+agents:
+  - name: fetch
+    operation: http
+    state:
+      set: [company_data]
+
+  - name: analyze
+    operation: think
+    state:
+      use: [company_data]
+      set: [analysis]
+
+  - name: store
+    operation: storage
+    state:
+      use: [analysis]
+
+output:
+  domain: ${input.domain}
+  result: ${state.analysis}
+```
+
+---
+
+## Capability Matrix
+
+What each entity can do:
+
+| Entity | Use Components | Use Operations | Use Tools | Call Agents | Call Ensembles |
+|--------|---------------|----------------|-----------|-------------|----------------|
+| **Ensemble** | ✗ | ✗ | ✗ | ✓ | ✓ |
+| **Agent** | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Operation** | ✗ | N/A | N/A | ✗ | ✗ |
+| **Component** | N/A | N/A | N/A | N/A | N/A |
+
+**Key Insight:** Agents are the only entity that can use operations and components directly. Ensembles orchestrate agents.
+
+---
+
+## Quick Reference
+
+### Common Confusions
+
+**Q: Are ensembles versioned?**
+A: No. Ensembles are like Kubernetes manifests - they reference versioned agents and components.
+
+**Q: Can ensembles use operations directly?**
+A: No. Ensembles orchestrate agents. Agents use operations.
+
+**Q: What's the difference between an agent and an operation?**
+A: Operations are primitives (think, code, http). Agents use operations to do work.
+
+**Q: Can I version scripts?**
+A: Yes. Scripts are components and can be versioned with Edgit.
+
+**Q: What's a pre-built agent?**
+A: Production-ready agents that ship with Conductor (scraper, validator, RAG, etc.)
+
+**Q: Can agents call other agents?**
+A: Yes. Agents can call both other agents and ensembles.
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Edgit Documentation" icon="cube" href="/edgit/overview">
+    Component versioning system
+  </Card>
+
+  <Card title="Conductor Documentation" icon="network-wired" href="/conductor/overview">
+    Edge orchestration framework
+  </Card>
+
+  <Card title="Operations Reference" icon="gear" href="/conductor/operations/overview">
+    All available operations
+  </Card>
+
+  <Card title="Pre-built Agents" icon="robot" href="/conductor/agents/overview">
+    Ready-to-use agents
+  </Card>
+</CardGroup>

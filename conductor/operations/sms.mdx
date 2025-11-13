@@ -1,0 +1,920 @@
+---
+title: "sms Operation"
+description: "Send SMS messages with Twilio, Vonage, or AWS SNS"
+---
+
+# sms Operation
+
+**Send SMS and MMS messages via Twilio, Vonage, or AWS SNS with template rendering, batch processing, and E.164 validation.**
+
+The `sms` operation handles text messaging for OTP codes, alerts, notifications, and two-factor authentication with 98% open rates and instant delivery.
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: send-otp
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.phone}
+      body: Your verification code is: ${input.code}
+```
+
+## Configuration
+
+```yaml
+config:
+  provider: string           # twilio, vonage, aws-sns
+  from: string              # Sender phone number (E.164 format)
+  to: string | string[]     # Recipient(s) (E.164 format)
+  body: string              # Message text (max 160 chars for 1 segment)
+  mediaUrl: string[]        # MMS media URLs (Twilio only, optional)
+  accountSid: string        # Twilio Account SID
+  authToken: string         # Twilio Auth Token
+  apiKey: string            # Vonage API Key
+  apiSecret: string         # Vonage API Secret
+  accessKeyId: string       # AWS Access Key ID
+  secretAccessKey: string   # AWS Secret Access Key
+  region: string            # AWS Region
+```
+
+## SMS Providers
+
+### Twilio (Recommended)
+
+Industry-leading SMS provider with 99.95% uptime and global coverage:
+
+```yaml
+operations:
+  - name: send
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: +1234567890
+      body: Your verification code is 123456
+```
+
+**Setup**:
+1. Sign up at [twilio.com](https://www.twilio.com/)
+2. Get Account SID and Auth Token from console
+3. Purchase a phone number or create Messaging Service
+4. Set secrets:
+
+```bash
+wrangler secret put TWILIO_ACCOUNT_SID
+wrangler secret put TWILIO_AUTH_TOKEN
+wrangler secret put TWILIO_PHONE_NUMBER
+```
+
+**Pricing**:
+- US/Canada: $0.0079/SMS
+- UK: $0.04/SMS
+- India: $0.0057/SMS
+- [Full pricing](https://www.twilio.com/sms/pricing)
+
+**Rate Limits**:
+- Standard: 100 SMS/second
+- Messaging Service: 1,000 SMS/second
+- Free trial: 1 SMS/second
+
+### Vonage (formerly Nexmo)
+
+Cost-effective SMS with strong international coverage:
+
+```yaml
+operations:
+  - name: send
+    operation: sms
+    config:
+      provider: vonage
+      apiKey: ${env.VONAGE_API_KEY}
+      apiSecret: ${env.VONAGE_API_SECRET}
+      from: "Acme"                     # Alphanumeric sender ID
+      to: +442071234567
+      body: Your code is 123456
+```
+
+**Setup**:
+1. Sign up at [vonage.com](https://www.vonage.com/)
+2. Get API Key and Secret
+3. Set secrets:
+
+```bash
+wrangler secret put VONAGE_API_KEY
+wrangler secret put VONAGE_API_SECRET
+```
+
+**Pricing**:
+- US: $0.0057/SMS
+- UK: $0.0331/SMS
+- Lower than Twilio in many regions
+
+### AWS SNS
+
+Integrate with AWS infrastructure:
+
+```yaml
+operations:
+  - name: send
+    operation: sms
+    config:
+      provider: aws-sns
+      accessKeyId: ${env.AWS_ACCESS_KEY_ID}
+      secretAccessKey: ${env.AWS_SECRET_ACCESS_KEY}
+      region: us-east-1
+      from: +1234567890
+      to: +1234567891
+      body: Alert: Server CPU at 95%
+```
+
+**Setup**:
+1. Enable SNS in AWS Console
+2. Create IAM user with SNS permissions
+3. Set secrets:
+
+```bash
+wrangler secret put AWS_ACCESS_KEY_ID
+wrangler secret put AWS_SECRET_ACCESS_KEY
+```
+
+## Phone Number Format
+
+All phone numbers MUST use E.164 format:
+
+```
++[country code][number]
+```
+
+**Valid Examples**:
+- US: `+1234567890`
+- UK: `+442071234567`
+- France: `+33123456789`
+- Japan: `+81312345678`
+- India: `+919876543210`
+
+**Invalid Examples** (will be rejected):
+- `1234567890` - Missing + prefix
+- `+1 (234) 567-8900` - Contains formatting
+- `+1-234-567-8900` - Contains dashes
+- `001-234-567-8900` - Wrong prefix
+
+## Common Use Cases
+
+### OTP Verification
+
+```yaml
+operations:
+  # Generate OTP
+  - name: generate-otp
+    operation: code
+    config:
+      code: |
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        return { code, expiresAt: Date.now() + 300000 }; // 5 minutes
+
+  # Send OTP
+  - name: send-otp
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.phone}
+      body: Your verification code is ${generate-otp.output.code}. Valid for 5 minutes.
+
+  # Store for verification
+  - name: store-otp
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: otp:${input.phone}
+      value: ${generate-otp.output.code}
+      ttl: 300                         # 5 minutes
+```
+
+### Two-Factor Authentication
+
+```yaml
+ensemble: send-2fa-code
+
+inputs:
+  userId: string
+
+operations:
+  # Get user phone
+  - name: get-user
+    operation: storage
+    config:
+      type: d1
+      query: SELECT phone FROM users WHERE id = ?
+      params: [${input.userId}]
+
+  # Generate 2FA code
+  - name: generate-code
+    operation: code
+    config:
+      code: |
+        return { code: Math.floor(100000 + Math.random() * 900000).toString() };
+
+  # Send 2FA SMS
+  - name: send-2fa
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${get-user.output.results[0].phone}
+      body: |
+        Your MyApp verification code is: ${generate-code.output.code}
+
+        This code expires in 10 minutes.
+        Never share this code with anyone.
+
+  # Log attempt
+  - name: log-attempt
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO auth_attempts (user_id, code, created_at)
+        VALUES (?, ?, datetime('now'))
+      params:
+        - ${input.userId}
+        - ${generate-code.output.code}
+
+outputs:
+  success: true
+  code: ${generate-code.output.code}
+```
+
+### System Alerts
+
+```yaml
+operations:
+  - name: alert-admin
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${env.ADMIN_PHONE}
+      body: |
+        [ALERT] ${input.alert_type}
+        ${input.message}
+        Time: ${new Date().toISOString()}
+```
+
+### Order Notifications
+
+```yaml
+operations:
+  - name: notify-customer
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.customer_phone}
+      body: |
+        Hi ${input.customer_name}! Your order #${input.order_id} is ready for pickup.
+        Total: $${input.total}
+
+        Questions? Reply to this message.
+```
+
+### Appointment Reminders
+
+```yaml
+operations:
+  - name: send-reminder
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.patient_phone}
+      body: |
+        Reminder: You have an appointment tomorrow at ${input.appointment_time}.
+
+        Reply C to confirm or R to reschedule.
+```
+
+## Batch Sending
+
+Send personalized SMS to multiple recipients:
+
+```yaml
+operations:
+  # Fetch customers
+  - name: get-customers
+    operation: storage
+    config:
+      type: d1
+      query: |
+        SELECT phone, name, balance
+        FROM customers
+        WHERE opt_in_sms = true
+        LIMIT 100
+
+  # Send batch SMS
+  - name: send-batch
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      batch:
+        recipients: ${get-customers.output.results}
+        phoneField: phone              # Field containing phone number
+        template: |
+          Hi {{name}}, your account balance is ${{balance}}.
+          Reply STOP to unsubscribe.
+      rateLimit: 5                     # 5 SMS per second
+```
+
+**Output**:
+```yaml
+{
+  sent: 98,
+  failed: 2,
+  messageIds: ["SM123...", "SM124...", ...],
+  errors: [
+    { phone: "+1234567890", error: "Invalid phone number" },
+    { phone: "+1234567891", error: "Blocked number" }
+  ]
+}
+```
+
+## MMS (Multimedia Messages)
+
+Send images and media with Twilio:
+
+```yaml
+operations:
+  - name: send-mms
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.phone}
+      body: Check out this product!
+      mediaUrl:
+        - https://example.com/product-image.jpg
+        - https://example.com/product-specs.pdf
+```
+
+**Supported Media**:
+- Images: JPG, PNG, GIF
+- Video: MP4, 3GP
+- Audio: MP3, WAV
+- Documents: PDF
+- Max size: 5 MB per file
+- Max files: 10 per message
+
+**MMS Pricing**:
+- US/Canada: $0.02/MMS (vs $0.0079/SMS)
+- International: Varies by country
+
+## Template Rendering
+
+Use Liquid templates for dynamic content:
+
+```yaml
+operations:
+  - name: send-welcome
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.phone}
+      template: liquid
+      body: |
+        Welcome {{ name | capitalize }}!
+        Account balance: {{ balance | money: "USD" }}
+        {% if premium %}You have premium access.{% endif %}
+```
+
+## Rate Limiting
+
+Control sending rate to respect provider limits:
+
+```yaml
+operations:
+  - name: send-batch
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      batch:
+        recipients: ${input.recipients}
+      rateLimit: 3                     # 3 SMS per second
+```
+
+**Recommended Rates**:
+- Twilio Free Trial: 1 SMS/sec
+- Twilio Standard: 10 SMS/sec
+- Twilio Messaging Service: 100 SMS/sec
+- Vonage: 10 SMS/sec
+- AWS SNS: 20 SMS/sec
+
+## Error Handling
+
+### Retry on Failure
+
+```yaml
+operations:
+  - name: send
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.phone}
+      body: ${input.message}
+    retry:
+      maxAttempts: 3
+      backoff: exponential           # 1s, 2s, 4s delays
+```
+
+### Fallback Provider
+
+```yaml
+operations:
+  # Try Twilio first
+  - name: send-twilio
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.phone}
+      body: ${input.message}
+
+  # Fallback to Vonage
+  - name: send-vonage
+    condition: ${send-twilio.failed}
+    operation: sms
+    config:
+      provider: vonage
+      apiKey: ${env.VONAGE_API_KEY}
+      apiSecret: ${env.VONAGE_API_SECRET}
+      from: "Acme"
+      to: ${input.phone}
+      body: ${input.message}
+
+outputs:
+  sent: ${send-twilio.success || send-vonage.success}
+  provider: ${send-twilio.success ? 'twilio' : 'vonage'}
+```
+
+### Validate Phone Numbers
+
+```yaml
+operations:
+  # Validate E.164 format
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const phone = ${input.phone};
+        const e164Regex = /^\+[1-9]\d{1,14}$/;
+
+        if (!e164Regex.test(phone)) {
+          throw new Error('Invalid phone number format. Use E.164: +1234567890');
+        }
+
+        return { valid: true };
+
+  # Send if valid
+  - name: send
+    condition: ${validate.output.valid}
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${input.phone}
+      body: ${input.message}
+```
+
+### Handle Batch Errors
+
+```yaml
+operations:
+  - name: send-batch
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      batch:
+        recipients: ${input.recipients}
+
+  # Log failed sends
+  - name: log-errors
+    condition: ${send-batch.output.failed > 0}
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: sms-errors:${Date.now()}
+      value: ${send-batch.output.errors}
+
+outputs:
+  sent: ${send-batch.output.sent}
+  failed: ${send-batch.output.failed}
+  successRate: ${(send-batch.output.sent / (send-batch.output.sent + send-batch.output.failed)) * 100}
+```
+
+## Testing
+
+### Test with TestConductor
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble/conductor/testing';
+
+describe('send-otp', () => {
+  it('should send OTP via SMS', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: './conductor',
+      mocks: {
+        sms: {
+          'send-otp': {
+            success: true,
+            messageId: 'SM123456',
+            status: 'sent',
+            provider: 'twilio'
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeAgent('send-otp', {
+      phone: '+1234567890',
+      code: '123456'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.messageId).toBe('SM123456');
+  });
+
+  it('should handle invalid phone number', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: './conductor'
+    });
+
+    const result = await conductor.executeAgent('send-otp', {
+      phone: 'invalid',
+      code: '123456'
+    });
+
+    expect(result).toBeFailed();
+    expect(result.error).toContain('Invalid phone number');
+  });
+});
+```
+
+### Mock SMS Provider
+
+```typescript
+const conductor = await TestConductor.create({
+  mocks: {
+    sms: {
+      '*': {                           // Mock all SMS operations
+        success: true,
+        messageId: 'mock-sms-id',
+        status: 'sent',
+        timestamp: new Date().toISOString()
+      }
+    }
+  }
+});
+```
+
+## Best Practices
+
+**1. Keep Messages Short**
+
+```yaml
+# Good: 160 characters or less
+body: Your code is 123456. Valid for 5 minutes.
+
+# Bad: Too long (3 segments = 3x cost)
+body: |
+  Hello! Your verification code for accessing your account on
+  our platform is 123456. This code will expire in 5 minutes.
+  If you did not request this code, please ignore this message.
+```
+
+**2. Include Opt-Out Instructions**
+
+```yaml
+# Good: Include unsubscribe
+body: |
+  Hi ${name}! Order #${orderId} is ready.
+  Reply STOP to unsubscribe.
+
+# Bad: No opt-out
+body: Hi ${name}! Order #${orderId} is ready.
+```
+
+**3. Validate Before Sending**
+
+```yaml
+# Good: Validate E.164 format
+operations:
+  - name: validate
+    operation: code
+    config:
+      code: |
+        if (!/^\+[1-9]\d{1,14}$/.test(${input.phone})) {
+          throw new Error('Invalid phone');
+        }
+        return { valid: true };
+
+  - name: send
+    operation: sms
+
+# Bad: No validation
+operations:
+  - name: send
+    operation: sms
+    config:
+      to: ${input.phone}  # Could be invalid
+```
+
+**4. Rate Limit Batch Sends**
+
+```yaml
+# Good: Set rate limit
+operations:
+  - name: send-batch
+    operation: sms
+    config:
+      batch:
+        recipients: ${input.recipients}
+      rateLimit: 5
+
+# Bad: No rate limiting
+operations:
+  - name: send-batch
+    operation: sms
+    config:
+      batch:
+        recipients: ${input.recipients}
+```
+
+**5. Store Credentials Securely**
+
+```yaml
+# Good: Use secrets
+operations:
+  - name: send
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+
+# Bad: Hardcoded credentials
+operations:
+  - name: send
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: AC1234567890  # Never do this!
+      authToken: secret123
+```
+
+**6. Use Messaging Services for Scale**
+
+```yaml
+# Good: Use Messaging Service for high volume
+operations:
+  - name: send-campaign
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      messagingServiceSid: ${env.TWILIO_MESSAGING_SERVICE_SID}
+
+# Bad: Single phone number (limited throughput)
+operations:
+  - name: send-campaign
+    operation: sms
+    config:
+      provider: twilio
+      from: ${env.TWILIO_PHONE_NUMBER}
+```
+
+**7. Monitor Delivery Status**
+
+```yaml
+# Good: Log and monitor
+operations:
+  - name: send
+    operation: sms
+
+  - name: log-status
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO sms_log (phone, status, message_id, timestamp)
+        VALUES (?, ?, ?, datetime('now'))
+      params:
+        - ${input.phone}
+        - ${send.output.status}
+        - ${send.output.messageId}
+
+# Bad: No logging or monitoring
+operations:
+  - name: send
+    operation: sms
+```
+
+**8. Respect Time Zones**
+
+```yaml
+# Good: Check time before sending
+operations:
+  - name: check-time
+    operation: code
+    config:
+      code: |
+        const hour = new Date().getHours();
+        // Don't send between 9 PM and 8 AM
+        if (hour >= 21 || hour < 8) {
+          throw new Error('Outside business hours');
+        }
+        return { canSend: true };
+
+  - name: send
+    condition: ${check-time.output.canSend}
+    operation: sms
+
+# Bad: Send anytime
+operations:
+  - name: send
+    operation: sms
+```
+
+## Common Pitfalls
+
+### Pitfall: Wrong Phone Format
+
+```yaml
+# Bad: Missing + or wrong format
+- name: send
+  operation: sms
+  config:
+    to: 1234567890
+
+# Good: E.164 format
+- name: send
+  operation: sms
+  config:
+    to: +1234567890
+```
+
+### Pitfall: Too Long Messages
+
+```yaml
+# Bad: 300 characters (2 segments = 2x cost)
+body: |
+  Your verification code is 123456. This code will expire
+  in 5 minutes. If you did not request this code, please
+  ignore this message. For support, contact us at...
+
+# Good: 60 characters (1 segment)
+body: Your code is 123456. Valid for 5 minutes.
+```
+
+### Pitfall: No Error Handling
+
+```yaml
+# Bad: No retry or fallback
+- name: send
+  operation: sms
+  config:
+    provider: twilio
+
+# Good: Retry and fallback
+- name: send-twilio
+  operation: sms
+  config:
+    provider: twilio
+  retry:
+    maxAttempts: 3
+
+- name: send-vonage
+  condition: ${send-twilio.failed}
+  operation: sms
+  config:
+    provider: vonage
+```
+
+### Pitfall: Missing Opt-Out
+
+```yaml
+# Bad: No unsubscribe info (violates regulations)
+body: Special offer! Buy now!
+
+# Good: Include opt-out
+body: Special offer! Buy now! Reply STOP to unsubscribe.
+```
+
+## SMS vs Email Comparison
+
+| Feature | SMS | Email |
+|---------|-----|-------|
+| **Open Rate** | 98% | 20% |
+| **Delivery Speed** | Instant | Minutes to hours |
+| **Cost** | $0.0075-$0.04/msg | $0.0001-$0.001/msg |
+| **Length** | 160 chars (1 segment) | Unlimited |
+| **Media** | MMS only (5 MB) | Full HTML, attachments |
+| **Best For** | Alerts, OTP, urgent | Newsletters, receipts, long-form |
+| **Compliance** | TCPA, GDPR | CAN-SPAM, GDPR |
+
+## Troubleshooting
+
+### SMS Not Delivering
+
+1. **Verify phone format** - Must be E.164 (+1234567890)
+2. **Check provider credentials** - Ensure Account SID/Auth Token correct
+3. **Review rate limits** - You may be hitting throttles
+4. **Check provider console** - View delivery reports
+5. **Test with own number** - Confirm basic functionality
+
+### Rate Limit Errors
+
+```yaml
+# Reduce sending rate
+config:
+  rateLimit: 1                        # 1 SMS per second
+```
+
+### Invalid Phone Number Errors
+
+```typescript
+// Validate E.164 format
+function validateE164(phone: string): boolean {
+  return /^\+[1-9]\d{1,14}$/.test(phone);
+}
+
+// Remove formatting
+function formatToE164(phone: string, countryCode: string = '+1'): string {
+  const digits = phone.replace(/\D/g, '');
+  return `${countryCode}${digits}`;
+}
+```
+
+### Message Too Long
+
+- **Single SMS**: 160 chars (GSM-7) or 70 chars (Unicode)
+- **Concatenated SMS**: Up to 1600 chars (10 segments)
+- **Cost**: Each segment charged separately
+- **Solution**: Shorten message or use link shorteners
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="email Operation" icon="envelope" href="/conductor/operations/email">
+    Compare with email
+  </Card>
+  <Card title="storage Operation" icon="database" href="/conductor/operations/storage">
+    Store OTP codes
+  </Card>
+  <Card title="code Operation" icon="code" href="/conductor/operations/code">
+    Generate verification codes
+  </Card>
+  <Card title="Testing" icon="vial" href="/conductor/building/testing-observability">
+    Test SMS workflows
+  </Card>
+</CardGroup>

@@ -1,0 +1,164 @@
+---
+title: "Cloud Overview"
+description: "Managed service for prompt and component management (Coming Soon)"
+---
+
+<Warning>
+  **Coming Soon** - Ensemble Cloud is currently in the design phase. This documentation is a preview of planned features.
+</Warning>
+
+## What is Ensemble Cloud?
+
+Ensemble Cloud is a managed service that provides a visual interface for editing, versioning, and testing your prompts, SQL queries, and configurations. Unlike other platforms, your data stays in Git—we're just the UI layer.
+
+**The key difference**: Your repository is the source of truth. We provide the editing experience, you own the data.
+
+## Planned Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Visual Editor"
+    icon="pen-to-square"
+  >
+    Edit prompts, SQL queries, and configs with syntax highlighting and validation
+  </Card>
+
+  <Card
+    title="One-Click Versioning"
+    icon="tags"
+  >
+    Version and tag changes directly from the UI using Edgit under the hood
+  </Card>
+
+  <Card
+    title="A/B Testing"
+    icon="flask"
+  >
+    Run multivariant experiments to find optimal component versions
+  </Card>
+
+  <Card
+    title="Team Collaboration"
+    icon="users"
+  >
+    Let analysts and non-technical team members iterate without touching code
+  </Card>
+</CardGroup>
+
+## Git-Native Architecture
+
+Think PromptLayer's editing experience, but Git-native instead of proprietary storage.
+
+<AccordionGroup>
+  <Accordion icon="git-alt" title="Your Repo, Your Data">
+    All changes are committed to your Git repository. No lock-in, no proprietary database.
+  </Accordion>
+
+  <Accordion icon="cube" title="Powered by Edgit">
+    Uses Edgit's versioning system under the hood. All CLI commands work with Cloud changes.
+  </Accordion>
+
+  <Accordion icon="code-branch" title="Standard Git Workflow">
+    Create branches, open PRs, run CI/CD—just like code. Because it is code.
+  </Accordion>
+
+  <Accordion icon="shield-halved" title="Bring Your Own Git">
+    Connect your GitHub, GitLab, or Bitbucket. We never store your components.
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card
+    title="Prompt Engineering"
+    icon="brain"
+  >
+    Let your prompt engineers iterate rapidly without waiting for dev cycles
+  </Card>
+
+  <Card
+    title="SQL Development"
+    icon="database"
+  >
+    Edit and version analytical queries with immediate validation
+  </Card>
+
+  <Card
+    title="Config Management"
+    icon="sliders"
+  >
+    Update model parameters, API configs, and feature flags visually
+  </Card>
+
+  <Card
+    title="A/B Experiments"
+    icon="chart-line"
+  >
+    Test multiple component versions in production and track performance
+  </Card>
+</CardGroup>
+
+## Pricing
+
+Generous free tier planned:
+- Unlimited repositories
+- Unlimited team members
+- Core editing and versioning features
+- Community support
+
+**Premium features** (pricing TBD):
+- Advanced A/B testing and analytics
+- Real-time collaboration
+- Priority support
+- Custom deployment workflows
+
+## Compared to Other Platforms
+
+| Feature | Ensemble Cloud | PromptLayer | LangSmith |
+|---------|---------------|-------------|-----------|
+| Data Storage | Your Git repo | Their database | Their database |
+| Versioning | Git tags (Edgit) | Proprietary | Proprietary |
+| CLI Access | Full support | Limited | Limited |
+| Open Runtime | Yes (Apache 2.0) | No | No |
+| Vendor Lock-in | None | High | High |
+
+## Stay Updated
+
+<CardGroup cols={2}>
+  <Card
+    title="Join Waitlist"
+    icon="envelope"
+    href="https://ensemble.ai/cloud/waitlist"
+  >
+    Get early access when Cloud launches
+  </Card>
+
+  <Card
+    title="GitHub Discussions"
+    icon="github"
+    href="https://github.com/ensemble-edge/edgit/discussions"
+  >
+    Share feedback on Cloud features
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Edgit Documentation"
+    icon="cube"
+    href="/edgit/overview"
+  >
+    Learn about the underlying versioning system
+  </Card>
+
+  <Card
+    title="Conductor Documentation"
+    icon="network-wired"
+    href="/conductor/overview"
+  >
+    Orchestrate components managed in Cloud
+  </Card>
+</CardGroup>

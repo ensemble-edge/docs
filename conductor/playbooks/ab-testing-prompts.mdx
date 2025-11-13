@@ -1,0 +1,75 @@
+---
+title: "A/B Testing Prompts"
+description: "Test prompt variations"
+---
+
+# A/B Testing Prompts Playbook
+
+**Compare prompts. Find what works best.**
+
+## Basic A/B Test
+
+```yaml
+ensemble: test-prompts
+
+agents:
+  # Variant A: 50%
+  - name: variant-a
+    condition: ${input.user_id % 2 === 0}
+    operation: think
+    config:
+      prompt: "Prompt A: ${input.query}"
+
+  # Variant B: 50%
+  - name: variant-b
+    condition: ${input.user_id % 2 === 1}
+    operation: think
+    config:
+      prompt: "Prompt B: ${input.query}"
+
+  # Log results
+  - name: log
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO ab_test_results (user_id, variant, output, timestamp)
+        VALUES (?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${variant-a.executed ? 'a' : 'b'}
+        - ${variant-a.output || variant-b.output}
+        - ${Date.now()}
+```
+
+## Model Comparison
+
+```yaml
+ensemble: compare-models
+
+agents:
+  - name: gpt-4o
+    condition: ${input.user_id % 2 === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+
+  - name: claude
+    condition: ${input.user_id % 2 === 1}
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Multivariate Testing" icon="vials" href="/conductor/playbooks/multivariate-agent-testing">
+    Multiple dimensions
+  </Card>
+  <Card title="Progressive Deployment" icon="truck-ramp-box" href="/conductor/playbooks/progressive-deployment">
+    Gradual rollouts
+  </Card>
+</CardGroup>

@@ -1,0 +1,483 @@
+---
+title: "HITL Approval Flow"
+description: "Human-in-the-loop workflows"
+---
+
+# HITL Approval Flow Playbook
+
+**Pause automation for human judgment. Critical for high-stakes decisions.**
+
+## When to Use HIT
+
+L
+
+- Financial transactions above threshold
+- Content publication
+- Code deployments
+- Data exports with PII
+- Customer refunds
+- Account deletions
+
+## Basic Pattern
+
+```yaml
+ensemble: approval-workflow
+
+agents:
+  # 1. Automated processing
+  - name: process
+    operation: code
+
+  # 2. Request approval
+  - name: approve
+    agent: hitl
+    inputs:
+      data: ${process.output}
+      prompt: "Review and approve"
+      approvers: [admin@example.com]
+
+  # 3. Execute if approved
+  - name: execute
+    condition: ${approve.output.approved}
+    operation: http
+
+  # 4. Handle rejection
+  - name: handle-rejection
+    condition: ${approve.output.rejected}
+    operation: code
+```
+
+## Content Moderation + HITL
+
+```yaml
+ensemble: moderate-with-hitl
+
+agents:
+  # Automated checks
+  - name: auto-moderate
+    ensemble: moderate-content
+    inputs:
+      content: ${input.content}
+
+  # Auto-approve if clearly safe
+  - name: auto-approve
+    condition: ${auto-moderate.output.moderation.safe}
+    operation: code
+    config:
+      code: return { approved: true, auto: true };
+
+  # Human review for flagged content
+  - name: human-review
+    condition: ${!auto-moderate.output.moderation.safe}
+    agent: hitl
+    inputs:
+      data:
+        content: ${input.content}
+        flags: ${auto-moderate.output.moderation.flags}
+      prompt: |
+        Content was flagged by automated moderation.
+        Please review and decide: approve or reject.
+
+        Flags: ${auto-moderate.output.moderation.flags.map(f => f.type).join(', ')}
+      approvers: [moderator@example.com]
+      timeout: 3600
+
+  # Publish if approved
+  - name: publish
+    condition: ${auto-approve.executed || human-review.output.approved}
+    operation: http
+    config:
+      url: https://api.example.com/publish
+      body: ${input.content}
+
+  # Store decision
+  - name: log-decision
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO moderation_log (content_id, approved, auto, reason, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${input.content_id}
+        - ${publish.executed}
+        - ${auto-approve.executed}
+        - ${human-review.output.feedback || 'auto-approved'}
+        - ${Date.now()}
+```
+
+## High-Risk Transaction Approval
+
+```yaml
+ensemble: transaction-approval
+
+agents:
+  # Risk assessment
+  - name: assess-risk
+    operation: think
+    config:
+      prompt: |
+        Assess transaction risk (0-1 scale):
+        - Amount: ${input.amount}
+        - Customer: ${input.customer_id}
+        - History: ${input.customer_history}
+        - Payment method: ${input.payment_method}
+
+        Return JSON: { "risk_score": number, "factors": [string] }
+
+  # Auto-approve low risk
+  - name: auto-approve
+    condition: ${JSON.parse(assess-risk.output).risk_score < 0.3}
+    operation: code
+    config:
+      code: return { approved: true, auto: true };
+
+  # Require approval for medium risk
+  - name: manager-approval
+    condition: ${JSON.parse(assess-risk.output).risk_score >= 0.3 && JSON.parse(assess-risk.output).risk_score < 0.7}
+    agent: hitl
+    inputs:
+      data:
+        amount: ${input.amount}
+        customer: ${input.customer_id}
+        risk_score: ${JSON.parse(assess-risk.output).risk_score}
+        risk_factors: ${JSON.parse(assess-risk.output).factors}
+      prompt: "Medium-risk transaction - manager approval required"
+      approvers: [manager@example.com]
+      timeout: 3600
+      metadata:
+        transaction_id: ${input.transaction_id}
+
+  # Require multiple approvals for high risk
+  - name: senior-approval
+    condition: ${JSON.parse(assess-risk.output).risk_score >= 0.7}
+    agent: hitl
+    inputs:
+      data:
+        amount: ${input.amount}
+        customer: ${input.customer_id}
+        risk_score: ${JSON.parse(assess-risk.output).risk_score}
+        risk_factors: ${JSON.parse(assess-risk.output).factors}
+      prompt: "HIGH RISK transaction - requires 2 approvals"
+      approvers:
+        - senior-manager@example.com
+        - fraud-team@example.com
+      minApprovals: 2
+      timeout: 7200
+      metadata:
+        transaction_id: ${input.transaction_id}
+        urgent: true
+
+  # Process if approved
+  - name: process-transaction
+    condition: ${auto-approve.executed || manager-approval.output.approved || senior-approval.output.approved}
+    operation: http
+    config:
+      url: https://payment-api.example.com/process
+      body: ${input}
+
+  # Notify customer
+  - name: notify
+    condition: ${process-transaction.success}
+    operation: email
+    config:
+      to: ${input.customer_email}
+      subject: "Transaction processed"
+      body: |
+        Your transaction of $${input.amount} has been processed.
+        Reference: ${process-transaction.output.reference}
+```
+
+## Code Deployment Approval
+
+```yaml
+ensemble: deploy-with-approval
+
+agents:
+  # Run tests
+  - name: run-tests
+    operation: code
+    config:
+      code: |
+        // Run test suite
+        return { passed: true, coverage: 85 };
+
+  # Security scan
+  - name: security-scan
+    operation: code
+    config:
+      code: |
+        // Run security checks
+        return { vulnerabilities: [] };
+
+  # Auto-deploy to staging
+  - name: deploy-staging
+    condition: ${run-tests.output.passed && security-scan.output.vulnerabilities.length === 0}
+    operation: http
+    config:
+      url: https://deploy-api.example.com/staging
+      body: ${input.commit_sha}
+
+  # Request production approval
+  - name: production-approval
+    condition: ${deploy-staging.success}
+    agent: hitl
+    inputs:
+      data:
+        commit: ${input.commit_sha}
+        author: ${input.author}
+        tests: ${run-tests.output}
+        security: ${security-scan.output}
+        staging_url: ${deploy-staging.output.url}
+      prompt: |
+        Review deployment to production:
+        - Test all features on staging
+        - Verify performance
+        - Check for breaking changes
+
+        Staging URL: ${deploy-staging.output.url}
+      approvers:
+        - tech-lead@example.com
+        - devops@example.com
+      minApprovals: 2
+      timeout: 86400  # 24 hours
+      metadata:
+        pr_url: ${input.pr_url}
+
+  # Deploy to production
+  - name: deploy-production
+    condition: ${production-approval.output.approved}
+    operation: http
+    config:
+      url: https://deploy-api.example.com/production
+      body: ${input.commit_sha}
+
+  # Rollback on failure
+  - name: rollback
+    condition: ${deploy-production.failed}
+    operation: http
+    config:
+      url: https://deploy-api.example.com/rollback
+```
+
+## Data Export Approval
+
+```yaml
+ensemble: data-export-approval
+
+agents:
+  # Preview export
+  - name: preview
+    operation: storage
+    config:
+      type: d1
+      query: ${input.query} LIMIT 100
+
+  # Check for PII
+  - name: check-pii
+    operation: think
+    config:
+      prompt: |
+        Analyze if this data contains PII:
+        ${JSON.stringify(preview.output).substring(0, 5000)}
+
+        Return JSON: { "contains_pii": boolean, "types": [string] }
+
+  # Require approval if PII detected
+  - name: pii-approval
+    condition: ${JSON.parse(check-pii.output).contains_pii}
+    agent: hitl
+    inputs:
+      data:
+        query: ${input.query}
+        row_count: ${preview.output.length}
+        pii_types: ${JSON.parse(check-pii.output).types}
+        preview: ${preview.output.slice(0, 10)}
+      prompt: |
+        Data export contains PII.
+        Review query and approve if legitimate:
+
+        PII types: ${JSON.parse(check-pii.output).types.join(', ')}
+        Estimated rows: ${preview.output.length}
+      approvers: [data-governance@example.com]
+      timeout: 7200
+
+  # Execute export
+  - name: export
+    condition: ${!JSON.parse(check-pii.output).contains_pii || pii-approval.output.approved}
+    operation: storage
+    config:
+      type: d1
+      query: ${input.query}
+
+  # Upload to R2
+  - name: upload
+    condition: ${export.success}
+    operation: storage
+    config:
+      type: r2
+      action: put
+      key: exports/${input.export_id}.csv
+      value: ${export.output}
+
+  # Log export
+  - name: log
+    condition: ${upload.success}
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO export_log (export_id, query, contains_pii, approved_by, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${input.export_id}
+        - ${input.query}
+        - ${JSON.parse(check-pii.output).contains_pii}
+        - ${pii-approval.output.approvals?.[0]?.approver || 'auto'}
+        - ${Date.now()}
+```
+
+## Progressive Approval
+
+```yaml
+ensemble: progressive-approval
+
+agents:
+  # Level 1: Auto-approve small amounts
+  - name: auto-approve
+    condition: ${input.amount < 1000}
+    operation: code
+    config:
+      code: return { approved: true, level: 'auto' };
+
+  # Level 2: Manager for medium amounts
+  - name: manager-approval
+    condition: ${input.amount >= 1000 && input.amount < 10000}
+    agent: hitl
+    inputs:
+      data: ${input}
+      prompt: "Manager approval required"
+      approvers: [manager@example.com]
+
+  # Level 3: Director for large amounts
+  - name: director-approval
+    condition: ${input.amount >= 10000 && input.amount < 100000}
+    agent: hitl
+    inputs:
+      data: ${input}
+      prompt: "Director approval required"
+      approvers: [director@example.com]
+
+  # Level 4: Executive for very large amounts
+  - name: executive-approval
+    condition: ${input.amount >= 100000}
+    agent: hitl
+    inputs:
+      data: ${input}
+      prompt: "Executive approval required (2 approvals)"
+      approvers:
+        - cfo@example.com
+        - ceo@example.com
+      minApprovals: 2
+```
+
+## Timeout Handling
+
+```yaml
+agents:
+  - name: approve
+    agent: hitl
+    inputs:
+      timeout: 3600  # 1 hour
+
+  # Escalate on timeout
+  - name: escalate
+    condition: ${approve.output.status === 'timeout'}
+    operation: email
+    config:
+      to: ${env.ESCALATION_EMAIL}
+      subject: "Approval timeout - needs attention"
+      body: |
+        Approval request timed out after 1 hour.
+        Request: ${approve.input.prompt}
+        Data: ${JSON.stringify(approve.input.data)}
+
+  # Retry with different approvers
+  - name: retry-approval
+    condition: ${approve.output.status === 'timeout'}
+    agent: hitl
+    inputs:
+      data: ${approve.input.data}
+      prompt: "URGENT: ${approve.input.prompt}"
+      approvers: [${env.BACKUP_APPROVERS}]
+      timeout: 1800  # 30 minutes
+```
+
+## Best Practices
+
+**1. Clear Instructions**
+```yaml
+prompt: |
+  Review this transaction:
+  - Check customer history
+  - Verify payment method
+  - Look for fraud indicators
+
+  Approve if legitimate, reject if suspicious.
+```
+
+**2. Provide Context**
+```yaml
+metadata:
+  risk_score: ${risk.output}
+  customer_lifetime_value: ${clv.output}
+  similar_transactions: ${similar.output}
+```
+
+**3. Set Appropriate Timeouts**
+```yaml
+timeout: 3600    # 1 hour for routine
+timeout: 86400   # 24 hours for non-urgent
+timeout: 300     # 5 minutes for critical
+```
+
+**4. Handle All Outcomes**
+```yaml
+# Approved
+- name: execute
+  condition: ${approve.output.approved}
+
+# Rejected
+- name: handle-rejection
+  condition: ${approve.output.rejected}
+
+# Timeout
+- name: escalate
+  condition: ${approve.output.status === 'timeout'}
+```
+
+**5. Log Everything**
+```yaml
+- name: log-decision
+  operation: storage
+  config:
+    type: d1
+    query: INSERT INTO approval_log ...
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="hitl Agent" icon="user-check" href="/conductor/agents/hitl">
+    HITL agent reference
+  </Card>
+  <Card title="State Management" icon="database" href="/conductor/core-concepts/state-management">
+    Track approval state
+  </Card>
+  <Card title="Flow Control" icon="diagram-project" href="/conductor/core-concepts/flow-control">
+    Conditional logic
+  </Card>
+  <Card title="Multi-Agent Analysis" icon="users" href="/conductor/playbooks/multi-agent-analysis">
+    Combine with analysis
+  </Card>
+</CardGroup>

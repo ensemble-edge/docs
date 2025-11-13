@@ -1,0 +1,954 @@
+---
+title: "think Operation"
+description: "AI reasoning with language models"
+---
+
+# think Operation
+
+**Call AI language models for reasoning, generation, classification, extraction, and analysis.**
+
+The `think` operation is your gateway to AI-powered intelligence. Use it for any task involving natural language understanding, content generation, or complex reasoning.
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: analyze
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: Analyze this text: ${input.text}
+```
+
+## Configuration Options
+
+### Required Fields
+
+```yaml
+config:
+  provider: string   # openai, anthropic, cloudflare, groq
+  model: string      # Model identifier
+  prompt: string     # Prompt text with template expressions
+```
+
+### Optional Fields
+
+```yaml
+config:
+  temperature: 0.7           # Randomness (0.0-2.0, default: 0.7)
+  maxTokens: 1000           # Max output tokens (default: model-specific)
+  systemPrompt: string      # System message for context
+  responseFormat: json      # json or text (default: text)
+  topP: 1.0                 # Nucleus sampling (0.0-1.0)
+  frequencyPenalty: 0.0     # Penalize frequent tokens (-2.0 to 2.0)
+  presencePenalty: 0.0      # Penalize repeated tokens (-2.0 to 2.0)
+  stop: [string]            # Stop sequences
+  seed: number              # Deterministic sampling seed
+```
+
+## Provider Selection
+
+### OpenAI (GPT Models)
+
+Fast, high-quality models with structured outputs.
+
+```yaml
+config:
+  provider: openai
+  model: gpt-4o-mini  # Recommended: fast & cheap
+```
+
+**Available Models**:
+- `gpt-4o` - Most capable, multimodal
+- `gpt-4o-mini` - Fast, cost-effective (recommended)
+- `o1-mini` - Advanced reasoning
+- `gpt-4-turbo` - Previous generation
+
+**Pricing** (per 1M tokens):
+- `gpt-4o-mini`: $0.15 input / $0.60 output
+- `gpt-4o`: $2.50 input / $10.00 output
+
+### Anthropic (Claude Models)
+
+Strong reasoning, long context, extended thinking.
+
+```yaml
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+```
+
+**Available Models**:
+- `claude-3-5-sonnet-20241022` - Most capable
+- `claude-3-5-haiku-20241022` - Fast, cost-effective
+- `claude-3-opus-20240229` - Previous generation
+
+**Pricing** (per 1M tokens):
+- `claude-3-5-haiku`: $0.80 input / $4.00 output
+- `claude-3-5-sonnet`: $3.00 input / $15.00 output
+
+### Cloudflare Workers AI
+
+Edge-native models with free tier.
+
+```yaml
+config:
+  provider: cloudflare
+  model: '@cf/meta/llama-3.1-8b-instruct'
+```
+
+**Available Models**:
+- `@cf/meta/llama-3.1-8b-instruct` - Fast, general purpose
+- `@cf/meta/llama-3.1-70b-instruct` - More capable
+- `@cf/mistral/mistral-7b-instruct-v0.1` - Fast instruction following
+
+**Pricing**: Free tier - 10,000 requests/day
+
+### Groq
+
+Ultra-fast inference with LPU acceleration.
+
+```yaml
+config:
+  provider: groq
+  model: llama-3.1-8b-instant
+```
+
+**Available Models**:
+- `llama-3.1-8b-instant` - Fastest (~200ms response)
+- `llama-3.1-70b-versatile` - More capable
+- `mixtral-8x7b-32768` - Long context window
+
+## System Prompts
+
+### Basic System Prompt
+
+```yaml
+config:
+  systemPrompt: |
+    You are a helpful assistant that analyzes text sentiment.
+    Always respond in JSON format.
+```
+
+### Structured Output Format
+
+```yaml
+config:
+  systemPrompt: |
+    Analyze the company and respond with JSON:
+    {
+      "industry": "string",
+      "size": "small" | "medium" | "large",
+      "confidence": number (0-1),
+      "summary": "string"
+    }
+```
+
+### Role-Based Prompts
+
+```yaml
+config:
+  systemPrompt: |
+    You are an expert business analyst with 20 years of experience.
+    Analyze companies objectively and provide actionable insights.
+    Focus on:
+    - Financial health
+    - Market position
+    - Growth potential
+    - Competitive advantages
+```
+
+### Few-Shot Prompts
+
+```yaml
+config:
+  systemPrompt: |
+    Classify customer feedback sentiment.
+
+    Examples:
+    Input: "I love this product! Best purchase ever!"
+    Output: {"sentiment": "positive", "confidence": 0.95}
+
+    Input: "It's okay, nothing special."
+    Output: {"sentiment": "neutral", "confidence": 0.7}
+
+    Input: "Terrible quality, waste of money."
+    Output: {"sentiment": "negative", "confidence": 0.9}
+
+    Now classify the following:
+```
+
+## Common Patterns
+
+### Sentiment Analysis
+
+```yaml
+operations:
+  - name: analyze-sentiment
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.3  # Lower for consistency
+      maxTokens: 50
+      prompt: |
+        Analyze the sentiment of this text.
+        Return only: positive, negative, or neutral.
+
+        Text: ${input.text}
+
+        Sentiment:
+```
+
+### Classification
+
+```yaml
+operations:
+  - name: classify-intent
+    operation: think
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
+      temperature: 0.2
+      maxTokens: 50
+      systemPrompt: |
+        Classify user intent into: question, request, complaint, or praise.
+        Respond with only one word.
+      prompt: ${input.message}
+```
+
+### Entity Extraction
+
+```yaml
+operations:
+  - name: extract-entities
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.1
+      maxTokens: 500
+      responseFormat: json
+      systemPrompt: |
+        Extract company information from the text.
+        Return JSON with: name, industry, location, employees, founded.
+      prompt: ${input.text}
+```
+
+### Text Summarization
+
+```yaml
+operations:
+  - name: summarize-article
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.5
+      maxTokens: 200
+      systemPrompt: |
+        Summarize the article in 2-3 sentences.
+        Focus on key points and main ideas.
+      prompt: |
+        Article:
+        ${input.article}
+
+        Summary:
+```
+
+### Content Generation
+
+```yaml
+operations:
+  - name: generate-blog-post
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.8
+      maxTokens: 2000
+      systemPrompt: |
+        Write an engaging blog post on the given topic.
+        Include:
+        - Attention-grabbing headline
+        - Introduction with hook
+        - 3-5 main points with examples
+        - Conclusion with call-to-action
+      prompt: |
+        Topic: ${input.topic}
+        Target audience: ${input.audience}
+        Tone: ${input.tone}
+```
+
+### Question Answering (RAG)
+
+```yaml
+operations:
+  - name: answer-question
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.3
+      maxTokens: 500
+      systemPrompt: |
+        Answer the question based only on the provided context.
+        If the answer isn't in the context, say "I don't know."
+
+        Context: ${input.context}
+      prompt: |
+        Question: ${input.question}
+
+        Answer:
+```
+
+### Translation
+
+```yaml
+operations:
+  - name: translate
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.3
+      maxTokens: 1000
+      prompt: |
+        Translate this text from ${input.from} to ${input.to}:
+
+        ${input.text}
+
+        Translation:
+```
+
+## Structured Outputs
+
+### JSON Mode (OpenAI)
+
+```yaml
+operations:
+  - name: extract-json
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      responseFormat: json
+      prompt: |
+        Extract information from this text and return as JSON:
+        {
+          "name": "person's name",
+          "email": "email address",
+          "intent": "purchase|support|inquiry"
+        }
+
+        Text: ${input.message}
+```
+
+### JSON Schema (OpenAI Structured Outputs)
+
+```yaml
+operations:
+  - name: extract-structured
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      responseFormat:
+        type: json_schema
+        json_schema:
+          name: company_analysis
+          strict: true
+          schema:
+            type: object
+            required: [industry, employees, founded, summary]
+            properties:
+              industry:
+                type: string
+              employees:
+                type: number
+              founded:
+                type: number
+              summary:
+                type: string
+            additionalProperties: false
+      prompt: Extract company info from: ${input.text}
+```
+
+## Temperature Guide
+
+Temperature controls randomness and creativity:
+
+```yaml
+# Low temperature (0.0-0.3): Deterministic, focused
+operations:
+  - name: classify
+    operation: think
+    config:
+      temperature: 0.2    # Consistent results
+      prompt: Classify: ${input.text}
+
+# Medium temperature (0.5-0.8): Balanced creativity
+  - name: write-content
+    operation: think
+    config:
+      temperature: 0.7    # Natural language
+      prompt: Write about: ${input.topic}
+
+# High temperature (1.0-2.0): Maximum creativity
+  - name: brainstorm
+    operation: think
+    config:
+      temperature: 1.5    # Diverse ideas
+      prompt: Brainstorm ideas for: ${input.topic}
+```
+
+## Token Limits
+
+Control output length and cost:
+
+```yaml
+config:
+  # Short responses
+  maxTokens: 100
+
+  # Medium responses
+  maxTokens: 500
+
+  # Long responses
+  maxTokens: 2000
+
+  # Maximum (model-dependent)
+  maxTokens: 4000
+```
+
+## Input Handling
+
+### Simple String Input
+
+```yaml
+schema:
+  input:
+    type: object
+    properties:
+      text:
+        type: string
+    required: [text]
+```
+
+### Multiple Fields
+
+```yaml
+schema:
+  input:
+    type: object
+    properties:
+      companyName:
+        type: string
+      website:
+        type: string
+      industry:
+        type: string
+    required: [companyName]
+```
+
+Use in prompt:
+
+```yaml
+config:
+  systemPrompt: |
+    Analyze ${input.companyName} in the ${input.industry} industry.
+    Website: ${input.website}
+```
+
+### Messages Array (Conversations)
+
+```yaml
+schema:
+  input:
+    type: object
+    properties:
+      messages:
+        type: array
+        items:
+          type: object
+          properties:
+            role:
+              type: string
+              enum: [user, assistant, system]
+            content:
+              type: string
+```
+
+For multi-turn conversations:
+
+```typescript
+// Pass conversation history
+input: {
+  messages: [
+    { role: "user", content: "What's the capital of France?" },
+    { role: "assistant", content: "Paris" },
+    { role: "user", content: "What's its population?" }
+  ]
+}
+```
+
+## Advanced Techniques
+
+### Chain of Thought
+
+Encourage step-by-step reasoning:
+
+```yaml
+operations:
+  - name: solve-problem
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.7
+      systemPrompt: |
+        Think through problems step by step.
+        Show your reasoning before giving an answer.
+      prompt: |
+        ${input.question}
+
+        Let's think step by step:
+```
+
+### Self-Consistency
+
+Run multiple times and pick most common answer:
+
+```yaml
+operations:
+  - name: answer-1
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.8
+      prompt: ${input.question}
+
+  - name: answer-2
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.8
+      prompt: ${input.question}
+
+  - name: answer-3
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.8
+      prompt: ${input.question}
+
+  - name: consensus
+    operation: code
+    config:
+      code: |
+        // Pick most common answer
+        const answers = [
+          '${answer-1.output}',
+          '${answer-2.output}',
+          '${answer-3.output}'
+        ];
+        return { answer: mostCommon(answers) };
+```
+
+### Multi-Turn Conversations
+
+Build context across operations:
+
+```yaml
+operations:
+  - name: first-response
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.user_message}
+
+  - name: follow-up
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      systemPrompt: |
+        Previous conversation:
+        User: ${input.user_message}
+        Assistant: ${first-response.output}
+      prompt: ${input.follow_up_message}
+```
+
+## Cost Optimization
+
+### 1. Use Cheaper Models
+
+```yaml
+# Good: use mini for simple tasks
+operations:
+  - name: classify-email
+    operation: think
+    config:
+      model: gpt-4o-mini  # $0.15/1M tokens
+
+# Only use expensive models when needed
+  - name: complex-analysis
+    condition: ${classify-email.output.confidence < 0.8}
+    operation: think
+    config:
+      model: gpt-4o  # $2.50/1M tokens
+```
+
+### 2. Aggressive Caching
+
+```yaml
+operations:
+  - name: analyze-sentiment
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.text}
+    cache:
+      ttl: 86400  # 24 hours
+      key: sentiment-${input.text}
+```
+
+### 3. Lower Temperature for Cache Hits
+
+```yaml
+config:
+  temperature: 0.1  # More deterministic = better cache hit rate
+```
+
+### 4. Limit Token Usage
+
+```yaml
+config:
+  maxTokens: 100  # Only what you need
+  systemPrompt: "Be concise. Maximum 50 words."
+```
+
+### 5. Use Workers AI Free Tier
+
+```yaml
+config:
+  provider: cloudflare  # Free: 10k requests/day
+  model: '@cf/meta/llama-3.1-8b-instruct'
+```
+
+## Performance Tips
+
+### Use Workers AI for Speed
+
+```yaml
+# Sub-50ms cold start, sub-10ms warm
+operations:
+  - name: fast-classify
+    operation: think
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
+```
+
+### Use Groq for Fast Inference
+
+```yaml
+# ~200ms response time
+operations:
+  - name: quick-response
+    operation: think
+    config:
+      provider: groq
+      model: llama-3.1-70b-versatile
+```
+
+### Parallel Operations
+
+Run multiple AI operations in parallel:
+
+```yaml
+operations:
+  - name: sentiment
+    operation: think
+    config:
+      model: gpt-4o-mini
+      prompt: Sentiment: ${input.text}
+
+  - name: entities
+    operation: think
+    config:
+      model: gpt-4o-mini
+      prompt: Extract entities: ${input.text}
+
+  - name: summary
+    operation: think
+    config:
+      model: gpt-4o-mini
+      prompt: Summarize: ${input.text}
+
+# All three run in parallel automatically
+```
+
+## Error Handling
+
+### Retry on Failure
+
+```yaml
+operations:
+  - name: generate-content
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.prompt}
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+      initialDelay: 1000
+```
+
+### Fallback Operation
+
+```yaml
+operations:
+  - name: primary-ai
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+
+  - name: fallback-ai
+    condition: ${!primary-ai.output}
+    operation: think
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
+```
+
+### Handle Rate Limits
+
+```yaml
+operations:
+  - name: ai-operation
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.text}
+    retry:
+      maxAttempts: 5
+      backoff: exponential
+      initialDelay: 2000
+```
+
+## Output Parsing
+
+### Text Output
+
+```yaml
+operations:
+  - name: generate-text
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: Write a tagline for: ${input.product}
+
+# Access output
+outputs:
+  tagline: ${generate-text.output}  # String response
+```
+
+### JSON Output
+
+```yaml
+operations:
+  - name: extract-json
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      responseFormat: json
+      prompt: |
+        Extract data as JSON:
+        {"name": "...", "email": "..."}
+
+        Text: ${input.text}
+
+# Parse JSON in next operation
+  - name: use-data
+    operation: code
+    config:
+      code: |
+        const data = JSON.parse('${extract-json.output}');
+        return { userName: data.name };
+```
+
+## Testing
+
+Test AI operations with mocks:
+
+```typescript
+import { TestConductor } from '@ensemble/conductor/testing';
+
+const conductor = await TestConductor.create({
+  projectPath: './conductor',
+  mocks: {
+    ai: {
+      'analyze-sentiment': {
+        output: 'positive'
+      },
+      'extract-entities': {
+        output: '{"people": ["Alice"], "orgs": ["Anthropic"]}'
+      }
+    }
+  }
+});
+
+const result = await conductor.executeAgent('my-agent', {
+  text: 'I love this product!'
+});
+
+expect(result.output).toBeDefined();
+```
+
+## Best Practices
+
+**1. Choose the Right Model**
+```yaml
+# Simple tasks: Use fast, cheap models
+model: gpt-4o-mini
+
+# Complex reasoning: Use advanced models
+model: gpt-4o
+```
+
+**2. Set Appropriate Temperature**
+```yaml
+# Deterministic tasks (classification, extraction)
+temperature: 0.1-0.3
+
+# Creative tasks (content generation)
+temperature: 0.7-1.0
+```
+
+**3. Use System Prompts**
+```yaml
+systemPrompt: |
+  You are an expert in ${domain}.
+  Follow these rules:
+  - Be concise
+  - Provide examples
+  - Cite sources when possible
+```
+
+**4. Provide Examples (Few-Shot)**
+```yaml
+prompt: |
+  Examples:
+  Input: "..." → Output: "..."
+  Input: "..." → Output: "..."
+
+  Now classify:
+  Input: ${input.text}
+```
+
+**5. Request Structured Output**
+```yaml
+responseFormat: json
+prompt: |
+  Return as JSON: {"field": "value"}
+
+  ${input.text}
+```
+
+**6. Cache Expensive Operations**
+```yaml
+cache:
+  ttl: 3600
+  key: ${config.model}-${input.text}
+```
+
+**7. Set Token Limits**
+```yaml
+maxTokens: 500  # Prevent runaway costs
+```
+
+**8. Handle Errors with Retry**
+```yaml
+retry:
+  maxAttempts: 3
+  backoff: exponential
+```
+
+## Common Issues
+
+### Issue: Inconsistent Outputs
+
+**Solution**: Lower temperature
+
+```yaml
+temperature: 0.0-0.3  # More deterministic
+```
+
+### Issue: Truncated Responses
+
+**Solution**: Increase max tokens
+
+```yaml
+maxTokens: 2000  # Longer responses
+```
+
+### Issue: High Costs
+
+**Solution**: Use cheaper models + caching
+
+```yaml
+model: gpt-4o-mini  # 15x cheaper
+cache:
+  ttl: 86400  # Cache for 24h
+```
+
+### Issue: Slow Responses
+
+**Solution**: Use faster providers
+
+```yaml
+provider: groq  # Ultra-fast inference
+# or
+provider: cloudflare  # Edge-native
+```
+
+### Issue: Rate Limits
+
+**Solution**: Add retry logic + backoff
+
+```yaml
+retry:
+  maxAttempts: 5
+  backoff: exponential
+  initialDelay: 1000
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="code Operation" icon="code" href="/conductor/operations/code">
+    JavaScript execution
+  </Card>
+  <Card title="storage Operation" icon="database" href="/conductor/operations/storage">
+    Data persistence
+  </Card>
+  <Card title="Pre-built Agents" icon="layer-group" href="/conductor/agents/overview">
+    Agents using think operation
+  </Card>
+  <Card title="Building Patterns" icon="hammer" href="/conductor/building/patterns">
+    Common agent patterns
+  </Card>
+</CardGroup>

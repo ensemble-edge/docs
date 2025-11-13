@@ -1,0 +1,63 @@
+---
+title: "Progressive Deployment"
+description: "Gradual rollouts and canary releases"
+---
+
+# Progressive Deployment Playbook
+
+**Roll out changes gradually. Test in production safely.**
+
+## Canary Deployment
+
+```yaml
+ensemble: canary-release
+
+agents:
+  # 10% traffic to new version
+  - name: new-version
+    condition: ${input.user_id % 10 === 0}
+    agent: my-agent@v2.0.0
+
+  # 90% traffic to stable version
+  - name: stable-version
+    condition: ${input.user_id % 10 !== 0}
+    agent: my-agent@v1.0.0
+```
+
+## Progressive Rollout
+
+```yaml
+# Week 1: 10%
+# Week 2: 25%
+# Week 3: 50%
+# Week 4: 100%
+
+ensemble: progressive-rollout
+
+agents:
+  - name: get-rollout-percentage
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: rollout-percentage
+
+  - name: new-version
+    condition: ${input.user_id % 100 < get-rollout-percentage.output}
+    agent: my-agent@v2.0.0
+
+  - name: stable-version
+    condition: ${input.user_id % 100 >= get-rollout-percentage.output}
+    agent: my-agent@v1.0.0
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="A/B Testing" icon="flask" href="/conductor/playbooks/ab-testing-prompts">
+    Testing patterns
+  </Card>
+  <Card title="Multivariate Testing" icon="vials" href="/conductor/playbooks/multivariate-agent-testing">
+    Multiple variants
+  </Card>
+</CardGroup>

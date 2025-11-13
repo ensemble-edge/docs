@@ -1,0 +1,577 @@
+---
+title: "Content Generation"
+description: "AI-powered content workflows"
+---
+
+# Content Generation Playbook
+
+**Generate, refine, and publish content. Blog posts, marketing copy, documentation, and more.**
+
+## Basic Pattern
+
+```yaml
+ensemble: generate-content
+
+agents:
+  # 1. Research
+  - name: research
+    agent: rag
+    config:
+      action: search
+      query: ${input.topic}
+
+  # 2. Generate draft
+  - name: draft
+    operation: think
+    config:
+      prompt: |
+        Write about: ${input.topic}
+        Context: ${research.output}
+
+  # 3. Refine
+  - name: refine
+    operation: think
+    config:
+      prompt: |
+        Improve this draft:
+        ${draft.output}
+
+  # 4. Approve
+  - name: approve
+    agent: hitl
+    inputs:
+      data: ${refine.output}
+      prompt: "Review content"
+
+  # 5. Publish
+  - name: publish
+    condition: ${approve.output.approved}
+    operation: http
+```
+
+## Blog Post Generation
+
+```yaml
+ensemble: generate-blog-post
+
+inputs:
+  topic:
+    type: string
+    required: true
+  keywords:
+    type: array
+  target_length:
+    type: number
+    default: 1000
+
+agents:
+  # Research phase
+  - name: research-topic
+    agent: rag
+    config:
+      action: search
+      query: ${input.topic}
+      topK: 10
+
+  - name: research-keywords
+    agent: scraper
+    inputs:
+      url: https://www.google.com/search?q=${input.keywords.join('+')}
+
+  # Generate outline
+  - name: create-outline
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Create a blog post outline about: ${input.topic}
+
+        Research: ${research-topic.output.results.map(r => r.text).join('\n')}
+        Target length: ${input.target_length} words
+        Keywords to include: ${input.keywords.join(', ')}
+
+        Return JSON: {
+          "title": string,
+          "intro": string,
+          "sections": [{"heading": string, "points": [string]}],
+          "conclusion": string
+        }
+
+  # Write each section in parallel
+  - name: write-intro
+    operation: think
+    config:
+      prompt: |
+        Write introduction (150 words):
+        ${JSON.parse(create-outline.output).intro}
+
+  - name: write-section-1
+    operation: think
+    config:
+      prompt: |
+        Write section (300 words):
+        Heading: ${JSON.parse(create-outline.output).sections[0].heading}
+        Points: ${JSON.parse(create-outline.output).sections[0].points}
+
+  - name: write-section-2
+    operation: think
+    config:
+      prompt: |
+        Write section (300 words):
+        Heading: ${JSON.parse(create-outline.output).sections[1].heading}
+        Points: ${JSON.parse(create-outline.output).sections[1].points}
+
+  - name: write-section-3
+    operation: think
+    config:
+      prompt: |
+        Write section (300 words):
+        Heading: ${JSON.parse(create-outline.output).sections[2].heading}
+        Points: ${JSON.parse(create-outline.output).sections[2].points}
+
+  - name: write-conclusion
+    operation: think
+    config:
+      prompt: |
+        Write conclusion (150 words):
+        ${JSON.parse(create-outline.output).conclusion}
+
+  # Assemble post
+  - name: assemble
+    operation: code
+    config:
+      code: |
+        const outline = JSON.parse(${create-outline.output});
+        return {
+          title: outline.title,
+          content: [
+            ${write-intro.output},
+            '## ' + outline.sections[0].heading,
+            ${write-section-1.output},
+            '## ' + outline.sections[1].heading,
+            ${write-section-2.output},
+            '## ' + outline.sections[2].heading,
+            ${write-section-3.output},
+            '## Conclusion',
+            ${write-conclusion.output}
+          ].join('\n\n'),
+          metadata: {
+            topic: ${input.topic},
+            keywords: ${input.keywords},
+            word_count: ${write-intro.output}.split(' ').length +
+                        ${write-section-1.output}.split(' ').length +
+                        ${write-section-2.output}.split(' ').length +
+                        ${write-section-3.output}.split(' ').length +
+                        ${write-conclusion.output}.split(' ').length
+          }
+        };
+
+  # SEO optimization
+  - name: optimize-seo
+    operation: think
+    config:
+      prompt: |
+        Optimize SEO for this post:
+        Title: ${assemble.output.title}
+        Content: ${assemble.output.content}
+        Keywords: ${input.keywords}
+
+        Return JSON: {
+          "meta_description": string,
+          "seo_title": string,
+          "slug": string,
+          "tags": [string]
+        }
+
+  # Generate image prompt
+  - name: image-prompt
+    operation: think
+    config:
+      prompt: |
+        Create DALL-E prompt for hero image:
+        Topic: ${input.topic}
+        Title: ${assemble.output.title}
+
+  # Review and approve
+  - name: approve
+    agent: hitl
+    inputs:
+      data:
+        title: ${assemble.output.title}
+        content: ${assemble.output.content}
+        seo: ${optimize-seo.output}
+        word_count: ${assemble.output.metadata.word_count}
+      prompt: |
+        Review blog post:
+        - Content quality
+        - SEO optimization
+        - Brand voice
+      approvers: [editor@example.com]
+
+  # Publish if approved
+  - name: publish
+    condition: ${approve.output.approved}
+    operation: http
+    config:
+      url: https://cms.example.com/api/posts
+      method: POST
+      body:
+        title: ${JSON.parse(optimize-seo.output).seo_title}
+        slug: ${JSON.parse(optimize-seo.output).slug}
+        content: ${assemble.output.content}
+        meta_description: ${JSON.parse(optimize-seo.output).meta_description}
+        tags: ${JSON.parse(optimize-seo.output).tags}
+        status: published
+
+output:
+  post_url: ${publish.output.url}
+  analytics: ${assemble.output.metadata}
+```
+
+## Marketing Copy
+
+```yaml
+ensemble: generate-marketing-copy
+
+agents:
+  # Generate variants (A/B test)
+  - name: variant-a
+    operation: think
+    config:
+      model: gpt-4o
+      temperature: 0.9
+      prompt: |
+        Write marketing copy for: ${input.product}
+        Tone: Professional
+        Length: 100 words
+        Focus: Features and benefits
+
+  - name: variant-b
+    operation: think
+    config:
+      model: gpt-4o
+      temperature: 0.9
+      prompt: |
+        Write marketing copy for: ${input.product}
+        Tone: Casual and friendly
+        Length: 100 words
+        Focus: Emotional appeal
+
+  - name: variant-c
+    operation: think
+    config:
+      model: gpt-4o
+      temperature: 0.9
+      prompt: |
+        Write marketing copy for: ${input.product}
+        Tone: Urgent and direct
+        Length: 100 words
+        Focus: Call-to-action
+
+  # Generate CTAs for each
+  - name: cta-a
+    operation: think
+    config:
+      prompt: Create compelling CTA for: ${variant-a.output}
+
+  - name: cta-b
+    operation: think
+    config:
+      prompt: Create compelling CTA for: ${variant-b.output}
+
+  - name: cta-c
+    operation: think
+    config:
+      prompt: Create compelling CTA for: ${variant-c.output}
+
+  # Package variants
+  - name: package
+    operation: code
+    config:
+      code: |
+        return {
+          variants: [
+            {
+              id: 'a',
+              copy: ${variant-a.output},
+              cta: ${cta-a.output},
+              tone: 'professional'
+            },
+            {
+              id: 'b',
+              copy: ${variant-b.output},
+              cta: ${cta-b.output},
+              tone: 'casual'
+            },
+            {
+              id: 'c',
+              copy: ${variant-c.output},
+              cta: ${cta-c.output},
+              tone: 'urgent'
+            }
+          ]
+        };
+```
+
+## Product Documentation
+
+```yaml
+ensemble: generate-docs
+
+agents:
+  # Extract code info
+  - name: analyze-code
+    operation: code
+    config:
+      code: |
+        // Analyze codebase structure
+        return {
+          functions: ['init', 'process', 'cleanup'],
+          classes: ['Manager', 'Worker'],
+          config: {}
+        };
+
+  # Generate API docs
+  - name: api-docs
+    operation: think
+    config:
+      prompt: |
+        Generate API documentation:
+        Functions: ${analyze-code.output.functions}
+        Classes: ${analyze-code.output.classes}
+
+        Format: Markdown with examples
+
+  # Generate tutorial
+  - name: tutorial
+    operation: think
+    config:
+      prompt: |
+        Write getting started tutorial:
+        API: ${api-docs.output}
+
+        Include:
+        - Installation
+        - Quick start
+        - Common patterns
+
+  # Generate examples
+  - name: examples
+    operation: think
+    config:
+      prompt: |
+        Create 5 code examples:
+        API: ${api-docs.output}
+
+        Show real-world use cases
+
+  # Combine into docs
+  - name: assemble-docs
+    operation: code
+    config:
+      code: |
+        return {
+          api_reference: ${api-docs.output},
+          getting_started: ${tutorial.output},
+          examples: ${examples.output},
+          generated_at: new Date().toISOString()
+        };
+```
+
+## Social Media Content
+
+```yaml
+ensemble: social-media-content
+
+agents:
+  # Generate posts for different platforms
+  - name: twitter
+    operation: think
+    config:
+      prompt: |
+        Create Twitter thread (5 tweets) about: ${input.topic}
+        - Hook in first tweet
+        - Value in middle tweets
+        - CTA in last tweet
+        Max 280 chars per tweet
+
+  - name: linkedin
+    operation: think
+    config:
+      prompt: |
+        Create LinkedIn post about: ${input.topic}
+        - Professional tone
+        - 1300 characters
+        - Include relevant hashtags
+
+  - name: facebook
+    operation: think
+    config:
+      prompt: |
+        Create Facebook post about: ${input.topic}
+        - Casual tone
+        - 400 characters
+        - Engagement-focused
+
+  # Generate images
+  - name: image-prompts
+    operation: think
+    config:
+      prompt: |
+        Create 3 DALL-E prompts for: ${input.topic}
+        Return JSON array
+
+  # Schedule posts
+  - name: schedule
+    operation: code
+    config:
+      code: |
+        return {
+          twitter: {
+            content: JSON.parse(${twitter.output}),
+            schedule: new Date(Date.now() + 3600000)  // 1 hour
+          },
+          linkedin: {
+            content: ${linkedin.output},
+            schedule: new Date(Date.now() + 7200000)  // 2 hours
+          },
+          facebook: {
+            content: ${facebook.output},
+            schedule: new Date(Date.now() + 10800000)  // 3 hours
+          }
+        };
+```
+
+## Content Repurposing
+
+```yaml
+ensemble: repurpose-content
+
+agents:
+  # Start with long-form content
+  - name: input
+    operation: code
+    config:
+      code: return { content: ${input.blog_post} };
+
+  # Generate derivatives in parallel
+  - name: twitter-thread
+    operation: think
+    config:
+      prompt: |
+        Convert to Twitter thread:
+        ${input.blog_post}
+
+  - name: linkedin-post
+    operation: think
+    config:
+      prompt: |
+        Convert to LinkedIn post:
+        ${input.blog_post}
+
+  - name: email-newsletter
+    operation: think
+    config:
+      prompt: |
+        Convert to email newsletter:
+        ${input.blog_post}
+
+  - name: video-script
+    operation: think
+    config:
+      prompt: |
+        Convert to video script (3 minutes):
+        ${input.blog_post}
+
+  - name: infographic-outline
+    operation: think
+    config:
+      prompt: |
+        Create infographic outline:
+        ${input.blog_post}
+
+  # Package all formats
+  - name: package
+    operation: code
+    config:
+      code: |
+        return {
+          original: ${input.blog_post},
+          formats: {
+            twitter: ${twitter-thread.output},
+            linkedin: ${linkedin-post.output},
+            email: ${email-newsletter.output},
+            video: ${video-script.output},
+            infographic: ${infographic-outline.output}
+          }
+        };
+```
+
+## Best Practices
+
+**1. Parallel Generation**
+```yaml
+# Generate variants simultaneously
+agents:
+  - name: variant-1
+    operation: think
+  - name: variant-2
+    operation: think
+  - name: variant-3
+    operation: think
+```
+
+**2. Higher Temperature for Creativity**
+```yaml
+config:
+  temperature: 0.9  # More creative
+  temperature: 0.3  # More focused
+```
+
+**3. Always Review**
+```yaml
+- name: approve
+  agent: hitl
+  inputs:
+    prompt: "Review content for quality and brand voice"
+```
+
+**4. SEO Optimization**
+```yaml
+- name: optimize-seo
+  operation: think
+  config:
+    prompt: |
+      Optimize for SEO:
+      - Keywords: ${input.keywords}
+      - Meta description
+      - Title tag
+      - Headers
+```
+
+**5. Version Content**
+```yaml
+- name: store
+  operation: storage
+  config:
+    type: d1
+    query: INSERT INTO content_versions (content, version, timestamp) VALUES (?, ?, ?)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="think Operation" icon="brain" href="/conductor/operations/think">
+    AI generation
+  </Card>
+  <Card title="HITL Approval" icon="user-check" href="/conductor/playbooks/hitl-approval-flow">
+    Review workflow
+  </Card>
+  <Card title="RAG Pipeline" icon="database" href="/conductor/playbooks/rag-pipeline">
+    Research phase
+  </Card>
+  <Card title="A/B Testing" icon="flask" href="/conductor/playbooks/ab-testing-prompts">
+    Test variants
+  </Card>
+</CardGroup>

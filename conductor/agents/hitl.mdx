@@ -1,0 +1,468 @@
+---
+title: "hitl Agent"
+description: "Human-in-the-loop approval workflows"
+---
+
+# hitl Agent
+
+**Human approval workflows. Pause execution until someone approves.**
+
+## Basic Usage
+
+```yaml
+agents:
+  - name: generate-content
+    operation: think
+    config:
+      prompt: Write a blog post about ${input.topic}
+
+  - name: request-approval
+    agent: hitl
+    inputs:
+      data: ${generate-content.output}
+      prompt: "Review this blog post"
+      approvers: [${env.ADMIN_EMAIL}]
+
+  - name: publish
+    condition: ${request-approval.output.approved}
+    operation: http
+    config:
+      url: https://api.example.com/publish
+      body: ${generate-content.output}
+```
+
+## Inputs
+
+```yaml
+inputs:
+  data:
+    type: any
+    required: true
+    description: Data to review
+
+  prompt:
+    type: string
+    required: true
+    description: Review instructions
+
+  approvers:
+    type: array
+    required: true
+    description: Email addresses of approvers
+
+  timeout:
+    type: number
+    default: 86400  # 24 hours
+    description: Approval timeout (seconds)
+
+  minApprovals:
+    type: number
+    default: 1
+    description: Minimum approvals required
+
+  metadata:
+    type: object
+    description: Additional context
+```
+
+## Configuration
+
+### Single Approver
+
+```yaml
+agents:
+  - name: approve
+    agent: hitl
+    inputs:
+      data: ${previous.output}
+      prompt: "Review this change"
+      approvers: [admin@example.com]
+```
+
+### Multiple Approvers
+
+```yaml
+agents:
+  - name: approve
+    agent: hitl
+    inputs:
+      data: ${previous.output}
+      prompt: "Review this change"
+      approvers:
+        - manager@example.com
+        - director@example.com
+      minApprovals: 2  # Both must approve
+```
+
+### With Timeout
+
+```yaml
+agents:
+  - name: approve
+    agent: hitl
+    inputs:
+      data: ${previous.output}
+      prompt: "Review within 1 hour"
+      approvers: [admin@example.com]
+      timeout: 3600  # 1 hour
+
+  - name: handle-timeout
+    condition: ${approve.output.status === 'timeout'}
+    operation: email
+    config:
+      to: ${env.ESCALATION_EMAIL}
+      subject: "Approval timeout"
+```
+
+### With Metadata
+
+```yaml
+agents:
+  - name: approve
+    agent: hitl
+    inputs:
+      data: ${previous.output}
+      prompt: "Review this transaction"
+      approvers: [finance@example.com]
+      metadata:
+        amount: ${previous.output.amount}
+        customer: ${input.customer_name}
+        risk_score: ${calculate-risk.output.score}
+```
+
+## Complete Workflows
+
+### Content Approval
+
+```yaml
+ensemble: content-approval
+
+agents:
+  # 1. Generate content
+  - name: generate
+    operation: think
+    config:
+      prompt: Write about ${input.topic}
+
+  # 2. Request approval
+  - name: approve
+    agent: hitl
+    inputs:
+      data: ${generate.output}
+      prompt: |
+        Review this content for:
+        - Accuracy
+        - Tone
+        - Brand guidelines
+      approvers:
+        - editor@example.com
+        - marketing@example.com
+      minApprovals: 2
+
+  # 3. Publish if approved
+  - name: publish
+    condition: ${approve.output.approved}
+    operation: http
+    config:
+      url: https://cms.example.com/publish
+      body: ${generate.output}
+
+  # 4. Notify rejection
+  - name: notify-rejection
+    condition: ${approve.output.rejected}
+    operation: email
+    config:
+      to: ${env.CONTENT_TEAM}
+      subject: "Content rejected"
+      body: |
+        Reason: ${approve.output.reason}
+        Feedback: ${approve.output.feedback}
+
+output:
+  status: ${approve.output.status}
+  published: ${approve.output.approved}
+```
+
+### Transaction Approval
+
+```yaml
+ensemble: transaction-approval
+
+agents:
+  # 1. Calculate risk
+  - name: risk-check
+    operation: think
+    config:
+      prompt: Assess risk for ${input.transaction}
+
+  # 2. Auto-approve low risk
+  - name: auto-approve
+    condition: ${risk-check.output.risk_score < 0.3}
+    operation: code
+    config:
+      code: return { approved: true, auto: true };
+
+  # 3. Request approval for high risk
+  - name: manual-review
+    condition: ${risk-check.output.risk_score >= 0.3}
+    agent: hitl
+    inputs:
+      data: ${input.transaction}
+      prompt: "High-risk transaction - manual review required"
+      approvers:
+        - fraud@example.com
+        - senior-manager@example.com
+      metadata:
+        risk_score: ${risk-check.output.risk_score}
+        amount: ${input.transaction.amount}
+        customer: ${input.transaction.customer}
+
+  # 4. Process if approved
+  - name: process
+    condition: ${auto-approve.output.approved || manual-review.output.approved}
+    operation: http
+    config:
+      url: https://payment-api.example.com/process
+      body: ${input.transaction}
+```
+
+### Code Review
+
+```yaml
+ensemble: code-review
+
+agents:
+  # 1. Run automated checks
+  - name: lint
+    operation: code
+    config:
+      code: |
+        // Run linter
+        return { passed: true };
+
+  - name: test
+    operation: code
+    config:
+      code: |
+        // Run tests
+        return { passed: true };
+
+  # 2. Request human review
+  - name: review
+    condition: ${lint.output.passed && test.output.passed}
+    agent: hitl
+    inputs:
+      data:
+        diff: ${input.diff}
+        lint_results: ${lint.output}
+        test_results: ${test.output}
+      prompt: |
+        Review this code change:
+        - Code quality
+        - Test coverage
+        - Security concerns
+      approvers:
+        - tech-lead@example.com
+        - senior-dev@example.com
+      minApprovals: 1
+
+  # 3. Merge if approved
+  - name: merge
+    condition: ${review.output.approved}
+    operation: http
+    config:
+      url: https://api.github.com/repos/${input.repo}/pulls/${input.pr_number}/merge
+      method: PUT
+```
+
+## Output Schema
+
+```typescript
+{
+  status: 'pending' | 'approved' | 'rejected' | 'timeout';
+  approved: boolean;
+  rejected: boolean;
+  approvals: Array<{
+    approver: string;
+    approved: boolean;
+    timestamp: string;
+    feedback?: string;
+  }>;
+  reason?: string;      // Rejection reason
+  feedback?: string;    // Approver feedback
+  timedOut: boolean;
+}
+```
+
+## Approval UI
+
+Approvers receive an email with:
+
+1. **Review prompt**
+2. **Data to review** (formatted)
+3. **Metadata** (if provided)
+4. **Approve/Reject buttons**
+5. **Feedback form**
+
+Example email:
+```
+Subject: Approval Required: Review this blog post
+
+[Your ensemble requested your approval]
+
+Prompt:
+Review this blog post for accuracy, tone, and brand guidelines.
+
+Data:
+[Formatted content preview]
+
+Metadata:
+- Topic: AI trends
+- Author: content-bot
+- Word count: 1,200
+
+[Approve] [Reject]
+
+Optional feedback:
+[Text area]
+```
+
+## Best Practices
+
+**1. Set Reasonable Timeouts**
+```yaml
+timeout: 86400  # 24 hours for content review
+timeout: 3600   # 1 hour for urgent approvals
+timeout: 604800 # 1 week for major decisions
+```
+
+**2. Handle Timeouts Gracefully**
+```yaml
+agents:
+  - name: approve
+    agent: hitl
+    inputs:
+      timeout: 3600
+
+  - name: escalate
+    condition: ${approve.output.status === 'timeout'}
+    operation: email
+    config:
+      to: ${env.ESCALATION_EMAIL}
+```
+
+**3. Provide Context**
+```yaml
+inputs:
+  prompt: |
+    Review this transaction for:
+    - Fraud indicators
+    - Risk score > 0.7
+    - Amount > $10,000
+  metadata:
+    risk_factors: ${risk-check.output.factors}
+    customer_history: ${customer-history.output}
+```
+
+**4. Use Appropriate Approver Counts**
+```yaml
+# Single approver for routine
+minApprovals: 1
+
+# Multiple for critical
+minApprovals: 2
+
+# Majority for committees
+minApprovals: ${Math.ceil(approvers.length / 2)}
+```
+
+**5. Track Rejections**
+```yaml
+agents:
+  - name: approve
+    agent: hitl
+
+  - name: log-rejection
+    condition: ${approve.output.rejected}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO rejections (data, reason, timestamp) VALUES (?, ?, ?)
+      params:
+        - ${approve.input.data}
+        - ${approve.output.reason}
+        - ${now()}
+```
+
+## Common Use Cases
+
+### Expense Approval
+
+```yaml
+agents:
+  - name: approve-expense
+    agent: hitl
+    inputs:
+      data:
+        amount: ${input.amount}
+        category: ${input.category}
+        receipt: ${input.receipt_url}
+      prompt: "Approve this expense"
+      approvers: [${input.manager_email}]
+      timeout: 172800  # 48 hours
+```
+
+### Marketing Campaign
+
+```yaml
+agents:
+  - name: approve-campaign
+    agent: hitl
+    inputs:
+      data: ${generate-campaign.output}
+      prompt: "Review campaign before launch"
+      approvers:
+        - marketing-director@example.com
+        - legal@example.com
+      minApprovals: 2
+```
+
+### Data Export
+
+```yaml
+agents:
+  - name: approve-export
+    agent: hitl
+    inputs:
+      data:
+        query: ${input.query}
+        row_count: ${preview.output.count}
+        includes_pii: ${check-pii.output.detected}
+      prompt: "Approve data export"
+      approvers:
+        - data-governance@example.com
+```
+
+## Limitations
+
+- **Max approvers**: 10 per request
+- **Max timeout**: 7 days
+- **Email only**: No Slack/Teams integration (yet)
+- **No delegation**: Approvers can't delegate to others
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="HITL Approval Flow" icon="user-check" href="/conductor/playbooks/hitl-approval-flow">
+    Complete workflow playbook
+  </Card>
+  <Card title="email" icon="envelope" href="/conductor/operations/email">
+    Email operation
+  </Card>
+  <Card title="State Management" icon="database" href="/conductor/core-concepts/state-management">
+    Track approval state
+  </Card>
+  <Card title="Agents Overview" icon="layer-group" href="/conductor/agents/overview">
+    All pre-built agents
+  </Card>
+</CardGroup>

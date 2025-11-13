@@ -1,0 +1,433 @@
+---
+title: "YAML Schema Reference"
+description: "Complete YAML configuration reference"
+---
+
+# YAML Schema Reference
+
+**Complete reference for ensemble, agent, and component YAML files.**
+
+## Ensemble Schema
+
+```yaml
+ensemble: string                    # Required: Ensemble name
+
+description: string                 # Optional: Description
+
+inputs:                            # Optional: Input definitions
+  input_name:
+    type: string | number | boolean | array | object
+    required: boolean
+    default: any
+    description: string
+
+state:                             # Optional: Ensemble state
+  schema:
+    field_name: type
+
+agents:                            # Required: Agent list
+  - name: string                   # Required: Agent name
+    agent: string                  # Agent reference (OR operation)
+    operation: string              # Operation type (OR agent)
+    inputs:                        # Agent inputs
+      key: value
+    config:                        # Operation config
+      key: value
+    condition: string              # Optional: Execution condition
+    cache:                         # Optional: Cache config
+      ttl: number
+      key: string
+    retry:                         # Optional: Retry config
+      maxAttempts: number
+      backoff: exponential | linear
+      initialDelay: number
+      maxDelay: number
+      retryOn: [number]
+    timeout: number                # Optional: Timeout (ms)
+    state:                         # Optional: State access
+      use: [string]
+      set:
+        field: value
+
+output:                            # Optional: Output definition
+  key: value
+```
+
+## Agent Schema
+
+```yaml
+agent: string                      # Required: Agent name
+
+description: string                # Optional: Description
+
+inputs:                            # Optional: Input definitions
+  input_name:
+    type: string | number | boolean | array | object
+    required: boolean
+    default: any
+    description: string
+
+state:                             # Optional: Agent state
+  schema:
+    field_name: type
+
+operations:                        # Required: Operation list
+  - name: string                   # Required: Operation name
+    operation: string              # Required: Operation type
+    config:                        # Operation-specific config
+      key: value
+    condition: string              # Optional: Execution condition
+    cache:                         # Optional: Cache config
+      ttl: number
+      key: string
+    retry:                         # Optional: Retry config
+      maxAttempts: number
+      backoff: exponential | linear
+    timeout: number                # Optional: Timeout (ms)
+    state:                         # Optional: State access
+      use: [string]
+      set:
+        field: value
+
+outputs:                           # Optional: Output definition
+  output_name: expression
+
+cache:                             # Optional: Agent-level cache
+  ttl: number
+  key: string
+
+retry:                             # Optional: Agent-level retry
+  maxAttempts: number
+  backoff: exponential | linear
+```
+
+## Component Schema
+
+```yaml
+component: string                  # Required: Component name
+
+version: string                    # Required: Semantic version
+
+description: string                # Optional: Description
+
+type: prompt | template | schema | config
+
+content: string | object           # Component content
+```
+
+## Expression Syntax
+
+### Variable Access
+
+```yaml
+${input.field}                     # Input variable
+${env.VARIABLE}                    # Environment variable
+${state.field}                     # State variable
+${agent-name.output}               # Agent output
+${agent-name.output.nested.field}  # Nested output
+${component.name@v1.0.0}          # Component reference
+```
+
+### Conditionals
+
+```yaml
+condition: ${input.value > 10}
+condition: ${agent.success}
+condition: ${agent.failed}
+condition: ${!agent.executed}
+condition: ${input.type === 'premium'}
+condition: ${input.age >= 18 && input.verified}
+```
+
+### Functions
+
+```yaml
+${Date.now()}                      # Current timestamp
+${JSON.stringify(object)}          # JSON encode
+${JSON.parse(string)}              # JSON decode
+${Math.round(number)}              # Math functions
+${array.length}                    # Array length
+${array.map(item => item.id)}      # Array map
+${array.filter(item => item.active)} # Array filter
+${array.reduce((sum, item) => sum + item.value, 0)} # Array reduce
+${string.split(',')}               # String split
+${string.toUpperCase()}            # String uppercase
+```
+
+## Operation-Specific Config
+
+### think
+
+```yaml
+config:
+  provider: openai | anthropic | cloudflare | groq
+  model: string
+  prompt: string
+  messages: array
+  temperature: number
+  maxTokens: number
+  image: string                    # For vision models
+  stream: boolean
+```
+
+### code
+
+```yaml
+config:
+  code: string                     # JavaScript code
+```
+
+### storage
+
+```yaml
+# KV
+config:
+  type: kv
+  action: get | put | delete
+  key: string
+  value: any                       # For put
+  ttl: number                      # For put
+
+# D1
+config:
+  type: d1
+  query: string
+  params: array
+
+# R2
+config:
+  type: r2
+  action: get | put | delete
+  key: string
+  value: any                       # For put
+
+# Vectorize
+config:
+  type: vectorize
+  action: search | embed | delete
+  query: string                    # For search
+  text: string | array             # For embed
+  topK: number                     # For search
+  namespace: string
+  filter: object
+```
+
+### http
+
+```yaml
+config:
+  url: string
+  method: GET | POST | PUT | PATCH | DELETE
+  headers: object
+  body: any
+  timeout: number
+```
+
+### tools
+
+```yaml
+config:
+  tool: string
+  params: object
+```
+
+### email
+
+```yaml
+config:
+  to: string | array
+  from: string
+  subject: string
+  body: string
+  html: string
+```
+
+### sms
+
+```yaml
+config:
+  to: string
+  from: string
+  body: string
+```
+
+### html
+
+```yaml
+config:
+  template: string
+  data: object
+  html: string                     # Or raw HTML
+```
+
+### pdf
+
+```yaml
+config:
+  html: string
+  filename: string
+  format: A4 | Letter
+  margin: object
+```
+
+### page
+
+```yaml
+config:
+  component: string
+  props: object
+  renderMode: ssr | csr | hybrid
+```
+
+## Cache Configuration
+
+```yaml
+cache:
+  ttl: number                      # Time to live (seconds)
+  key: string                      # Cache key (supports expressions)
+```
+
+Example:
+```yaml
+cache:
+  ttl: 3600
+  key: user-${input.user_id}
+```
+
+## Retry Configuration
+
+```yaml
+retry:
+  maxAttempts: number              # Max retry attempts (default: 3)
+  backoff: exponential | linear    # Backoff strategy (default: exponential)
+  initialDelay: number             # Initial delay (ms, default: 1000)
+  maxDelay: number                 # Max delay (ms, default: 30000)
+  retryOn: [number]                # HTTP status codes to retry (default: [500, 502, 503, 504])
+```
+
+## State Configuration
+
+```yaml
+state:
+  schema:                          # State schema
+    field1: type
+    field2: type
+
+  use: [field1, field2]            # Read these fields
+  set:                             # Write these fields
+    field1: ${expression}
+    field2: ${expression}
+```
+
+## Condition Expressions
+
+```yaml
+# Simple comparisons
+condition: ${value > 10}
+condition: ${value === 'active'}
+condition: ${value !== null}
+
+# Boolean operations
+condition: ${value1 && value2}
+condition: ${value1 || value2}
+condition: ${!value}
+
+# Agent execution status
+condition: ${agent.success}       # Agent succeeded
+condition: ${agent.failed}        # Agent failed
+condition: ${agent.executed}      # Agent ran
+condition: ${!agent.executed}     # Agent didn't run
+
+# Complex conditions
+condition: ${input.amount > 1000 && input.verified}
+condition: ${user.role === 'admin' || user.role === 'moderator'}
+```
+
+## Output Definitions
+
+```yaml
+# Simple output
+output:
+  result: ${agent.output}
+
+# Multiple outputs
+output:
+  data: ${process.output}
+  metadata:
+    timestamp: ${Date.now()}
+    version: "1.0"
+
+# Computed outputs
+output:
+  total: ${items.reduce((sum, item) => sum + item.price, 0)}
+  count: ${items.length}
+```
+
+## Examples
+
+### Complete Ensemble
+
+```yaml
+ensemble: user-onboarding
+
+description: Onboard new users
+
+inputs:
+  email:
+    type: string
+    required: true
+  name:
+    type: string
+    required: true
+
+state:
+  schema:
+    onboarding_step: number
+
+agents:
+  - name: validate-email
+    operation: code
+    config:
+      code: |
+        const regex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+        return { valid: regex.test(${input.email}) };
+
+  - name: create-account
+    condition: ${validate-email.output.valid}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO users (email, name) VALUES (?, ?)
+      params:
+        - ${input.email}
+        - ${input.name}
+
+  - name: send-welcome
+    condition: ${create-account.success}
+    operation: email
+    config:
+      to: ${input.email}
+      subject: "Welcome!"
+      body: "Welcome ${input.name}!"
+
+output:
+  user_id: ${create-account.output.id}
+  success: ${send-welcome.success}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Commands" icon="terminal" href="/conductor/reference/cli-commands">
+    Command line reference
+  </Card>
+  <Card title="Environment Variables" icon="sliders" href="/conductor/reference/environment-variables">
+    Configuration
+  </Card>
+  <Card title="Operations" icon="bolt" href="/conductor/operations/overview">
+    Operation details
+  </Card>
+  <Card title="Agents" icon="layer-group" href="/conductor/agents/overview">
+    Pre-built agents
+  </Card>
+</CardGroup>

@@ -1,0 +1,524 @@
+---
+title: "Tools & MCP Integration"
+description: "Extend Conductor with MCP tools and custom skills"
+---
+
+# Tools & MCP Integration
+
+**Extend Conductor with external tools using the Model Context Protocol (MCP) and custom skills.**
+
+The `tools` operation lets agents call external tools - web search, file operations, API integrations, and more.
+
+## What is MCP?
+
+**Model Context Protocol (MCP)** is an open protocol for connecting AI systems to external tools and data sources.
+
+Conductor implements MCP, letting you use any MCP-compatible tool with the `tools` operation.
+
+## Using Tools
+
+### Basic Tool Usage
+
+```yaml
+ensemble: search-and-analyze
+
+agents:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.question}
+        max_results: 5
+
+  - name: analyze
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Based on these search results:
+        ${search.output.results}
+
+        Answer: ${input.question}
+
+output:
+  answer: ${analyze.output}
+  sources: ${search.output.results}
+```
+
+### Tool Configuration
+
+```yaml
+agents:
+  - name: use-tool
+    operation: tools
+    config:
+      tool: tool-name       # Tool identifier
+      params:               # Tool-specific parameters
+        param1: value1
+        param2: ${input.value}
+      timeout: 30000        # Optional: 30 second timeout
+      retry:
+        maxAttempts: 2
+```
+
+## Built-in Tools
+
+Conductor includes several built-in tools:
+
+### Web Search
+
+```yaml
+agents:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+        max_results: 10
+        time_range: week  # hour, day, week, month, year
+```
+
+### File Operations
+
+```yaml
+agents:
+  - name: read-file
+    operation: tools
+    config:
+      tool: file-read
+      params:
+        path: ${input.file_path}
+
+  - name: write-file
+    operation: tools
+    config:
+      tool: file-write
+      params:
+        path: ${input.file_path}
+        content: ${generate.output}
+```
+
+### Code Execution
+
+```yaml
+agents:
+  - name: run-code
+    operation: tools
+    config:
+      tool: code-exec
+      params:
+        language: python
+        code: |
+          import numpy as np
+          result = np.mean([${input.numbers}])
+          print(result)
+```
+
+## MCP Server Integration
+
+### Install MCP Server
+
+```bash
+# Install MCP server globally
+npm install -g @modelcontextprotocol/server-puppeteer
+
+# Or install locally
+npm install @modelcontextprotocol/server-puppeteer
+```
+
+### Configure MCP Server
+
+Create `conductor.config.ts`:
+
+```typescript
+import type { ConductorConfig } from '@ensemble-edge/conductor';
+
+const config: ConductorConfig = {
+  tools: {
+    mcp: {
+      servers: {
+        puppeteer: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-puppeteer'],
+          env: {
+            PUPPETEER_HEADLESS: 'true'
+          }
+        },
+        filesystem: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem'],
+          env: {
+            ALLOWED_DIRECTORIES: '/tmp,/data'
+          }
+        }
+      }
+    }
+  }
+};
+
+export default config;
+```
+
+### Use MCP Tools
+
+```yaml
+agents:
+  - name: scrape-with-puppeteer
+    operation: tools
+    config:
+      tool: mcp:puppeteer:screenshot
+      params:
+        url: ${input.url}
+        width: 1920
+        height: 1080
+
+  - name: read-with-filesystem
+    operation: tools
+    config:
+      tool: mcp:filesystem:read_file
+      params:
+        path: /data/document.txt
+```
+
+## Custom Skills
+
+Create custom tools as "skills":
+
+### Define Skill
+
+```typescript
+// skills/calculate-roi/index.ts
+export default async function calculateROI({ params, env }) {
+  const { revenue, cost } = params;
+
+  const profit = revenue - cost;
+  const roi = (profit / cost) * 100;
+
+  return {
+    profit,
+    roi: parseFloat(roi.toFixed(2)),
+    roi_formatted: `${roi.toFixed(2)}%`
+  };
+}
+```
+
+### Skill Metadata
+
+```yaml
+# skills/calculate-roi/skill.yaml
+name: calculate-roi
+description: Calculate return on investment
+
+parameters:
+  revenue:
+    type: number
+    required: true
+    description: Total revenue
+  cost:
+    type: number
+    required: true
+    description: Total cost
+
+returns:
+  type: object
+  properties:
+    profit: number
+    roi: number
+    roi_formatted: string
+```
+
+### Use Custom Skill
+
+```yaml
+agents:
+  - name: calculate
+    operation: tools
+    config:
+      tool: skill:calculate-roi
+      params:
+        revenue: ${input.revenue}
+        cost: ${input.cost}
+
+output:
+  roi: ${calculate.output.roi}
+  profit: ${calculate.output.profit}
+```
+
+## Tool Patterns
+
+### Sequential Tool Calls
+
+```yaml
+agents:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.company}
+
+  - name: scrape
+    operation: tools
+    config:
+      tool: web-scrape
+      params:
+        url: ${search.output.results[0].url}
+
+  - name: analyze
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Search results: ${search.output}
+        Scraped content: ${scrape.output}
+        Analyze: ${input.question}
+```
+
+### Parallel Tool Calls
+
+```yaml
+agents:
+  # These run in parallel
+  - name: search-web
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+
+  - name: search-docs
+    operation: tools
+    config:
+      tool: doc-search
+      params:
+        query: ${input.query}
+
+  - name: search-code
+    operation: tools
+    config:
+      tool: code-search
+      params:
+        query: ${input.query}
+
+  # Combine results
+  - name: synthesize
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Web: ${search-web.output}
+        Docs: ${search-docs.output}
+        Code: ${search-code.output}
+
+        Answer: ${input.query}
+```
+
+### Tool with Fallback
+
+```yaml
+agents:
+  - name: search-primary
+    operation: tools
+    config:
+      tool: google-search
+      params:
+        query: ${input.query}
+    retry:
+      maxAttempts: 2
+
+  - name: search-fallback
+    condition: ${search-primary.failed}
+    operation: tools
+    config:
+      tool: duckduckgo-search
+      params:
+        query: ${input.query}
+
+output:
+  results: ${search-primary.output || search-fallback.output}
+  source: ${search-primary.executed ? 'google' : 'duckduckgo'}
+```
+
+## Real-World Examples
+
+### Code Analysis Tool
+
+```typescript
+// skills/analyze-code/index.ts
+import { parse } from '@typescript-eslint/parser';
+
+export default async function analyzeCode({ params }) {
+  const { code, language } = params;
+
+  if (language !== 'typescript' && language !== 'javascript') {
+    throw new Error('Only TypeScript/JavaScript supported');
+  }
+
+  const ast = parse(code, {
+    ecmaVersion: 2022,
+    sourceType: 'module'
+  });
+
+  const functions = [];
+  const classes = [];
+
+  // Analyze AST
+  // ... implementation ...
+
+  return {
+    functions,
+    classes,
+    complexity: calculateComplexity(ast),
+    lines: code.split('\n').length
+  };
+}
+```
+
+Usage:
+
+```yaml
+agents:
+  - name: analyze
+    operation: tools
+    config:
+      tool: skill:analyze-code
+      params:
+        code: ${input.code}
+        language: typescript
+
+  - name: review
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Code analysis:
+        - Functions: ${analyze.output.functions.length}
+        - Classes: ${analyze.output.classes.length}
+        - Complexity: ${analyze.output.complexity}
+        - Lines: ${analyze.output.lines}
+
+        Provide code review and suggestions.
+```
+
+### API Integration Tool
+
+```typescript
+// skills/slack-notify/index.ts
+export default async function slackNotify({ params, env }) {
+  const { channel, message, attachments } = params;
+
+  const response = await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      channel,
+      text: message,
+      attachments
+    })
+  });
+
+  const result = await response.json();
+
+  return {
+    success: result.ok,
+    timestamp: result.ts,
+    channel: result.channel
+  };
+}
+```
+
+Usage:
+
+```yaml
+agents:
+  - name: notify
+    operation: tools
+    config:
+      tool: skill:slack-notify
+      params:
+        channel: '#alerts'
+        message: ${input.alert_message}
+        attachments:
+          - color: danger
+            title: ${input.alert_title}
+            text: ${input.alert_details}
+```
+
+## Testing Tools
+
+```typescript
+// skills/calculate-roi/index.test.ts
+import { describe, it, expect } from 'vitest';
+import calculateROI from './index';
+
+describe('calculate-roi skill', () => {
+  it('should calculate ROI correctly', async () => {
+    const result = await calculateROI({
+      params: {
+        revenue: 150000,
+        cost: 100000
+      },
+      env: {}
+    });
+
+    expect(result.profit).toBe(50000);
+    expect(result.roi).toBe(50);
+    expect(result.roi_formatted).toBe('50.00%');
+  });
+
+  it('should handle negative ROI', async () => {
+    const result = await calculateROI({
+      params: {
+        revenue: 80000,
+        cost: 100000
+      },
+      env: {}
+    });
+
+    expect(result.profit).toBe(-20000);
+    expect(result.roi).toBe(-20);
+  });
+});
+```
+
+## Best Practices
+
+1. **Error Handling** - Always handle tool failures
+2. **Retry Logic** - Use retries for flaky tools
+3. **Timeout Configuration** - Set appropriate timeouts
+4. **Parameter Validation** - Validate tool inputs
+5. **Security** - Validate tool outputs before using
+6. **Rate Limiting** - Respect API rate limits
+7. **Caching** - Cache expensive tool calls
+8. **Testing** - Unit test custom skills
+9. **Documentation** - Document tool parameters
+10. **Monitoring** - Track tool performance
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
+    Monitor tool usage
+  </Card>
+
+  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/tools">
+    Detailed tools operation docs
+  </Card>
+
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Build agents with tools
+  </Card>
+
+  <Card title="Playbooks" icon="books" href="/conductor/playbooks/api-orchestration">
+    Real-world tool examples
+  </Card>
+</CardGroup>

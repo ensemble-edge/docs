@@ -1,0 +1,303 @@
+---
+title: "Operations Overview"
+description: "The 12 execution primitives that power Conductor workflows"
+---
+
+# Operations Overview
+
+**Operations are the atomic building blocks of Conductor. Each operation does one thing well.**
+
+Agents use operations to do work. Ensembles orchestrate agents. Operations are where the rubber meets the road.
+
+## The 12 Operations
+
+### Compute Operations
+
+Execute logic and transform data.
+
+<CardGroup cols={3}>
+  <Card title="think" icon="brain" href="/conductor/operations/think">
+    AI reasoning with LLMs
+  </Card>
+
+  <Card title="code" icon="code" href="/conductor/operations/code">
+    JavaScript/TypeScript execution
+  </Card>
+
+  <Card title="ml" icon="chart-line" href="/conductor/operations/ml">
+    Machine learning (coming soon)
+  </Card>
+</CardGroup>
+
+### Data Operations
+
+Access and manipulate data stores.
+
+<Card title="storage" icon="database" href="/conductor/operations/storage">
+  KV, D1, R2, Vectorize access
+</Card>
+
+### Communication Operations
+
+Send messages and make requests.
+
+<CardGroup cols={3}>
+  <Card title="http" icon="globe" href="/conductor/operations/http">
+    HTTP requests to APIs
+  </Card>
+
+  <Card title="email" icon="envelope" href="/conductor/operations/email">
+    Send emails
+  </Card>
+
+  <Card title="sms" icon="message" href="/conductor/operations/sms">
+    Send SMS messages
+  </Card>
+</CardGroup>
+
+### Presentation Operations
+
+Render content for users.
+
+<CardGroup cols={3}>
+  <Card title="html" icon="window" href="/conductor/operations/html">
+    Render HTML
+  </Card>
+
+  <Card title="pdf" icon="file-pdf" href="/conductor/operations/pdf">
+    Generate PDFs
+  </Card>
+
+  <Card title="page" icon="browser" href="/conductor/operations/page">
+    Full-stack pages
+  </Card>
+</CardGroup>
+
+### Extension Operations
+
+Extend functionality with external tools.
+
+<Card title="tools" icon="wrench" href="/conductor/operations/tools">
+  MCP tools and custom skills
+</Card>
+
+## Quick Reference
+
+| Operation | Use Case | Example |
+|-----------|----------|---------|
+| **think** | AI reasoning, text generation | Analyze sentiment, generate content |
+| **code** | Data transformation, business logic | Calculate totals, format data |
+| **ml** | Machine learning inference | Image classification, predictions |
+| **storage** | Data persistence, caching | Store in D1, cache in KV |
+| **http** | API calls, web requests | Fetch external data |
+| **email** | Send notifications | Order confirmations, alerts |
+| **sms** | Send text messages | 2FA codes, alerts |
+| **html** | Render web pages | Dashboard, reports |
+| **pdf** | Generate documents | Invoices, reports |
+| **page** | Full-stack components | Interactive UIs |
+| **tools** | External tool integration | Web search, file operations |
+
+## Common Configuration
+
+All operations support:
+
+```yaml
+operations:
+  - name: my-operation
+    operation: think  # Operation type
+    config:
+      # Operation-specific config
+    condition: ${some.condition}  # Optional: when to run
+    cache:
+      ttl: 3600  # Optional: cache duration (seconds)
+      key: custom-key  # Optional: cache key
+    retry:
+      maxAttempts: 3  # Optional: retry count
+      backoff: exponential  # Optional: exponential or linear
+      initialDelay: 1000  # Optional: ms before first retry
+      maxDelay: 30000  # Optional: max delay between retries
+    timeout: 30000  # Optional: timeout in ms
+```
+
+## Output Access
+
+Reference operation outputs:
+
+```yaml
+${operation-name.output}          # Full output
+${operation-name.output.field}    # Specific field
+${operation-name.executed}        # true if ran
+${operation-name.failed}          # true if failed
+${operation-name.cached}          # true if from cache
+${operation-name.duration}        # Execution time (ms)
+${operation-name.retry_count}     # Number of retries
+```
+
+## Performance Features
+
+### Automatic Parallelization
+
+Operations without dependencies run in parallel:
+
+```yaml
+operations:
+  # These 3 run in parallel
+  - name: fetch-a
+    operation: http
+    config:
+      url: https://api-a.com
+
+  - name: fetch-b
+    operation: http
+    config:
+      url: https://api-b.com
+
+  - name: fetch-c
+    operation: http
+    config:
+      url: https://api-c.com
+
+  # This waits for all 3
+  - name: merge
+    operation: code
+    config:
+      code: |
+        return {
+          a: ${fetch-a.output},
+          b: ${fetch-b.output},
+          c: ${fetch-c.output}
+        };
+```
+
+### Built-in Caching
+
+Cache expensive operations:
+
+```yaml
+operations:
+  - name: expensive-ai
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${input.text}
+    cache:
+      ttl: 3600  # Cache for 1 hour
+      key: ai-${input.text}
+```
+
+### Automatic Retry
+
+Retry failed operations:
+
+```yaml
+operations:
+  - name: flaky-api
+    operation: http
+    config:
+      url: https://api.example.com
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+      initialDelay: 1000
+```
+
+## Error Handling
+
+### Conditional Execution
+
+Skip operations on failure:
+
+```yaml
+operations:
+  - name: try-operation
+    operation: http
+    config:
+      url: https://api.example.com
+
+  - name: fallback
+    condition: ${try-operation.failed}
+    operation: http
+    config:
+      url: https://backup-api.com
+
+outputs:
+  data: ${try-operation.output || fallback.output}
+```
+
+### Error Context
+
+Access error details:
+
+```yaml
+operations:
+  - name: risky-op
+    operation: http
+    config:
+      url: https://api.example.com
+
+  - name: log-error
+    condition: ${risky-op.failed}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO errors (error, timestamp) VALUES (?, ?)
+      params:
+        - ${risky-op.error}
+        - ${Date.now()}
+```
+
+## Best Practices
+
+1. **Use the Right Operation** - Each is optimized for its use case
+2. **Cache Aggressively** - Cache expensive operations
+3. **Handle Failures** - Use conditions and fallbacks
+4. **Parallel by Default** - Don't create unnecessary dependencies
+5. **Set Timeouts** - Prevent hanging operations
+6. **Monitor Performance** - Track operation durations
+7. **Test Thoroughly** - Unit test each operation
+8. **Version Components** - Use Edgit for prompts/configs
+
+## Operation Comparison
+
+### When to Use What
+
+**think vs code**:
+- Use `think` for AI reasoning, natural language
+- Use `code` for deterministic logic, calculations
+
+**storage (KV) vs storage (D1)**:
+- Use KV for caching, simple key-value
+- Use D1 for structured data, complex queries
+
+**http vs tools**:
+- Use `http` for direct API calls
+- Use `tools` for MCP-compatible tools
+
+**email vs sms**:
+- Use `email` for rich content, attachments
+- Use `sms` for urgent, short messages
+
+**html vs page**:
+- Use `html` for simple rendering
+- Use `page` for full-stack, interactive UIs
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="think" icon="brain" href="/conductor/operations/think">
+    AI reasoning operation
+  </Card>
+
+  <Card title="storage" icon="database" href="/conductor/operations/storage">
+    Data storage operation
+  </Card>
+
+  <Card title="http" icon="globe" href="/conductor/operations/http">
+    HTTP request operation
+  </Card>
+
+  <Card title="All Operations" icon="bolt" href="/conductor/core-concepts/operations">
+    Core concepts guide
+  </Card>
+</CardGroup>

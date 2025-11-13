@@ -1,0 +1,133 @@
+---
+title: "Installation"
+description: "Install Edgit CLI and get started"
+---
+
+# Installation
+
+**Get Edgit running in 2 minutes. No complex setup, no configuration files.**
+
+## Prerequisites
+
+You need:
+- **Node.js** 18+ ([nodejs.org](https://nodejs.org))
+- **Git** 2.30+ (probably already installed)
+
+Check:
+```bash
+node --version  # Should be 18+
+git --version   # Should be 2.30+
+```
+
+## Install
+
+```bash
+npm install -g @ensemble-edge/edgit
+edgit --version
+```
+
+**That's it.** You're ready to version components.
+
+## Initialize in Your Repo
+
+```bash
+cd your-project
+edgit init
+```
+
+This creates `.edgit/components.json`:
+```json
+{
+  "version": "1.0",
+  "components": {}
+}
+```
+
+Commit it:
+```bash
+edgit add .edgit/
+edgit commit -m "chore: initialize edgit"
+```
+
+## Optional: AI-Powered Commits
+
+Want AI to generate your commit messages? Add an OpenAI API key:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export OPENAI_API_KEY=sk-...
+```
+
+Test it:
+```bash
+# Make a change
+echo "export const test = () => 'hello'" > src/test.ts
+edgit add .
+edgit commit  # AI generates: "feat(test): add test function"
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found: edgit">
+    Your PATH doesn't include npm global bin directory.
+
+    **Fix:**
+    ```bash
+    # Find npm global bin path
+    npm config get prefix
+
+    # Add to PATH (add to ~/.zshrc or ~/.bashrc)
+    export PATH="$(npm config get prefix)/bin:$PATH"
+
+    # Reload shell
+    source ~/.zshrc
+    ```
+  </Accordion>
+
+  <Accordion title="Permission errors (EACCES)">
+    Don't have permission to install globally.
+
+    **Fix (recommended):** Use nvm
+    ```bash
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    nvm install 18
+    npm install -g @ensemble-edge/edgit
+    ```
+
+    **Fix (alternative):** Install locally per project
+    ```bash
+    npm install --save-dev @ensemble-edge/edgit
+    npx edgit --version
+    ```
+  </Accordion>
+
+  <Accordion title="AI commits not working">
+    API key isn't set or is invalid.
+
+    **Check:**
+    ```bash
+    echo $OPENAI_API_KEY  # Should start with sk-
+    ```
+
+    **Test the key:**
+    ```bash
+    curl https://api.openai.com/v1/models \
+      -H "Authorization: Bearer $OPENAI_API_KEY"
+    ```
+
+    If that fails, your key is invalid. Get a new one at [platform.openai.com](https://platform.openai.com/api-keys).
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Basic Usage" icon="rocket" href="/edgit/getting-started/basic-usage">
+    Learn the essential commands
+  </Card>
+
+  <Card title="Versioning Guide" icon="tags" href="/edgit/guides/versioning-components-agents">
+    Master component and agent versioning
+  </Card>
+</CardGroup>

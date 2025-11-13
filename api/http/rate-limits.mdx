@@ -1,0 +1,279 @@
+---
+title: "Rate Limits"
+description: "API rate limiting and quotas"
+---
+
+# Rate Limits
+
+**Understand and manage API rate limits.**
+
+## Overview
+
+Rate limits prevent abuse and ensure fair usage across all users.
+
+## Limits by Plan
+
+### Free Tier
+
+- **Requests**: 100/hour
+- **Executions**: 1,000/month
+- **Concurrent**: 5
+
+### Pro Plan
+
+- **Requests**: 1,000/hour
+- **Executions**: 100,000/month
+- **Concurrent**: 50
+
+### Enterprise
+
+- **Requests**: Custom
+- **Executions**: Custom
+- **Concurrent**: Custom
+
+## Rate Limit Headers
+
+Every API response includes rate limit headers:
+
+```http
+HTTP/1.1 200 OK
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 999
+X-RateLimit-Reset: 1705315200
+X-RateLimit-Retry-After: 3600
+```
+
+**Headers**:
+- `X-RateLimit-Limit` - Total requests allowed per window
+- `X-RateLimit-Remaining` - Requests remaining in current window
+- `X-RateLimit-Reset` - Unix timestamp when limit resets
+- `X-RateLimit-Retry-After` - Seconds until you can retry (if rate limited)
+
+## Rate Limit Exceeded
+
+When you exceed your rate limit:
+
+### Response (429)
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 3600
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1705315200
+
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded. Please retry after 3600 seconds.",
+    "limit": 1000,
+    "reset": 1705315200,
+    "retryAfter": 3600
+  }
+}
+```
+
+### Handling in Code
+
+```javascript
+async function executeWithRetry(ensemble, inputs) {
+  try {
+    return await conductor.execute(ensemble, inputs);
+  } catch (error) {
+    if (error.code === 'RATE_LIMIT_EXCEEDED') {
+      const retryAfter = error.retryAfter * 1000; // Convert to ms
+      console.log(`Rate limited. Retrying in ${retryAfter}ms`);
+      
+      await sleep(retryAfter);
+      return await conductor.execute(ensemble, inputs);
+    }
+    throw error;
+  }
+}
+```
+
+## Best Practices
+
+### 1. Check Headers
+
+```javascript
+const response = await fetch(url, options);
+
+const remaining = parseInt(response.headers.get('X-RateLimit-Remaining'));
+const reset = parseInt(response.headers.get('X-RateLimit-Reset'));
+
+if (remaining < 10) {
+  console.warn(`Only ${remaining} requests remaining until ${new Date(reset * 1000)}`);
+}
+```
+
+### 2. Implement Backoff
+
+```javascript
+async function withExponentialBackoff(fn, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error.code === 'RATE_LIMIT_EXCEEDED' && i < maxRetries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, i), 30000);
+        await sleep(delay);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+```
+
+### 3. Batch Requests
+
+```javascript
+// Bad: Multiple sequential requests
+for (const item of items) {
+  await conductor.execute('process-item', { item });
+}
+
+// Good: Single batched request
+await conductor.execute('process-items', { items });
+```
+
+### 4. Cache Results
+
+```javascript
+const cache = new Map();
+
+async function executeWithCache(ensemble, inputs) {
+  const key = `${ensemble}:${JSON.stringify(inputs)}`;
+  
+  if (cache.has(key)) {
+    return cache.get(key);
+  }
+  
+  const result = await conductor.execute(ensemble, inputs);
+  cache.set(key, result);
+  
+  return result;
+}
+```
+
+### 5. Use Webhooks
+
+```javascript
+// Bad: Poll for results
+while (true) {
+  const status = await conductor.getExecution(executionId);
+  if (status.complete) break;
+  await sleep(1000); // Wastes rate limit
+}
+
+// Good: Use webhooks
+await conductor.execute('ensemble', inputs, {
+  webhook: 'https://yourapp.com/webhook'
+});
+```
+
+## Rate Limit Tiers
+
+Rate limits are calculated per:
+
+- **API Token**: Each token has independent limits
+- **IP Address**: Additional per-IP limits prevent abuse
+- **Time Window**: Sliding 1-hour window
+
+## Concurrent Execution Limits
+
+Maximum concurrent executions:
+
+- **Free**: 5
+- **Pro**: 50
+- **Enterprise**: Custom
+
+### Handling Concurrency
+
+```javascript
+const queue = new PQueue({ concurrency: 5 });
+
+const results = await Promise.all(
+  items.map(item =>
+    queue.add(() => conductor.execute('process', { item }))
+  )
+);
+```
+
+## Monitoring Usage
+
+### Check Current Usage
+
+```bash
+curl https://api.ensemble.dev/v1/usage \
+  -H "Authorization: Bearer ${API_TOKEN}"
+```
+
+Response:
+```json
+{
+  "period": {
+    "start": 1705315200000,
+    "end": 1705318800000
+  },
+  "requests": {
+    "used": 234,
+    "limit": 1000,
+    "remaining": 766
+  },
+  "executions": {
+    "used": 1234,
+    "limit": 100000,
+    "remaining": 98766
+  }
+}
+```
+
+### Usage Dashboard
+
+View real-time usage at:
+```
+https://cloud.ensemble.dev/usage
+```
+
+## Increase Limits
+
+### Upgrade Plan
+
+```bash
+# Upgrade to Pro
+conductor upgrade pro
+
+# Or visit dashboard
+https://cloud.ensemble.dev/billing
+```
+
+### Request Increase
+
+For Enterprise plans, contact:
+- Email: sales@ensemble.dev
+- Dashboard: Settings → Rate Limits → Request Increase
+
+## Error Codes
+
+- `RATE_LIMIT_EXCEEDED` - Hourly limit exceeded
+- `QUOTA_EXCEEDED` - Monthly quota exceeded
+- `CONCURRENT_LIMIT_EXCEEDED` - Too many concurrent executions
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/http/authentication">
+    API tokens
+  </Card>
+  <Card title="Endpoints" icon="route" href="/api/http/endpoints">
+    API reference
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/api/http/webhooks">
+    Avoid polling
+  </Card>
+  <Card title="Upgrade" icon="arrow-up" href="https://ensemble.dev/pricing">
+    Increase limits
+  </Card>
+</CardGroup>

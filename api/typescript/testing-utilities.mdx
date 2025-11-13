@@ -1,0 +1,476 @@
+---
+title: "Testing Utilities"
+description: "Test your ensembles and agents"
+---
+
+# Testing Utilities
+
+**Comprehensive testing utilities for Conductor workflows.**
+
+## TestConductor
+
+Complete test harness with mocking capabilities.
+
+### create()
+
+Create a test conductor instance.
+
+```typescript
+import { TestConductor } from '@ensemble/conductor/testing';
+
+const conductor = await TestConductor.create(options?: TestConductorOptions);
+```
+
+**Options**:
+
+```typescript
+interface TestConductorOptions {
+  projectPath?: string;        // Path to Conductor project
+  env?: Record<string, any>;   // Mock environment
+  mocks?: MockConfig;          // Mock configuration
+  enableLogging?: boolean;     // Enable test logging
+}
+```
+
+**Example**:
+
+```typescript
+const conductor = await TestConductor.create({
+  projectPath: './conductor',
+  env: {
+    OPENAI_API_KEY: 'test-key',
+    DATABASE_URL: 'mock'
+  },
+  mocks: {
+    ai: {
+      'think-operation': { result: 'Mocked AI response' }
+    },
+    http: {
+      'https://api.example.com': { status: 200, body: { data: 'mock' } }
+    }
+  }
+});
+```
+
+### Methods
+
+#### executeEnsemble()
+
+Execute ensemble in test mode.
+
+```typescript
+async executeEnsemble(
+  name: string,
+  inputs: Record<string, any>
+): Promise<TestExecutionResult>
+```
+
+**Returns**:
+
+```typescript
+interface TestExecutionResult {
+  success: boolean;
+  output?: Record<string, any>;
+  error?: ExecutionError;
+  duration: number;
+  agents: AgentExecution[];
+  operations: OperationExecution[];
+  logs: LogEntry[];
+}
+```
+
+**Example**:
+
+```typescript
+const result = await conductor.executeEnsemble('user-onboarding', {
+  email: 'test@example.com',
+  name: 'Test User'
+});
+
+expect(result.success).toBe(true);
+expect(result.output).toHaveProperty('userId');
+```
+
+#### mock()
+
+Mock an agent or operation.
+
+```typescript
+mock(target: string, response: any): void
+```
+
+**Example**:
+
+```typescript
+// Mock agent
+conductor.mock('company-enricher', {
+  company_data: {
+    name: 'Anthropic',
+    industry: 'AI'
+  }
+});
+
+// Mock operation
+conductor.mock('openai.chat', {
+  message: 'Mocked response'
+});
+
+// Mock HTTP
+conductor.mock('https://api.example.com/data', {
+  status: 200,
+  body: { result: 'mocked' }
+});
+```
+
+#### spy()
+
+Spy on agent/operation execution.
+
+```typescript
+spy(target: string): SpyInstance
+```
+
+**Example**:
+
+```typescript
+const enricherSpy = conductor.spy('company-enricher');
+
+await conductor.executeEnsemble('workflow', input);
+
+expect(enricherSpy).toHaveBeenCalled();
+expect(enricherSpy).toHaveBeenCalledWith({
+  company_name: 'Anthropic'
+});
+expect(enricherSpy.callCount).toBe(1);
+```
+
+#### clearMocks()
+
+Clear all mocks.
+
+```typescript
+clearMocks(): void
+```
+
+#### reset()
+
+Reset test conductor state.
+
+```typescript
+reset(): void
+```
+
+## Custom Matchers
+
+Vitest matchers for Conductor testing.
+
+### Setup
+
+```typescript
+import { registerMatchers } from '@ensemble/conductor/testing';
+import { expect } from 'vitest';
+
+registerMatchers(expect);
+```
+
+### Matchers
+
+#### toBeSuccessful()
+
+Assert execution succeeded.
+
+```typescript
+expect(result).toBeSuccessful();
+```
+
+#### toHaveFailed()
+
+Assert execution failed.
+
+```typescript
+expect(result).toHaveFailed();
+```
+
+#### toHaveOutput()
+
+Assert specific output.
+
+```typescript
+expect(result).toHaveOutput('userId', expect.any(String));
+expect(result).toHaveOutput('created', true);
+```
+
+#### toHaveExecutedAgent()
+
+Assert agent was executed.
+
+```typescript
+expect(result).toHaveExecutedAgent('company-enricher');
+```
+
+#### toHaveExecutedOperation()
+
+Assert operation was executed.
+
+```typescript
+expect(result).toHaveExecutedOperation('think', 'analyze');
+```
+
+#### toHaveDuration()
+
+Assert execution duration.
+
+```typescript
+expect(result).toHaveDuration({ lessThan: 1000 }); // < 1 second
+expect(result).toHaveDuration({ greaterThan: 100, lessThan: 5000 });
+```
+
+#### toMatchState()
+
+Assert final state.
+
+```typescript
+expect(result).toMatchState({
+  counter: 5,
+  processed: true
+});
+```
+
+## Mock Implementations
+
+### MockAIProvider
+
+Mock AI provider for testing.
+
+```typescript
+import { MockAIProvider } from '@ensemble/conductor/testing';
+
+const provider = new MockAIProvider({
+  responses: {
+    'analyze-text': 'This is a positive review',
+    'summarize': 'Summary of the text'
+  }
+});
+```
+
+### MockDatabase
+
+Mock D1 database.
+
+```typescript
+import { MockDatabase } from '@ensemble/conductor/testing';
+
+const db = new MockDatabase({
+  tables: {
+    users: [
+      { id: 1, email: 'test@example.com', name: 'Test' }
+    ],
+    posts: [
+      { id: 1, user_id: 1, title: 'Test Post' }
+    ]
+  }
+});
+```
+
+### MockKV
+
+Mock KV namespace.
+
+```typescript
+import { MockKV } from '@ensemble/conductor/testing';
+
+const kv = new MockKV({
+  'user-123': { name: 'Test User', premium: true },
+  'cache-key': 'cached-value'
+});
+```
+
+### MockVectorize
+
+Mock Vectorize index.
+
+```typescript
+import { MockVectorize } from '@ensemble/conductor/testing';
+
+const vectorize = new MockVectorize({
+  documents: [
+    {
+      id: 'doc-1',
+      text: 'Document about AI',
+      embedding: [0.1, 0.2, ...],
+      metadata: { category: 'tech' }
+    }
+  ]
+});
+```
+
+## Testing Patterns
+
+### Unit Testing
+
+Test individual agents.
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble/conductor/testing';
+
+describe('company-enricher', () => {
+  it('should enrich company data', async () => {
+    const conductor = await TestConductor.create();
+    
+    const result = await conductor.executeAgent('company-enricher', {
+      company_name: 'Anthropic'
+    });
+    
+    expect(result).toBeDefined();
+    expect(result.output).toHaveProperty('name');
+    expect(result.output).toHaveProperty('industry');
+  });
+});
+```
+
+### Integration Testing
+
+Test complete ensembles.
+
+```typescript
+describe('user-onboarding', () => {
+  it('should onboard new user', async () => {
+    const conductor = await TestConductor.create();
+    
+    const result = await conductor.executeEnsemble('user-onboarding', {
+      email: 'new@example.com',
+      name: 'New User'
+    });
+    
+    expect(result).toBeSuccessful();
+    expect(result.output.userId).toBeDefined();
+    expect(result).toHaveExecutedAgent('create-account');
+    expect(result).toHaveExecutedAgent('send-welcome-email');
+  });
+});
+```
+
+### Mocking External Services
+
+```typescript
+describe('fetch-and-analyze', () => {
+  it('should analyze fetched data', async () => {
+    const conductor = await TestConductor.create();
+    
+    // Mock HTTP
+    conductor.mock('https://api.example.com/data', {
+      status: 200,
+      body: { items: [1, 2, 3] }
+    });
+    
+    // Mock AI
+    conductor.mock('openai.chat', {
+      analysis: 'The data shows an upward trend'
+    });
+    
+    const result = await conductor.executeEnsemble('fetch-and-analyze', {
+      url: 'https://api.example.com/data'
+    });
+    
+    expect(result).toBeSuccessful();
+    expect(result.output.analysis).toContain('upward trend');
+  });
+});
+```
+
+### Testing State
+
+```typescript
+describe('stateful-counter', () => {
+  it('should maintain counter state', async () => {
+    const conductor = await TestConductor.create();
+    
+    // First execution
+    const result1 = await conductor.executeEnsemble('counter', {});
+    expect(result1).toMatchState({ count: 1 });
+    
+    // Second execution
+    const result2 = await conductor.executeEnsemble('counter', {});
+    expect(result2).toMatchState({ count: 2 });
+  });
+});
+```
+
+### Testing Errors
+
+```typescript
+describe('error-handling', () => {
+  it('should handle API failure gracefully', async () => {
+    const conductor = await TestConductor.create();
+    
+    // Mock failure
+    conductor.mock('https://api.example.com/data', {
+      status: 500,
+      error: 'Internal Server Error'
+    });
+    
+    const result = await conductor.executeEnsemble('resilient-fetch', {
+      url: 'https://api.example.com/data'
+    });
+    
+    expect(result).toBeSuccessful(); // Should use fallback
+    expect(result.output.usedFallback).toBe(true);
+  });
+});
+```
+
+## Best Practices
+
+**1. Use Descriptive Test Names**
+```typescript
+it('should enrich company data with industry and description', async () => {
+  // ...
+});
+```
+
+**2. Test Happy Path and Error Cases**
+```typescript
+describe('user-validation', () => {
+  it('should accept valid user data', async () => { ... });
+  it('should reject invalid email', async () => { ... });
+  it('should reject missing fields', async () => { ... });
+});
+```
+
+**3. Mock External Dependencies**
+```typescript
+conductor.mock('external-api', mockResponse);
+```
+
+**4. Assert on Multiple Aspects**
+```typescript
+expect(result).toBeSuccessful();
+expect(result).toHaveDuration({ lessThan: 1000 });
+expect(result).toHaveExecutedAgent('validator');
+expect(result.output).toMatchObject({ ... });
+```
+
+**5. Use Spies for Call Verification**
+```typescript
+const spy = conductor.spy('expensive-operation');
+// ... execute
+expect(spy.callCount).toBe(1); // Verify caching worked
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Classes" icon="cube" href="/api/typescript/core-classes">
+    Core API
+  </Card>
+  <Card title="Testing Guide" icon="book" href="/conductor/building/testing-observability">
+    Testing patterns
+  </Card>
+  <Card title="Examples" icon="lightbulb" href="/conductor/playbooks/rag-pipeline">
+    Example tests
+  </Card>
+  <Card title="Vitest" icon="vial" href="https://vitest.dev">
+    Vitest docs
+  </Card>
+</CardGroup>

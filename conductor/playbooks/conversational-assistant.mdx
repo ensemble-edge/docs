@@ -1,0 +1,436 @@
+---
+title: "Conversational Assistant"
+description: "Multi-turn chat with memory"
+---
+
+# Conversational Assistant Playbook
+
+**Build chat assistants with memory, tools, and context awareness.**
+
+## Basic Pattern
+
+```yaml
+ensemble: chatbot
+
+state:
+  schema:
+    history: array
+
+agents:
+  # Add user message to history
+  - name: add-user-message
+    operation: code
+    state:
+      use: [history]
+      set:
+        history: ${[...state.history, { role: 'user', content: input.message }]}
+    config:
+      code: return { updated: true };
+
+  # Generate response
+  - name: respond
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      messages: ${state.history}
+
+  # Add assistant message to history
+  - name: add-assistant-message
+    operation: code
+    state:
+      use: [history]
+      set:
+        history: ${[...state.history, { role: 'assistant', content: respond.output }]}
+    config:
+      code: return { updated: true };
+
+output:
+  response: ${respond.output}
+```
+
+## RAG-Enhanced Assistant
+
+```yaml
+ensemble: rag-assistant
+
+state:
+  schema:
+    history: array
+    context: array
+
+agents:
+  # Search knowledge base
+  - name: search
+    agent: rag
+    config:
+      action: search
+      query: ${input.message}
+      topK: 3
+
+  # Generate contextual response
+  - name: respond
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      messages: ${[
+        {
+          role: 'system',
+          content: 'You are a helpful assistant. Use the context below to answer questions.\n\nContext:\n' +
+            search.output.results.map(r => r.text).join('\n\n')
+        },
+        ...state.history,
+        {
+          role: 'user',
+          content: input.message
+        }
+      ]}
+
+  # Update history
+  - name: update-history
+    operation: code
+    state:
+      use: [history]
+      set:
+        history: ${[
+          ...state.history,
+          { role: 'user', content: input.message },
+          { role: 'assistant', content: respond.output, sources: search.output.results }
+        ].slice(-20)}  # Keep last 20 messages
+    config:
+      code: return { updated: true };
+```
+
+## Tool-Using Assistant
+
+```yaml
+ensemble: tool-assistant
+
+agents:
+  # Determine if tools needed
+  - name: plan
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        User request: ${input.message}
+
+        Available tools:
+        - web_search: Search the web
+        - calculator: Perform calculations
+        - weather: Get weather information
+
+        Return JSON: { "needs_tools": boolean, "tools": [string], "reasoning": string }
+
+  # Execute tools if needed (example: web search)
+  - name: web-search
+    condition: ${JSON.parse(plan.output).tools.includes('web_search')}
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.message}
+
+  # Execute calculator
+  - name: calculator
+    condition: ${JSON.parse(plan.output).tools.includes('calculator')}
+    operation: code
+    config:
+      code: |
+        // Extract math expression and evaluate
+        const expr = ${input.message}.match(/calculate\s+(.+)/i)?.[1];
+        return { result: eval(expr) };
+
+  # Generate final response
+  - name: respond
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        User: ${input.message}
+
+        ${plan.executed ? 'Planning: ' + plan.output : ''}
+        ${web-search.executed ? 'Search results: ' + JSON.stringify(web-search.output) : ''}
+        ${calculator.executed ? 'Calculation: ' + calculator.output.result : ''}
+
+        Provide helpful response using tool results.
+```
+
+## Multi-Agent Assistant
+
+```yaml
+ensemble: multi-agent-assistant
+
+agents:
+  # Classify intent
+  - name: classify
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0
+      prompt: |
+        Classify user intent: ${input.message}
+
+        Categories:
+        - general: General questions
+        - technical: Technical support
+        - sales: Sales inquiries
+        - billing: Billing questions
+
+        Return JSON: { "category": string, "confidence": number }
+
+  # Route to specialist agents
+  - name: general-agent
+    condition: ${JSON.parse(classify.output).category === 'general'}
+    operation: think
+    config:
+      prompt: |
+        General assistant response:
+        User: ${input.message}
+
+  - name: technical-agent
+    condition: ${JSON.parse(classify.output).category === 'technical'}
+    operation: think
+    config:
+      prompt: |
+        Technical support response:
+        User: ${input.message}
+        Include troubleshooting steps.
+
+  - name: sales-agent
+    condition: ${JSON.parse(classify.output).category === 'sales'}
+    operation: think
+    config:
+      prompt: |
+        Sales inquiry response:
+        User: ${input.message}
+        Focus on product benefits and pricing.
+
+  - name: billing-agent
+    condition: ${JSON.parse(classify.output).category === 'billing'}
+    operation: think
+    config:
+      prompt: |
+        Billing support response:
+        User: ${input.message}
+
+  # Select response
+  - name: select-response
+    operation: code
+    config:
+      code: |
+        return {
+          response: ${general-agent.output || technical-agent.output || sales-agent.output || billing-agent.output},
+          agent: ${JSON.parse(classify.output).category}
+        };
+```
+
+## Personalized Assistant
+
+```yaml
+ensemble: personalized-assistant
+
+agents:
+  # Load user profile
+  - name: load-profile
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: user-profile-${input.user_id}
+
+  # Load conversation history
+  - name: load-history
+    operation: storage
+    config:
+      type: d1
+      query: |
+        SELECT role, content, timestamp
+        FROM conversation_history
+        WHERE user_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 20
+      params: [${input.user_id}]
+
+  # Generate personalized response
+  - name: respond
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      messages: ${[
+        {
+          role: 'system',
+          content: |
+            User profile:
+            - Name: ${load-profile.output.name}
+            - Preferences: ${load-profile.output.preferences}
+            - History: ${load-profile.output.interaction_count} interactions
+        },
+        ...load-history.output.reverse(),
+        {
+          role: 'user',
+          content: input.message
+        }
+      ]}
+
+  # Save interaction
+  - name: save-interaction
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO conversation_history (user_id, role, content, timestamp)
+        VALUES (?, ?, ?, ?), (?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - user
+        - ${input.message}
+        - ${Date.now()}
+        - ${input.user_id}
+        - assistant
+        - ${respond.output}
+        - ${Date.now()}
+
+  # Update profile
+  - name: update-profile
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: user-profile-${input.user_id}
+      value:
+        name: ${load-profile.output.name}
+        preferences: ${load-profile.output.preferences}
+        interaction_count: ${(load-profile.output.interaction_count || 0) + 1}
+        last_interaction: ${Date.now()}
+```
+
+## Handoff to Human
+
+```yaml
+ensemble: assistant-with-handoff
+
+agents:
+  # AI attempts response
+  - name: ai-response
+    operation: think
+    config:
+      prompt: ${input.message}
+
+  # Check if AI is confident
+  - name: check-confidence
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Rate confidence (0-1) in this response:
+        Question: ${input.message}
+        Response: ${ai-response.output}
+
+        Return JSON: { "confidence": number, "reasoning": string }
+
+  # Use AI response if confident
+  - name: use-ai
+    condition: ${JSON.parse(check-confidence.output).confidence > 0.7}
+    operation: code
+    config:
+      code: return { response: ${ai-response.output}, source: 'ai' };
+
+  # Hand off to human if not confident
+  - name: handoff
+    condition: ${JSON.parse(check-confidence.output).confidence <= 0.7}
+    agent: hitl
+    inputs:
+      data:
+        user_message: ${input.message}
+        ai_response: ${ai-response.output}
+        confidence: ${JSON.parse(check-confidence.output).confidence}
+      prompt: |
+        AI couldn't confidently answer this question.
+        Please provide a response.
+
+        User: ${input.message}
+        AI attempted: ${ai-response.output}
+      approvers: [support@example.com]
+      timeout: 3600
+
+  # Select final response
+  - name: final-response
+    operation: code
+    config:
+      code: |
+        return {
+          response: ${use-ai.executed ? use-ai.output.response : handoff.output.data.response},
+          source: ${use-ai.executed ? 'ai' : 'human'},
+          confidence: ${JSON.parse(check-confidence.output).confidence}
+        };
+```
+
+## Best Practices
+
+**1. Limit History**
+```yaml
+state:
+  history: ${state.history.slice(-20)}  # Keep last 20 messages
+```
+
+**2. System Prompts**
+```yaml
+messages: ${[
+  { role: 'system', content: 'You are a helpful assistant...' },
+  ...state.history
+]}
+```
+
+**3. User Context**
+```yaml
+# Load user profile
+- name: load-profile
+  operation: storage
+  config:
+    type: kv
+    key: user-${input.user_id}
+```
+
+**4. Streaming Responses**
+```yaml
+config:
+  stream: true  # Stream tokens as they're generated
+```
+
+**5. Error Handling**
+```yaml
+- name: respond
+  operation: think
+  retry:
+    maxAttempts: 3
+
+- name: fallback
+  condition: ${respond.failed}
+  operation: code
+  config:
+    code: return { response: "I'm having trouble right now. Please try again." };
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="State Management" icon="database" href="/conductor/core-concepts/state-management">
+    Conversation history
+  </Card>
+  <Card title="RAG Pipeline" icon="book" href="/conductor/playbooks/rag-pipeline">
+    Knowledge base
+  </Card>
+  <Card title="tools Operation" icon="wrench" href="/conductor/operations/tools">
+    Tool integration
+  </Card>
+  <Card title="HITL Approval" icon="user-check" href="/conductor/playbooks/hitl-approval-flow">
+    Human handoff
+  </Card>
+</CardGroup>

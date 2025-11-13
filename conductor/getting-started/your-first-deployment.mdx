@@ -1,0 +1,540 @@
+---
+title: "Your First Deployment"
+description: "Deploy your ensemble to Cloudflare Workers"
+---
+
+# Your First Deployment
+
+**From local development to global edge deployment in 60 seconds.**
+
+You've built your ensemble. Now let's put it in production where it matters.
+
+## Prerequisites
+
+Before deploying:
+-  Wrangler installed and authenticated (`wrangler login`)
+-  Working ensemble running locally (`npm run dev`)
+-  `wrangler.toml` configured
+
+## Deploy to Production
+
+```bash
+npm run deploy
+```
+
+That's it. Your ensemble is live globally.
+
+Output:
+```
+Total Upload: 45.23 KiB / gzip: 12.45 KiB
+Uploaded my-conductor-app (1.2 sec)
+Published my-conductor-app (0.5 sec)
+  https://my-conductor-app.your-subdomain.workers.dev
+Current Deployment ID: abc123-def456-ghi789
+```
+
+Test it:
+```bash
+curl https://my-conductor-app.your-subdomain.workers.dev?name=World
+```
+
+**You're live.** Your ensemble is running in 300+ cities worldwide with <50ms cold starts.
+
+## Deployment Checklist
+
+### 1. Environment Secrets
+
+Never commit secrets to git. Use Wrangler secrets:
+
+```bash
+# API keys
+wrangler secret put OPENAI_API_KEY
+wrangler secret put ANTHROPIC_API_KEY
+
+# Authentication
+wrangler secret put JWT_SECRET
+wrangler secret put SESSION_SECRET
+
+# Webhooks
+wrangler secret put STRIPE_WEBHOOK_SECRET
+wrangler secret put GITHUB_WEBHOOK_SECRET
+```
+
+Enter the secret value when prompted.
+
+### 2. Create Resources
+
+Create required Cloudflare resources:
+
+```bash
+# KV namespace for caching
+wrangler kv:namespace create CACHE
+# Add 'id' from output to wrangler.toml
+
+# D1 database
+wrangler d1 create production-db
+# Add 'database_id' from output to wrangler.toml
+
+# R2 bucket
+wrangler r2 bucket create conductor-assets
+
+# Vectorize index
+wrangler vectorize create embeddings --dimensions=1536 --metric=cosine
+```
+
+Update `wrangler.toml` with the IDs:
+
+```toml
+[[kv_namespaces]]
+binding = "CACHE"
+id = "abc123..."  # From create command
+
+[[d1_databases]]
+binding = "DB"
+database_name = "production-db"
+database_id = "def456..."  # From create command
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "conductor-assets"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "embeddings"
+```
+
+### 3. Run Database Migrations
+
+If using D1, run migrations:
+
+```bash
+# Create migration
+wrangler d1 migrations create production-db initial_schema
+
+# Write migration in migrations/0001_initial_schema.sql
+# Then apply:
+wrangler d1 migrations apply production-db --remote
+```
+
+Example migration:
+```sql
+-- migrations/0001_initial_schema.sql
+CREATE TABLE IF NOT EXISTS documents (
+  id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  embedding BLOB,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_documents_created ON documents(created_at);
+```
+
+### 4. Deploy Again
+
+```bash
+npm run deploy
+```
+
+Now your worker has access to all resources.
+
+## Custom Domains
+
+### Add Custom Domain
+
+```bash
+wrangler domains add api.example.com
+```
+
+Or add to `wrangler.toml`:
+
+```toml
+routes = [
+  { pattern = "api.example.com/*", custom_domain = true }
+]
+```
+
+### SSL Certificate
+
+Cloudflare automatically provisions SSL certificates. No configuration needed.
+
+## Multiple Environments
+
+### Configure Environments
+
+Edit `wrangler.toml`:
+
+```toml
+# Default (development)
+name = "conductor-dev"
+compatibility_date = "2024-01-01"
+
+[ai]
+binding = "AI"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "dev-cache-id"
+
+# Staging
+[env.staging]
+name = "conductor-staging"
+vars = { ENVIRONMENT = "staging" }
+
+[[env.staging.kv_namespaces]]
+binding = "CACHE"
+id = "staging-cache-id"
+
+# Production
+[env.production]
+name = "conductor-production"
+vars = { ENVIRONMENT = "production" }
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "prod-cache-id"
+```
+
+### Deploy to Environments
+
+```bash
+# Deploy to staging
+npm run deploy -- --env staging
+
+# Deploy to production
+npm run deploy -- --env production
+```
+
+### Environment-Specific Secrets
+
+```bash
+# Set secrets per environment
+wrangler secret put OPENAI_API_KEY --env staging
+wrangler secret put OPENAI_API_KEY --env production
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+Create `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Deploy to Staging
+        if: github.event_name == 'pull_request'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env staging
+
+      - name: Deploy to Production
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env production
+```
+
+Add secrets to GitHub:
+- `CLOUDFLARE_API_TOKEN`: Create at https://dash.cloudflare.com/profile/api-tokens
+- `CLOUDFLARE_ACCOUNT_ID`: Find in Cloudflare dashboard
+
+### GitLab CI
+
+Create `.gitlab-ci.yml`:
+
+```yaml
+stages:
+  - test
+  - deploy
+
+variables:
+  NODE_VERSION: "20"
+
+test:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - npm ci
+    - npm test
+
+deploy_staging:
+  stage: deploy
+  image: node:${NODE_VERSION}
+  script:
+    - npm install -g wrangler
+    - wrangler deploy --env staging
+  only:
+    - merge_requests
+  environment:
+    name: staging
+
+deploy_production:
+  stage: deploy
+  image: node:${NODE_VERSION}
+  script:
+    - npm install -g wrangler
+    - wrangler deploy --env production
+  only:
+    - main
+  environment:
+    name: production
+```
+
+Add CI/CD variables:
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+## Monitoring Deployments
+
+### View Logs
+
+```bash
+# Tail logs in real-time
+wrangler tail
+
+# Filter by status
+wrangler tail --status=error
+
+# Filter by IP
+wrangler tail --ip=1.2.3.4
+```
+
+### Check Metrics
+
+```bash
+# List deployments
+wrangler deployments list
+
+# View specific deployment
+wrangler deployments view abc123-def456
+```
+
+### Cloudflare Dashboard
+
+Visit https://dash.cloudflare.com/
+
+- **Workers & Pages** ’ Your worker ’ **Metrics**
+- View:
+  - Requests per second
+  - Errors
+  - CPU time
+  - Duration
+
+## Rollback
+
+### Rollback to Previous Deployment
+
+```bash
+# List deployments
+wrangler deployments list
+
+# Rollback to previous version
+wrangler rollback abc123-def456
+```
+
+### Version Control Rollback
+
+```bash
+# Revert to previous commit
+git revert HEAD
+
+# Push and deploy
+git push origin main
+```
+
+## Health Checks
+
+Add health check endpoint:
+
+```typescript
+// src/index.ts
+import { Conductor } from '@ensemble-edge/conductor';
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Health check endpoint
+    if (url.pathname === '/health') {
+      return Response.json({
+        status: 'ok',
+        timestamp: Date.now(),
+        version: env.VERSION || 'unknown'
+      });
+    }
+
+    // Regular ensemble execution
+    const conductor = new Conductor({ env });
+    const result = await conductor.execute('my-ensemble', {});
+    return Response.json(result);
+  }
+};
+```
+
+Test health check:
+```bash
+curl https://my-conductor-app.workers.dev/health
+```
+
+## Performance Optimization
+
+### Enable Minification
+
+In `wrangler.toml`:
+
+```toml
+[build]
+command = "npm run build"
+
+[build.upload]
+format = "modules"
+minify = true
+```
+
+### Bundle Size
+
+Check bundle size:
+```bash
+wrangler deploy --dry-run --outdir=dist
+ls -lh dist/
+```
+
+Keep it under 1MB for fast cold starts.
+
+### Caching Headers
+
+Return proper cache headers:
+
+```typescript
+return new Response(JSON.stringify(result), {
+  headers: {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+    'CDN-Cache-Control': 'public, max-age=3600'
+  }
+});
+```
+
+## Cost Monitoring
+
+### Free Tier Limits
+
+- **Requests**: 100,000/day
+- **Workers AI**: 10,000 neurons/day
+- **KV Reads**: 100,000/day
+- **KV Writes**: 1,000/day
+- **D1 Rows Read**: 5M/day
+- **D1 Rows Written**: 100k/day
+
+### Monitor Usage
+
+Check usage in Cloudflare dashboard:
+- **Workers & Pages** ’ **Analytics**
+- Set up billing alerts
+
+### Optimize Costs
+
+1. **Cache aggressively** - Reduce AI/API calls
+2. **Use KV for caching** - Faster and cheaper than D1
+3. **Batch operations** - Group D1 writes
+4. **Use Cloudflare AI** - Cheaper than OpenAI for simple tasks
+5. **Monitor and optimize** - Check analytics regularly
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Deployment fails with 'binding not found'">
+    **Problem**: Missing resource binding
+
+    **Fix**: Create the resource and add ID to `wrangler.toml`
+    ```bash
+    # Create KV namespace
+    wrangler kv:namespace create CACHE
+
+    # Add to wrangler.toml
+    [[kv_namespaces]]
+    binding = "CACHE"
+    id = "abc123..."
+    ```
+  </Accordion>
+
+  <Accordion title="500 errors in production">
+    **Problem**: Runtime error in worker
+
+    **Fix**: Check logs
+    ```bash
+    wrangler tail --status=error
+    ```
+    Look for stack traces and fix the issue.
+  </Accordion>
+
+  <Accordion title="Slow cold starts">
+    **Problem**: Large bundle size
+
+    **Fix**: Optimize bundle
+    ```bash
+    # Check bundle size
+    wrangler deploy --dry-run --outdir=dist
+
+    # Enable minification in wrangler.toml
+    [build.upload]
+    minify = true
+    ```
+  </Accordion>
+
+  <Accordion title="AI operations failing">
+    **Problem**: Missing AI binding or quota exceeded
+
+    **Fix**:
+    1. Check `wrangler.toml` has `[ai] binding = "AI"`
+    2. Check usage in Cloudflare dashboard
+    3. Consider paid plan for higher limits
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuring Cloudflare" icon="cloud" href="/conductor/getting-started/configuring-cloudflare">
+    Complete Cloudflare setup guide
+  </Card>
+
+  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
+    Monitor your deployments
+  </Card>
+
+  <Card title="CI/CD Integration" icon="infinity" href="/edgit/getting-started/cicd-integration">
+    Automate deployments
+  </Card>
+
+  <Card title="Core Concepts" icon="book" href="/conductor/core-concepts/operations">
+    Learn advanced features
+  </Card>
+</CardGroup>

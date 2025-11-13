@@ -1,0 +1,523 @@
+---
+title: "A/B Testing"
+description: "Test multiple variants simultaneously in production"
+---
+
+# A/B Testing
+
+**Test different implementations side-by-side in production. No feature flags, no external tools - just conditions and metrics.**
+
+Conductor makes A/B testing a first-class citizen. Test prompts, models, agents, entire workflows - anything.
+
+## Simple A/B Test
+
+Test two AI models:
+
+```yaml
+ensemble: ab-test-models
+
+agents:
+  # Variant A: GPT-4
+  - name: analyze-a
+    condition: ${input.user_id % 2 === 0}  # 50% of users
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${input.text}
+
+  # Variant B: Claude
+  - name: analyze-b
+    condition: ${input.user_id % 2 === 1}  # 50% of users
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: ${input.text}
+
+  # Log which variant was used
+  - name: log-variant
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO ab_tests (user_id, variant, timestamp)
+        VALUES (?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${analyze-a.executed ? 'A' : 'B'}
+        - ${Date.now()}
+
+output:
+  analysis: ${analyze-a.output || analyze-b.output}
+  variant: ${analyze-a.executed ? 'A' : 'B'}
+```
+
+## Traffic Splitting
+
+### 50/50 Split
+
+```yaml
+agents:
+  - name: variant-a
+    condition: ${input.user_id % 2 === 0}  # 50%
+
+  - name: variant-b
+    condition: ${input.user_id % 2 === 1}  # 50%
+```
+
+### 90/10 Split
+
+```yaml
+agents:
+  - name: control
+    condition: ${input.user_id % 10 !== 0}  # 90%
+
+  - name: treatment
+    condition: ${input.user_id % 10 === 0}  # 10%
+```
+
+### 33/33/33 Split (3 variants)
+
+```yaml
+agents:
+  - name: variant-a
+    condition: ${input.user_id % 3 === 0}  # 33%
+
+  - name: variant-b
+    condition: ${input.user_id % 3 === 1}  # 33%
+
+  - name: variant-c
+    condition: ${input.user_id % 3 === 2}  # 33%
+```
+
+### Dynamic Split (via KV)
+
+```yaml
+agents:
+  - name: load-split-config
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: ab-test-traffic-split
+
+  - name: control
+    condition: ${Math.random() * 100 < load-split-config.output.value.control_percentage}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+
+  - name: treatment
+    condition: ${Math.random() * 100 < load-split-config.output.value.treatment_percentage}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+```
+
+Update split via CLI:
+```bash
+wrangler kv:key put --namespace-id=$KV_ID "ab-test-traffic-split" \
+  '{"control_percentage": 70, "treatment_percentage": 30}'
+```
+
+## Sticky Sessions
+
+**Critical**: Users must get the same variant every time.
+
+### Bad (Random)
+
+```yaml
+# Don't do this - user gets different variant each request
+condition: ${Math.random() < 0.5}
+```
+
+### Good (Sticky)
+
+```yaml
+# Do this - user always gets same variant
+condition: ${hash(input.user_id) % 2 === 0}
+```
+
+### Hash Implementation
+
+```yaml
+agents:
+  - name: variant-a
+    condition: |
+      ${(() => {
+        const hash = input.user_id.split('').reduce((acc, char) => {
+          return ((acc << 5) - acc) + char.charCodeAt(0);
+        }, 0);
+        return Math.abs(hash) % 2 === 0;
+      })()}
+```
+
+Or simpler with parseInt:
+
+```yaml
+condition: ${parseInt(input.user_id, 36) % 2 === 0}
+```
+
+## What to Test
+
+### 1. AI Models
+
+Test different models:
+
+```yaml
+agents:
+  - name: gpt4
+    condition: ${input.user_id % 2 === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+
+  - name: claude
+    condition: ${input.user_id % 2 === 1}
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+```
+
+### 2. Prompts
+
+Test different prompts (with Edgit versioning):
+
+```yaml
+agents:
+  - name: analyze-v1
+    condition: ${input.user_id % 2 === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${component.analysis-prompt@v1.0.0}
+
+  - name: analyze-v2
+    condition: ${input.user_id % 2 === 1}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${component.analysis-prompt@v2.0.0}
+```
+
+### 3. Agent Implementations
+
+Test different agent versions:
+
+```yaml
+agents:
+  - name: scraper-v1
+    condition: ${input.user_id % 2 === 0}
+    agent: scraper@v1.0.0
+    inputs:
+      url: ${input.url}
+
+  - name: scraper-v2
+    condition: ${input.user_id % 2 === 1}
+    agent: scraper@v2.0.0
+    inputs:
+      url: ${input.url}
+```
+
+### 4. Entire Workflows
+
+Test different ensemble implementations:
+
+```yaml
+ensemble: ab-test-workflows
+
+agents:
+  # Variant A: Simple workflow
+  - name: workflow-a
+    condition: ${input.user_id % 2 === 0}
+    agent: simple-analyzer
+    inputs:
+      data: ${input.data}
+
+  # Variant B: Complex workflow
+  - name: workflow-b
+    condition: ${input.user_id % 2 === 1}
+    agent: complex-analyzer
+    inputs:
+      data: ${input.data}
+
+output:
+  result: ${workflow-a.output || workflow-b.output}
+  variant: ${workflow-a.executed ? 'A' : 'B'}
+```
+
+## Metrics Collection
+
+Track variant performance:
+
+```yaml
+ensemble: ab-test-with-metrics
+
+agents:
+  - name: variant-a
+    condition: ${input.user_id % 2 === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${input.text}
+
+  - name: variant-b
+    condition: ${input.user_id % 2 === 1}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.text}
+
+  # Store metrics
+  - name: record-metrics
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO ab_test_metrics
+        (user_id, variant, success, quality_score, latency_ms, cost_cents, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${variant-a.executed ? 'A' : 'B'}
+        - ${variant-a.executed ? variant-a.success : variant-b.success}
+        - ${input.quality_score}
+        - ${variant-a.executed ? variant-a.duration : variant-b.duration}
+        - ${variant-a.executed ? 0.03 : 0.001}  # Cost per request
+        - ${Date.now()}
+
+output:
+  result: ${variant-a.output || variant-b.output}
+  variant: ${variant-a.executed ? 'A' : 'B'}
+  cost_cents: ${variant-a.executed ? 0.03 : 0.001}
+```
+
+Query results:
+
+```sql
+-- Overall performance by variant
+SELECT
+  variant,
+  COUNT(*) as requests,
+  AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) as success_rate,
+  AVG(quality_score) as avg_quality,
+  AVG(latency_ms) as avg_latency,
+  AVG(cost_cents) as avg_cost
+FROM ab_test_metrics
+WHERE timestamp > datetime('now', '-7 days')
+GROUP BY variant;
+
+-- Results:
+-- A: 10000 requests, 95% success, 0.91 quality, 1200ms, $0.03
+-- B: 10000 requests, 94% success, 0.89 quality, 400ms, $0.001
+```
+
+## Multivariate Testing
+
+Test multiple variables simultaneously.
+
+### 2×2 Test: Model × Prompt
+
+```yaml
+ensemble: multivariate-2x2
+
+agents:
+  # Variant 1: GPT-4 + Prompt v1
+  - name: variant-1
+    condition: ${(input.user_id % 4) === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${component.prompt@v1.0.0}
+
+  # Variant 2: GPT-4 + Prompt v2
+  - name: variant-2
+    condition: ${(input.user_id % 4) === 1}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${component.prompt@v2.0.0}
+
+  # Variant 3: Claude + Prompt v1
+  - name: variant-3
+    condition: ${(input.user_id % 4) === 2}
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: ${component.prompt@v1.0.0}
+
+  # Variant 4: Claude + Prompt v2
+  - name: variant-4
+    condition: ${(input.user_id % 4) === 3}
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: ${component.prompt@v2.0.0}
+
+  - name: log-variant
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO multivariate_tests (user_id, model, prompt, timestamp)
+        VALUES (?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${variant-1.executed || variant-2.executed ? 'gpt-4' : 'claude'}
+        - ${variant-1.executed || variant-3.executed ? 'v1' : 'v2'}
+        - ${Date.now()}
+
+output:
+  result: ${variant-1.output || variant-2.output || variant-3.output || variant-4.output}
+  model: ${variant-1.executed || variant-2.executed ? 'gpt-4' : 'claude'}
+  prompt: ${variant-1.executed || variant-3.executed ? 'v1' : 'v2'}
+```
+
+## Analysis & Decision Making
+
+### Statistical Significance
+
+```python
+# scripts/analyze-ab-test.py
+import scipy.stats as stats
+
+# Get data from D1
+control_successes = 920
+control_total = 1000
+
+treatment_successes = 950
+treatment_total = 1000
+
+# Bayesian analysis
+control_posterior = stats.beta(control_successes + 1, control_total - control_successes + 1)
+treatment_posterior = stats.beta(treatment_successes + 1, treatment_total - treatment_successes + 1)
+
+# Probability treatment is better
+samples = 10000
+control_samples = control_posterior.rvs(samples)
+treatment_samples = treatment_posterior.rvs(samples)
+prob_treatment_better = (treatment_samples > control_samples).mean()
+
+print(f"Probability treatment is better: {prob_treatment_better:.2%}")
+
+if prob_treatment_better > 0.95:
+    print(" Treatment wins! Deploy to all users.")
+elif prob_treatment_better < 0.05:
+    print(" Control wins! Keep current version.")
+else:
+    print("   Inconclusive. Collect more data.")
+```
+
+### Auto-Promote Winner
+
+```yaml
+# .github/workflows/ab-test-promote.yml
+name: AB Test Auto-Promote
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Analyze Results
+        run: python scripts/analyze-ab-test.py > results.txt
+
+      - name: Auto-Promote if Winner
+        run: |
+          if grep -q "Treatment wins" results.txt; then
+            # Update ensemble to use treatment for 100% of traffic
+            sed -i 's/input.user_id % 2 === 1/true/' ensembles/my-ensemble.yaml
+            git add ensembles/my-ensemble.yaml
+            git commit -m "Auto-promote treatment variant"
+            git push
+          fi
+```
+
+## Best Practices
+
+1. **Sticky Sessions** - Use consistent hashing, not random
+2. **Sample Size** - Collect at least 1000 samples per variant
+3. **Statistical Significance** - Wait for p < 0.05 or Bayesian > 95%
+4. **Monitor for Weeks** - Capture weekly patterns
+5. **One Variable at a Time** - Or use multivariate with large samples
+6. **Track Costs** - Some variants may be more expensive
+7. **Monitor Failures** - Track error rates per variant
+8. **Document Results** - Keep records of what worked
+
+## Common Pitfalls
+
+### 1. Random Assignment
+
+```yaml
+# Bad: Different variant each request
+condition: ${Math.random() < 0.5}
+
+# Good: Consistent variant per user
+condition: ${input.user_id % 2 === 0}
+```
+
+### 2. Insufficient Sample Size
+
+```yaml
+# Bad: Only 100 samples
+# Not enough for statistical significance
+
+# Good: 1000+ samples per variant
+```
+
+### 3. Testing Too Many Things
+
+```yaml
+# Bad: 4 variables × 3 options = 81 variants
+# Need 81,000+ samples for significance!
+
+# Good: 2 variables × 2 options = 4 variants
+# Need 4,000+ samples
+```
+
+### 4. Stopping Too Early
+
+```yaml
+# Bad: Check after 1 hour, declare winner
+# May not capture daily/weekly patterns
+
+# Good: Run for at least 7 days
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Edgit A/B Testing" icon="code-branch" href="/edgit/guides/ab-testing-multivariate">
+    Version-based A/B testing
+  </Card>
+
+  <Card title="Flow Control" icon="code-branch" href="/conductor/core-concepts/flow-control">
+    Advanced flow patterns
+  </Card>
+
+  <Card title="State Management" icon="database" href="/conductor/core-concepts/state-management">
+    Share data across agents
+  </Card>
+
+  <Card title="Playbooks" icon="books" href="/conductor/playbooks/ab-testing-prompts">
+    Real-world A/B test examples
+  </Card>
+</CardGroup>

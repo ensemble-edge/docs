@@ -1,0 +1,576 @@
+---
+title: "A/B Testing & Multivariate"
+description: "Test multiple versions simultaneously with infinite combinations"
+---
+
+# A/B Testing & Multivariate
+
+**The version multiverse unlocked: test any combination of components and agents simultaneously.**
+
+With Edgit's independent versioning, you can run:
+- 2 agent versions × 3 prompt versions × 2 configs = **12 variants**
+- All running in production at the same time
+- Each user gets a consistent experience
+- Data-driven decisions on what actually works
+
+## A/B Testing Basics
+
+### Simple A/B Test
+
+Test two prompt versions:
+
+```bash
+# Create two versions
+edgit tag create analysis-prompt v1.0.0  # Control
+edgit tag create analysis-prompt v2.0.0  # Treatment
+
+# Deploy both
+edgit deploy set analysis-prompt v1.0.0 --to prod-control
+edgit deploy set analysis-prompt v2.0.0 --to prod-treatment
+```
+
+Ensemble configuration:
+
+```yaml
+ensemble: ab-test-simple
+
+agents:
+  # Control group (50% of users)
+  - name: analyzer-control
+    operation: think
+    component: analysis-prompt@v1.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+    condition: ${input.user_id % 2 === 0}
+
+  # Treatment group (50% of users)
+  - name: analyzer-treatment
+    operation: think
+    component: analysis-prompt@v2.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+    condition: ${input.user_id % 2 === 1}
+
+output:
+  result: ${analyzer-control.output || analyzer-treatment.output}
+  variant: ${analyzer-control.executed ? 'control' : 'treatment'}
+  quality_score: ${analyzer-control.score || analyzer-treatment.score}
+```
+
+### Test Results
+
+```bash
+# After collecting data
+curl https://metrics.example.com/ab-test/analysis-prompt
+
+# Results:
+# Control (v1.0.0):   Success rate: 92%, Avg quality: 0.85
+# Treatment (v2.0.0): Success rate: 95%, Avg quality: 0.91
+
+# Treatment wins! Deploy to everyone
+edgit deploy set analysis-prompt v2.0.0 --to prod
+```
+
+## Multivariate Testing
+
+Test multiple variables simultaneously.
+
+### 2×2 Test: Prompt × Model
+
+```yaml
+ensemble: multivariate-prompt-model
+
+agents:
+  # Variant 1: Old prompt + GPT-4
+  - name: variant-1
+    operation: think
+    component: analysis-prompt@v1.0.0
+    config:
+      model: gpt-4
+    condition: ${(input.user_id % 4) === 0}
+
+  # Variant 2: Old prompt + Claude
+  - name: variant-2
+    operation: think
+    component: analysis-prompt@v1.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+    condition: ${(input.user_id % 4) === 1}
+
+  # Variant 3: New prompt + GPT-4
+  - name: variant-3
+    operation: think
+    component: analysis-prompt@v2.0.0
+    config:
+      model: gpt-4
+    condition: ${(input.user_id % 4) === 2}
+
+  # Variant 4: New prompt + Claude
+  - name: variant-4
+    operation: think
+    component: analysis-prompt@v2.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+    condition: ${(input.user_id % 4) === 3}
+
+output:
+  result: ${variant-1.output || variant-2.output || variant-3.output || variant-4.output}
+  variant:
+    prompt_version: ${variant-1.executed || variant-2.executed ? 'v1.0.0' : 'v2.0.0'}
+    model: ${variant-1.executed || variant-3.executed ? 'gpt-4' : 'claude'}
+```
+
+### 3×3 Test: Agent × Prompt × Config
+
+```yaml
+ensemble: multivariate-3x3
+
+agents:
+  # 9 combinations total
+  - name: analyzer-v1-prompt-v1-config-v1
+    agent: analyzer@v1.0.0
+    component: prompt@v1.0.0
+    config: config@v1.0.0
+    condition: ${(input.user_id % 9) === 0}
+
+  - name: analyzer-v1-prompt-v1-config-v2
+    agent: analyzer@v1.0.0
+    component: prompt@v1.0.0
+    config: config@v2.0.0
+    condition: ${(input.user_id % 9) === 1}
+
+  - name: analyzer-v1-prompt-v2-config-v1
+    agent: analyzer@v1.0.0
+    component: prompt@v2.0.0
+    config: config@v1.0.0
+    condition: ${(input.user_id % 9) === 2}
+
+  # ... 6 more combinations
+```
+
+**Results:** Discover that `analyzer v2.0.0 + prompt v1.0.0 + config v2.0.0` is the optimal combination.
+
+## Sticky Sessions
+
+**Critical:** Users must get the same variant every time.
+
+### Bad (Random)
+
+```yaml
+# L Don't do this - user gets different variant each request
+condition: ${Math.random() < 0.5}
+```
+
+**Problem:** Inconsistent experience. User sees different results each time they refresh.
+
+### Good (Sticky)
+
+```yaml
+#  Do this - user always gets same variant
+condition: ${hash(input.user_id) % 2 === 0}
+```
+
+**Benefit:** Consistent experience. Same user always gets same variant.
+
+### Implementation
+
+```yaml
+ensemble: sticky-ab-test
+
+agents:
+  - name: analyzer-control
+    operation: think
+    component: prompt@v1.0.0
+    condition: |
+      ${(() => {
+        const hash = input.user_id.split('').reduce((acc, char) => {
+          return ((acc << 5) - acc) + char.charCodeAt(0);
+        }, 0);
+        return Math.abs(hash) % 2 === 0;
+      })()}
+
+  - name: analyzer-treatment
+    operation: think
+    component: prompt@v2.0.0
+    condition: |
+      ${(() => {
+        const hash = input.user_id.split('').reduce((acc, char) => {
+          return ((acc << 5) - acc) + char.charCodeAt(0);
+        }, 0);
+        return Math.abs(hash) % 2 === 1;
+      })()}
+```
+
+Or simpler with modulo:
+
+```yaml
+condition: ${parseInt(input.user_id, 36) % 2 === 0}
+```
+
+## Traffic Splitting
+
+### 50/50 Split
+
+```yaml
+agents:
+  - name: control
+    condition: ${input.user_id % 2 === 0}  # 50%
+  - name: treatment
+    condition: ${input.user_id % 2 === 1}  # 50%
+```
+
+### 90/10 Split
+
+```yaml
+agents:
+  - name: control
+    condition: ${input.user_id % 10 !== 0}  # 90%
+  - name: treatment
+    condition: ${input.user_id % 10 === 0}  # 10%
+```
+
+### 33/33/33 Split (3 variants)
+
+```yaml
+agents:
+  - name: variant-a
+    condition: ${input.user_id % 3 === 0}  # 33%
+  - name: variant-b
+    condition: ${input.user_id % 3 === 1}  # 33%
+  - name: variant-c
+    condition: ${input.user_id % 3 === 2}  # 33%
+```
+
+### Dynamic Split (via KV)
+
+```yaml
+state:
+  schema:
+    traffic_split: object
+
+agents:
+  - name: get-split-config
+    operation: storage
+    config:
+      type: kv
+      key: ab-test-traffic-split
+    state:
+      set: [traffic_split]
+
+  - name: control
+    operation: think
+    component: prompt@v1.0.0
+    condition: ${Math.random() * 100 < state.traffic_split.control_percentage}
+
+  - name: treatment
+    operation: think
+    component: prompt@v2.0.0
+    condition: ${Math.random() * 100 < state.traffic_split.treatment_percentage}
+```
+
+Update split via KV:
+
+```bash
+# Start with 10% treatment
+wrangler kv:key put --namespace-id=$KV_ID "ab-test-traffic-split" \
+  '{"control_percentage": 90, "treatment_percentage": 10}'
+
+# Increase to 50%
+wrangler kv:key put --namespace-id=$KV_ID "ab-test-traffic-split" \
+  '{"control_percentage": 50, "treatment_percentage": 50}'
+```
+
+## Metrics Collection
+
+Track variant performance:
+
+```yaml
+ensemble: ab-test-with-metrics
+
+agents:
+  - name: analyzer-control
+    operation: think
+    component: prompt@v1.0.0
+    condition: ${input.user_id % 2 === 0}
+
+  - name: analyzer-treatment
+    operation: think
+    component: prompt@v2.0.0
+    condition: ${input.user_id % 2 === 1}
+
+  # Store metrics
+  - name: record-metrics
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO ab_test_metrics
+        (user_id, variant, success, quality_score, latency_ms, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${analyzer-control.executed ? 'control' : 'treatment'}
+        - ${analyzer-control.success || analyzer-treatment.success}
+        - ${analyzer-control.score || analyzer-treatment.score}
+        - ${analyzer-control.latency_ms || analyzer-treatment.latency_ms}
+        - ${Date.now()}
+
+output:
+  result: ${analyzer-control.output || analyzer-treatment.output}
+  variant: ${analyzer-control.executed ? 'control' : 'treatment'}
+```
+
+Query results:
+
+```sql
+-- Overall success rate by variant
+SELECT
+  variant,
+  COUNT(*) as requests,
+  AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) as success_rate,
+  AVG(quality_score) as avg_quality,
+  AVG(latency_ms) as avg_latency
+FROM ab_test_metrics
+WHERE timestamp > datetime('now', '-7 days')
+GROUP BY variant;
+
+-- Results:
+-- control:   10000 requests, 92% success, 0.85 quality, 250ms latency
+-- treatment:  1000 requests, 95% success, 0.91 quality, 280ms latency
+```
+
+## Advanced: Sequential Testing
+
+Don't run forever. Stop when you have statistical significance.
+
+### Bayesian A/B Test
+
+```python
+# scripts/analyze-ab-test.py
+import scipy.stats as stats
+
+# Get data
+control_successes = 920
+control_total = 1000
+
+treatment_successes = 950
+treatment_total = 1000
+
+# Bayesian analysis
+control_posterior = stats.beta(control_successes + 1, control_total - control_successes + 1)
+treatment_posterior = stats.beta(treatment_successes + 1, treatment_total - treatment_successes + 1)
+
+# Probability treatment is better
+samples = 10000
+control_samples = control_posterior.rvs(samples)
+treatment_samples = treatment_posterior.rvs(samples)
+prob_treatment_better = (treatment_samples > control_samples).mean()
+
+print(f"Probability treatment is better: {prob_treatment_better:.2%}")
+
+if prob_treatment_better > 0.95:
+    print(" Treatment wins! Deploy to all users.")
+elif prob_treatment_better < 0.05:
+    print("L Control wins! Keep current version.")
+else:
+    print("ø  Inconclusive. Collect more data.")
+```
+
+### Auto-Promote Winner
+
+```yaml
+# .github/workflows/ab-test-auto-promote.yml
+name: AB Test Auto-Promote
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Analyze AB Test
+        run: |
+          python scripts/analyze-ab-test.py > results.txt
+
+      - name: Auto-Promote if Winner
+        run: |
+          if grep -q " Treatment wins" results.txt; then
+            edgit deploy set analysis-prompt v2.0.0 --to prod
+            git push --tags
+            echo "<‰ Auto-promoted treatment to production"
+          fi
+```
+
+## Real-World Examples
+
+### Example 1: Prompt Iteration
+
+```yaml
+ensemble: prompt-iteration
+
+agents:
+  # Current production (baseline)
+  - name: baseline
+    operation: think
+    component: extraction-prompt@v1.0.0
+    condition: ${input.user_id % 5 === 0}  # 20%
+
+  # Variant 1: More detailed instructions
+  - name: detailed
+    operation: think
+    component: extraction-prompt@v1.1.0
+    condition: ${input.user_id % 5 === 1}  # 20%
+
+  # Variant 2: Fewer instructions (simpler)
+  - name: simple
+    operation: think
+    component: extraction-prompt@v1.2.0
+    condition: ${input.user_id % 5 === 2}  # 20%
+
+  # Variant 3: Different tone
+  - name: formal
+    operation: think
+    component: extraction-prompt@v1.3.0
+    condition: ${input.user_id % 5 === 3}  # 20%
+
+  # Variant 4: With examples
+  - name: with-examples
+    operation: think
+    component: extraction-prompt@v1.4.0
+    condition: ${input.user_id % 5 === 4}  # 20%
+```
+
+**Result:** "with-examples" variant wins with 97% success rate. Deploy to all.
+
+### Example 2: Model Selection
+
+```yaml
+ensemble: model-selection
+
+agents:
+  # GPT-4 (expensive, accurate)
+  - name: gpt4
+    operation: think
+    component: prompt@v1.0.0
+    config:
+      model: gpt-4
+    condition: ${input.user_id % 3 === 0}
+
+  # Claude (fast, good quality)
+  - name: claude
+    operation: think
+    component: prompt@v1.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+    condition: ${input.user_id % 3 === 1}
+
+  # GPT-3.5 (cheap, fast)
+  - name: gpt35
+    operation: think
+    component: prompt@v1.0.0
+    config:
+      model: gpt-3.5-turbo
+    condition: ${input.user_id % 3 === 2}
+```
+
+**Result:** Claude has 94% success rate at 40% the cost of GPT-4. Winner!
+
+### Example 3: Agent Implementation
+
+```yaml
+ensemble: agent-implementation
+
+agents:
+  # Old scraper implementation
+  - name: scraper-v1
+    agent: scraper@v1.0.0
+    config:
+      url: ${input.url}
+    condition: ${input.user_id % 2 === 0}
+
+  # New scraper with better fallback
+  - name: scraper-v2
+    agent: scraper@v2.0.0
+    config:
+      url: ${input.url}
+    condition: ${input.user_id % 2 === 1}
+```
+
+**Result:** v2.0.0 has 99% success rate vs 92% for v1.0.0. Deploy new version.
+
+## Best Practices
+
+### 1. Start with Small Traffic
+
+```bash
+# L Don't
+# 50/50 split immediately
+
+#  Do
+# 90/10 split first (10% to treatment)
+```
+
+### 2. Use Statistical Significance
+
+```python
+# L Don't
+# if treatment_success > control_success: deploy_treatment()
+
+#  Do
+# if prob_treatment_better > 0.95: deploy_treatment()
+```
+
+### 3. Test One Thing at a Time
+
+```yaml
+# L Don't test everything at once
+# Changed: prompt, model, config, agent implementation
+
+#  Do test incrementally
+# First test: new prompt (keep model/config/agent same)
+# Second test: new model (keep prompt/config/agent same)
+```
+
+### 4. Monitor for Weeks, Not Hours
+
+```bash
+# L Don't
+# Run test for 1 hour, declare winner
+
+#  Do
+# Run test for at least 7 days to capture weekly patterns
+```
+
+### 5. Consider Sample Size
+
+```python
+# Need enough data for statistical significance
+min_sample_size = 1000  # per variant
+
+if control_total < min_sample_size or treatment_total < min_sample_size:
+    print("ø  Not enough data yet. Keep collecting.")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment Strategies" icon="rocket" href="/edgit/guides/deployment-strategies">
+    Canaries, progressive rollouts
+  </Card>
+
+  <Card title="Versioning Guide" icon="tags" href="/edgit/guides/versioning-components-agents">
+    Master independent versioning
+  </Card>
+
+  <Card title="Rollback & Time Travel" icon="clock-rotate-left" href="/edgit/guides/rollback-time-travel">
+    Emergency rollbacks
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/edgit/reference/cli-commands">
+    Complete command documentation
+  </Card>
+</CardGroup>

@@ -1,0 +1,376 @@
+---
+title: "Quick Start (5 Minutes)"
+description: "Get running with Ensemble Edge in 5 minutes"
+---
+
+# Quick Start
+
+Get a complete AI workflow running on the edge in 5 minutes. No fluff, no 20-step tutorials. Just the essentials.
+
+## What You'll Build
+
+A simple company intelligence workflow that:
+1. Fetches company data from an API
+2. Analyzes it with Claude
+3. Returns structured results
+
+Running on Cloudflare Workers at 200+ locations globally.
+
+## Prerequisites
+
+```bash
+# You need:
+- Node.js 18+ installed
+- A Cloudflare account (free tier works)
+- 5 minutes
+
+# That's it.
+```
+
+## Step 1: Install Conductor
+
+```bash
+npm install -g @ensemble-edge/conductor
+conductor --version
+```
+
+## Step 2: Create a Project
+
+```bash
+mkdir my-ai-workflow
+cd my-ai-workflow
+conductor init
+```
+
+This creates:
+```
+my-ai-workflow/
+├── ensembles/
+│   └── hello-world.yaml      # Your first ensemble
+├── components/
+│   └── prompts/
+│       └── hello.md          # Your first prompt
+├── wrangler.toml             # Cloudflare config
+├── package.json
+└── conductor.config.ts       # Conductor config
+```
+
+## Step 3: Write Your First Ensemble
+
+Edit `ensembles/company-intel.yaml`:
+
+```yaml
+ensemble: company-intel
+description: Analyze a company from its domain
+
+agents:
+  # Fetch company data
+  - name: fetch
+    operation: http
+    config:
+      url: https://api.company-data.com/lookup?domain=${input.domain}
+      method: GET
+      cache_ttl: 3600  # Cache for 1 hour
+
+  # Analyze with AI
+  - name: analyze
+    operation: think
+    config:
+      model: claude-3-5-sonnet-20241022
+      prompt: |
+        Analyze this company data and provide:
+        - Industry classification
+        - Key products/services
+        - Market position (1-5 scale)
+        - Growth indicators
+
+        Company data:
+        ${fetch.output}
+
+        Respond in JSON format.
+      response_format:
+        type: json_object
+
+  # Return results
+output:
+  company: ${input.domain}
+  analysis: ${analyze.output}
+  cached: ${fetch.cached}
+```
+
+## Step 4: Configure Cloudflare
+
+You need two things:
+
+### 1. API Tokens
+
+Add to `.dev.vars` (local development):
+
+```bash
+# .dev.vars
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Add to Cloudflare dashboard (production):
+
+```bash
+# Via dashboard: Workers & Pages > Your Worker > Settings > Variables
+
+ANTHROPIC_API_KEY: <your-key>
+```
+
+### 2. Bindings (Optional but Recommended)
+
+Edit `wrangler.toml`:
+
+```toml
+name = "my-ai-workflow"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# KV for caching (optional but recommended)
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your_kv_namespace_id"
+
+# AI Gateway for observability (optional)
+[ai]
+binding = "AI_GATEWAY"
+```
+
+Create KV namespace:
+
+```bash
+wrangler kv:namespace create "CACHE"
+# Copy the ID to wrangler.toml
+```
+
+## Step 5: Test Locally
+
+```bash
+# Start local dev server
+conductor dev
+
+# In another terminal, test it
+curl http://localhost:8787/ensembles/company-intel \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "stripe.com"}'
+```
+
+Response:
+
+```json
+{
+  "company": "stripe.com",
+  "analysis": {
+    "industry": "Financial Technology / Payments",
+    "products": ["Payment processing", "Billing", "Connect"],
+    "market_position": 5,
+    "growth_indicators": "Strong - expanding globally"
+  },
+  "cached": false
+}
+```
+
+Run it again - see `"cached": true` and <10ms response time.
+
+## Step 6: Deploy to Production
+
+```bash
+# Deploy to Cloudflare
+conductor deploy
+
+# Get your worker URL
+# Example: https://my-ai-workflow.your-subdomain.workers.dev
+```
+
+Test production:
+
+```bash
+curl https://my-ai-workflow.your-subdomain.workers.dev/ensembles/company-intel \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "openai.com"}'
+```
+
+**You're live. Globally. With caching. In 5 minutes.**
+
+## What Just Happened?
+
+1. **Edge Execution** - Your workflow runs on Cloudflare's network at 200+ locations
+2. **Sub-50ms Cold Starts** - First request takes ~40ms, cached requests <10ms
+3. **Built-in Caching** - HTTP responses cached in KV automatically
+4. **AI Gateway** - All AI calls tracked and cached via Cloudflare AI Gateway
+5. **Structured Outputs** - JSON response format enforced
+
+## Next Steps
+
+### Add Component Versioning (Edgit)
+
+```bash
+# Install Edgit
+npm install -g @ensemble-edge/edgit
+edgit init
+
+# Version your prompt
+edgit tag create company-analysis-prompt v1.0.0
+
+# Deploy to production
+edgit deploy set company-analysis-prompt v1.0.0 --to prod
+```
+
+Now reference it in your ensemble:
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    component: company-analysis-prompt@v1.0.0  # Versioned!
+    config:
+      model: claude-3-5-sonnet-20241022
+```
+
+### Add A/B Testing
+
+```yaml
+ensemble: company-intel
+
+# Test two prompt versions simultaneously
+agents:
+  - name: analyze-v1
+    operation: think
+    component: company-analysis-prompt@v1.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+
+  - name: analyze-v2
+    operation: think
+    component: company-analysis-prompt@v2.0.0
+    config:
+      model: claude-3-5-sonnet-20241022
+
+output:
+  v1_result: ${analyze-v1.output}
+  v2_result: ${analyze-v2.output}
+  # Compare results and pick winner
+```
+
+### Add More Operations
+
+```yaml
+agents:
+  # Database storage
+  - name: store
+    operation: storage
+    config:
+      type: d1
+      database: ANALYTICS
+      query: |
+        INSERT INTO companies (domain, analysis, created_at)
+        VALUES (?, ?, ?)
+      params:
+        - ${input.domain}
+        - ${analyze.output}
+        - ${Date.now()}
+
+  # Send email notification
+  - name: notify
+    operation: email
+    config:
+      to: team@company.com
+      subject: "New company analyzed: ${input.domain}"
+      body: ${analyze.output}
+```
+
+### Use Pre-built Agents
+
+```yaml
+agents:
+  # Web scraping with 3-tier fallback
+  - name: scrape
+    agent: scraper
+    config:
+      url: https://${input.domain}
+      extract:
+        title: "h1"
+        description: "meta[name=description]"
+
+  # Quality validation
+  - name: validate
+    agent: validator
+    config:
+      evaluator_type: completeness
+      threshold: 0.8
+    input:
+      content: ${analyze.output}
+```
+
+## Learn More
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/introduction/core-concepts">
+    Understand components, agents, and ensembles
+  </Card>
+
+  <Card title="Operations Reference" icon="gear" href="/conductor/operations/overview">
+    All available operations (think, code, http, storage, etc.)
+  </Card>
+
+  <Card title="Pre-built Agents" icon="cube" href="/conductor/agents/overview">
+    Ready-to-use agents (scraper, validator, RAG, etc.)
+  </Card>
+
+  <Card title="Playbooks" icon="lightbulb" href="/conductor/playbooks/rag-pipeline">
+    Real-world patterns and recipes
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion icon="circle-exclamation" title="Error: Missing API key">
+    Add your API key to `.dev.vars` for local development:
+    ```bash
+    echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .dev.vars
+    ```
+
+    For production, add it in Cloudflare dashboard under Workers > Settings > Variables.
+  </Accordion>
+
+  <Accordion icon="circle-exclamation" title="Error: KV namespace not found">
+    Create a KV namespace first:
+    ```bash
+    wrangler kv:namespace create "CACHE"
+    ```
+
+    Copy the ID to your `wrangler.toml` file.
+  </Accordion>
+
+  <Accordion icon="circle-exclamation" title="Cold starts taking longer than 50ms">
+    First request always takes longer (~100-200ms). Subsequent requests should be <50ms cold start + execution time.
+
+    Enable caching to get <10ms for repeated requests:
+    ```yaml
+    config:
+      cache_ttl: 3600  # Cache for 1 hour
+    ```
+  </Accordion>
+
+  <Accordion icon="circle-exclamation" title="AI Gateway not working">
+    Make sure you've configured AI Gateway in Cloudflare dashboard:
+    1. Go to AI > AI Gateway
+    2. Create a gateway
+    3. Add the gateway ID to your wrangler.toml
+
+    ```toml
+    [ai]
+    binding = "AI_GATEWAY"
+    gateway_id = "your-gateway-id"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  **That's it.** You've got a production AI workflow running on the edge with caching, versioning, and infinite scale.
+
+  No Docker, no Kubernetes, no server management. Just Git, YAML, and Cloudflare Workers.
+</Note>

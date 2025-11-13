@@ -1,0 +1,241 @@
+---
+title: "Overview"
+description: "What Ensemble Edge is and why it exists"
+---
+
+# Overview
+
+Ensemble Edge is a developer-first platform for building AI workflows that you actually control.
+
+## What It Is
+
+**Two open-source tools that work together:**
+
+1. **Edgit** - Git-native versioning for AI components (prompts, configs, queries, scripts)
+2. **Conductor** - Edge orchestration framework that runs AI workflows on Cloudflare Workers
+
+**Plus a future managed service:**
+
+3. **Ensemble Cloud** - UI layer for managing components and workflows (Git remains the source of truth)
+
+## The Philosophy
+
+You're a self-respecting engineer. You know SQL. You write code. You understand infrastructure.
+
+You don't need a "no-code AI platform" that abstracts away control. You don't want some black box that a business analyst picked because the demo looked shiny.
+
+**You want:**
+- Full control over your AI workflows
+- Git as the source of truth
+- No vendor lock-in
+- Fast execution at the edge
+- Independent versioning for every component
+- The ability to A/B test anything
+- Instant rollbacks without redeploying everything
+
+## How It Works
+
+### 1. Components (The Building Blocks)
+
+Components are versioned artifacts that agents use during execution:
+
+- **Prompts** (`.md`) - AI instructions and templates
+- **Configs** (`.json`, `.yaml`) - Settings and parameters
+- **Queries** (`.sql`) - Database queries
+- **Scripts** (`.js`, `.ts`) - Reusable functions
+
+Each component gets its own version history via Git tags. You can mix and match optimal versions from different points in time.
+
+```bash
+# Create independent versions
+edgit tag create extraction-prompt v1.0.0
+edgit tag create analysis-config v2.1.0
+edgit tag create validation-query v0.5.0
+
+# Deploy optimal combination
+edgit deploy set extraction-prompt v1.0.0 --to prod
+edgit deploy set analysis-config v2.1.0 --to prod
+edgit deploy set validation-query v0.5.0 --to prod
+```
+
+### 2. Agents (The Workers)
+
+Agents are executable units that perform tasks using operations and components:
+
+```yaml
+agents:
+  - name: analyzer
+    operation: think              # AI reasoning
+    component: prompt@v2.1.0      # Versioned prompt
+    config:
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.7
+
+  - name: fetcher
+    operation: http               # HTTP requests
+    config:
+      url: https://api.example.com/data
+      cache_ttl: 3600
+
+  - name: processor
+    operation: code               # Custom logic
+    script: transform@v1.5.0      # Versioned script
+```
+
+### 3. Ensembles (The Orchestration)
+
+Ensembles are YAML files that coordinate agents into workflows:
+
+```yaml
+ensemble: company-intelligence
+
+agents:
+  - name: fetch-data
+    operation: http
+    config:
+      url: https://api.example.com/companies/${input.domain}
+
+  - name: analyze
+    operation: think
+    component: analysis-prompt@v2.1.0
+    input:
+      data: ${fetch-data.output}
+
+  - name: score
+    agent: validator         # Use pre-built agent
+    input:
+      content: ${analyze.output}
+```
+
+Ensembles execute at the edge on Cloudflare Workers with <50ms cold starts.
+
+## Key Benefits
+
+### Independent Versioning
+
+Version components and agents separately. Deploy optimal combinations:
+
+```yaml
+# Stable agent + experimental prompt
+analyzer@v1.0.0 + analysis-prompt@v3.0.0-beta
+
+# Latest agent + proven prompt
+analyzer@v2.1.0 + analysis-prompt@v1.0.0
+
+# Run both in parallel for A/B testing
+```
+
+### Edge Execution
+
+Workflows run on Cloudflare's global network:
+- **<50ms cold starts** (not seconds like traditional orchestrators)
+- **200+ locations** worldwide
+- **Infinite scale** without managing servers
+- **Built-in caching** via KV and AI Gateway
+
+### Git-Native
+
+Everything lives in Git:
+- Components versioned via Git tags
+- Ensembles are YAML files in your repo
+- Agent definitions are code in your repo
+- No proprietary storage, no vendor database
+
+### Observable
+
+Every execution emits structured logs and metrics:
+- Trace agent execution
+- Monitor performance
+- Debug issues
+- Track costs
+
+## What Makes This Different
+
+### vs. Traditional Orchestrators (Airflow, Temporal, Prefect)
+
+❌ **Them:** Centralized servers, slow cold starts, complex deployment
+✅ **Us:** Edge-native, <50ms cold starts, deploy like any Cloudflare Worker
+
+### vs. AI Platforms (LangChain, LlamaIndex agents)
+
+❌ **Them:** Monolithic versioning, no independent component versions
+✅ **Us:** Each component versions independently, mix optimal versions from history
+
+### vs. "No-Code" Tools
+
+❌ **Them:** Black box, vendor lock-in, UI-driven config in their database
+✅ **Us:** Full control, Git as source of truth, code-first with optional UI
+
+### vs. Workflow Tools (n8n, Zapier)
+
+❌ **Them:** Visual builders, JSON config, centralized execution
+✅ **Us:** YAML in Git, edge execution, developer-first
+
+## Architecture Overview
+
+```
+Components (Git Tags)
+    ↓
+Agents (Operations + Components)
+    ↓
+Ensembles (YAML Workflows)
+    ↓
+Conductor Runtime (Cloudflare Workers)
+    ↓
+Edge Execution (200+ locations)
+```
+
+**Three layers, cleanly separated:**
+
+1. **What you version** - Components (Edgit manages this)
+2. **What executes** - Agents (Conductor orchestrates this)
+3. **How it flows** - Ensembles (YAML defines this)
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion icon="building" title="Company Intelligence">
+    Scrape company data, analyze financials, generate reports, store results.
+    **Agents:** HTTP, Think (AI), Storage
+  </Accordion>
+
+  <Accordion icon="envelope" title="Email Processing">
+    Parse emails, classify intent, route to handlers, send responses.
+    **Agents:** Email, Think (classification), HTTP, storage
+  </Accordion>
+
+  <Accordion icon="file-invoice" title="Document Intelligence">
+    Extract data from PDFs, validate quality, require human approval, store records.
+    **Agents:** PDF, Think (extraction), validator, HITL, storage
+  </Accordion>
+
+  <Accordion icon="magnifying-glass" title="RAG System">
+    Index documents, perform semantic search, generate contextualized answers.
+    **Agents:** RAG (pre-built), Think (generation), vectorize
+  </Accordion>
+
+  <Accordion icon="chart-line" title="A/B Testing">
+    Test prompt versions, agent implementations, model configurations in parallel.
+    **Feature:** Version multiverse - run multiple variants simultaneously
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="5-Minute Quick Start" icon="rocket" href="/introduction/quick-start">
+    Get running in 5 minutes
+  </Card>
+
+  <Card title="Core Concepts" icon="book" href="/introduction/core-concepts">
+    Deep dive into components, agents, and ensembles
+  </Card>
+
+  <Card title="Edgit Documentation" icon="cube" href="/edgit/overview">
+    Component versioning system
+  </Card>
+
+  <Card title="Conductor Documentation" icon="network-wired" href="/conductor/overview">
+    Edge orchestration framework
+  </Card>
+</CardGroup>

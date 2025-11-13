@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "name": "Ensemble",
+  "name": "Ensemble Edge",
   "logo": {
     "light": "/logo/Ensemble - Logo Horizontal Purple Transparent.png",
     "dark": "/logo/Ensemble - Logo Horizontal White Transparent.png"
@@ -58,8 +58,8 @@
       "url": "conductor"
     },
     {
-      "name": "Conductor API",
-      "url": "conductor-api"
+      "name": "API Reference",
+      "url": "api"
     },
     {
       "name": "Cloud",
@@ -82,256 +82,159 @@
     {
       "group": "Introduction",
       "pages": [
-        "index"
-      ]
-    },
-    {
-      "group": "Getting Started",
-      "pages": [
-        "getting-started/index",
-        "getting-started/edgit",
-        "getting-started/conductor"
+        "index",
+        "introduction/overview",
+        "introduction/quick-start",
+        "introduction/core-concepts",
+        "introduction/nomenclature"
       ]
     },
     {
       "group": "Edgit",
       "pages": [
-        "edgit/overview",
-        "edgit/installation",
-        "edgit/configuration"
+        "edgit/overview"
       ]
     },
     {
-      "group": "Edgit Guides",
+      "group": "Getting Started",
       "pages": [
-        "edgit/guides/component-types",
-        "edgit/guides/versioning",
-        "edgit/guides/deployment",
-        "edgit/guides/troubleshooting"
-      ]
-    },
-    {
-      "group": "Edgit API Reference",
-      "pages": [
-        "edgit/api-reference/cli"
-      ]
-    },
-    {
-      "group": "Edgit Examples",
-      "pages": [
-        "edgit/examples/basic-workflow",
-        "edgit/examples/monorepo-workflow",
-        "edgit/examples/cicd-integration"
-      ]
-    },
-    {
-      "group": "Conductor",
-      "pages": [
-        "conductor/overview",
-        "conductor/architecture",
-        "conductor/commands"
-      ]
-    },
-    {
-      "group": "Core Concepts",
-      "pages": [
-        "conductor/concepts/members",
-        "conductor/concepts/ensembles",
-        "conductor/concepts/state",
-        "conductor/concepts/scoring",
-        "conductor/concepts/caching",
-        "conductor/concepts/ai-routing",
-        "conductor/concepts/observability",
-        "conductor/concepts/ab-testing",
-        "conductor/concepts/glossary"
+        "edgit/getting-started/installation",
+        "edgit/getting-started/basic-usage",
+        "edgit/getting-started/cicd-integration"
       ]
     },
     {
       "group": "Guides",
       "pages": [
-        "conductor/guides/quickstart",
-        "conductor/guides/creating-members",
-        "conductor/guides/state-management",
-        "conductor/guides/ai-integration",
-        "conductor/guides/templates",
-        "conductor/guides/versioning-components",
-        "conductor/guides/testing",
-        "conductor/guides/deployment",
-        "conductor/guides/edgit-integration",
-        "conductor/guides/scoring",
-        "conductor/guides/hitl",
-        "conductor/guides/webhooks",
-        "conductor/guides/scheduling",
-        "conductor/guides/performance",
-        "conductor/guides/monitoring",
-        "conductor/guides/troubleshooting",
-        "conductor/guides/migration",
-        "conductor/guides/ci-cd",
-        "conductor/guides/queue-integration",
-        "conductor/guides/secrets-management",
-        "conductor/guides/best-practices"
+        "edgit/guides/versioning-components-agents",
+        "edgit/guides/deployment-strategies",
+        "edgit/guides/rollback-time-travel",
+        "edgit/guides/ab-testing-multivariate"
       ]
     },
     {
-      "group": "Member Types",
+      "group": "Reference",
       "pages": [
-        "conductor/member-types/overview",
-        "conductor/member-types/think",
-        "conductor/member-types/function",
-        "conductor/member-types/data",
-        "conductor/member-types/api",
-        "conductor/member-types/email",
-        "conductor/member-types/sms",
-        "conductor/member-types/form",
-        "conductor/member-types/page",
-        "conductor/member-types/html",
-        "conductor/member-types/pdf",
-        "conductor/member-types/docs"
+        "edgit/reference/cli-commands"
       ]
     },
     {
-      "group": "HTTP Routing",
+      "group": "Conductor",
       "pages": [
-        "conductor/routing/overview",
-        "conductor/routing/authentication"
+        "conductor/overview"
       ]
     },
     {
-      "group": "Built-In Members",
+      "group": "Getting Started",
       "pages": [
-        "conductor/built-in-members/overview",
-        "conductor/built-in-members/scrape",
-        "conductor/built-in-members/validate",
-        "conductor/built-in-members/rag",
-        "conductor/built-in-members/autorag",
-        "conductor/built-in-members/vectorize-rag",
-        "conductor/built-in-members/hitl",
-        "conductor/built-in-members/fetch",
-        "conductor/built-in-members/transform",
-        "conductor/built-in-members/schedule"
+        "conductor/getting-started/your-first-project",
+        "conductor/getting-started/your-first-agent",
+        "conductor/getting-started/your-first-ensemble",
+        "conductor/getting-started/your-first-deployment",
+        "conductor/getting-started/configuring-cloudflare"
       ]
     },
     {
-      "group": "Examples",
+      "group": "Core Concepts",
       "pages": [
-        "conductor/examples/hello-world",
-        "conductor/examples/html-components",
-        "conductor/examples/email-campaign",
-        "conductor/examples/company-intelligence",
-        "conductor/examples/parallel-processing",
-        "conductor/examples/conditional-logic",
-        "conductor/examples/error-handling",
-        "conductor/examples/scoring-retry",
-        "conductor/examples/data-processing-pipeline",
-        "conductor/examples/multi-agent-coordination",
-        "conductor/examples/conversational-ai",
-        "conductor/examples/ecommerce-workflow",
-        "conductor/examples/content-moderation"
+        "conductor/core-concepts/operations",
+        "conductor/core-concepts/agents",
+        "conductor/core-concepts/ensembles",
+        "conductor/core-concepts/flow-control",
+        "conductor/core-concepts/state-management",
+        "conductor/core-concepts/ab-testing"
       ]
     },
     {
-      "group": "API Reference",
+      "group": "Building",
       "pages": [
-        "conductor/api-reference/cli",
-        "conductor/api-reference/sdk"
+        "conductor/building/creating-agents",
+        "conductor/building/using-prebuilt-agents",
+        "conductor/building/writing-ensembles",
+        "conductor/building/ab-testing-patterns",
+        "conductor/building/tools-mcp-integration",
+        "conductor/building/testing-observability"
       ]
     },
     {
-      "group": "Deployment",
+      "group": "Operations Reference",
       "pages": [
-        "conductor/deployment/overview",
-        "conductor/deployment/configuration",
-        "conductor/deployment/environment-variables",
-        "conductor/deployment/bindings",
-        "conductor/deployment/ai-providers",
-        "conductor/deployment/testing",
-        "conductor/deployment/documentation"
+        "conductor/operations/overview",
+        "conductor/operations/think",
+        "conductor/operations/ml",
+        "conductor/operations/code",
+        "conductor/operations/storage",
+        "conductor/operations/http",
+        "conductor/operations/tools",
+        "conductor/operations/email",
+        "conductor/operations/sms",
+        "conductor/operations/html",
+        "conductor/operations/pdf",
+        "conductor/operations/page"
       ]
     },
     {
-      "group": "Conductor API",
+      "group": "Pre-built Agents Reference",
       "pages": [
-        "conductor-api/overview"
+        "conductor/agents/overview",
+        "conductor/agents/scraper",
+        "conductor/agents/validator",
+        "conductor/agents/rag",
+        "conductor/agents/hitl",
+        "conductor/agents/fetcher",
+        "conductor/agents/transformer",
+        "conductor/agents/scheduler"
       ]
     },
     {
-      "group": "Core Classes",
+      "group": "Playbooks",
       "pages": [
-        "conductor-api/core/executor",
-        "conductor-api/core/parser",
-        "conductor-api/core/state-manager",
-        "conductor-api/core/graph-executor"
+        "conductor/playbooks/rag-pipeline",
+        "conductor/playbooks/multi-agent-analysis",
+        "conductor/playbooks/hitl-approval-flow",
+        "conductor/playbooks/content-generation",
+        "conductor/playbooks/data-processing-etl",
+        "conductor/playbooks/conversational-assistant",
+        "conductor/playbooks/document-intelligence",
+        "conductor/playbooks/api-orchestration",
+        "conductor/playbooks/event-driven-workflow",
+        "conductor/playbooks/progressive-deployment",
+        "conductor/playbooks/ab-testing-prompts",
+        "conductor/playbooks/multivariate-agent-testing"
       ]
     },
     {
-      "group": "Member Types API",
+      "group": "Reference",
       "pages": [
-        "conductor-api/member-types/base-member",
-        "conductor-api/member-types/think-member",
-        "conductor-api/member-types/function-member",
-        "conductor-api/member-types/data-member",
-        "conductor-api/member-types/api-member"
+        "conductor/reference/yaml-schema",
+        "conductor/reference/cli-commands",
+        "conductor/reference/environment-variables"
       ]
     },
     {
-      "group": "Built-In Members API",
+      "group": "TypeScript API",
       "pages": [
-        "conductor-api/built-in/overview",
-        "conductor-api/built-in/scrape",
-        "conductor-api/built-in/validate",
-        "conductor-api/built-in/rag",
-        "conductor-api/built-in/hitl",
-        "conductor-api/built-in/fetch",
-        "conductor-api/built-in/queries"
-      ]
-    },
-    {
-      "group": "SDK API",
-      "pages": [
-        "conductor-api/sdk/client",
-        "conductor-api/sdk/member-factory",
-        "conductor-api/sdk/edgit"
-      ]
-    },
-    {
-      "group": "Testing API",
-      "pages": [
-        "conductor-api/testing/test-conductor",
-        "conductor-api/testing/matchers",
-        "conductor-api/testing/mocks"
-      ]
-    },
-    {
-      "group": "Durable Objects API",
-      "pages": [
-        "conductor-api/durable-objects/execution-state",
-        "conductor-api/durable-objects/hitl-state"
-      ]
-    },
-    {
-      "group": "AI Providers API",
-      "pages": [
-        "conductor-api/ai/overview",
-        "conductor-api/ai/provider-registry",
-        "conductor-api/ai/ai-catalog",
-        "conductor-api/ai/routing"
+        "api/typescript/core-classes",
+        "api/typescript/agent-classes",
+        "api/typescript/sdk-methods",
+        "api/typescript/testing-utilities"
       ]
     },
     {
       "group": "HTTP API",
       "pages": [
-        "conductor-api/http/overview",
-        "conductor-api/http/execution",
-        "conductor-api/http/members",
-        "conductor-api/http/schedules",
-        "conductor-api/http/webhooks",
-        "conductor-api/http/health"
+        "api/http/endpoints",
+        "api/http/authentication",
+        "api/http/webhooks",
+        "api/http/rate-limits"
       ]
     },
     {
       "group": "Cloud",
       "pages": [
-        "cloud/overview"
+        "cloud/overview",
+        "cloud/vision-roadmap",
+        "cloud/join-waitlist"
       ]
     }
   ],

@@ -1,0 +1,342 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Ensemble",
+  "logo": {
+    "light": "/logo/Ensemble - Logo Horizontal Purple Transparent.png",
+    "dark": "/logo/Ensemble - Logo Horizontal White Transparent.png"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#2D1B69",
+    "light": "#4FD1C5",
+    "dark": "#1A0F4A",
+    "background": {
+      "dark": "#1A0F4A",
+      "light": "#F5F1E8"
+    },
+    "anchors": {
+      "from": "#E91E8C",
+      "to": "#4FD1C5"
+    }
+  },
+  "theme": "prism",
+  "modeToggle": {
+    "default": "light",
+    "isHidden": false
+  },
+  "font": {
+    "headings": {
+      "family": "Space Grotesk",
+      "weight": 500
+    },
+    "body": {
+      "family": "Inter",
+      "weight": 200
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Get Started",
+      "url": "/"
+    },
+    {
+      "name": "Support",
+      "url": "https://github.com/ensemble-edge/edgit/issues"
+    }
+  ],
+  "topbarCtaButton": {
+    "type": "github",
+    "url": "https://github.com/ensemble-edge/edgit"
+  },
+  "tabs": [
+    {
+      "name": "Edgit",
+      "url": "edgit"
+    },
+    {
+      "name": "Conductor",
+      "url": "conductor"
+    },
+    {
+      "name": "Conductor API",
+      "url": "conductor-api"
+    },
+    {
+      "name": "Cloud",
+      "url": "cloud"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/ensemble-edge/edgit"
+    },
+    {
+      "name": "Community",
+      "icon": "comments",
+      "url": "https://github.com/ensemble-edge/edgit/discussions"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Introduction",
+      "pages": [
+        "index"
+      ]
+    },
+    {
+      "group": "Getting Started",
+      "pages": [
+        "getting-started/index",
+        "getting-started/edgit",
+        "getting-started/conductor"
+      ]
+    },
+    {
+      "group": "Edgit",
+      "pages": [
+        "edgit/overview",
+        "edgit/installation",
+        "edgit/configuration"
+      ]
+    },
+    {
+      "group": "Edgit Guides",
+      "pages": [
+        "edgit/guides/component-types",
+        "edgit/guides/versioning",
+        "edgit/guides/deployment",
+        "edgit/guides/troubleshooting"
+      ]
+    },
+    {
+      "group": "Edgit API Reference",
+      "pages": [
+        "edgit/api-reference/cli"
+      ]
+    },
+    {
+      "group": "Edgit Examples",
+      "pages": [
+        "edgit/examples/basic-workflow",
+        "edgit/examples/monorepo-workflow",
+        "edgit/examples/cicd-integration"
+      ]
+    },
+    {
+      "group": "Conductor",
+      "pages": [
+        "conductor/overview",
+        "conductor/architecture",
+        "conductor/commands"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "conductor/concepts/members",
+        "conductor/concepts/ensembles",
+        "conductor/concepts/state",
+        "conductor/concepts/scoring",
+        "conductor/concepts/caching",
+        "conductor/concepts/ai-routing",
+        "conductor/concepts/observability",
+        "conductor/concepts/ab-testing",
+        "conductor/concepts/glossary"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "conductor/guides/quickstart",
+        "conductor/guides/creating-members",
+        "conductor/guides/state-management",
+        "conductor/guides/ai-integration",
+        "conductor/guides/templates",
+        "conductor/guides/versioning-components",
+        "conductor/guides/testing",
+        "conductor/guides/deployment",
+        "conductor/guides/edgit-integration",
+        "conductor/guides/scoring",
+        "conductor/guides/hitl",
+        "conductor/guides/webhooks",
+        "conductor/guides/scheduling",
+        "conductor/guides/performance",
+        "conductor/guides/monitoring",
+        "conductor/guides/troubleshooting",
+        "conductor/guides/migration",
+        "conductor/guides/ci-cd",
+        "conductor/guides/queue-integration",
+        "conductor/guides/secrets-management",
+        "conductor/guides/best-practices"
+      ]
+    },
+    {
+      "group": "Member Types",
+      "pages": [
+        "conductor/member-types/overview",
+        "conductor/member-types/think",
+        "conductor/member-types/function",
+        "conductor/member-types/data",
+        "conductor/member-types/api",
+        "conductor/member-types/email",
+        "conductor/member-types/sms",
+        "conductor/member-types/form",
+        "conductor/member-types/page",
+        "conductor/member-types/html",
+        "conductor/member-types/pdf",
+        "conductor/member-types/docs"
+      ]
+    },
+    {
+      "group": "HTTP Routing",
+      "pages": [
+        "conductor/routing/overview",
+        "conductor/routing/authentication"
+      ]
+    },
+    {
+      "group": "Built-In Members",
+      "pages": [
+        "conductor/built-in-members/overview",
+        "conductor/built-in-members/scrape",
+        "conductor/built-in-members/validate",
+        "conductor/built-in-members/rag",
+        "conductor/built-in-members/autorag",
+        "conductor/built-in-members/vectorize-rag",
+        "conductor/built-in-members/hitl",
+        "conductor/built-in-members/fetch",
+        "conductor/built-in-members/transform",
+        "conductor/built-in-members/schedule"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "conductor/examples/hello-world",
+        "conductor/examples/html-components",
+        "conductor/examples/email-campaign",
+        "conductor/examples/company-intelligence",
+        "conductor/examples/parallel-processing",
+        "conductor/examples/conditional-logic",
+        "conductor/examples/error-handling",
+        "conductor/examples/scoring-retry",
+        "conductor/examples/data-processing-pipeline",
+        "conductor/examples/multi-agent-coordination",
+        "conductor/examples/conversational-ai",
+        "conductor/examples/ecommerce-workflow",
+        "conductor/examples/content-moderation"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "conductor/api-reference/cli",
+        "conductor/api-reference/sdk"
+      ]
+    },
+    {
+      "group": "Deployment",
+      "pages": [
+        "conductor/deployment/overview",
+        "conductor/deployment/configuration",
+        "conductor/deployment/environment-variables",
+        "conductor/deployment/bindings",
+        "conductor/deployment/ai-providers",
+        "conductor/deployment/testing",
+        "conductor/deployment/documentation"
+      ]
+    },
+    {
+      "group": "Conductor API",
+      "pages": [
+        "conductor-api/overview"
+      ]
+    },
+    {
+      "group": "Core Classes",
+      "pages": [
+        "conductor-api/core/executor",
+        "conductor-api/core/parser",
+        "conductor-api/core/state-manager",
+        "conductor-api/core/graph-executor"
+      ]
+    },
+    {
+      "group": "Member Types API",
+      "pages": [
+        "conductor-api/member-types/base-member",
+        "conductor-api/member-types/think-member",
+        "conductor-api/member-types/function-member",
+        "conductor-api/member-types/data-member",
+        "conductor-api/member-types/api-member"
+      ]
+    },
+    {
+      "group": "Built-In Members API",
+      "pages": [
+        "conductor-api/built-in/overview",
+        "conductor-api/built-in/scrape",
+        "conductor-api/built-in/validate",
+        "conductor-api/built-in/rag",
+        "conductor-api/built-in/hitl",
+        "conductor-api/built-in/fetch",
+        "conductor-api/built-in/queries"
+      ]
+    },
+    {
+      "group": "SDK API",
+      "pages": [
+        "conductor-api/sdk/client",
+        "conductor-api/sdk/member-factory",
+        "conductor-api/sdk/edgit"
+      ]
+    },
+    {
+      "group": "Testing API",
+      "pages": [
+        "conductor-api/testing/test-conductor",
+        "conductor-api/testing/matchers",
+        "conductor-api/testing/mocks"
+      ]
+    },
+    {
+      "group": "Durable Objects API",
+      "pages": [
+        "conductor-api/durable-objects/execution-state",
+        "conductor-api/durable-objects/hitl-state"
+      ]
+    },
+    {
+      "group": "AI Providers API",
+      "pages": [
+        "conductor-api/ai/overview",
+        "conductor-api/ai/provider-registry",
+        "conductor-api/ai/ai-catalog",
+        "conductor-api/ai/routing"
+      ]
+    },
+    {
+      "group": "HTTP API",
+      "pages": [
+        "conductor-api/http/overview",
+        "conductor-api/http/execution",
+        "conductor-api/http/members",
+        "conductor-api/http/schedules",
+        "conductor-api/http/webhooks",
+        "conductor-api/http/health"
+      ]
+    },
+    {
+      "group": "Cloud",
+      "pages": [
+        "cloud/overview"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/ensemble-edge/edgit",
+    "x": "https://x.com/ensemble_edge"
+  }
+}

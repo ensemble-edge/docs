@@ -1,0 +1,1056 @@
+---
+title: "http Operation"
+description: "Make HTTP requests to APIs"
+---
+
+# http Operation
+
+**Make HTTP requests to external APIs, webhooks, and microservices.**
+
+The `http` operation handles URLs, methods, headers, body, timeouts, retries, and response parsing automatically.
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: fetch-data
+    operation: http
+    config:
+      url: https://api.example.com/data
+      method: GET
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+```
+
+## Configuration
+
+```yaml
+config:
+  url: string              # Request URL (required)
+  method: string           # GET, POST, PUT, DELETE, PATCH (default: GET)
+  headers: object          # Request headers
+  body: object|string      # Request body
+  timeout: number          # Timeout in ms (default: 30000)
+```
+
+## HTTP Methods
+
+### GET Request
+
+```yaml
+operations:
+  - name: get-user
+    operation: http
+    config:
+      url: https://api.example.com/users/${input.userId}
+      method: GET
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+```
+
+**Output**:
+```typescript
+{
+  status: number         // HTTP status code
+  data: any             // Parsed response body
+  headers: object       // Response headers
+}
+```
+
+### POST Request
+
+```yaml
+operations:
+  - name: create-user
+    operation: http
+    config:
+      url: https://api.example.com/users
+      method: POST
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+        Content-Type: application/json
+      body:
+        name: ${input.name}
+        email: ${input.email}
+        role: user
+```
+
+### PUT Request
+
+```yaml
+operations:
+  - name: update-user
+    operation: http
+    config:
+      url: https://api.example.com/users/${input.userId}
+      method: PUT
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+        Content-Type: application/json
+      body:
+        name: ${input.name}
+        email: ${input.email}
+```
+
+### DELETE Request
+
+```yaml
+operations:
+  - name: delete-user
+    operation: http
+    config:
+      url: https://api.example.com/users/${input.userId}
+      method: DELETE
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+```
+
+### PATCH Request
+
+```yaml
+operations:
+  - name: partial-update
+    operation: http
+    config:
+      url: https://api.example.com/users/${input.userId}
+      method: PATCH
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+        Content-Type: application/json
+      body:
+        status: ${input.status}
+```
+
+## URL Interpolation
+
+### Static URL
+
+```yaml
+config:
+  url: https://api.example.com/pricing
+```
+
+### Path Parameters
+
+```yaml
+config:
+  url: https://api.example.com/users/${input.userId}/orders/${input.orderId}
+```
+
+### Query Parameters
+
+```yaml
+config:
+  url: https://api.example.com/search?q=${input.query}&limit=${input.limit}&page=${input.page}
+```
+
+### Dynamic URL from Input
+
+```yaml
+config:
+  url: ${input.apiUrl}
+```
+
+### URL with Previous Operation Output
+
+```yaml
+operations:
+  - name: get-endpoint
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: api-endpoint
+
+  - name: call-api
+    operation: http
+    config:
+      url: ${get-endpoint.output.value}/users
+```
+
+## Headers
+
+### Static Headers
+
+```yaml
+config:
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+    User-Agent: Conductor/1.0
+```
+
+### With Environment Variables
+
+```yaml
+config:
+  headers:
+    Authorization: Bearer ${env.API_KEY}
+    X-API-Version: ${env.API_VERSION}
+```
+
+### With Input Values
+
+```yaml
+config:
+  headers:
+    X-User-ID: ${input.userId}
+    X-Request-ID: ${input.requestId}
+    X-Tenant: ${input.tenantId}
+```
+
+### Dynamic Headers from Previous Operations
+
+```yaml
+operations:
+  - name: get-token
+    operation: http
+    config:
+      url: https://api.example.com/auth
+      method: POST
+      body:
+        username: ${env.USERNAME}
+        password: ${env.PASSWORD}
+
+  - name: call-api
+    operation: http
+    config:
+      url: https://api.example.com/data
+      headers:
+        Authorization: Bearer ${get-token.output.data.access_token}
+```
+
+## Request Body
+
+### JSON Body
+
+```yaml
+operations:
+  - name: create-order
+    operation: http
+    config:
+      url: https://api.example.com/orders
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        customerId: ${input.customerId}
+        items: ${input.items}
+        total: ${calculate-total.output.amount}
+        currency: USD
+```
+
+### String Body
+
+```yaml
+operations:
+  - name: send-xml
+    operation: http
+    config:
+      url: https://api.example.com/xml
+      method: POST
+      headers:
+        Content-Type: application/xml
+      body: |
+        <order>
+          <customer>${input.customerId}</customer>
+          <total>${input.total}</total>
+        </order>
+```
+
+### Form Data
+
+```yaml
+operations:
+  - name: submit-form
+    operation: http
+    config:
+      url: https://api.example.com/form
+      method: POST
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: name=${input.name}&email=${input.email}&message=${input.message}
+```
+
+## Timeout Configuration
+
+### Default Timeout (30s)
+
+```yaml
+config:
+  url: https://api.example.com
+  # Uses default 30000ms timeout
+```
+
+### Short Timeout for Fast APIs
+
+```yaml
+config:
+  url: https://fast-api.example.com
+  timeout: 5000  # 5 seconds
+```
+
+### Long Timeout for Slow Operations
+
+```yaml
+config:
+  url: https://slow-api.example.com
+  timeout: 120000  # 2 minutes
+```
+
+## Retry Configuration
+
+### Basic Retry
+
+```yaml
+operations:
+  - name: fetch-data
+    operation: http
+    config:
+      url: https://api.example.com
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+```
+
+**Backoff Pattern**:
+- Attempt 1: immediate
+- Attempt 2: 1s delay
+- Attempt 3: 2s delay
+- Attempt 4: 4s delay
+
+### Conditional Retry
+
+```yaml
+operations:
+  - name: fetch-data
+    operation: http
+    config:
+      url: https://api.example.com
+    retry:
+      maxAttempts: 5
+      backoff: exponential
+      retryIf: |
+        (error) => {
+          // Retry on 5xx errors and network issues
+          return error.status >= 500 || error.code === 'NETWORK_ERROR';
+        }
+```
+
+### No Retries
+
+```yaml
+config:
+  url: https://api.example.com
+# No retry config = fail immediately on error
+```
+
+## Response Handling
+
+### Automatic JSON Parsing
+
+```yaml
+operations:
+  - name: fetch-api
+    operation: http
+    config:
+      url: https://api.example.com/data
+
+outputs:
+  data: ${fetch-api.output.data}
+  status: ${fetch-api.output.status}
+```
+
+### Access Response Headers
+
+```yaml
+operations:
+  - name: fetch-api
+    operation: http
+    config:
+      url: https://api.example.com
+
+outputs:
+  contentType: ${fetch-api.output.headers['content-type']}
+  rateLimit: ${fetch-api.output.headers['x-rate-limit-remaining']}
+  rateLimitReset: ${fetch-api.output.headers['x-rate-limit-reset']}
+```
+
+### Check Status Code
+
+```yaml
+operations:
+  - name: call-api
+    operation: http
+    config:
+      url: https://api.example.com
+
+  - name: handle-success
+    condition: ${call-api.output.status === 200}
+    operation: code
+    config:
+      code: return { success: true };
+
+  - name: handle-error
+    condition: ${call-api.output.status >= 400}
+    operation: code
+    config:
+      code: |
+        return {
+          error: true,
+          status: ${call-api.output.status},
+          message: ${call-api.output.data.message}
+        };
+```
+
+### Transform Response
+
+```yaml
+operations:
+  - name: fetch-api
+    operation: http
+    config:
+      url: https://api.example.com/users
+
+  - name: transform
+    operation: code
+    config:
+      code: |
+        const users = ${fetch-api.output.data};
+        return {
+          users: users.map(u => ({
+            id: u.user_id,
+            name: u.full_name,
+            email: u.email_address
+          }))
+        };
+```
+
+## Common API Integrations
+
+### REST API with Pagination
+
+```yaml
+operations:
+  - name: fetch-page
+    operation: http
+    config:
+      url: https://api.example.com/users?page=${input.page}&limit=100
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+
+  - name: has-more
+    operation: code
+    config:
+      code: |
+        return {
+          hasMore: ${fetch-page.output.data.length} === 100
+        };
+```
+
+### GraphQL API
+
+```yaml
+operations:
+  - name: graphql-query
+    operation: http
+    config:
+      url: https://api.example.com/graphql
+      method: POST
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+        Content-Type: application/json
+      body:
+        query: |
+          query GetUser($id: ID!) {
+            user(id: $id) {
+              id
+              name
+              email
+              orders {
+                id
+                total
+              }
+            }
+          }
+        variables:
+          id: ${input.userId}
+```
+
+### Webhook Handler
+
+```yaml
+operations:
+  - name: send-webhook
+    operation: http
+    config:
+      url: ${env.WEBHOOK_URL}
+      method: POST
+      headers:
+        Content-Type: application/json
+        X-Webhook-Secret: ${env.WEBHOOK_SECRET}
+      body:
+        event: user.created
+        data:
+          userId: ${input.userId}
+          email: ${input.email}
+        timestamp: ${Date.now()}
+```
+
+### OAuth Token Refresh
+
+```yaml
+operations:
+  - name: refresh-token
+    operation: http
+    config:
+      url: https://api.example.com/oauth/token
+      method: POST
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: |
+        grant_type=refresh_token&
+        refresh_token=${env.REFRESH_TOKEN}&
+        client_id=${env.CLIENT_ID}&
+        client_secret=${env.CLIENT_SECRET}
+
+  - name: save-token
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: access-token
+      value: ${refresh-token.output.data.access_token}
+      expirationTtl: ${refresh-token.output.data.expires_in}
+```
+
+## Third-Party Integrations
+
+### Stripe Payment
+
+```yaml
+operations:
+  - name: create-payment-intent
+    operation: http
+    config:
+      url: https://api.stripe.com/v1/payment_intents
+      method: POST
+      headers:
+        Authorization: Bearer ${env.STRIPE_SECRET_KEY}
+        Content-Type: application/x-www-form-urlencoded
+      body: amount=${input.amount}&currency=usd&customer=${input.customerId}
+```
+
+### SendGrid Email
+
+```yaml
+operations:
+  - name: send-email
+    operation: http
+    config:
+      url: https://api.sendgrid.com/v3/mail/send
+      method: POST
+      headers:
+        Authorization: Bearer ${env.SENDGRID_API_KEY}
+        Content-Type: application/json
+      body:
+        personalizations:
+          - to:
+              - email: ${input.email}
+        from:
+          email: noreply@example.com
+        subject: ${input.subject}
+        content:
+          - type: text/html
+            value: ${input.html}
+```
+
+### Slack Notification
+
+```yaml
+operations:
+  - name: post-to-slack
+    operation: http
+    config:
+      url: ${env.SLACK_WEBHOOK_URL}
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        text: ${input.message}
+        username: Conductor Bot
+        icon_emoji: ":robot_face:"
+        channel: "#notifications"
+```
+
+### Twilio SMS
+
+```yaml
+operations:
+  - name: send-sms
+    operation: http
+    config:
+      url: https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json
+      method: POST
+      headers:
+        Authorization: Basic ${env.TWILIO_AUTH_TOKEN}
+        Content-Type: application/x-www-form-urlencoded
+      body: To=${input.phone}&From=${env.TWILIO_PHONE}&Body=${input.message}
+```
+
+### GitHub API
+
+```yaml
+operations:
+  - name: create-issue
+    operation: http
+    config:
+      url: https://api.github.com/repos/${input.owner}/${input.repo}/issues
+      method: POST
+      headers:
+        Authorization: token ${env.GITHUB_TOKEN}
+        Content-Type: application/json
+        Accept: application/vnd.github.v3+json
+      body:
+        title: ${input.title}
+        body: ${input.body}
+        labels: ${input.labels}
+```
+
+## Error Handling
+
+### Check Response Status
+
+```yaml
+operations:
+  - name: call-api
+    operation: http
+    config:
+      url: https://api.example.com
+
+  - name: handle-success
+    condition: ${call-api.output.status >= 200 && call-api.output.status < 300}
+    operation: code
+    config:
+      code: return { success: true, data: ${call-api.output.data} };
+
+  - name: handle-client-error
+    condition: ${call-api.output.status >= 400 && call-api.output.status < 500}
+    operation: code
+    config:
+      code: |
+        return {
+          error: 'Client error',
+          status: ${call-api.output.status},
+          message: ${call-api.output.data.error}
+        };
+
+  - name: handle-server-error
+    condition: ${call-api.output.status >= 500}
+    operation: code
+    config:
+      code: return { error: 'Server error', retry: true };
+```
+
+### Retry on Failure
+
+```yaml
+operations:
+  - name: unreliable-api
+    operation: http
+    config:
+      url: https://flaky-api.example.com
+    retry:
+      maxAttempts: 5
+      backoff: exponential
+      initialDelay: 1000
+```
+
+### Fallback API
+
+```yaml
+operations:
+  - name: primary-api
+    operation: http
+    config:
+      url: https://primary-api.example.com
+
+  - name: fallback-api
+    condition: ${!primary-api.output || primary-api.output.status >= 500}
+    operation: http
+    config:
+      url: https://fallback-api.example.com
+```
+
+### Handle Timeout
+
+```yaml
+operations:
+  - name: slow-api
+    operation: http
+    config:
+      url: https://slow-api.example.com
+      timeout: 10000
+
+  - name: handle-timeout
+    condition: ${!slow-api.output}
+    operation: code
+    config:
+      code: return { error: 'Request timed out', useCache: true };
+```
+
+## Caching
+
+### Cache API Responses
+
+```yaml
+operations:
+  - name: fetch-pricing
+    operation: http
+    config:
+      url: https://api.example.com/pricing
+    cache:
+      ttl: 3600  # Cache for 1 hour
+      key: pricing-${input.plan}
+```
+
+### Conditional Caching
+
+```yaml
+operations:
+  - name: fetch-data
+    operation: http
+    config:
+      url: https://api.example.com/data
+    cache:
+      ttl: ${input.cached ? 3600 : 0}
+      key: data-${input.id}
+```
+
+### Cache Based on Response
+
+```yaml
+operations:
+  - name: fetch-api
+    operation: http
+    config:
+      url: https://api.example.com
+
+  - name: cache-if-success
+    condition: ${fetch-api.output.status === 200}
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: cached-${input.id}
+      value: ${fetch-api.output.data}
+      expirationTtl: 3600
+```
+
+## Performance Tips
+
+### Parallel Requests
+
+Execute multiple independent HTTP requests in parallel:
+
+```yaml
+operations:
+  - name: fetch-user
+    operation: http
+    config:
+      url: https://api.example.com/users/${input.userId}
+
+  - name: fetch-orders
+    operation: http
+    config:
+      url: https://api.example.com/orders?userId=${input.userId}
+
+  - name: fetch-settings
+    operation: http
+    config:
+      url: https://api.example.com/settings/${input.userId}
+
+# All three run in parallel automatically
+
+  - name: combine-results
+    operation: code
+    config:
+      code: |
+        return {
+          user: ${fetch-user.output.data},
+          orders: ${fetch-orders.output.data},
+          settings: ${fetch-settings.output.data}
+        };
+```
+
+### Set Appropriate Timeouts
+
+```yaml
+# Fast APIs (< 1s expected)
+operations:
+  - name: fast-api
+    operation: http
+    config:
+      url: https://fast-api.example.com
+      timeout: 5000
+
+# Normal APIs (1-5s expected)
+  - name: normal-api
+    operation: http
+    config:
+      url: https://api.example.com
+      timeout: 30000
+
+# Slow APIs (5-30s expected)
+  - name: slow-api
+    operation: http
+    config:
+      url: https://slow-api.example.com
+      timeout: 60000
+```
+
+### Cache Aggressively
+
+```yaml
+operations:
+  - name: fetch-static-data
+    operation: http
+    config:
+      url: https://api.example.com/config
+    cache:
+      ttl: 86400  # 24 hours for static data
+```
+
+### Batch Requests
+
+```yaml
+operations:
+  - name: batch-create
+    operation: http
+    config:
+      url: https://api.example.com/batch
+      method: POST
+      body:
+        operations: ${input.items}
+```
+
+## Testing
+
+```typescript
+import { TestConductor } from '@ensemble/conductor/testing';
+
+describe('http operations', () => {
+  it('should fetch from API', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: './conductor',
+      mocks: {
+        http: {
+          'https://api.example.com/users/1': {
+            status: 200,
+            data: {
+              id: 1,
+              name: 'Alice',
+              email: 'alice@example.com'
+            }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeAgent('get-user', {
+      userId: 1
+    });
+
+    expect(result.output.user.name).toBe('Alice');
+  });
+
+  it('should handle API errors', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        http: {
+          'https://api.example.com/users/1': {
+            status: 404,
+            data: { error: 'Not found' }
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeAgent('get-user', {
+      userId: 1
+    });
+
+    expect(result.output.error).toBe('Not found');
+  });
+});
+```
+
+## Best Practices
+
+**1. Always Set Timeouts**
+```yaml
+# Good: Timeout configured
+config:
+  timeout: 30000
+
+# Bad: No timeout (hangs forever)
+config:
+  url: https://api.example.com
+```
+
+**2. Use Retries for Transient Failures**
+```yaml
+# Good: Retry on failure
+retry:
+  maxAttempts: 3
+  backoff: exponential
+```
+
+**3. Secure API Keys**
+```yaml
+# Good: Environment variable
+headers:
+  Authorization: Bearer ${env.API_KEY}
+
+# Bad: Hardcoded (NEVER DO THIS)
+headers:
+  Authorization: Bearer sk-1234567890
+```
+
+**4. Cache Responses**
+```yaml
+# Good: Cache for appropriate TTL
+cache:
+  ttl: 3600
+```
+
+**5. Handle Errors Gracefully**
+```yaml
+# Good: Check status and handle errors
+operations:
+  - name: call-api
+    operation: http
+
+  - name: handle-error
+    condition: ${call-api.output.status >= 400}
+```
+
+**6. Use HTTPS**
+```yaml
+# Good: HTTPS
+url: https://api.example.com
+
+# Bad: HTTP for sensitive data
+url: http://api.example.com
+```
+
+**7. Validate Responses**
+```yaml
+# Good: Validate response structure
+operations:
+  - name: fetch
+    operation: http
+
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const data = ${fetch.output.data};
+        if (!data.id || !data.name) {
+          throw new Error('Invalid response structure');
+        }
+        return data;
+```
+
+**8. Rate Limit Awareness**
+```yaml
+# Good: Respect rate limits
+operations:
+  - name: check-rate-limit
+    operation: code
+    config:
+      code: |
+        const remaining = parseInt('${fetch.output.headers["x-rate-limit-remaining"]}');
+        if (remaining < 10) {
+          // Slow down or pause
+        }
+```
+
+## Common Pitfalls
+
+### Pitfall: No Error Handling
+
+```yaml
+# Bad: No error handling
+operations:
+  - name: call-api
+    operation: http
+    config:
+      url: https://api.example.com
+
+# Good: Handle errors
+operations:
+  - name: call-api
+    operation: http
+    config:
+      url: https://api.example.com
+    retry:
+      maxAttempts: 3
+
+  - name: handle-error
+    condition: ${!call-api.output || call-api.output.status >= 400}
+    operation: code
+    config:
+      code: return { error: true };
+```
+
+### Pitfall: Missing Content-Type
+
+```yaml
+# Bad: No Content-Type for JSON
+operations:
+  - name: post
+    operation: http
+    config:
+      method: POST
+      body: { data: "value" }
+
+# Good: Explicit Content-Type
+operations:
+  - name: post
+    operation: http
+    config:
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: { data: "value" }
+```
+
+### Pitfall: Hardcoded URLs
+
+```yaml
+# Bad: Hardcoded URL
+config:
+  url: https://prod-api.example.com
+
+# Good: Environment-based URL
+config:
+  url: ${env.API_BASE_URL}/endpoint
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="tools Operation" icon="wrench" href="/conductor/operations/tools">
+    MCP tools
+  </Card>
+  <Card title="email Operation" icon="envelope" href="/conductor/operations/email">
+    Send emails
+  </Card>
+  <Card title="storage Operation" icon="database" href="/conductor/operations/storage">
+    Store API responses
+  </Card>
+  <Card title="Fetcher Agent" icon="download" href="/conductor/agents/fetcher">
+    Pre-built HTTP agent
+  </Card>
+</CardGroup>

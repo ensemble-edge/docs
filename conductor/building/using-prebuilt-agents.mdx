@@ -1,0 +1,373 @@
+---
+title: "Using Pre-built Agents"
+description: "Leverage ready-made agents for common tasks"
+---
+
+# Using Pre-built Agents
+
+**Don't reinvent the wheel. Conductor includes 8 pre-built agents for common tasks.**
+
+Pre-built agents are production-ready, tested, and optimized. Just reference them in your ensembles.
+
+## Available Agents
+
+<CardGroup cols={2}>
+  <Card title="scraper" icon="spider-web" href="/conductor/agents/scraper">
+    Web scraping with fallbacks
+  </Card>
+
+  <Card title="validator" icon="check-circle" href="/conductor/agents/validator">
+    Data validation against schemas
+  </Card>
+
+  <Card title="rag" icon="magnifying-glass" href="/conductor/agents/rag">
+    Retrieval-augmented generation
+  </Card>
+
+  <Card title="hitl" icon="user" href="/conductor/agents/hitl">
+    Human-in-the-loop approvals
+  </Card>
+
+  <Card title="fetcher" icon="download" href="/conductor/agents/fetcher">
+    Smart HTTP fetching
+  </Card>
+
+  <Card title="transformer" icon="shuffle" href="/conductor/agents/transformer">
+    Data transformation
+  </Card>
+
+  <Card title="scheduler" icon="clock" href="/conductor/agents/scheduler">
+    Task scheduling
+  </Card>
+</CardGroup>
+
+## Quick Usage
+
+### Scraper Agent
+
+```yaml
+ensemble: scrape-and-analyze
+
+agents:
+  - name: scrape
+    agent: scraper
+    inputs:
+      url: ${input.url}
+      extract:
+        title: h1
+        price: .price
+        description: .description
+
+  - name: analyze
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: Analyze this product: ${scrape.output}
+
+output:
+  product: ${scrape.output}
+  analysis: ${analyze.output}
+```
+
+### Validator Agent
+
+```yaml
+ensemble: validate-and-store
+
+agents:
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${input.user_data}
+      schema:
+        type: object
+        required: [email, name]
+        properties:
+          email:
+            type: string
+            format: email
+          name:
+            type: string
+            minLength: 1
+
+  - name: store
+    condition: ${validate.output.valid}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO users (email, name) VALUES (?, ?)
+      params:
+        - ${input.user_data.email}
+        - ${input.user_data.name}
+
+output:
+  valid: ${validate.output.valid}
+  errors: ${validate.output.errors}
+  stored: ${store.executed}
+```
+
+### RAG Agent
+
+```yaml
+ensemble: rag-qa
+
+agents:
+  - name: rag
+    agent: rag
+    inputs:
+      question: ${input.question}
+      index_name: docs-index
+      top_k: 5
+
+output:
+  answer: ${rag.output.answer}
+  sources: ${rag.output.sources}
+  confidence: ${rag.output.confidence}
+```
+
+### HITL Agent
+
+```yaml
+ensemble: content-approval
+
+agents:
+  - name: generate
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: Write content about: ${input.topic}
+
+  - name: approval
+    agent: hitl
+    inputs:
+      prompt: Review this content for publication
+      context:
+        content: ${generate.output}
+        topic: ${input.topic}
+      timeout: 3600  # 1 hour timeout
+
+  - name: publish
+    condition: ${approval.output.approved}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO published (content) VALUES (?)
+      params: [${generate.output}]
+
+output:
+  content: ${generate.output}
+  approved: ${approval.output.approved}
+  feedback: ${approval.output.feedback}
+```
+
+## Combining Pre-built Agents
+
+### Scrape + Validate + Transform
+
+```yaml
+ensemble: scrape-validate-transform
+
+agents:
+  - name: scrape
+    agent: scraper
+    inputs:
+      url: ${input.url}
+
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${scrape.output}
+      schema: product-schema
+
+  - name: transform
+    condition: ${validate.output.valid}
+    agent: transformer
+    inputs:
+      data: ${scrape.output}
+      transformations:
+        - type: rename
+          from: price_text
+          to: price
+        - type: convert
+          field: price
+          to: number
+
+output:
+  product: ${transform.output}
+  valid: ${validate.output.valid}
+```
+
+### RAG + HITL
+
+```yaml
+ensemble: rag-with-review
+
+agents:
+  - name: rag
+    agent: rag
+    inputs:
+      question: ${input.question}
+      index_name: docs-index
+
+  - name: review
+    agent: hitl
+    inputs:
+      prompt: Review this AI-generated answer
+      context:
+        question: ${input.question}
+        answer: ${rag.output.answer}
+        sources: ${rag.output.sources}
+      timeout: 1800
+
+output:
+  answer: ${rag.output.answer}
+  approved: ${review.output.approved}
+  sources: ${rag.output.sources}
+```
+
+## Customizing Pre-built Agents
+
+Pre-built agents accept configuration:
+
+### Scraper with Retry
+
+```yaml
+agents:
+  - name: scrape
+    agent: scraper
+    inputs:
+      url: ${input.url}
+      timeout: 10000
+      retry:
+        maxAttempts: 3
+        backoff: exponential
+      headers:
+        User-Agent: MyApp/1.0
+```
+
+### Validator with Custom Rules
+
+```yaml
+agents:
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${input.data}
+      schema:
+        type: object
+        required: [email]
+        properties:
+          email:
+            type: string
+            pattern: ^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$
+      strict: true  # Fail on extra properties
+```
+
+### RAG with Custom Embeddings
+
+```yaml
+agents:
+  - name: rag
+    agent: rag
+    inputs:
+      question: ${input.question}
+      index_name: docs-index
+      embedding_model: text-embedding-3-large
+      top_k: 10
+      score_threshold: 0.7
+```
+
+## When to Use Pre-built vs Custom
+
+### Use Pre-built When:
+- Common use case (scraping, validation, RAG)
+- Need production-tested solution
+- Want to ship quickly
+- Standard functionality is sufficient
+
+### Build Custom When:
+- Unique business logic
+- Need specific integrations
+- Performance critical paths
+- Domain-specific requirements
+
+## Extending Pre-built Agents
+
+Wrap pre-built agents for custom behavior:
+
+```yaml
+# agents/custom-scraper/agent.yaml
+agent: custom-scraper
+description: Scraper with custom post-processing
+
+inputs:
+  url: string
+
+operations:
+  # Use pre-built scraper
+  - name: scrape
+    agent: scraper
+    inputs:
+      url: ${input.url}
+
+  # Custom post-processing
+  - name: enhance
+    operation: code
+    config:
+      code: |
+        const data = ${scrape.output};
+        return {
+          ...data,
+          scraped_at: Date.now(),
+          url: "${input.url}",
+          processed: true
+        };
+
+  # Custom validation
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const data = ${enhance.output};
+        return {
+          valid: data.title && data.title.length > 0,
+          data
+        };
+
+outputs:
+  data: ${validate.output.data}
+  valid: ${validate.output.valid}
+```
+
+## Best Practices
+
+1. **Start with Pre-built** - Try pre-built agents first
+2. **Configure Don't Customize** - Use inputs before building custom
+3. **Wrap for Extensions** - Create custom agents that wrap pre-built
+4. **Version Independently** - Version custom wrappers separately
+5. **Test Thoroughly** - Test custom integrations
+6. **Document Usage** - Document how you use pre-built agents
+7. **Monitor Performance** - Track pre-built agent performance
+8. **Report Issues** - Report bugs to Conductor team
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Pre-built Agents Reference" icon="box" href="/conductor/agents/overview">
+    Detailed docs for each agent
+  </Card>
+
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Build custom agents
+  </Card>
+
+  <Card title="Writing Ensembles" icon="diagram-project" href="/conductor/building/writing-ensembles">
+    Orchestrate agents
+  </Card>
+
+  <Card title="Playbooks" icon="books" href="/conductor/playbooks/rag-pipeline">
+    Real-world examples
+  </Card>
+</CardGroup>

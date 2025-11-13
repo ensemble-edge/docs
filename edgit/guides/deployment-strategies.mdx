@@ -1,0 +1,534 @@
+---
+title: "Deployment Strategies"
+description: "Progressive rollouts, canaries, blue-green, and A/B testing"
+---
+
+# Deployment Strategies
+
+**Deploy with confidence. Test in production safely. Roll back instantly.**
+
+## Understanding Deployment in Edgit
+
+**Deployment in Edgit is just metadata.** When you "deploy," you're creating a Git tag that points to a version:
+
+```bash
+edgit deploy set my-prompt v1.0.0 --to prod
+# Creates tag: components/my-prompt/prod ’ points to v1.0.0
+```
+
+Your CI/CD reads these tags and updates your runtime (Cloudflare KV, environment variables, config files).
+
+**This means:**
+-  Deployments are instant (just Git tags)
+-  Rollbacks are instant (update the tag)
+-  You can deploy different versions to different environments simultaneously
+-  Perfect audit trail (Git history)
+
+## Strategy 1: Traditional (Staging ’ Production)
+
+The safe, predictable approach.
+
+### Setup
+
+```bash
+# Three environments
+edgit deploy set my-prompt v1.0.0 --to dev
+edgit deploy set my-prompt v1.0.0 --to staging
+edgit deploy set my-prompt v1.0.0 --to prod
+```
+
+### Workflow
+
+```bash
+# 1. Deploy new version to dev
+edgit tag create my-prompt v1.1.0
+edgit deploy set my-prompt v1.1.0 --to dev
+
+# 2. Test in dev
+curl https://dev.example.com/test
+
+# 3. Promote to staging
+edgit deploy set my-prompt v1.1.0 --to staging
+
+# 4. Test in staging
+curl https://staging.example.com/test
+
+# 5. Promote to production
+edgit deploy set my-prompt v1.1.0 --to prod
+```
+
+**When to use:** Most production systems, especially when starting out
+
+**Pros:**
+- Simple to understand
+- Clear separation of environments
+- Easy to test before production
+
+**Cons:**
+- Slower (requires testing in each environment)
+- Staging might not catch all issues (different data, traffic patterns)
+
+## Strategy 2: Canary Deployments
+
+Deploy to a small percentage of production traffic first.
+
+### Setup
+
+```bash
+# Create canary environment (10% of prod traffic)
+edgit deploy set my-prompt v1.0.0 --to prod          # 90% traffic
+edgit deploy set my-prompt v1.0.0 --to prod-canary   # 10% traffic
+```
+
+### Workflow
+
+```bash
+# 1. Deploy new version to canary
+edgit tag create my-prompt v1.1.0
+edgit deploy set my-prompt v1.1.0 --to prod-canary
+
+# 2. Monitor canary (10% of traffic gets v1.1.0)
+# Watch error rates, latency, user feedback
+
+# 3. If good, increase canary size
+edgit deploy set my-prompt v1.1.0 --to prod-canary-50  # 50% traffic
+
+# 4. If still good, full rollout
+edgit deploy set my-prompt v1.1.0 --to prod
+```
+
+### Configure Traffic Splitting
+
+In your Conductor ensemble:
+
+```yaml
+ensemble: canary-example
+
+agents:
+  # 90% get stable version
+  - name: analyzer-stable
+    operation: think
+    component: my-prompt@${env.PROD_VERSION}  # v1.0.0
+    condition: ${Math.random() < 0.9}
+
+  # 10% get canary version
+  - name: analyzer-canary
+    operation: think
+    component: my-prompt@${env.CANARY_VERSION}  # v1.1.0
+    condition: ${Math.random() >= 0.9}
+
+output:
+  result: ${analyzer-stable.output || analyzer-canary.output}
+  was_canary: ${analyzer-canary.executed}
+```
+
+**When to use:** High-traffic systems where you need confidence before full rollout
+
+**Pros:**
+- Test with real production traffic
+- Catches issues that staging misses
+- Can roll back without affecting everyone
+
+**Cons:**
+- More complex setup
+- Need monitoring to detect issues
+- Some users get different versions
+
+## Strategy 3: Blue-Green Deployment
+
+Run two complete environments, switch instantly.
+
+### Setup
+
+```bash
+# Blue environment (current production)
+edgit deploy set my-prompt v1.0.0 --to blue
+
+# Green environment (new version)
+edgit deploy set my-prompt v1.1.0 --to green
+```
+
+### Workflow
+
+```bash
+# 1. Deploy to green
+edgit tag create my-prompt v1.1.0
+edgit deploy set my-prompt v1.1.0 --to green
+
+# 2. Test green thoroughly
+curl https://green.example.com/test
+
+# 3. Switch production traffic to green
+# Update load balancer / DNS to point to green
+
+# 4. Keep blue running for quick rollback
+# If issues, switch back to blue
+
+# 5. After confirming green is stable, update blue
+edgit deploy set my-prompt v1.1.0 --to blue
+```
+
+**When to use:** When you need instant rollback without affecting users
+
+**Pros:**
+- Zero-downtime deployments
+- Instant rollback (switch back to blue)
+- Can test green with production-like environment
+
+**Cons:**
+- Requires double the infrastructure
+- More expensive
+- Need to keep data in sync between blue/green
+
+## Strategy 4: Feature Flags / A/B Testing
+
+Deploy multiple versions, control who gets what.
+
+### Setup
+
+```yaml
+ensemble: ab-test-example
+
+agents:
+  # Control group (50% of users)
+  - name: analyzer-control
+    operation: think
+    component: my-prompt@v1.0.0
+    condition: ${input.user_id % 2 === 0}
+
+  # Treatment group (50% of users)
+  - name: analyzer-treatment
+    operation: think
+    component: my-prompt@v1.1.0
+    condition: ${input.user_id % 2 === 1}
+
+output:
+  result: ${analyzer-control.output || analyzer-treatment.output}
+  variant: ${analyzer-control.executed ? 'control' : 'treatment'}
+```
+
+### Workflow
+
+```bash
+# 1. Deploy both versions
+edgit deploy set my-prompt v1.0.0 --to prod-control
+edgit deploy set my-prompt v1.1.0 --to prod-treatment
+
+# 2. Collect metrics from both
+# Track success rates, user satisfaction, performance
+
+# 3. Pick winner
+edgit deploy set my-prompt v1.1.0 --to prod  # Treatment won
+
+# 4. Clean up
+# Remove control variant from ensemble
+```
+
+**When to use:** When you want to measure impact objectively
+
+**Pros:**
+- Data-driven decisions
+- Can test multiple variants
+- Users get consistent experience (sticky sessions)
+
+**Cons:**
+- Need analytics infrastructure
+- Requires statistical significance
+- More complex to set up
+
+## Strategy 5: Progressive Rollout
+
+Gradually increase percentage over time.
+
+### Workflow
+
+```bash
+# Day 1: Deploy to 1%
+edgit tag create my-prompt v1.1.0
+edgit deploy set my-prompt v1.1.0 --to prod-1pct
+
+# Day 2: Increase to 10%
+edgit deploy set my-prompt v1.1.0 --to prod-10pct
+
+# Day 3: Increase to 50%
+edgit deploy set my-prompt v1.1.0 --to prod-50pct
+
+# Day 4: Full rollout
+edgit deploy set my-prompt v1.1.0 --to prod
+```
+
+### Configure Gradual Rollout
+
+```yaml
+ensemble: progressive-rollout
+
+state:
+  schema:
+    rollout_percentage: number
+
+agents:
+  # Get rollout percentage from KV
+  - name: get-rollout-config
+    operation: storage
+    config:
+      type: kv
+      key: rollout-percentage-my-prompt-v1.1.0
+
+  # Use new version based on percentage
+  - name: analyzer
+    operation: think
+    component: >
+      ${Math.random() * 100 < state.rollout_percentage
+        ? 'my-prompt@v1.1.0'
+        : 'my-prompt@v1.0.0'}
+```
+
+Update percentage via KV:
+
+```bash
+# Increase rollout
+wrangler kv:key put --namespace-id=$KV_ID \
+  "rollout-percentage-my-prompt-v1.1.0" "10"  # 10%
+
+# Monitor...
+
+# Increase more
+wrangler kv:key put --namespace-id=$KV_ID \
+  "rollout-percentage-my-prompt-v1.1.0" "50"  # 50%
+```
+
+**When to use:** When you want fine-grained control over rollout speed
+
+**Pros:**
+- Can pause at any percentage
+- Easy to roll back (decrease percentage)
+- Gradual impact on systems
+
+**Cons:**
+- Requires feature flag infrastructure
+- More complex than binary on/off
+
+## Strategy 6: Ring Deployment
+
+Deploy to concentric "rings" of users.
+
+### Ring Structure
+
+```bash
+# Ring 0: Internal team (you)
+edgit deploy set my-prompt v1.1.0 --to ring-0
+
+# Ring 1: Beta users (opt-in)
+edgit deploy set my-prompt v1.1.0 --to ring-1
+
+# Ring 2: Early adopters (10%)
+edgit deploy set my-prompt v1.1.0 --to ring-2
+
+# Ring 3: General users (remaining 90%)
+edgit deploy set my-prompt v1.0.0 --to ring-3
+```
+
+### Workflow
+
+```bash
+# Week 1: Deploy to ring-0 (internal)
+edgit deploy set my-prompt v1.1.0 --to ring-0
+
+# Week 2: Promote to ring-1 (beta users)
+edgit deploy set my-prompt v1.1.0 --to ring-1
+
+# Week 3: Promote to ring-2 (early adopters)
+edgit deploy set my-prompt v1.1.0 --to ring-2
+
+# Week 4: Full rollout to ring-3 (everyone)
+edgit deploy set my-prompt v1.1.0 --to ring-3
+edgit deploy set my-prompt v1.1.0 --to prod
+```
+
+**When to use:** Large user bases with different risk tolerances
+
+**Pros:**
+- Very safe (catch issues early with small groups)
+- Can get feedback from beta users
+- Clear rollout plan
+
+**Cons:**
+- Slowest approach
+- Need user segmentation
+- Complex configuration
+
+## Combining Strategies
+
+Real-world: combine multiple strategies.
+
+### Example: Staged Canary Rollout
+
+```bash
+# Stage 1: Dev testing
+edgit deploy set my-prompt v1.1.0 --to dev
+
+# Stage 2: Staging with production data
+edgit deploy set my-prompt v1.1.0 --to staging
+
+# Stage 3: Production canary (5%)
+edgit deploy set my-prompt v1.1.0 --to prod-canary-5
+
+# Stage 4: Increase canary (25%)
+edgit deploy set my-prompt v1.1.0 --to prod-canary-25
+
+# Stage 5: Full rollout
+edgit deploy set my-prompt v1.1.0 --to prod
+```
+
+## Rollback Strategies
+
+Every deployment strategy needs a rollback plan.
+
+### Instant Rollback
+
+```bash
+# Something's wrong!
+edgit deploy set my-prompt v1.0.0 --to prod
+
+# <50ms later (if using Cloudflare KV), you're back
+```
+
+### Gradual Rollback
+
+```bash
+# Reduce canary percentage
+wrangler kv:key put --namespace-id=$KV_ID \
+  "rollout-percentage" "10"  # Was 50%, now 10%
+
+# Monitor...
+
+# If still bad, full rollback
+edgit deploy set my-prompt v1.0.0 --to prod
+```
+
+### Blue-Green Rollback
+
+```bash
+# Switch traffic back to blue
+# Update load balancer to point to blue environment
+
+# Instant rollback, zero downtime
+```
+
+## Monitoring During Deployment
+
+### Key Metrics to Watch
+
+```yaml
+# Monitor these during rollout
+metrics:
+  - error_rate         # Should stay flat
+  - latency_p95        # Should stay flat
+  - success_rate       # Should stay flat or improve
+  - user_complaints    # Should stay low
+  - cost_per_request   # Shouldn't spike
+```
+
+### Automated Rollback
+
+Set thresholds:
+
+```yaml
+rollback_if:
+  error_rate > 1%
+  latency_p95 > 2000ms
+  success_rate < 95%
+```
+
+In CI/CD:
+
+```bash
+#!/bin/bash
+# Deploy with automatic rollback
+
+edgit deploy set my-prompt v1.1.0 --to prod-canary
+
+# Wait 5 minutes
+sleep 300
+
+# Check metrics
+ERROR_RATE=$(curl https://metrics.example.com/error-rate)
+
+if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+  echo "Error rate too high! Rolling back..."
+  edgit deploy set my-prompt v1.0.0 --to prod-canary
+  exit 1
+fi
+
+echo "Canary healthy, continuing rollout..."
+```
+
+## Best Practices
+
+### 1. Start Conservative
+
+```bash
+#  Do: Start with smallest possible audience
+edgit deploy set my-prompt v1.1.0 --to prod-canary-1  # 1%
+
+# L Don't: YOLO full production
+edgit deploy set my-prompt v1.1.0 --to prod
+```
+
+### 2. Have a Rollback Plan
+
+```bash
+#  Do: Document rollback command
+# If issues: edgit deploy set my-prompt v1.0.0 --to prod
+
+# L Don't: Deploy without knowing how to undo
+```
+
+### 3. Monitor Everything
+
+```bash
+#  Do: Watch metrics during rollout
+watch -n 5 'curl https://metrics.example.com/dashboard'
+
+# L Don't: Deploy and walk away
+```
+
+### 4. Use Sticky Sessions for A/B Tests
+
+```yaml
+#  Do: Users get consistent variant
+condition: ${hash(input.user_id) % 2 === 0}
+
+# L Don't: Random selection (inconsistent experience)
+condition: ${Math.random() < 0.5}
+```
+
+### 5. Keep Multiple Versions Running
+
+```bash
+#  Do: Run old version during rollout
+prod: v1.0.0 (main)
+prod-canary: v1.1.0 (testing)
+
+# L Don't: Replace immediately
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Rollback & Time Travel" icon="clock-rotate-left" href="/edgit/guides/rollback-time-travel">
+    Emergency rollbacks and debugging
+  </Card>
+
+  <Card title="A/B Testing" icon="flask" href="/edgit/guides/ab-testing-multivariate">
+    Multivariate testing strategies
+  </Card>
+
+  <Card title="CI/CD Integration" icon="workflow" href="/edgit/getting-started/cicd-integration">
+    Automate deployments in your pipeline
+  </Card>
+
+  <Card title="Versioning Guide" icon="tags" href="/edgit/guides/versioning-components-agents">
+    Master component and agent versioning
+  </Card>
+</CardGroup>

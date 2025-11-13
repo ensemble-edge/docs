@@ -1,0 +1,757 @@
+---
+title: "Configuring Cloudflare"
+description: "Complete setup for all Cloudflare services"
+---
+
+# Configuring Cloudflare
+
+**Conductor runs on Cloudflare's edge platform. Here's how to set up everything you need.**
+
+This guide covers: Workers AI, KV, D1, R2, Vectorize, Durable Objects, and Queues.
+
+## Workers AI
+
+AI models running at the edge. No API keys, no external dependencies.
+
+### Setup
+
+Add to `wrangler.toml`:
+
+```toml
+[ai]
+binding = "AI"
+```
+
+That's it. No additional configuration.
+
+### Available Models
+
+**Text Generation**:
+- `@cf/meta/llama-3.1-8b-instruct` - Fast, good quality (recommended)
+- `@cf/meta/llama-3-8b-instruct` - Previous generation
+- `@cf/mistral/mistral-7b-instruct-v0.1` - Fast, creative
+
+**Embeddings**:
+- `@cf/baai/bge-base-en-v1.5` - 768 dimensions (recommended)
+- `@cf/baai/bge-small-en-v1.5` - 384 dimensions (faster)
+- `@cf/baai/bge-large-en-v1.5` - 1024 dimensions (best quality)
+
+**Image**:
+- `@cf/stabilityai/stable-diffusion-xl-base-1.0`
+
+Full list: https://developers.cloudflare.com/workers-ai/models/
+
+### Usage in Ensembles
+
+```yaml
+agents:
+  - name: generate
+    operation: think
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
+      prompt: ${input.text}
+```
+
+### Limits
+
+- **Free**: 10,000 neurons/day (~100 requests for Llama 3.1)
+- **Paid**: Unlimited, pay per neuron
+
+## KV (Key-Value Storage)
+
+Fast, globally replicated key-value store. Perfect for caching.
+
+### Create Namespace
+
+```bash
+# Create production namespace
+wrangler kv:namespace create CACHE
+
+# Create preview namespace (for local dev)
+wrangler kv:namespace create CACHE --preview
+```
+
+Output:
+```
+{ binding = "CACHE", id = "abc123..." }
+{ binding = "CACHE", preview_id = "xyz789..." }
+```
+
+### Configure
+
+Add to `wrangler.toml`:
+
+```toml
+[[kv_namespaces]]
+binding = "CACHE"
+id = "abc123..."
+preview_id = "xyz789..."
+```
+
+### Usage in Ensembles
+
+```yaml
+agents:
+  # Read from KV
+  - name: get-cache
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: result-${input.query}
+
+  # Write to KV
+  - name: set-cache
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: result-${input.query}
+      value: ${generate.output}
+      expirationTtl: 3600  # 1 hour
+```
+
+### KV Operations
+
+**Get**:
+```yaml
+config:
+  type: kv
+  action: get
+  key: my-key
+  default: null  # Return if key doesn't exist
+```
+
+**Put**:
+```yaml
+config:
+  type: kv
+  action: put
+  key: my-key
+  value: ${data}
+  expirationTtl: 3600  # Optional: expire after 1 hour
+```
+
+**Delete**:
+```yaml
+config:
+  type: kv
+  action: delete
+  key: my-key
+```
+
+**List**:
+```yaml
+config:
+  type: kv
+  action: list
+  prefix: user-  # List all keys starting with "user-"
+  limit: 100
+```
+
+### Limits
+
+- **Free**: 100,000 reads/day, 1,000 writes/day
+- **Paid**: Unlimited, $0.50/million reads, $5/million writes
+- **Key size**: Max 512 bytes
+- **Value size**: Max 25MB
+- **Latency**: <10ms globally
+
+## D1 (SQL Database)
+
+SQLite at the edge. Perfect for structured data.
+
+### Create Database
+
+```bash
+wrangler d1 create production-db
+```
+
+Output:
+```
+database_name = "production-db"
+database_id = "abc123-def456-ghi789"
+```
+
+### Configure
+
+Add to `wrangler.toml`:
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "production-db"
+database_id = "abc123-def456-ghi789"
+```
+
+### Create Schema
+
+```bash
+# Create migration
+wrangler d1 migrations create production-db initial_schema
+```
+
+Edit `migrations/0001_initial_schema.sql`:
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created ON users(created_at);
+
+CREATE TABLE IF NOT EXISTS documents (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  content TEXT NOT NULL,
+  embedding BLOB,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX idx_documents_user ON documents(user_id);
+```
+
+Apply migration:
+```bash
+# Apply to local dev database
+wrangler d1 migrations apply production-db --local
+
+# Apply to remote production database
+wrangler d1 migrations apply production-db --remote
+```
+
+### Usage in Ensembles
+
+**Query (SELECT)**:
+```yaml
+agents:
+  - name: get-user
+    operation: storage
+    config:
+      type: d1
+      query: |
+        SELECT id, email, name FROM users
+        WHERE email = ?
+      params:
+        - ${input.email}
+```
+
+**Insert**:
+```yaml
+agents:
+  - name: create-user
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO users (id, email, name, created_at)
+        VALUES (?, ?, ?, ?)
+      params:
+        - ${input.id}
+        - ${input.email}
+        - ${input.name}
+        - ${Date.now()}
+```
+
+**Update**:
+```yaml
+agents:
+  - name: update-user
+    operation: storage
+    config:
+      type: d1
+      query: |
+        UPDATE users SET name = ?
+        WHERE id = ?
+      params:
+        - ${input.name}
+        - ${input.id}
+```
+
+**Batch Insert**:
+```yaml
+agents:
+  - name: batch-insert
+    operation: storage
+    config:
+      type: d1
+      batch:
+        - query: INSERT INTO users (id, email) VALUES (?, ?)
+          params: ['1', 'user1@example.com']
+        - query: INSERT INTO users (id, email) VALUES (?, ?)
+          params: ['2', 'user2@example.com']
+```
+
+### D1 CLI Commands
+
+```bash
+# Execute query
+wrangler d1 execute production-db --command="SELECT * FROM users LIMIT 10"
+
+# Execute from file
+wrangler d1 execute production-db --file=query.sql
+
+# Backup database
+wrangler d1 export production-db --output=backup.sql
+
+# Restore from backup
+wrangler d1 execute production-db --file=backup.sql
+```
+
+### Limits
+
+- **Free**: 5M rows read/day, 100k rows written/day
+- **Paid**: Unlimited, $0.001/1k rows read, $1/1M rows written
+- **Database size**: 10GB (can request increase)
+- **Query time**: 30 seconds max
+
+## R2 (Object Storage)
+
+S3-compatible object storage. No egress fees.
+
+### Create Bucket
+
+```bash
+wrangler r2 bucket create conductor-assets
+```
+
+### Configure
+
+Add to `wrangler.toml`:
+
+```toml
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "conductor-assets"
+```
+
+### Usage in Ensembles
+
+**Upload**:
+```yaml
+agents:
+  - name: upload-file
+    operation: storage
+    config:
+      type: r2
+      action: put
+      key: documents/${input.filename}
+      value: ${input.content}
+      contentType: application/pdf
+```
+
+**Download**:
+```yaml
+agents:
+  - name: download-file
+    operation: storage
+    config:
+      type: r2
+      action: get
+      key: documents/${input.filename}
+```
+
+**Delete**:
+```yaml
+agents:
+  - name: delete-file
+    operation: storage
+    config:
+      type: r2
+      action: delete
+      key: documents/${input.filename}
+```
+
+**List**:
+```yaml
+agents:
+  - name: list-files
+    operation: storage
+    config:
+      type: r2
+      action: list
+      prefix: documents/
+      limit: 1000
+```
+
+### R2 CLI Commands
+
+```bash
+# Upload file
+wrangler r2 object put conductor-assets/path/to/file.pdf --file=local-file.pdf
+
+# Download file
+wrangler r2 object get conductor-assets/path/to/file.pdf
+
+# Delete file
+wrangler r2 object delete conductor-assets/path/to/file.pdf
+
+# List objects
+wrangler r2 object list conductor-assets --prefix=documents/
+```
+
+### Limits
+
+- **Storage**: 10GB free, then $0.015/GB/month
+- **Class A operations** (writes): 1M free/month, then $4.50/million
+- **Class B operations** (reads): 10M free/month, then $0.36/million
+- **Egress**: FREE (no egress fees!)
+- **Max object size**: 5TB
+
+## Vectorize (Vector Database)
+
+Vector similarity search. Perfect for RAG and semantic search.
+
+### Create Index
+
+```bash
+wrangler vectorize create embeddings \
+  --dimensions=768 \
+  --metric=cosine
+```
+
+Dimension options:
+- **384**: `@cf/baai/bge-small-en-v1.5`
+- **768**: `@cf/baai/bge-base-en-v1.5` (recommended)
+- **1024**: `@cf/baai/bge-large-en-v1.5`
+- **1536**: OpenAI `text-embedding-3-small`
+
+Metric options:
+- **cosine**: Best for normalized vectors (recommended)
+- **euclidean**: L2 distance
+- **dot-product**: Inner product
+
+### Configure
+
+Add to `wrangler.toml`:
+
+```toml
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "embeddings"
+```
+
+### Usage in Ensembles
+
+**Insert Vectors**:
+```yaml
+agents:
+  # Generate embedding
+  - name: embed
+    operation: think
+    config:
+      provider: cloudflare
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.text}
+
+  # Insert into Vectorize
+  - name: insert-vector
+    operation: storage
+    config:
+      type: vectorize
+      action: insert
+      id: ${input.document_id}
+      vector: ${embed.output.data[0]}
+      metadata:
+        text: ${input.text}
+        timestamp: ${Date.now()}
+```
+
+**Search Vectors**:
+```yaml
+agents:
+  # Generate query embedding
+  - name: embed-query
+    operation: think
+    config:
+      provider: cloudflare
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.question}
+
+  # Search similar vectors
+  - name: search
+    operation: storage
+    config:
+      type: vectorize
+      action: query
+      vector: ${embed-query.output.data[0]}
+      topK: 5
+      filter:
+        timestamp: { $gte: ${Date.now() - 86400000} }  # Last 24 hours
+```
+
+**Delete Vectors**:
+```yaml
+agents:
+  - name: delete-vector
+    operation: storage
+    config:
+      type: vectorize
+      action: delete
+      ids:
+        - ${input.document_id}
+```
+
+### Vectorize CLI Commands
+
+```bash
+# Get index info
+wrangler vectorize get embeddings
+
+# Insert vectors (from file)
+wrangler vectorize insert embeddings --file=vectors.ndjson
+
+# Delete index
+wrangler vectorize delete embeddings
+```
+
+### Limits
+
+- **Free**: Included in Workers plan
+- **Max vectors**: 5M (can request increase)
+- **Max dimensions**: 1536
+- **Query latency**: ~50ms
+
+## Durable Objects
+
+Stateful edge workers. Perfect for real-time features.
+
+### Configure
+
+Add to `wrangler.toml`:
+
+```toml
+[[durable_objects.bindings]]
+name = "EXECUTION_STATE"
+class_name = "ExecutionState"
+script_name = "my-conductor-app"
+
+[[durable_objects.bindings]]
+name = "HITL_STATE"
+class_name = "HITLState"
+script_name = "my-conductor-app"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ExecutionState", "HITLState"]
+```
+
+### Export Classes
+
+In `src/index.ts`:
+
+```typescript
+export { ExecutionState } from '@ensemble-edge/conductor/durable-objects';
+export { HITLState } from '@ensemble-edge/conductor/durable-objects';
+```
+
+### Usage
+
+Conductor uses Durable Objects internally for:
+- **HITL (Human-in-the-Loop)**: Approval workflows
+- **Long-running executions**: State persistence
+
+You typically don't interact with them directly.
+
+## Queues
+
+Asynchronous task processing.
+
+### Create Queue
+
+```bash
+wrangler queues create conductor-tasks
+```
+
+### Configure
+
+Add to `wrangler.toml`:
+
+```toml
+# Producer (send messages)
+[[queues.producers]]
+binding = "TASK_QUEUE"
+queue = "conductor-tasks"
+
+# Consumer (receive messages)
+[[queues.consumers]]
+queue = "conductor-tasks"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "conductor-tasks-dlq"
+```
+
+### Usage in Ensembles
+
+**Send Message**:
+```yaml
+agents:
+  - name: queue-task
+    operation: storage
+    config:
+      type: queue
+      action: send
+      queue: TASK_QUEUE
+      body:
+        task_type: process-document
+        document_id: ${input.document_id}
+```
+
+**Consumer** (in `src/index.ts`):
+```typescript
+export default {
+  async queue(batch: MessageBatch, env: Env): Promise<void> {
+    for (const message of batch.messages) {
+      const { task_type, document_id } = message.body;
+
+      if (task_type === 'process-document') {
+        const conductor = new Conductor({ env });
+        await conductor.execute('process-document', { document_id });
+      }
+
+      message.ack();
+    }
+  }
+};
+```
+
+## Complete Configuration Example
+
+Here's a full `wrangler.toml` with all services:
+
+```toml
+name = "my-conductor-app"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+# Workers AI
+[ai]
+binding = "AI"
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "CACHE"
+id = "abc123..."
+preview_id = "xyz789..."
+
+[[kv_namespaces]]
+binding = "API_KEYS"
+id = "def456..."
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "ghi789..."
+
+# D1 Databases
+[[d1_databases]]
+binding = "DB"
+database_name = "production-db"
+database_id = "jkl012..."
+
+# R2 Buckets
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "conductor-assets"
+
+# Vectorize
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "embeddings"
+
+# Durable Objects
+[[durable_objects.bindings]]
+name = "EXECUTION_STATE"
+class_name = "ExecutionState"
+script_name = "my-conductor-app"
+
+[[durable_objects.bindings]]
+name = "HITL_STATE"
+class_name = "HITLState"
+script_name = "my-conductor-app"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ExecutionState", "HITLState"]
+
+# Queues
+[[queues.producers]]
+binding = "TASK_QUEUE"
+queue = "conductor-tasks"
+
+[[queues.consumers]]
+queue = "conductor-tasks"
+max_batch_size = 10
+max_batch_timeout = 30
+
+# Environment Variables
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+
+# Production Environment
+[env.production]
+name = "my-conductor-app-prod"
+vars = { ENVIRONMENT = "production" }
+
+# Staging Environment
+[env.staging]
+name = "my-conductor-app-staging"
+vars = { ENVIRONMENT = "staging" }
+```
+
+## Best Practices
+
+1. **Use KV for caching** - Fast and cheap
+2. **Use D1 for structured data** - When you need SQL
+3. **Use R2 for large files** - No egress fees
+4. **Use Vectorize for semantic search** - Native vector support
+5. **Use Queues for async work** - Don't block requests
+6. **Separate environments** - dev, staging, production
+7. **Monitor limits** - Check Cloudflare dashboard regularly
+8. **Optimize queries** - Add indexes to D1 tables
+
+## Cost Optimization
+
+### Stay in Free Tier
+
+- **Workers**: 100k requests/day
+- **KV**: 100k reads, 1k writes/day
+- **D1**: 5M reads, 100k writes/day
+- **R2**: 10GB storage, 1M writes, 10M reads/month
+- **Workers AI**: 10k neurons/day
+
+### Tips to Reduce Costs
+
+1. **Cache aggressively** - Use KV to cache AI/API results
+2. **Use Cloudflare AI** - Cheaper than external providers
+3. **Batch D1 operations** - Reduce write counts
+4. **Use R2 for storage** - No egress fees
+5. **Monitor usage** - Set up billing alerts
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
+    Learn all 12 operations
+  </Card>
+
+  <Card title="Core Concepts" icon="book" href="/conductor/core-concepts/operations">
+    Deep dive into concepts
+  </Card>
+
+  <Card title="Pre-built Agents" icon="box" href="/conductor/agents/overview">
+    Use ready-made agents
+  </Card>
+
+  <Card title="Playbooks" icon="books" href="/conductor/playbooks/rag-pipeline">
+    Real-world examples
+  </Card>
+</CardGroup>

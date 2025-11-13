@@ -1,5 +1,5 @@
 ---
-title: "Ensemble"
+title: "Ensemble Edge"
 description: "Version control meets edge orchestration for AI systems"
 ---
 
@@ -7,199 +7,173 @@ description: "Version control meets edge orchestration for AI systems"
 
 **Version control meets edge orchestration for AI systems.**
 
-Build AI workflows that you actually control. No proprietary platforms, no vendor lock-in, no serverless sprawl, no duct tape and bailing wire "workflow automation." Just Git, YAML, and Cloudflare Workers. Fast, developer-first, infinite scale.
+Build AI workflows that you actually control. No proprietary platforms, no vendor lock-in, no serverless sprawl, no duct tape and bailing wire "workflow automation." Just Git, YAML, and Cloudflare Workers.
+
+You're an engineer. You deserve tools that treat you like one.
 
 ## The Problem
 
-You have 50+ prompts, 20+ agents, and dozens of SQL queries scattered across your codebase. Changing one breaks three others. Rollbacks mean digging through Git history. A/B testing means deployment hell. And every "AI orchestration platform" wants you to give up control for their black box.
+You've got 50+ prompts, 20+ agents, dozens of SQL queries scattered across your codebase. Change one, break three others. Rollback means Git archaeology. A/B testing means deployment hell.
+
+And every "AI orchestration platform" wants you to hand over control to some black box that the head of sales bought because the pitch deck looked good.
 
 **You know there's a better way.**
 
+## Components → Agents → Ensembles
+
+The building blocks are simple:
+
+<CardGroup cols={3}>
+  <Card title="Components" icon="cube">
+    **Versioned artifacts**: prompts, configs, queries, scripts. Each gets its own version history. Mix and match optimal versions from different points in time.
+  </Card>
+
+  <Card title="Agents" icon="robot">
+    **Workers that execute**: AI reasoning, database queries, HTTP calls, business logic. Each agent uses operations and components to get work done.
+  </Card>
+
+  <Card title="Ensembles" icon="network-wired">
+    **Orchestration workflows**: YAML files that coordinate agents into complex workflows. Execute at the edge in <50ms cold starts.
+  </Card>
+</CardGroup>
 
 ## Edgit: Git-Native Component Versioning
 
-Version every AI component independently. Deploy any combination from any point in history.
+Version every AI component independently. Deploy any combination from any point in history. Rollback in <50ms globally.
 
 ```bash
 # Each component versions independently
 edgit tag create extraction-prompt v1.0.0
 edgit tag create company-agent v2.1.0
-edgit tag create validation-sql v0.5.0
+edgit tag create validation-query v0.5.0
 
-# Deploy optimal versions from different timelines
+# Deploy the optimal combination - cherry-pick from history
 edgit deploy set extraction-prompt v0.1.0 --to prod  # Ancient but perfect
 edgit deploy set company-agent v3.0.0 --to prod      # Latest stable
-edgit deploy set validation-sql v2.5.0 --to prod     # Optimal performance
+edgit deploy set validation-query v2.5.0 --to prod   # Best performance
 
 # Instant rollback
 edgit deploy set extraction-prompt v0.1.0 --to prod  # < 50ms globally
 ```
 
-**No merge conflicts. No monorepo versioning. No JSON state files.**
+**No merge conflicts. No monorepo hell. No JSON state files.**
 
 All version data lives in Git tags. Your CI/CD deploys to Cloudflare KV. Every version ever created is instantly accessible at the edge.
 
-<Card title="Get Started with Edgit" icon="rocket" href="/getting-started/edgit">
-  Start versioning your components in 5 minutes
+<Card title="Get Started with Edgit" icon="rocket" href="/edgit/overview">
+  Start versioning components in 5 minutes
 </Card>
 
 ## Conductor: YAML-Driven Edge Orchestration
 
-Compose AI workflows in YAML. Execute at 200+ global locations. Sub-50ms cold starts.
+Define AI workflows in YAML. Execute at 200+ global locations. Sub-50ms cold starts. No DAG builders, no UI-driven workflows, no central orchestrator bottleneck.
 
 ```yaml
 # ensembles/company-intelligence.yaml
 name: company-intelligence
 
-state:
-  schema:
-    companyData: object
-    analysis: object
-
-flow:
-  - member: fetch-company-data
-    state:
-      set: [companyData]
-    input:
-      domain: ${input.domain}
-    cache:
-      ttl: 3600
-
-  - parallel:
-    - member: analyze-financials
-      state:
-        use: [companyData]
-        set: [analysis]
-
-    - member: fetch-competitors
-      state:
-        use: [companyData]
-```
-
-**No DAG builders. No UI-driven workflows. No central orchestrator bottleneck.**
-
-Define workflows in Git. Deploy to Cloudflare Workers. State management, caching, and parallelization built in.
-
-<Card title="Learn About Conductor" icon="network-wired" href="/conductor/overview">
-  Edge orchestration framework for AI workflows
-</Card>
-
-<Info>
-  **Terminology:** In Conductor, we use musical metaphors:
-  - **Ensembles** are workflows (YAML files that orchestrate execution)
-  - **Members** are agents/components (individual units that perform tasks)
-
-  This naming helps distinguish Conductor's approach from traditional workflow and agent frameworks while making orchestration concepts intuitive.
-</Info>
-
-## Integration: Components → Members → Ensembles
-
-```yaml
-# Version components with Edgit
-components:
-  extraction-prompt: v1.0.0
-  company-analyzer: v2.1.0
-
-# Load as Conductor members
-members:
-  - type: Think
-    component: extraction-prompt@v1.0.0
+agents:
+  - name: fetch-company-data
+    operation: http
     config:
-      model: gpt-4
+      url: https://api.example.com/companies/${input.domain}
       cache_ttl: 3600
 
-# Orchestrate in ensembles
-ensembles:
-  - name: company-intel
-    members: [fetch, analyze, score]
-    deploy: cloudflare-workers
+  - name: analyze-financials
+    operation: think
+    component: financial-analysis-prompt@v2.1.0
+    config:
+      model: claude-3-5-sonnet-20241022
+    input:
+      company_data: ${fetch-company-data.output}
+
+  - name: generate-report
+    operation: think
+    component: report-generation-prompt@v1.5.0
+    input:
+      analysis: ${analyze-financials.output}
 ```
 
-Mix optimal component versions. Test combinations locally. Deploy atomically to the edge.
+**Define workflows in Git. Deploy to Cloudflare Workers. State management, caching, parallelization built-in.**
 
-## Ensemble Cloud (Future)
+<Card title="Learn About Conductor" icon="network-wired" href="/conductor/overview">
+  Edge orchestration for AI workflows
+</Card>
 
-Managed service with generous free tier for:
+## The Versioning Multiverse
 
-### Prompt & Component Management
-- Visual editor for prompts, SQL, configs
-- Version and tag changes with one click
-- A/B test and multivariant experiments
-- Let analysts iterate without touching code
+With independent versioning of components AND agents, you unlock infinite combinations:
 
-### Workflow & Deployment
-- Visual workflow builder (React Flow)
-- Deploy to production from the UI
-- Real-time collaboration across teams
-- Observability dashboards
+```yaml
+# Same ensemble, different realities running in parallel
+ensemble: analysis-pipeline
 
-**The Difference:** Your data lives in Git, not our database. We're the UI layer. You own the source of truth.
+agents:
+  # Production: stable + conservative
+  - name: prod-analyzer
+    agent: analyzer@v1.0.0        # Stable agent version
+    component: prompt@v1.0.0      # Conservative prompt
 
-Think PromptLayer's editing experience, but Git-native instead of proprietary storage.
+  # Experimental: new everything
+  - name: exp-analyzer
+    agent: analyzer@v2.0.0-beta   # New agent logic
+    component: prompt@v2.1.0      # Aggressive prompt
+
+  # Hybrid: stable agent, new prompt
+  - name: hybrid-analyzer
+    agent: analyzer@v1.0.0        # Stable agent
+    component: prompt@v2.1.0      # New prompt only
+```
+
+**Test: 2 agent versions × 3 prompt versions × 2 configs = 12 variants running simultaneously.**
+
+Perfect for A/B testing, progressive rollouts, and reproducing bugs from last Tuesday at 2:47 PM.
+
+## Why This Exists
+
+Modern AI development is broken:
+
+1. Ship v1.0.0 of your app
+2. Change a prompt
+3. Everything becomes v2.0.0
+4. Original prompt trapped in Git history
+5. Can't A/B test old vs new
+6. Can't mix optimal versions
+7. Rollback means reverting the entire codebase
+
+**This is insane for systems with 100+ independently evolving components.**
+
+Ensemble Edge treats AI components like they deserve: individually versioned, independently deployable, infinitely composable.
+
+Then orchestrates them at the edge where they execute fast and scale infinitely.
 
 ## Architecture Principles
 
 <AccordionGroup>
   <Accordion icon="globe" title="Edge-First">
-    Cloudflare Workers, KV, D1, R2, and AI Gateway are the primitives. No centralized compute.
+    Cloudflare Workers, KV, D1, R2, and AI Gateway are the primitives. No centralized compute. No single point of failure.
   </Accordion>
 
   <Accordion icon="git-alt" title="Git-Native">
-    Configuration, orchestration, and versioning live in Git. CLI and SDK are thin layers around Git operations.
+    Configuration, orchestration, and versioning live in Git. No proprietary storage. You own the source of truth.
   </Accordion>
 
   <Accordion icon="bolt" title="Cache-Central">
-    Multi-layer caching with TTL control. Member-level cache settings. Cache-first thinking reduces costs and latency.
+    Multi-layer caching with TTL control. Agent-level cache settings. Cache-first thinking reduces costs and latency by 10x.
   </Accordion>
 
   <Accordion icon="check-square" title="Structured Outputs">
-    LLM and API members produce machine-readable, type-safe output validated via JSON schema.
+    AI operations produce machine-readable, type-safe output validated via JSON schema. No string parsing, no hallucinated JSON.
   </Accordion>
 
   <Accordion icon="chart-line" title="Observable by Default">
-    Every execution emits structured logs and metrics. Debugging and transparency are effortless.
+    Every execution emits structured logs and metrics. Debugging and monitoring are effortless, not afterthoughts.
   </Accordion>
 
   <Accordion icon="code-branch" title="Open by Default">
-    Core tooling (Edgit, Conductor) is open source. Cloud is proprietary—we charge for the UI and managed service, not the runtime.
+    Core tooling (Edgit, Conductor) is open source. We charge for managed services, not lock-in.
   </Accordion>
 </AccordionGroup>
-
-## Status
-
-<CardGroup cols={3}>
-  <Card title="Edgit" icon="cube">
-    **v0.2.0** (active development)
-    - ✅ Component versioning
-    - ✅ Deployment management
-    - ✅ AI-powered commits
-    - ✅ Smart detection
-    - ✅ Component listing (tree, JSON, YAML, table)
-    - ✅ Discovery tools (scan, detect, patterns)
-  </Card>
-
-  <Card title="Conductor" icon="network-wired">
-    **v1.0.0** (production-ready)
-    - ✅ Core runtime with graph executor
-    - ✅ State management (immutable, access tracking)
-    - ✅ Think, Function, Data, API members
-    - ✅ Durable Objects (ExecutionState, HITL)
-    - ✅ Webhooks & scheduled execution
-    - ✅ Built-in testing (276 tests, 40%+ coverage)
-    - ✅ CLI tools (exec, members, test, docs, history, logs, state, replay, health, config)
-    - ✅ SDK with client library & testing utilities
-    - ✅ Observability & logging
-    - ✅ AI Gateway integration
-    - ✅ Scoring system for quality metrics
-    - 📋 MCP integration (planned)
-  </Card>
-
-  <Card title="Cloud" icon="cloud">
-    **Design phase**
-
-    Managed service with generous free tier
-  </Card>
-</CardGroup>
 
 ## Quick Start
 
@@ -215,64 +189,76 @@ Think PromptLayer's editing experience, but Git-native instead of proprietary st
   <Card title="Version Components" icon="tags" href="/edgit/guides/versioning">
     ```bash
     edgit tag create my-prompt v1.0.0
-    edgit deploy set my-prompt v1.0.0 --to staging
+    edgit deploy set my-prompt v1.0.0 --to prod
     ```
   </Card>
 
-  <Card title="Deploy to Edge" icon="rocket" href="/edgit/guides/deployment">
-    ```bash
-    edgit build --target cloudflare
-    edgit deploy --to cloudflare
-    ```
-  </Card>
-
-  <Card title="Conductor" icon="network-wired" href="/conductor/overview">
+  <Card title="Install Conductor" icon="network-wired" href="/conductor/overview">
     ```bash
     npm install @ensemble-edge/conductor
     conductor init
+    ```
+  </Card>
+
+  <Card title="Deploy to Edge" icon="rocket" href="/conductor/getting-started/first-deployment">
+    ```bash
     conductor deploy
+    # Live at https://your-worker.workers.dev
     ```
   </Card>
 </CardGroup>
 
-## Why This Exists
+## Status
 
-Modern AI development looks like this:
-1. Ship v1.0.0 of your app
-2. Change a prompt
-3. Everything becomes v2.0.0
-4. Original prompt trapped in Git history
-5. Can't A/B test old vs new
-6. Can't mix optimal versions
-7. Rollback means reverting the entire codebase
+<CardGroup cols={3}>
+  <Card title="Edgit" icon="cube">
+    **v0.3.0** (active development)
 
-**This is insane for systems with 100+ independently evolving components.**
+    ✅ Component & agent versioning
+    ✅ Deployment management
+    ✅ Git-native tags
+    ✅ Discovery tools
+  </Card>
 
-Ensemble Edge treats AI components like they deserve: individually versioned, independently deployable, infinitely composable.
+  <Card title="Conductor" icon="network-wired">
+    **v1.0.0** (production-ready)
 
-Then orchestrates them at the edge where they execute fast and scale infinitely.
+    ✅ Edge orchestration
+    ✅ 10+ operations
+    ✅ 8+ pre-built agents
+    ✅ State management
+    ✅ A/B testing
+    ✅ 276 tests passing
+  </Card>
+
+  <Card title="Cloud" icon="cloud">
+    **Design phase**
+
+    Managed service with generous free tier (coming soon)
+  </Card>
+</CardGroup>
 
 ## Next Steps
 
 <CardGroup cols={3}>
-  <Card title="Getting Started" icon="play" href="/getting-started/index">
-    Quick start guides for all products
+  <Card title="Core Concepts" icon="book" href="/introduction/core-concepts">
+    Understand the building blocks
+  </Card>
+
+  <Card title="5-Minute Quick Start" icon="play" href="/introduction/quick-start">
+    Get running in 5 minutes
   </Card>
 
   <Card title="Edgit Docs" icon="cube" href="/edgit/overview">
-    Component management and versioning
+    Component versioning and deployment
   </Card>
 
   <Card title="Conductor Docs" icon="network-wired" href="/conductor/overview">
     Edge orchestration framework
   </Card>
 
-  <Card title="Cloud" icon="cloud" href="/cloud/overview">
-    Managed service for prompt management
-  </Card>
-
-  <Card title="Examples" icon="lightbulb" href="/edgit/examples/basic-workflow">
-    Real-world usage patterns
+  <Card title="Playbooks" icon="lightbulb" href="/conductor/playbooks/rag-pipeline">
+    Real-world patterns and recipes
   </Card>
 
   <Card title="Community" icon="comments" href="https://github.com/ensemble-edge/edgit/discussions">

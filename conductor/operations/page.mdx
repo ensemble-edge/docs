@@ -1,0 +1,69 @@
+---
+title: "page Operation"
+description: "Full-stack interactive pages"
+---
+
+# page Operation
+
+**Render full-stack React/htmx pages with SSR and dynamic routing.**
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: dashboard
+    operation: page
+    config:
+      component: Dashboard
+      props:
+        user: ${fetch-user.output}
+        data: ${fetch-data.output}
+```
+
+## Configuration
+
+```yaml
+config:
+  component: string    # React component name
+  props: object       # Component props
+  renderMode: string  # ssr, csr, or hybrid
+```
+
+## Examples
+
+### SSR Page
+
+```yaml
+operations:
+  - name: dashboard
+    operation: page
+    config:
+      component: Dashboard
+      renderMode: ssr
+      props:
+        user: ${user.output}
+```
+
+### Dynamic Routes
+
+```yaml
+operations:
+  - name: product-page
+    operation: page
+    config:
+      component: ProductPage
+      props:
+        product: ${fetch-product.output}
+        reviews: ${fetch-reviews.output}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="html" icon="window" href="/conductor/operations/html">
+    Simple HTML
+  </Card>
+  <Card title="Operations Overview" icon="bolt" href="/conductor/operations/overview">
+    All operations
+  </Card>
+</CardGroup>

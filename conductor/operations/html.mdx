@@ -1,0 +1,72 @@
+---
+title: "html Operation"
+description: "Render HTML"
+---
+
+# html Operation
+
+**Render HTML with templates and data.**
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: render
+    operation: html
+    config:
+      template: dashboard
+      data:
+        user: ${fetch-user.output}
+        stats: ${fetch-stats.output}
+```
+
+## Configuration
+
+```yaml
+config:
+  template: string    # Template name
+  data: object       # Template data
+  html: string       # Or raw HTML
+```
+
+## Examples
+
+### With Template
+
+```yaml
+operations:
+  - name: render
+    operation: html
+    config:
+      template: report
+      data:
+        title: Monthly Report
+        revenue: ${calculate.output.revenue}
+        expenses: ${calculate.output.expenses}
+```
+
+### Raw HTML
+
+```yaml
+operations:
+  - name: render
+    operation: html
+    config:
+      html: |
+        <html>
+          <body>
+            <h1>Hello ${input.name}</h1>
+          </body>
+        </html>
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="pdf" icon="file-pdf" href="/conductor/operations/pdf">
+    Generate PDFs
+  </Card>
+  <Card title="page" icon="browser" href="/conductor/operations/page">
+    Full-stack pages
+  </Card>
+</CardGroup>

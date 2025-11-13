@@ -1,0 +1,512 @@
+---
+title: "Core Concepts"
+description: "Components → Agents → Ensembles: The building blocks of Ensemble Edge"
+---
+
+# Core Concepts
+
+Three layers. Clean separation. Infinite flexibility.
+
+## The Hierarchy
+
+```
+Components (What You Version)
+    ↓
+Agents (What Executes)
+    ↓
+Ensembles (What Orchestrates)
+```
+
+Each layer has a specific job. No overlap, no confusion.
+
+## Components: Versioned Artifacts
+
+**Components are files that agents use during execution.**
+
+Think of them as the "ingredients" that agents consume:
+
+- **Prompts** (`.md`) - AI instructions and templates
+- **Configs** (`.json`, `.yaml`) - Settings and parameters
+- **Queries** (`.sql`) - Database queries
+- **Scripts** (`.js`, `.ts`) - Reusable functions
+- **Schemas** (`.json`) - Data validation rules
+- **Templates** (`.html`, `.md`) - Output templates
+
+### Why Components Are Special
+
+**Each component gets its own version history.**
+
+```bash
+# Version independently
+edgit tag create extraction-prompt v1.0.0
+edgit tag create analysis-config v2.1.0
+edgit tag create validation-query v0.5.0
+
+# Mix and match optimal versions
+extraction-prompt@v1.0.0 + analysis-config@v2.1.0 + validation-query@v0.5.0
+```
+
+**You're not stuck with "the current version."** You can cherry-pick the best version of each component from any point in history.
+
+### Example: Prompt Component
+
+```markdown
+<!-- components/prompts/company-analysis.md -->
+# Company Analysis Prompt
+
+Analyze the following company data and provide:
+
+1. Industry classification
+2. Key products/services
+3. Market position (scale 1-5)
+4. Growth indicators
+
+Company data:
+{{company_data}}
+
+Respond in valid JSON format with these exact fields:
+- industry (string)
+- products (array of strings)
+- market_position (number 1-5)
+- growth (string)
+```
+
+Version it:
+
+```bash
+edgit tag create company-analysis v1.0.0
+edgit deploy set company-analysis v1.0.0 --to prod
+```
+
+Now agents can reference it:
+
+```yaml
+agents:
+  - name: analyzer
+    operation: think
+    component: company-analysis@v1.0.0  # Locked to specific version
+```
+
+## Agents: Workers That Execute
+
+**Agents are executable units that perform tasks.**
+
+They use **operations** (execution primitives) and **components** (versioned artifacts) to get work done.
+
+### Agent Anatomy
+
+```yaml
+agents:
+  - name: analyzer              # Unique name
+    operation: think            # What primitive to use
+    component: prompt@v2.1.0    # What component to reference
+    config:                     # Operation-specific config
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.7
+      cache_ttl: 3600
+    input:                      # Where to get input data
+      data: ${fetch.output}
+    condition: ${fetch.success} # When to run (optional)
+    retry:                      # Retry config (optional)
+      max_attempts: 3
+      backoff: exponential
+```
+
+### Operations: How Agents Execute
+
+Operations are the execution primitives. Think of them as the "verb" of what an agent does:
+
+<CardGroup cols={2}>
+  <Card title="think" icon="brain">
+    **AI reasoning** - LLMs, embeddings, classification
+  </Card>
+
+  <Card title="code" icon="code">
+    **JavaScript/TypeScript** - Business logic, transformations
+  </Card>
+
+  <Card title="storage" icon="database">
+    **Database operations** - KV, D1, R2, Vectorize
+  </Card>
+
+  <Card title="http" icon="globe">
+    **HTTP requests** - External APIs, webhooks
+  </Card>
+
+  <Card title="tools" icon="wrench">
+    **MCP/skills access** - External capabilities via protocols
+  </Card>
+
+  <Card title="email" icon="envelope">
+    **Email operations** - Sending, templates
+  </Card>
+
+  <Card title="sms" icon="comment">
+    **SMS operations** - Twilio, etc.
+  </Card>
+
+  <Card title="html" icon="file-code">
+    **HTML rendering** - Dynamic pages
+  </Card>
+
+  <Card title="pdf" icon="file-pdf">
+    **PDF generation** - Reports, invoices
+  </Card>
+
+  <Card title="page" icon="window-maximize">
+    **Full-stack pages** - Complete web pages with forms
+  </Card>
+</CardGroup>
+
+### Custom vs Pre-built Agents
+
+**Custom Agents** - You define them using operations:
+
+```yaml
+agents:
+  - name: my-analyzer
+    operation: think
+    component: my-prompt@v1.0.0
+    config:
+      model: gpt-4
+```
+
+**Pre-built Agents** - Ships with Conductor, ready to use:
+
+```yaml
+agents:
+  - name: scraper
+    agent: scraper        # Use pre-built
+    config:
+      url: https://example.com
+      extract:
+        title: "h1"
+```
+
+Pre-built agents available:
+- `scraper` - Web scraping with fallback strategies
+- `validator` - Quality scoring and validation
+- `rag` - RAG pipeline with R2 storage
+- `hitl` - Human-in-the-loop approval
+- `fetcher` - HTTP with retry logic
+- `transformer` - Data transformation
+- `scheduler` - Delayed/scheduled execution
+
+## Ensembles: Orchestration Workflows
+
+**Ensembles are YAML files that coordinate agents into workflows.**
+
+They define **what runs**, **in what order**, and **how data flows**.
+
+### Ensemble Anatomy
+
+```yaml
+ensemble: company-intelligence
+description: Fetch, analyze, and store company data
+
+# Input schema (optional but recommended)
+input:
+  domain:
+    type: string
+    required: true
+
+# Agents to execute
+agents:
+  # Sequential by default
+  - name: fetch
+    operation: http
+    config:
+      url: https://api.example.com/companies/${input.domain}
+
+  - name: analyze
+    operation: think
+    component: analysis-prompt@v2.1.0
+    input:
+      company_data: ${fetch.output}
+
+  - name: score
+    agent: validator
+    input:
+      content: ${analyze.output}
+    condition: ${analyze.success}
+
+  - name: store
+    operation: storage
+    config:
+      type: d1
+      query: "INSERT INTO analyses (domain, result) VALUES (?, ?)"
+      params:
+        - ${input.domain}
+        - ${analyze.output}
+    condition: ${score.passed}
+
+# Output mapping
+output:
+  domain: ${input.domain}
+  analysis: ${analyze.output}
+  score: ${score.output.score}
+  stored: ${store.success}
+```
+
+### Flow Control
+
+**Sequential** (default):
+
+```yaml
+agents:
+  - name: step1
+    operation: http
+
+  - name: step2
+    operation: think
+    # Waits for step1 to complete
+```
+
+**Parallel**:
+
+```yaml
+agents:
+  - parallel:
+      - name: analyze-financial
+        operation: think
+
+      - name: analyze-legal
+        operation: think
+
+      - name: analyze-technical
+        operation: think
+    # All three run simultaneously
+```
+
+**Conditional**:
+
+```yaml
+agents:
+  - name: validate
+    agent: validator
+
+  - name: manual-review
+    agent: hitl
+    condition: ${validate.score < 0.8}
+    # Only runs if validation score is low
+```
+
+**Loops**:
+
+```yaml
+agents:
+  - name: process-batch
+    operation: code
+    loop:
+      items: ${input.companies}
+      max_iterations: 100
+    # Runs once per item
+```
+
+### State Management
+
+Share data across agents using state:
+
+```yaml
+state:
+  schema:
+    company_data: object
+    analyses: array
+    final_report: object
+
+agents:
+  - name: fetch
+    operation: http
+    state:
+      set: [company_data]  # Write to state
+
+  - name: analyze
+    operation: think
+    state:
+      use: [company_data]  # Read from state
+      set: [analyses]      # Append to array
+
+  - name: report
+    operation: think
+    state:
+      use: [company_data, analyses]  # Read multiple
+      set: [final_report]
+```
+
+State is immutable - each update creates a new version.
+
+## The Versioning Multiverse
+
+Here's where it gets powerful: **components AND agents can both be versioned independently.**
+
+### Mix Versions Freely
+
+```yaml
+ensemble: analysis-pipeline
+
+agents:
+  # Stable agent + proven prompt
+  - name: prod-analyzer
+    agent: analyzer@v1.0.0
+    component: analysis-prompt@v1.0.0
+
+  # New agent + new prompt
+  - name: experimental-analyzer
+    agent: analyzer@v2.0.0-beta
+    component: analysis-prompt@v2.1.0
+
+  # Stable agent + experimental prompt
+  - name: hybrid-analyzer
+    agent: analyzer@v1.0.0
+    component: analysis-prompt@v2.1.0
+```
+
+Run all three in parallel and compare results. Welcome to the multiverse.
+
+### A/B Testing Made Trivial
+
+Test 2 agent versions × 3 prompt versions × 2 configs = 12 variants:
+
+```yaml
+agents:
+  - name: test-variant-1
+    agent: analyzer@v1.0.0
+    component: prompt@v1.0.0
+    config: config@v1.0.0
+
+  - name: test-variant-2
+    agent: analyzer@v2.0.0
+    component: prompt@v1.0.0
+    config: config@v1.0.0
+
+  # ... 10 more combinations
+```
+
+Each variant runs with its specific combination of versions.
+
+### Time Travel
+
+Reproduce bugs from last week by deploying the exact versions that were running:
+
+```bash
+# What was deployed on Tuesday at 2:47 PM?
+edgit history --date="2024-11-05T14:47:00Z"
+
+# Output:
+# analyzer@v1.9.2
+# analysis-prompt@v3.1.0
+# config@v2.0.1
+
+# Recreate that exact environment
+edgit deploy set analyzer v1.9.2 --to debug
+edgit deploy set analysis-prompt v3.1.0 --to debug
+edgit deploy set config v2.0.1 --to debug
+```
+
+Perfect reproducibility. Every time.
+
+## Edge Architecture
+
+Your ensembles run on Cloudflare Workers at 200+ global locations.
+
+### Why Edge Matters
+
+**Traditional Orchestrators:**
+- Centralized compute (single region)
+- Slow cold starts (2-5 seconds)
+- Scale requires infrastructure management
+- Geographic latency
+
+**Conductor (Edge-Native):**
+- Distributed compute (200+ regions)
+- Fast cold starts (<50ms)
+- Infinite scale (automatic)
+- Near-zero latency globally
+
+### Built-in Caching
+
+Three cache layers:
+
+1. **KV Cache** - HTTP responses, agent outputs
+2. **AI Gateway Cache** - LLM responses (persistent across deployments)
+3. **Durable Objects** - Strongly consistent state for HITL and async workflows
+
+```yaml
+agents:
+  - name: fetch
+    operation: http
+    config:
+      cache_ttl: 3600  # Cache in KV for 1 hour
+
+  - name: analyze
+    operation: think
+    config:
+      model: claude-3-5-sonnet-20241022
+      # AI Gateway caches automatically
+```
+
+First request: ~200ms
+Cached request: <10ms
+
+## What You Can't Do (By Design)
+
+**Ensembles can't use operations directly:**
+
+```yaml
+# ❌ Wrong - ensembles don't execute operations
+ensemble: my-workflow
+operation: think  # ERROR
+
+# ✅ Right - ensembles orchestrate agents
+ensemble: my-workflow
+agents:
+  - name: analyzer
+    operation: think
+```
+
+**Ensembles aren't versioned:**
+
+```yaml
+# ❌ No such thing as ensemble@v1.0.0
+# Ensembles are deployment configurations
+
+# ✅ Components and agents are versioned
+agents:
+  - name: analyzer
+    agent: analyzer@v1.0.0
+    component: prompt@v2.1.0
+```
+
+Ensembles are like Kubernetes manifests - you don't version the manifest, you update it to point to different versions of containers (agents) and configs (components).
+
+## Mental Model
+
+Think of it like a restaurant:
+
+- **Components** = Recipes (versioned, can be updated independently)
+- **Agents** = Chefs (execute using recipes and tools)
+- **Ensembles** = Menu/Order (orchestrate which chefs make which dishes)
+- **Operations** = Cooking techniques (grill, bake, sauté)
+- **Conductor** = Kitchen manager (coordinates everything)
+
+You version the recipes and train chefs. The menu composition changes based on what's optimal.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Nomenclature & Glossary" icon="book" href="/introduction/nomenclature">
+    Complete terminology reference
+  </Card>
+
+  <Card title="Edgit Documentation" icon="cube" href="/edgit/overview">
+    Component versioning system
+  </Card>
+
+  <Card title="Conductor Documentation" icon="network-wired" href="/conductor/overview">
+    Edge orchestration framework
+  </Card>
+
+  <Card title="Operations Reference" icon="gear" href="/conductor/operations/overview">
+    All available operations
+  </Card>
+</CardGroup>

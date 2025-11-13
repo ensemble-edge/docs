@@ -1,0 +1,517 @@
+---
+title: "ml Operation"
+description: "Machine learning inference"
+---
+
+# ml Operation
+
+**Machine learning model inference with Workers AI and custom models.**
+
+The `ml` operation enables running machine learning models at the edge for image classification, object detection, embeddings, and more.
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: classify
+    operation: ml
+    config:
+      model: '@cf/microsoft/resnet-50'
+      input: ${input.image_url}
+```
+
+## Configuration
+
+```yaml
+config:
+  model: string     # Model identifier
+  input: any        # Input data (image URL, text, etc.)
+  options: object   # Model-specific options
+```
+
+## Available Models
+
+### Image Classification
+
+```yaml
+operations:
+  - name: classify-image
+    operation: ml
+    config:
+      model: '@cf/microsoft/resnet-50'
+      input: ${input.image_url}
+```
+
+**Models**:
+- `@cf/microsoft/resnet-50` - Image classification
+- `@cf/meta/llama-vision` - Vision understanding (future)
+
+### Object Detection
+
+```yaml
+operations:
+  - name: detect-objects
+    operation: ml
+    config:
+      model: '@cf/facebook/detr-resnet-50'
+      input: ${input.image_url}
+```
+
+### Text Embeddings
+
+```yaml
+operations:
+  - name: embed-text
+    operation: ml
+    config:
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.text}
+```
+
+**Models**:
+- `@cf/baai/bge-base-en-v1.5` - Text embeddings (768 dimensions)
+- `@cf/baai/bge-small-en-v1.5` - Smaller embeddings (384 dimensions)
+- `@cf/baai/bge-large-en-v1.5` - Larger embeddings (1024 dimensions)
+
+### Image Embeddings
+
+```yaml
+operations:
+  - name: embed-image
+    operation: ml
+    config:
+      model: '@cf/openai/clip-vit-base-patch32'
+      input: ${input.image_url}
+```
+
+## Current Workarounds
+
+### Vision with GPT-4o
+
+For advanced vision tasks, use `think` operation with multimodal models:
+
+```yaml
+operations:
+  - name: analyze-image
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Analyze this image and provide:
+        - Main subject
+        - Colors and composition
+        - Mood and style
+        - Any text visible
+
+        Be detailed and specific.
+      messages:
+        - role: user
+          content:
+            - type: image_url
+              image_url:
+                url: ${input.image_url}
+```
+
+### Image Classification
+
+```yaml
+operations:
+  - name: classify-image
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.2
+      responseFormat: json
+      prompt: |
+        Classify this image into one of these categories:
+        - product
+        - person
+        - landscape
+        - food
+        - animal
+        - other
+
+        Return JSON: {"category": "...", "confidence": 0.0-1.0}
+      messages:
+        - role: user
+          content:
+            - type: image_url
+              image_url:
+                url: ${input.image_url}
+```
+
+### Object Detection
+
+```yaml
+operations:
+  - name: detect-objects
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      responseFormat: json
+      prompt: |
+        List all objects visible in this image.
+        Return JSON array:
+        [
+          {"object": "name", "location": "description", "confidence": 0.0-1.0}
+        ]
+      messages:
+        - role: user
+          content:
+            - type: image_url
+              image_url:
+                url: ${input.image_url}
+```
+
+### OCR (Text Extraction)
+
+```yaml
+operations:
+  - name: extract-text
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.1
+      prompt: |
+        Extract all text visible in this image.
+        Return the text exactly as it appears, preserving formatting.
+      messages:
+        - role: user
+          content:
+            - type: image_url
+              image_url:
+                url: ${input.image_url}
+```
+
+### Image Comparison
+
+```yaml
+operations:
+  - name: compare-images
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      responseFormat: json
+      prompt: |
+        Compare these two images and provide:
+        - Similarities
+        - Differences
+        - Overall similarity score (0-1)
+
+        Return JSON: {
+          "similarities": ["..."],
+          "differences": ["..."],
+          "score": 0.0-1.0
+        }
+      messages:
+        - role: user
+          content:
+            - type: image_url
+              image_url:
+                url: ${input.image1_url}
+            - type: image_url
+              image_url:
+                url: ${input.image2_url}
+```
+
+## Text Embeddings (Current)
+
+Use Workers AI for text embeddings:
+
+```yaml
+operations:
+  - name: embed-text
+    operation: ml
+    config:
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.text}
+
+  - name: store-embedding
+    operation: storage
+    config:
+      type: vectorize
+      action: insert
+      id: ${input.doc_id}
+      vector: ${embed-text.output}
+      metadata:
+        text: ${input.text}
+```
+
+### Semantic Search
+
+```yaml
+operations:
+  - name: embed-query
+    operation: ml
+    config:
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.query}
+
+  - name: search
+    operation: storage
+    config:
+      type: vectorize
+      action: query
+      vector: ${embed-query.output}
+      topK: 5
+```
+
+## Planned Features
+
+### Native Image Models
+
+```yaml
+# Future: Direct image classification
+operations:
+  - name: classify
+    operation: ml
+    config:
+      model: '@cf/microsoft/resnet-50'
+      input: ${input.image_url}
+      options:
+        topK: 5
+```
+
+### Custom Models
+
+```yaml
+# Future: Custom model inference
+operations:
+  - name: predict
+    operation: ml
+    config:
+      model: 'custom:my-model'
+      input: ${input.features}
+      runtime: onnx
+```
+
+### Audio Processing
+
+```yaml
+# Future: Audio transcription
+operations:
+  - name: transcribe
+    operation: ml
+    config:
+      model: '@cf/openai/whisper-large-v3'
+      input: ${input.audio_url}
+```
+
+### Video Analysis
+
+```yaml
+# Future: Video understanding
+operations:
+  - name: analyze-video
+    operation: ml
+    config:
+      model: '@cf/meta/video-analysis'
+      input: ${input.video_url}
+      options:
+        frameRate: 1  # frames per second
+```
+
+## Best Practices
+
+**1. Use Vision Models for Complex Tasks**
+
+For anything beyond simple classification, use GPT-4o vision:
+
+```yaml
+# Good: Rich analysis with vision model
+operations:
+  - name: analyze
+    operation: think
+    config:
+      model: gpt-4o
+      prompt: Detailed image analysis...
+
+# Limited: Simple classification only
+operations:
+  - name: classify
+    operation: ml
+    config:
+      model: '@cf/microsoft/resnet-50'
+```
+
+**2. Optimize Image URLs**
+
+Ensure images are accessible and reasonably sized:
+
+```yaml
+# Good: Optimized image
+operations:
+  - name: analyze
+    operation: think
+    config:
+      model: gpt-4o
+      messages:
+        - role: user
+          content:
+            - type: image_url
+              image_url:
+                url: ${input.image_url}
+                detail: low  # or 'high' for more detail
+```
+
+**3. Cache Embedding Results**
+
+Embeddings are expensive - cache them:
+
+```yaml
+operations:
+  - name: embed
+    operation: ml
+    config:
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.text}
+    cache:
+      ttl: 86400  # 24 hours
+      key: embed-${input.text}
+```
+
+**4. Batch When Possible**
+
+Process multiple items together:
+
+```yaml
+operations:
+  - name: embed-batch
+    operation: ml
+    config:
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.texts}  # Array of texts
+```
+
+## Examples
+
+### Image Classification Pipeline
+
+```yaml
+ensemble: image-classification
+
+inputs:
+  image_url: string
+
+operations:
+  - name: classify
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.2
+      responseFormat: json
+      prompt: |
+        Classify this image:
+        Categories: product, person, landscape, food, animal, vehicle, building, other
+        Return: {"category": "...", "confidence": 0-1, "description": "..."}
+      messages:
+        - role: user
+          content:
+            - type: image_url
+              image_url:
+                url: ${input.image_url}
+
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const result = JSON.parse('${classify.output}');
+        return {
+          valid: result.confidence > 0.7,
+          category: result.category,
+          needsReview: result.confidence < 0.7
+        };
+
+outputs:
+  category: ${validate.output.category}
+  needsReview: ${validate.output.needsReview}
+```
+
+### Semantic Search
+
+```yaml
+ensemble: semantic-search
+
+inputs:
+  query: string
+
+operations:
+  - name: embed-query
+    operation: ml
+    config:
+      model: '@cf/baai/bge-base-en-v1.5'
+      input: ${input.query}
+
+  - name: search-vectors
+    operation: storage
+    config:
+      type: vectorize
+      action: query
+      vector: ${embed-query.output}
+      topK: 10
+
+  - name: rerank
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0.2
+      prompt: |
+        Query: ${input.query}
+
+        Results:
+        ${search-vectors.output.matches}
+
+        Rerank these results by relevance to the query.
+        Return top 5 as JSON array.
+
+outputs:
+  results: ${rerank.output}
+```
+
+## Migration Path
+
+When `ml` operation becomes fully available:
+
+**Current (using think)**:
+```yaml
+operations:
+  - name: analyze
+    operation: think
+    config:
+      model: gpt-4o
+      prompt: Analyze image...
+```
+
+**Future (using ml)**:
+```yaml
+operations:
+  - name: analyze
+    operation: ml
+    config:
+      model: '@cf/meta/llama-vision'
+      input: ${input.image_url}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="think Operation" icon="brain" href="/conductor/operations/think">
+    Vision models via think
+  </Card>
+  <Card title="storage Operation" icon="database" href="/conductor/operations/storage">
+    Store embeddings in Vectorize
+  </Card>
+  <Card title="RAG Agent" icon="book" href="/conductor/agents/rag">
+    Pre-built RAG with embeddings
+  </Card>
+  <Card title="Workers AI" icon="sparkles" href="https://developers.cloudflare.com/workers-ai/">
+    Cloudflare Workers AI docs
+  </Card>
+</CardGroup>

@@ -1,0 +1,476 @@
+---
+title: "A/B Testing Patterns"
+description: "Production patterns for testing multiple variants"
+---
+
+# A/B Testing Patterns
+
+**Real-world A/B testing patterns for ensembles, agents, prompts, and models.**
+
+See [A/B Testing Core Concept](/conductor/core-concepts/ab-testing) for fundamentals. This guide covers production patterns.
+
+## Pattern 1: Model Comparison
+
+Test different AI models for cost vs quality:
+
+```yaml
+ensemble: model-ab-test
+
+agents:
+  # Variant A: GPT-4 (expensive, high quality)
+  - name: analyze-gpt4
+    condition: ${input.user_id % 2 === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${input.text}
+
+  # Variant B: GPT-4 Mini (cheap, good quality)
+  - name: analyze-mini
+    condition: ${input.user_id % 2 === 1}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.text}
+
+  # Track metrics
+  - name: log-metrics
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO model_comparison
+        (user_id, model, cost_cents, latency_ms, quality_score, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${analyze-gpt4.executed ? 'gpt-4o' : 'gpt-4o-mini'}
+        - ${analyze-gpt4.executed ? 3.0 : 0.1}
+        - ${analyze-gpt4.executed ? analyze-gpt4.duration : analyze-mini.duration}
+        - ${input.quality_score}
+        - ${Date.now()}
+
+output:
+  analysis: ${analyze-gpt4.output || analyze-mini.output}
+  model: ${analyze-gpt4.executed ? 'gpt-4o' : 'gpt-4o-mini'}
+  cost_cents: ${analyze-gpt4.executed ? 3.0 : 0.1}
+```
+
+**Analysis query:**
+```sql
+SELECT
+  model,
+  COUNT(*) as requests,
+  AVG(quality_score) as avg_quality,
+  AVG(latency_ms) as avg_latency,
+  AVG(cost_cents) as avg_cost,
+  SUM(cost_cents) / 100 as total_cost_dollars
+FROM model_comparison
+WHERE timestamp > datetime('now', '-7 days')
+GROUP BY model;
+```
+
+## Pattern 2: Prompt Versioning
+
+Test prompt improvements with Edgit:
+
+```yaml
+ensemble: prompt-ab-test
+
+agents:
+  # Control: v1.0.0
+  - name: analyze-v1
+    condition: ${input.user_id % 2 === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${component.analysis-prompt@v1.0.0}
+
+  # Treatment: v2.0.0
+  - name: analyze-v2
+    condition: ${input.user_id % 2 === 1}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${component.analysis-prompt@v2.0.0}
+
+  - name: log-variant
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO prompt_test (user_id, version, timestamp)
+        VALUES (?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${analyze-v1.executed ? 'v1.0.0' : 'v2.0.0'}
+        - ${Date.now()}
+
+output:
+  analysis: ${analyze-v1.output || analyze-v2.output}
+  prompt_version: ${analyze-v1.executed ? 'v1.0.0' : 'v2.0.0'}
+```
+
+**Auto-promote winner:**
+```bash
+# scripts/promote-prompt-winner.sh
+#!/bin/bash
+
+# Get test results
+RESULTS=$(wrangler d1 execute production-db --command="
+  SELECT
+    version,
+    AVG(quality_score) as avg_quality
+  FROM prompt_test
+  WHERE timestamp > datetime('now', '-7 days')
+  GROUP BY version
+")
+
+# If v2.0.0 wins, deploy to 100%
+if echo "$RESULTS" | grep "v2.0.0" | grep -q "0.9[5-9]"; then
+  edgit deploy set analysis-prompt v2.0.0 --to prod
+  git push --tags
+  echo " Promoted v2.0.0 to production"
+fi
+```
+
+## Pattern 3: Agent Implementation
+
+Test different agent implementations:
+
+```yaml
+ensemble: agent-ab-test
+
+agents:
+  # Variant A: Old implementation
+  - name: process-v1
+    condition: ${input.user_id % 2 === 0}
+    agent: processor@v1.0.0
+    inputs:
+      data: ${input.data}
+
+  # Variant B: New implementation
+  - name: process-v2
+    condition: ${input.user_id % 2 === 1}
+    agent: processor@v2.0.0
+    inputs:
+      data: ${input.data}
+
+  - name: track-performance
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO agent_performance
+        (user_id, version, success, duration_ms, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${process-v1.executed ? 'v1.0.0' : 'v2.0.0'}
+        - ${process-v1.executed ? !process-v1.failed : !process-v2.failed}
+        - ${process-v1.executed ? process-v1.duration : process-v2.duration}
+        - ${Date.now()}
+
+output:
+  result: ${process-v1.output || process-v2.output}
+  version: ${process-v1.executed ? 'v1.0.0' : 'v2.0.0'}
+```
+
+## Pattern 4: Workflow Comparison
+
+Test entirely different workflows:
+
+```yaml
+ensemble: workflow-ab-test
+
+agents:
+  # Variant A: Simple workflow
+  - name: simple-workflow
+    condition: ${input.user_id % 2 === 0}
+    agent: simple-analyzer
+    inputs:
+      data: ${input.data}
+
+  # Variant B: Complex workflow with multiple steps
+  - name: complex-step1
+    condition: ${input.user_id % 2 === 1}
+    agent: validator
+
+  - name: complex-step2
+    condition: ${complex-step1.executed}
+    agent: enricher
+
+  - name: complex-step3
+    condition: ${complex-step2.executed}
+    agent: analyzer
+
+  # Track which workflow executed
+  - name: log-workflow
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO workflow_comparison
+        (user_id, workflow, steps, duration_ms, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${simple-workflow.executed ? 'simple' : 'complex'}
+        - ${simple-workflow.executed ? 1 : 3}
+        - ${simple-workflow.executed ? simple-workflow.duration : (complex-step1.duration + complex-step2.duration + complex-step3.duration)}
+        - ${Date.now()}
+
+output:
+  result: ${simple-workflow.output || complex-step3.output}
+  workflow: ${simple-workflow.executed ? 'simple' : 'complex'}
+```
+
+## Pattern 5: Multivariate Testing
+
+Test multiple variables simultaneously:
+
+```yaml
+ensemble: multivariate-test
+
+agents:
+  # 4 combinations: 2 models × 2 prompts
+  # Combo 1: GPT-4 + Prompt v1
+  - name: variant-1
+    condition: ${(input.user_id % 4) === 0}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${component.prompt@v1.0.0}
+
+  # Combo 2: GPT-4 + Prompt v2
+  - name: variant-2
+    condition: ${(input.user_id % 4) === 1}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${component.prompt@v2.0.0}
+
+  # Combo 3: Mini + Prompt v1
+  - name: variant-3
+    condition: ${(input.user_id % 4) === 2}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${component.prompt@v1.0.0}
+
+  # Combo 4: Mini + Prompt v2
+  - name: variant-4
+    condition: ${(input.user_id % 4) === 3}
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${component.prompt@v2.0.0}
+
+  - name: log-multivariate
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO multivariate_test
+        (user_id, model, prompt, timestamp)
+        VALUES (?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${(variant-1.executed || variant-2.executed) ? 'gpt-4o' : 'gpt-4o-mini'}
+        - ${(variant-1.executed || variant-3.executed) ? 'v1' : 'v2'}
+        - ${Date.now()}
+
+output:
+  result: ${variant-1.output || variant-2.output || variant-3.output || variant-4.output}
+  model: ${(variant-1.executed || variant-2.executed) ? 'gpt-4o' : 'gpt-4o-mini'}
+  prompt: ${(variant-1.executed || variant-3.executed) ? 'v1' : 'v2'}
+```
+
+**Analysis:**
+```sql
+SELECT
+  model,
+  prompt,
+  COUNT(*) as requests,
+  AVG(quality_score) as avg_quality,
+  AVG(cost_cents) as avg_cost
+FROM multivariate_test
+WHERE timestamp > datetime('now', '-7 days')
+GROUP BY model, prompt
+ORDER BY avg_quality DESC;
+```
+
+## Pattern 6: Progressive Rollout
+
+Gradually increase traffic to new variant:
+
+```yaml
+ensemble: progressive-rollout
+
+agents:
+  # Load traffic split from KV
+  - name: load-split
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: rollout-percentage
+      default: 10  # Start with 10%
+
+  # Control
+  - name: control
+    condition: ${(input.user_id % 100) >= load-split.output.value}
+    agent: processor@v1.0.0
+
+  # Treatment
+  - name: treatment
+    condition: ${(input.user_id % 100) < load-split.output.value}
+    agent: processor@v2.0.0
+
+output:
+  result: ${control.output || treatment.output}
+  variant: ${treatment.executed ? 'treatment' : 'control'}
+```
+
+**Update rollout percentage:**
+```bash
+# Start with 10%
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "10"
+
+# Increase to 25%
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "25"
+
+# Increase to 50%
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "50"
+
+# Full rollout: 100%
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "100"
+```
+
+## Pattern 7: Time-Based Switching
+
+Switch variants based on time/date:
+
+```yaml
+ensemble: time-based-test
+
+agents:
+  # Use variant A during business hours
+  - name: business-hours-variant
+    condition: ${(() => {
+      const hour = new Date().getHours();
+      return hour >= 9 && hour < 17;
+    })()}
+    agent: fast-processor
+
+  # Use variant B outside business hours
+  - name: off-hours-variant
+    condition: ${(() => {
+      const hour = new Date().getHours();
+      return hour < 9 || hour >= 17;
+    })()}
+    agent: thorough-processor
+
+output:
+  result: ${business-hours-variant.output || off-hours-variant.output}
+  variant: ${business-hours-variant.executed ? 'fast' : 'thorough'}
+```
+
+## Metrics & Analysis
+
+### Key Metrics to Track
+
+```sql
+CREATE TABLE ab_test_metrics (
+  user_id TEXT NOT NULL,
+  variant TEXT NOT NULL,
+  success BOOLEAN NOT NULL,
+  quality_score REAL,
+  latency_ms INTEGER NOT NULL,
+  cost_cents REAL NOT NULL,
+  timestamp INTEGER NOT NULL
+);
+
+CREATE INDEX idx_variant_timestamp ON ab_test_metrics(variant, timestamp);
+```
+
+### Analysis Queries
+
+**Success rate by variant:**
+```sql
+SELECT
+  variant,
+  COUNT(*) as total_requests,
+  SUM(CASE WHEN success THEN 1 ELSE 0 END) as successes,
+  ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) * 100, 2) as success_rate_pct
+FROM ab_test_metrics
+WHERE timestamp > datetime('now', '-7 days')
+GROUP BY variant;
+```
+
+**Quality and cost comparison:**
+```sql
+SELECT
+  variant,
+  ROUND(AVG(quality_score), 3) as avg_quality,
+  ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+  ROUND(AVG(cost_cents), 4) as avg_cost_cents,
+  ROUND(SUM(cost_cents) / 100, 2) as total_cost_dollars
+FROM ab_test_metrics
+WHERE timestamp > datetime('now', '-7 days')
+GROUP BY variant;
+```
+
+**Statistical significance (Chi-square):**
+```sql
+WITH variant_stats AS (
+  SELECT
+    variant,
+    SUM(CASE WHEN success THEN 1 ELSE 0 END) as successes,
+    COUNT(*) - SUM(CASE WHEN success THEN 1 ELSE 0 END) as failures
+  FROM ab_test_metrics
+  WHERE timestamp > datetime('now', '-7 days')
+  GROUP BY variant
+)
+SELECT * FROM variant_stats;
+-- Run chi-square test in analysis script
+```
+
+## Best Practices
+
+1. **Sticky Sessions** - Use consistent hashing (user_id % N)
+2. **Sufficient Sample Size** - Collect 1000+ samples per variant
+3. **Run Long Enough** - At least 7 days to capture weekly patterns
+4. **Monitor Both Quality & Cost** - Track all dimensions
+5. **Statistical Significance** - Wait for p < 0.05 or Bayesian > 95%
+6. **Document Results** - Keep records of what worked
+7. **Auto-Promote Winners** - Automate rollout of successful variants
+8. **Version Everything** - Use Edgit to track changes
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="A/B Testing Core" icon="flask" href="/conductor/core-concepts/ab-testing">
+    Core concepts and theory
+  </Card>
+
+  <Card title="Edgit A/B Testing" icon="code-branch" href="/edgit/guides/ab-testing-multivariate">
+    Version-based testing
+  </Card>
+
+  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
+    Monitor your tests
+  </Card>
+
+  <Card title="Playbooks" icon="books" href="/conductor/playbooks/ab-testing-prompts">
+    Real-world examples
+  </Card>
+</CardGroup>

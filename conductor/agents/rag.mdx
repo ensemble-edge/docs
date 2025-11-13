@@ -1,0 +1,473 @@
+---
+title: "rag Agent"
+description: "Retrieval-Augmented Generation"
+---
+
+# rag Agent
+
+**Vector search + LLM. The RAG pattern, production-ready.**
+
+## Basic Usage
+
+### Embed Documents
+
+```yaml
+agents:
+  - name: embed
+    agent: rag
+    config:
+      action: embed
+      text: ${input.document}
+      metadata:
+        source: ${input.source}
+        timestamp: ${input.timestamp}
+```
+
+### Search and Answer
+
+```yaml
+agents:
+  - name: search
+    agent: rag
+    config:
+      action: search
+      query: ${input.question}
+      topK: 5
+
+  - name: answer
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Answer this question using the following context:
+
+        ${search.output.results}
+
+        Question: ${input.question}
+```
+
+## Configuration
+
+### Embed Action
+
+```yaml
+config:
+  action: embed
+  text: string          # Text to embed
+  metadata: object      # Optional metadata
+  namespace: string     # Optional namespace
+  id: string           # Optional custom ID
+```
+
+### Search Action
+
+```yaml
+config:
+  action: search
+  query: string         # Search query
+  topK: number         # Number of results (default: 5)
+  namespace: string    # Optional namespace
+  filter: object       # Metadata filters
+  includeMetadata: boolean  # Include metadata (default: true)
+```
+
+### Delete Action
+
+```yaml
+config:
+  action: delete
+  id: string           # Document ID to delete
+  namespace: string    # Optional namespace
+```
+
+## Complete RAG Pipeline
+
+```yaml
+ensemble: rag-qa
+
+agents:
+  # 1. Embed the query
+  - name: embed-query
+    agent: rag
+    config:
+      action: embed
+      text: ${input.question}
+
+  # 2. Search for relevant docs
+  - name: search
+    agent: rag
+    config:
+      action: search
+      query: ${input.question}
+      topK: 5
+      filter:
+        source: documentation
+
+  # 3. Generate answer
+  - name: answer
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Answer this question using ONLY the following context.
+        If the answer isn't in the context, say "I don't know."
+
+        Context:
+        ${search.output.results.map(r => r.text).join('\n\n')}
+
+        Question: ${input.question}
+
+  # 4. Return answer with sources
+  - name: format-response
+    operation: code
+    config:
+      code: |
+        return {
+          answer: ${answer.output},
+          sources: ${search.output.results}.map(r => ({
+            text: r.text.substring(0, 200),
+            metadata: r.metadata
+          }))
+        };
+
+output:
+  response: ${format-response.output}
+```
+
+## Advanced Patterns
+
+### Incremental Embedding
+
+```yaml
+ensemble: embed-documents
+
+agents:
+  - name: chunk
+    operation: code
+    config:
+      code: |
+        // Split document into chunks
+        const text = ${input.document};
+        const chunkSize = 1000;
+        const chunks = [];
+
+        for (let i = 0; i < text.length; i += chunkSize) {
+          chunks.push(text.substring(i, i + chunkSize));
+        }
+
+        return { chunks };
+
+  - name: embed-chunks
+    agent: rag
+    config:
+      action: embed
+      text: ${chunk.output.chunks}
+      metadata:
+        document_id: ${input.document_id}
+        chunk_index: ${chunk.output.chunks.index}
+```
+
+### Hybrid Search
+
+```yaml
+agents:
+  # Vector search
+  - name: vector-search
+    agent: rag
+    config:
+      action: search
+      query: ${input.question}
+      topK: 10
+
+  # Keyword search (D1)
+  - name: keyword-search
+    operation: storage
+    config:
+      type: d1
+      query: |
+        SELECT * FROM documents
+        WHERE content LIKE ?
+        LIMIT 10
+      params: ['%${input.question}%']
+
+  # Combine results
+  - name: rerank
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Rank these documents by relevance to: ${input.question}
+
+        Vector results: ${vector-search.output.results}
+        Keyword results: ${keyword-search.output}
+```
+
+### Filtered Search
+
+```yaml
+agents:
+  - name: search
+    agent: rag
+    config:
+      action: search
+      query: ${input.question}
+      filter:
+        category: ${input.category}
+        published_after: ${input.date}
+        author: ${input.author}
+```
+
+### Multi-Query RAG
+
+```yaml
+agents:
+  # Generate multiple search queries
+  - name: generate-queries
+    operation: think
+    config:
+      prompt: |
+        Generate 3 different search queries for: ${input.question}
+        Return as JSON array.
+
+  # Search with each query
+  - name: search-1
+    agent: rag
+    config:
+      action: search
+      query: ${generate-queries.output[0]}
+
+  - name: search-2
+    agent: rag
+    config:
+      action: search
+      query: ${generate-queries.output[1]}
+
+  - name: search-3
+    agent: rag
+    config:
+      action: search
+      query: ${generate-queries.output[2]}
+
+  # Deduplicate and combine
+  - name: combine
+    operation: code
+    config:
+      code: |
+        const all = [
+          ...${search-1.output.results},
+          ...${search-2.output.results},
+          ...${search-3.output.results}
+        ];
+
+        // Deduplicate by ID
+        const unique = [...new Map(all.map(r => [r.id, r])).values()];
+
+        return { results: unique.slice(0, 10) };
+```
+
+## Output Schema
+
+### Embed Output
+
+```typescript
+{
+  id: string;          // Document ID
+  embedded: boolean;   // Success status
+}
+```
+
+### Search Output
+
+```typescript
+{
+  results: Array<{
+    id: string;
+    text: string;
+    score: number;       // Similarity score (0-1)
+    metadata?: object;
+  }>;
+  query: string;
+  took: number;          // Query time (ms)
+}
+```
+
+## Best Practices
+
+**1. Chunk Documents Intelligently**
+```yaml
+# Good: Semantic chunks
+chunk_size: 1000
+overlap: 200
+
+# Bad: Arbitrary splits
+chunk_size: 5000
+overlap: 0
+```
+
+**2. Add Rich Metadata**
+```yaml
+metadata:
+  source: url
+  title: string
+  author: string
+  published: date
+  category: string
+```
+
+**3. Use Namespaces**
+```yaml
+# Separate by tenant, version, or type
+namespace: tenant-${input.tenant_id}
+namespace: docs-v2
+namespace: support-tickets
+```
+
+**4. Cache Embeddings**
+```yaml
+agents:
+  - name: embed
+    agent: rag
+    cache:
+      ttl: 86400
+      key: embed-${hash(input.text)}
+```
+
+**5. Filter Aggressively**
+```yaml
+config:
+  filter:
+    published_after: ${now() - 30 days}
+    category: ${input.category}
+```
+
+## Common Use Cases
+
+### Documentation Q&A
+
+```yaml
+ensemble: docs-qa
+
+agents:
+  - name: search-docs
+    agent: rag
+    config:
+      action: search
+      query: ${input.question}
+      namespace: documentation
+      topK: 3
+
+  - name: answer
+    operation: think
+    config:
+      prompt: |
+        Answer using these docs:
+        ${search-docs.output.results}
+
+        Question: ${input.question}
+```
+
+### Customer Support
+
+```yaml
+ensemble: support-assistant
+
+agents:
+  - name: search-tickets
+    agent: rag
+    config:
+      action: search
+      query: ${input.issue}
+      filter:
+        status: resolved
+        sentiment: positive
+      topK: 5
+
+  - name: suggest-solution
+    operation: think
+    config:
+      prompt: |
+        Suggest a solution based on these similar resolved tickets:
+        ${search-tickets.output.results}
+```
+
+### Content Recommendation
+
+```yaml
+ensemble: recommend-articles
+
+agents:
+  - name: search-similar
+    agent: rag
+    config:
+      action: search
+      query: ${input.current_article}
+      filter:
+        category: ${input.category}
+      topK: 5
+
+  - name: format
+    operation: code
+    config:
+      code: |
+        return {
+          recommendations: ${search-similar.output.results}.map(r => ({
+            title: r.metadata.title,
+            url: r.metadata.url,
+            relevance: r.score
+          }))
+        };
+```
+
+## Performance Tips
+
+**1. Limit topK**
+```yaml
+topK: 5  # Usually sufficient
+```
+
+**2. Use Filters**
+```yaml
+# Faster than searching everything
+filter:
+  category: ${input.category}
+```
+
+**3. Namespace Partitioning**
+```yaml
+# Smaller search space = faster
+namespace: ${input.tenant_id}
+```
+
+**4. Cache Aggressively**
+```yaml
+cache:
+  ttl: 3600  # Cache search results
+  key: search-${hash(input.query)}
+```
+
+## Limitations
+
+- **Max document size**: 8000 tokens per chunk
+- **Max topK**: 100 results
+- **Metadata size**: 10KB per document
+- **Namespace limit**: 1000 per account
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="storage" icon="database" href="/conductor/operations/storage">
+    Vectorize configuration
+  </Card>
+  <Card title="RAG Pipeline" icon="book" href="/conductor/playbooks/rag-pipeline">
+    Complete RAG playbook
+  </Card>
+  <Card title="think" icon="brain" href="/conductor/operations/think">
+    LLM integration
+  </Card>
+  <Card title="Agents Overview" icon="layer-group" href="/conductor/agents/overview">
+    All pre-built agents
+  </Card>
+</CardGroup>

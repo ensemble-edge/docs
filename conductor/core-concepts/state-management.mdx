@@ -1,0 +1,554 @@
+---
+title: "State Management"
+description: "Share data across agents without prop drilling"
+---
+
+# State Management
+
+**State lets agents share data without passing it through every agent. Define it once, access it anywhere.**
+
+Think of state as shared memory for your workflow.
+
+## When to Use State
+
+Use state when:
+- Multiple agents need access to the same data
+- You're tracking workflow progress
+- You need to accumulate results across agents
+- Prop drilling becomes cumbersome
+
+**Don't use state for**:
+- Simple data passing between adjacent agents (use outputs instead)
+- Data that only one agent needs
+- Temporary calculations
+
+## Basic State
+
+### Define Schema
+
+```yaml
+ensemble: stateful-workflow
+
+state:
+  schema:
+    user_data: object
+    processed_count: number
+    errors: array
+
+agents:
+  # ... agents that use state ...
+```
+
+### Read State
+
+```yaml
+agents:
+  - name: process
+    operation: code
+    config:
+      code: |
+        const count = ${state.processed_count || 0};
+        return { new_count: count + 1 };
+    state:
+      use: [processed_count]  # Declare what you read
+```
+
+### Write State
+
+```yaml
+agents:
+  - name: update
+    operation: code
+    config:
+      code: |
+        return {
+          user: ${fetch-user.output},
+          count: ${state.processed_count + 1}
+        };
+    state:
+      use: [processed_count]
+      set:
+        user_data: ${update.output.user}
+        processed_count: ${update.output.count}
+```
+
+## State Patterns
+
+### Pattern 1: Accumulator
+
+Build up results across agents:
+
+```yaml
+ensemble: document-processor
+
+state:
+  schema:
+    processed_docs: array
+    total_words: number
+
+agents:
+  - name: process-doc
+    operation: code
+    config:
+      code: |
+        const docs = ${state.processed_docs || []};
+        const words = ${state.total_words || 0};
+        const newDoc = {
+          id: "${input.doc_id}",
+          words: ${input.content}.split(' ').length
+        };
+        return {
+          docs: [...docs, newDoc],
+          words: words + newDoc.words
+        };
+    state:
+      use: [processed_docs, total_words]
+      set:
+        processed_docs: ${process-doc.output.docs}
+        total_words: ${process-doc.output.words}
+
+output:
+  total_documents: ${state.processed_docs.length}
+  total_words: ${state.total_words}
+```
+
+### Pattern 2: Configuration State
+
+Share configuration across agents:
+
+```yaml
+ensemble: configurable-pipeline
+
+state:
+  schema:
+    config: object
+
+agents:
+  - name: load-config
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: pipeline-config
+    state:
+      set:
+        config: ${load-config.output.value}
+
+  - name: step1
+    operation: http
+    config:
+      url: ${state.config.api_url}
+      headers:
+        Authorization: Bearer ${state.config.api_key}
+    state:
+      use: [config]
+
+  - name: step2
+    operation: think
+    config:
+      provider: ${state.config.ai_provider}
+      model: ${state.config.ai_model}
+      prompt: ${input.text}
+    state:
+      use: [config]
+```
+
+### Pattern 3: Error Tracking
+
+Track errors across the workflow:
+
+```yaml
+ensemble: resilient-pipeline
+
+state:
+  schema:
+    errors: array
+    retry_count: number
+
+agents:
+  - name: step1
+    operation: http
+    config:
+      url: https://api.example.com
+    retry:
+      maxAttempts: 3
+
+  - name: track-errors
+    condition: ${step1.failed}
+    operation: code
+    config:
+      code: |
+        const errors = ${state.errors || []};
+        return {
+          errors: [...errors, {
+            agent: 'step1',
+            error: '${step1.error}',
+            timestamp: Date.now()
+          }]
+        };
+    state:
+      use: [errors]
+      set:
+        errors: ${track-errors.output.errors}
+
+output:
+  success: ${!step1.failed}
+  errors: ${state.errors}
+```
+
+### Pattern 4: Multi-Step Context
+
+Build context across multiple AI calls:
+
+```yaml
+ensemble: contextual-conversation
+
+state:
+  schema:
+    conversation_history: array
+    user_preferences: object
+
+agents:
+  - name: load-history
+    operation: storage
+    config:
+      type: d1
+      query: SELECT * FROM conversations WHERE user_id = ? ORDER BY timestamp DESC LIMIT 10
+      params: [${input.user_id}]
+    state:
+      set:
+        conversation_history: ${load-history.output.rows}
+
+  - name: generate-response
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Conversation history:
+        ${state.conversation_history.map(m => `${m.role}: ${m.content}`).join('\n')}
+
+        User preferences: ${JSON.stringify(state.user_preferences)}
+
+        New message: ${input.message}
+
+        Respond naturally.
+    state:
+      use: [conversation_history, user_preferences]
+
+  - name: save-message
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO conversations (user_id, role, content, timestamp)
+        VALUES (?, 'assistant', ?, ?)
+      params:
+        - ${input.user_id}
+        - ${generate-response.output}
+        - ${Date.now()}
+
+output:
+  response: ${generate-response.output}
+```
+
+## State vs Outputs
+
+### Use Outputs For
+
+Simple data passing between adjacent agents:
+
+```yaml
+# Good: Direct output reference
+agents:
+  - name: fetch
+    operation: http
+    config:
+      url: ${input.url}
+
+  - name: process
+    operation: code
+    config:
+      code: return { processed: ${fetch.output} };
+```
+
+### Use State For
+
+Data needed by multiple non-adjacent agents:
+
+```yaml
+# Good: State for shared data
+state:
+  schema:
+    api_token: string
+
+agents:
+  - name: authenticate
+    operation: http
+    config:
+      url: https://auth.example.com
+    state:
+      set:
+        api_token: ${authenticate.output.token}
+
+  - name: step1
+    operation: http
+    config:
+      url: https://api.example.com/step1
+      headers:
+        Authorization: Bearer ${state.api_token}
+    state:
+      use: [api_token]
+
+  - name: step2
+    operation: http
+    config:
+      url: https://api.example.com/step2
+      headers:
+        Authorization: Bearer ${state.api_token}
+    state:
+      use: [api_token]
+```
+
+## State Persistence
+
+### KV-Backed State
+
+Persist state across executions:
+
+```yaml
+ensemble: stateful-workflow
+
+state:
+  backend: kv
+  key: workflow-${input.workflow_id}
+  schema:
+    progress: number
+    data: object
+
+agents:
+  - name: load-state
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: workflow-${input.workflow_id}
+    state:
+      set:
+        progress: ${load-state.output.value?.progress || 0}
+        data: ${load-state.output.value?.data || {}}
+
+  - name: process
+    operation: code
+    config:
+      code: |
+        return {
+          progress: ${state.progress + 10},
+          data: { ...${state.data}, updated: Date.now() }
+        };
+    state:
+      use: [progress, data]
+      set:
+        progress: ${process.output.progress}
+        data: ${process.output.data}
+
+  - name: save-state
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: workflow-${input.workflow_id}
+      value:
+        progress: ${state.progress}
+        data: ${state.data}
+    state:
+      use: [progress, data]
+```
+
+### D1-Backed State
+
+For complex queries and relationships:
+
+```yaml
+ensemble: stateful-pipeline
+
+agents:
+  - name: load-workflow-state
+    operation: storage
+    config:
+      type: d1
+      query: SELECT * FROM workflow_state WHERE id = ?
+      params: [${input.workflow_id}]
+    state:
+      set:
+        workflow_data: ${load-workflow-state.output.rows[0]}
+
+  - name: process
+    operation: code
+    config:
+      code: |
+        return {
+          status: 'processing',
+          updated_at: Date.now()
+        };
+    state:
+      use: [workflow_data]
+
+  - name: save-workflow-state
+    operation: storage
+    config:
+      type: d1
+      query: |
+        UPDATE workflow_state
+        SET status = ?, updated_at = ?
+        WHERE id = ?
+      params:
+        - ${process.output.status}
+        - ${process.output.updated_at}
+        - ${input.workflow_id}
+```
+
+## State Scoping
+
+### Ensemble-Level State
+
+Shared across all agents in the ensemble:
+
+```yaml
+ensemble: my-ensemble
+
+state:
+  schema:
+    shared_data: object
+
+agents:
+  - name: agent1
+    state:
+      set:
+        shared_data: ${agent1.output}
+
+  - name: agent2
+    state:
+      use: [shared_data]
+```
+
+### Agent-Level State
+
+Each agent has its own state (for custom agents):
+
+```yaml
+# agents/stateful-agent/agent.yaml
+agent: stateful-agent
+
+state:
+  schema:
+    internal_counter: number
+
+operations:
+  - name: increment
+    operation: code
+    config:
+      code: return { count: (${state.internal_counter} || 0) + 1 };
+    state:
+      use: [internal_counter]
+      set:
+        internal_counter: ${increment.output.count}
+```
+
+## Best Practices
+
+1. **Minimize State Usage** - Use outputs for simple data passing
+2. **Clear Schema** - Define types explicitly
+3. **Declare Dependencies** - Always use `use:` and `set:`
+4. **Persist When Needed** - Use KV/D1 for long-running workflows
+5. **Avoid Circular Dependencies** - Don't create state loops
+6. **Initialize State** - Provide defaults (`|| 0`, `|| []`)
+7. **Test State Logic** - Unit test state transformations
+8. **Monitor State Size** - Keep state compact
+
+## Performance Considerations
+
+### State Access Cost
+
+Reading state is fast (in-memory):
+
+```yaml
+# Fast: Direct state access
+agents:
+  - name: process
+    operation: code
+    config:
+      code: return { value: ${state.counter} + 1 };
+    state:
+      use: [counter]
+```
+
+### State Write Cost
+
+Writing to persistent backends has latency:
+
+```yaml
+# Slower: KV write
+agents:
+  - name: save
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: state-${input.id}
+      value: ${state}
+    state:
+      use: [state]
+```
+
+**Tip**: Batch state writes at the end of the workflow rather than after each agent.
+
+## Debugging State
+
+### Log State Changes
+
+```yaml
+agents:
+  - name: process
+    operation: code
+    config:
+      code: |
+        console.log('State before:', ${JSON.stringify(state)});
+        const result = processData(${input.data});
+        console.log('State after:', JSON.stringify(result));
+        return result;
+    state:
+      use: [data]
+      set:
+        data: ${process.output}
+```
+
+### Output State
+
+Include state in ensemble output for debugging:
+
+```yaml
+output:
+  result: ${final-agent.output}
+  debug_state: ${state}  # Include entire state
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Flow Control" icon="code-branch" href="/conductor/core-concepts/flow-control">
+    Control execution flow
+  </Card>
+
+  <Card title="A/B Testing" icon="flask" href="/conductor/core-concepts/ab-testing">
+    Test multiple variants
+  </Card>
+
+  <Card title="Operations" icon="bolt" href="/conductor/core-concepts/operations">
+    Learn about operations
+  </Card>
+
+  <Card title="Playbooks" icon="books" href="/conductor/playbooks/rag-pipeline">
+    Real-world examples
+  </Card>
+</CardGroup>

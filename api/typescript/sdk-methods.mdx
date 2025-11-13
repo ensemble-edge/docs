@@ -1,0 +1,466 @@
+---
+title: "SDK Methods"
+description: "Complete SDK method reference"
+---
+
+# SDK Methods
+
+**Complete TypeScript SDK method reference.**
+
+## Conductor Methods
+
+### Execution
+
+#### execute()
+
+Execute an ensemble.
+
+```typescript
+async execute(
+  ensemble: string,
+  inputs: Record<string, any>,
+  options?: ExecutionOptions
+): Promise<ExecutionResult>
+```
+
+#### executeAgent()
+
+Execute a single agent.
+
+```typescript
+async executeAgent(
+  agent: string,
+  inputs: Record<string, any>,
+  options?: ExecutionOptions
+): Promise<AgentResult>
+```
+
+#### executeWithStreaming()
+
+Execute with streaming response.
+
+```typescript
+async executeWithStreaming(
+  ensemble: string,
+  inputs: Record<string, any>
+): AsyncIterator<StreamChunk>
+```
+
+**Example**:
+
+```typescript
+for await (const chunk of conductor.executeWithStreaming('chat', { message: 'Hello' })) {
+  if (chunk.type === 'token') {
+    process.stdout.write(chunk.token);
+  }
+}
+```
+
+### State Management
+
+#### getState()
+
+Get ensemble state.
+
+```typescript
+async getState(ensembleId: string): Promise<State>
+```
+
+**Returns**:
+
+```typescript
+interface State {
+  [key: string]: any;
+}
+```
+
+#### setState()
+
+Update ensemble state.
+
+```typescript
+async setState(
+  ensembleId: string,
+  state: Record<string, any>
+): Promise<void>
+```
+
+#### watchState()
+
+Watch state changes.
+
+```typescript
+watchState(
+  ensembleId: string,
+  callback: (state: State) => void
+): () => void
+```
+
+**Returns**: Unsubscribe function
+
+**Example**:
+
+```typescript
+const unsubscribe = conductor.watchState('exec-123', (state) => {
+  console.log('State updated:', state);
+});
+
+// Later
+unsubscribe();
+```
+
+### Discovery
+
+#### listEnsembles()
+
+List all ensembles.
+
+```typescript
+async listEnsembles(filters?: EnsembleFilters): Promise<Ensemble[]>
+```
+
+**Filters**:
+
+```typescript
+interface EnsembleFilters {
+  tags?: string[];
+  search?: string;
+}
+```
+
+#### getEnsemble()
+
+Get ensemble metadata.
+
+```typescript
+async getEnsemble(name: string): Promise<Ensemble>
+```
+
+**Returns**:
+
+```typescript
+interface Ensemble {
+  name: string;
+  description?: string;
+  inputs: InputSchema;
+  outputs: OutputSchema;
+  agents: string[];
+  version?: string;
+  tags?: string[];
+}
+```
+
+#### listAgents()
+
+List all agents.
+
+```typescript
+async listAgents(filters?: AgentFilters): Promise<Agent[]>
+```
+
+#### getAgent()
+
+Get agent metadata.
+
+```typescript
+async getAgent(name: string): Promise<Agent>
+```
+
+### Components (Edgit)
+
+#### getComponent()
+
+Get a versioned component.
+
+```typescript
+async getComponent(
+  name: string,
+  version?: string
+): Promise<Component>
+```
+
+**Example**:
+
+```typescript
+// Latest version
+const prompt = await conductor.getComponent('user-prompt');
+
+// Specific version
+const prompt = await conductor.getComponent('user-prompt', 'v1.2.0');
+```
+
+#### listComponents()
+
+List all components.
+
+```typescript
+async listComponents(filters?: ComponentFilters): Promise<Component[]>
+```
+
+**Returns**:
+
+```typescript
+interface Component {
+  name: string;
+  type: 'prompt' | 'template' | 'schema' | 'config';
+  version: string;
+  content: any;
+  metadata?: Record<string, any>;
+}
+```
+
+#### getComponentVersions()
+
+Get all versions of a component.
+
+```typescript
+async getComponentVersions(name: string): Promise<string[]>
+```
+
+### Execution History
+
+#### listExecutions()
+
+List past executions.
+
+```typescript
+async listExecutions(filters?: ExecutionFilters): Promise<Execution[]>
+```
+
+**Filters**:
+
+```typescript
+interface ExecutionFilters {
+  ensemble?: string;
+  status?: ExecutionStatus;
+  startTime?: Date;
+  endTime?: Date;
+  limit?: number;
+}
+```
+
+#### getExecution()
+
+Get execution details.
+
+```typescript
+async getExecution(executionId: string): Promise<ExecutionDetail>
+```
+
+**Returns**:
+
+```typescript
+interface ExecutionDetail {
+  id: string;
+  ensemble: string;
+  status: ExecutionStatus;
+  input: Record<string, any>;
+  output?: Record<string, any>;
+  error?: ExecutionError;
+  trace: ExecutionTrace;
+  duration: number;
+  timestamp: number;
+}
+```
+
+#### getExecutionLogs()
+
+Get execution logs.
+
+```typescript
+async getExecutionLogs(executionId: string): Promise<LogEntry[]>
+```
+
+### Cancellation
+
+#### cancelExecution()
+
+Cancel a running execution.
+
+```typescript
+async cancelExecution(executionId: string): Promise<void>
+```
+
+**Example**:
+
+```typescript
+const result = conductor.execute('long-task', input);
+
+// Cancel after 5 seconds
+setTimeout(() => {
+  conductor.cancelExecution(result.id);
+}, 5000);
+```
+
+## Agent Methods
+
+### Agent Execution
+
+#### execute()
+
+Execute agent.
+
+```typescript
+async execute(inputs: Record<string, any>): Promise<AgentResult>
+```
+
+#### executeWithTrace()
+
+Execute with detailed trace.
+
+```typescript
+async executeWithTrace(inputs: Record<string, any>): Promise<AgentResultWithTrace>
+```
+
+**Returns**:
+
+```typescript
+interface AgentResultWithTrace {
+  output: any;
+  duration: number;
+  operations: DetailedOperationTrace[];
+}
+
+interface DetailedOperationTrace {
+  name: string;
+  operation: string;
+  input: any;
+  output: any;
+  duration: number;
+  cached: boolean;
+  retries: number;
+  error?: OperationError;
+}
+```
+
+## Helper Methods
+
+### loadYAML()
+
+Load and parse YAML file.
+
+```typescript
+import { loadYAML } from '@ensemble/conductor/sdk';
+
+const ensemble = await loadYAML('./ensembles/my-workflow.yaml');
+```
+
+### validateEnsemble()
+
+Validate ensemble configuration.
+
+```typescript
+import { validateEnsemble } from '@ensemble/conductor/sdk';
+
+const errors = await validateEnsemble(ensembleConfig);
+if (errors.length > 0) {
+  console.error('Validation errors:', errors);
+}
+```
+
+### parseExpression()
+
+Parse template expression.
+
+```typescript
+import { parseExpression } from '@ensemble/conductor/sdk';
+
+const expr = parseExpression('${input.name}');
+console.log('Variables:', expr.variables); // ['input.name']
+```
+
+## Type Exports
+
+```typescript
+import type {
+  // Core types
+  ConductorOptions,
+  ExecutionResult,
+  ExecutionOptions,
+  ExecutionError,
+  
+  // Agent types
+  AgentResult,
+  AgentConfig,
+  OperationConfig,
+  
+  // State types
+  State,
+  StateSchema,
+  
+  // Component types
+  Component,
+  ComponentType,
+  
+  // Execution types
+  ExecutionStatus,
+  ExecutionTrace,
+  LogEntry
+} from '@ensemble/conductor';
+```
+
+## Utility Functions
+
+### retry()
+
+Retry helper.
+
+```typescript
+import { retry } from '@ensemble/conductor/sdk';
+
+const result = await retry(
+  () => conductor.execute('flaky-ensemble', input),
+  {
+    maxAttempts: 3,
+    backoff: 'exponential',
+    onRetry: (attempt, error) => {
+      console.log(`Retry attempt ${attempt}:`, error.message);
+    }
+  }
+);
+```
+
+### timeout()
+
+Timeout helper.
+
+```typescript
+import { timeout } from '@ensemble/conductor/sdk';
+
+const result = await timeout(
+  conductor.execute('slow-ensemble', input),
+  5000, // 5 seconds
+  'Execution timed out'
+);
+```
+
+### parallel()
+
+Execute multiple ensembles in parallel.
+
+```typescript
+import { parallel } from '@ensemble/conductor/sdk';
+
+const results = await parallel([
+  conductor.execute('ensemble-1', input1),
+  conductor.execute('ensemble-2', input2),
+  conductor.execute('ensemble-3', input3)
+]);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Classes" icon="cube" href="/api/typescript/core-classes">
+    Core class reference
+  </Card>
+  <Card title="Agent Classes" icon="layer-group" href="/api/typescript/agent-classes">
+    Agent classes
+  </Card>
+  <Card title="Testing Utilities" icon="vial" href="/api/typescript/testing-utilities">
+    Testing helpers
+  </Card>
+  <Card title="HTTP API" icon="globe" href="/api/http/endpoints">
+    REST API
+  </Card>
+</CardGroup>

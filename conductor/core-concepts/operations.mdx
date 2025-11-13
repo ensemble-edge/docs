@@ -1,0 +1,515 @@
+---
+title: "Operations"
+description: "The 12 execution primitives that power Conductor"
+---
+
+# Operations
+
+**Operations are the building blocks of agents. Think of them as atomic actions - the primitives you compose into workflows.**
+
+Every agent uses operations to do work. There are 12 operations, each doing one thing well.
+
+## The 12 Operations
+
+<CardGroup cols={3}>
+  <Card title="think" icon="brain" href="/conductor/operations/think">
+    AI reasoning (GPT, Claude, Llama)
+  </Card>
+
+  <Card title="code" icon="code" href="/conductor/operations/code">
+    JavaScript/TypeScript execution
+  </Card>
+
+  <Card title="storage" icon="database" href="/conductor/operations/storage">
+    KV, D1, R2, Vectorize access
+  </Card>
+
+  <Card title="http" icon="globe" href="/conductor/operations/http">
+    HTTP requests to APIs
+  </Card>
+
+  <Card title="tools" icon="wrench" href="/conductor/operations/tools">
+    MCP tools and skills
+  </Card>
+
+  <Card title="email" icon="envelope" href="/conductor/operations/email">
+    Send emails
+  </Card>
+
+  <Card title="sms" icon="message" href="/conductor/operations/sms">
+    Send SMS messages
+  </Card>
+
+  <Card title="html" icon="window" href="/conductor/operations/html">
+    Render HTML
+  </Card>
+
+  <Card title="pdf" icon="file-pdf" href="/conductor/operations/pdf">
+    Generate PDFs
+  </Card>
+
+  <Card title="page" icon="browser" href="/conductor/operations/page">
+    Full-stack pages
+  </Card>
+
+  <Card title="ml" icon="chart-line" href="/conductor/operations/ml">
+    Machine learning (coming soon)
+  </Card>
+</CardGroup>
+
+## Operation Basics
+
+### Declaration
+
+Operations are declared in agents:
+
+```yaml
+agent: my-agent
+
+operations:
+  - name: generate-text
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.text}
+
+  - name: process
+    operation: code
+    config:
+      code: |
+        return { result: ${generate-text.output}.toUpperCase() };
+```
+
+### Execution
+
+Operations run when the agent executes:
+
+```typescript
+const result = await conductor.executeAgent('my-agent', { text: 'hello' });
+// result.output contains the final output
+```
+
+### Chaining
+
+Operations reference each other's outputs:
+
+```yaml
+operations:
+  - name: step1
+    operation: http
+    config:
+      url: https://api.example.com/data
+
+  - name: step2
+    operation: think
+    config:
+      prompt: Analyze: ${step1.output.body}
+
+  - name: step3
+    operation: code
+    config:
+      code: |
+        return {
+          analysis: ${step2.output},
+          raw_data: ${step1.output.body}
+        };
+```
+
+## Operation Categories
+
+### 1. Compute Operations
+
+Execute logic and transform data.
+
+**think** - AI reasoning:
+```yaml
+- name: analyze
+  operation: think
+  config:
+    provider: openai
+    model: gpt-4o
+    prompt: Analyze this data: ${input.data}
+```
+
+**code** - JavaScript/TypeScript:
+```yaml
+- name: transform
+  operation: code
+  config:
+    code: |
+      const data = ${input.data};
+      return { transformed: data.map(x => x * 2) };
+```
+
+**ml** - Machine learning (coming soon):
+```yaml
+- name: predict
+  operation: ml
+  config:
+    model: my-model
+    input: ${input.features}
+```
+
+### 2. Data Operations
+
+Access and manipulate data stores.
+
+**storage** - All Cloudflare storage:
+```yaml
+# KV
+- name: cache-get
+  operation: storage
+  config:
+    type: kv
+    action: get
+    key: result-${input.query}
+
+# D1
+- name: query-db
+  operation: storage
+  config:
+    type: d1
+    query: SELECT * FROM users WHERE id = ?
+    params: [${input.user_id}]
+
+# R2
+- name: get-file
+  operation: storage
+  config:
+    type: r2
+    action: get
+    key: documents/${input.filename}
+
+# Vectorize
+- name: search-vectors
+  operation: storage
+  config:
+    type: vectorize
+    action: query
+    vector: ${embed.output}
+    topK: 5
+```
+
+### 3. Communication Operations
+
+Send messages and notifications.
+
+**http** - HTTP requests:
+```yaml
+- name: fetch-data
+  operation: http
+  config:
+    url: https://api.example.com/data
+    method: POST
+    headers:
+      Authorization: Bearer ${env.API_KEY}
+    body:
+      query: ${input.query}
+```
+
+**email** - Send emails:
+```yaml
+- name: send-notification
+  operation: email
+  config:
+    to: ${input.recipient}
+    subject: Your report is ready
+    body: ${generate-report.output}
+```
+
+**sms** - Send SMS:
+```yaml
+- name: send-alert
+  operation: sms
+  config:
+    to: ${input.phone}
+    body: Alert: ${input.message}
+```
+
+### 4. Presentation Operations
+
+Render content for users.
+
+**html** - HTML rendering:
+```yaml
+- name: render-page
+  operation: html
+  config:
+    template: dashboard
+    data:
+      user: ${fetch-user.output}
+      stats: ${fetch-stats.output}
+```
+
+**pdf** - PDF generation:
+```yaml
+- name: generate-pdf
+  operation: pdf
+  config:
+    html: ${render-report.output}
+    filename: report-${input.id}.pdf
+```
+
+**page** - Full-stack pages:
+```yaml
+- name: dashboard
+  operation: page
+  config:
+    component: Dashboard
+    props:
+      data: ${fetch-data.output}
+```
+
+### 5. Extension Operations
+
+Extend functionality with external tools.
+
+**tools** - MCP tools and skills:
+```yaml
+- name: use-tool
+  operation: tools
+  config:
+    tool: search-web
+    params:
+      query: ${input.query}
+```
+
+## Operation Features
+
+### Conditional Execution
+
+Skip operations based on conditions:
+
+```yaml
+operations:
+  - name: check-cache
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: result-${input.query}
+
+  # Only run if cache miss
+  - name: generate
+    operation: think
+    condition: ${check-cache.output.value === null}
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.query}
+```
+
+### Caching
+
+Cache operation results:
+
+```yaml
+operations:
+  - name: expensive-operation
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4
+      prompt: ${input.text}
+    cache:
+      ttl: 3600  # 1 hour
+      key: ai-${input.text}  # Custom cache key
+```
+
+### Retry Logic
+
+Automatic retries on failure:
+
+```yaml
+operations:
+  - name: flaky-api
+    operation: http
+    config:
+      url: https://api.example.com/data
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+      initialDelay: 1000
+```
+
+### Parallel Execution
+
+Operations without dependencies run in parallel:
+
+```yaml
+operations:
+  # These 3 run in parallel
+  - name: fetch-a
+    operation: http
+    config:
+      url: https://api-a.com/data
+
+  - name: fetch-b
+    operation: http
+    config:
+      url: https://api-b.com/data
+
+  - name: fetch-c
+    operation: http
+    config:
+      url: https://api-c.com/data
+
+  # This waits for all 3 to complete
+  - name: merge
+    operation: code
+    config:
+      code: |
+        return {
+          a: ${fetch-a.output.body},
+          b: ${fetch-b.output.body},
+          c: ${fetch-c.output.body}
+        };
+```
+
+## Operation Reference
+
+### Common Configuration
+
+All operations support:
+
+```yaml
+operations:
+  - name: my-operation
+    operation: think
+    config:
+      # Operation-specific config
+    condition: ${some.condition}  # Optional: when to run
+    cache:
+      ttl: 3600  # Optional: cache duration
+      key: custom-key  # Optional: cache key
+    retry:
+      maxAttempts: 3  # Optional: retry count
+      backoff: exponential  # Optional: backoff strategy
+    timeout: 30000  # Optional: timeout in ms
+```
+
+### Output Access
+
+Access operation outputs using template syntax:
+
+```yaml
+${operation-name.output}          # Full output
+${operation-name.output.field}    # Specific field
+${operation-name.executed}        # true if ran
+${operation-name.failed}          # true if failed
+${operation-name.cached}          # true if from cache
+${operation-name.duration}        # Execution time in ms
+```
+
+## Best Practices
+
+1. **Use the Right Operation** - Each operation is optimized for its use case
+2. **Cache Expensive Operations** - Especially AI and HTTP calls
+3. **Handle Failures** - Use conditions and retry logic
+4. **Optimize for Parallel** - Don't create unnecessary dependencies
+5. **Keep Operations Simple** - Single responsibility per operation
+6. **Use Built-in Features** - Leverage caching, retry, and conditions
+7. **Monitor Performance** - Track operation execution times
+8. **Test Thoroughly** - Unit test each operation
+
+## Performance Tips
+
+### 1. Parallel Execution
+
+```yaml
+# Bad: Sequential (slow)
+operations:
+  - name: step1
+    operation: http
+    config:
+      url: https://api-a.com
+  - name: step2
+    operation: http
+    config:
+      url: https://api-b.com
+      data: ${step1.output}  # Creates dependency
+
+# Good: Parallel (fast)
+operations:
+  - name: step1
+    operation: http
+    config:
+      url: https://api-a.com
+  - name: step2
+    operation: http
+    config:
+      url: https://api-b.com
+  - name: merge
+    operation: code
+    config:
+      code: |
+        return {
+          a: ${step1.output},
+          b: ${step2.output}
+        };
+```
+
+### 2. Conditional Execution
+
+```yaml
+# Bad: Always runs expensive operation
+operations:
+  - name: expensive-ai
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4
+      prompt: ${input.text}
+
+# Good: Skip if cached
+operations:
+  - name: check-cache
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: ai-${input.text}
+
+  - name: expensive-ai
+    operation: think
+    condition: ${check-cache.output.value === null}
+    config:
+      provider: openai
+      model: gpt-4
+      prompt: ${input.text}
+```
+
+### 3. Operation Caching
+
+```yaml
+# Cache at operation level
+operations:
+  - name: scrape-website
+    operation: http
+    config:
+      url: ${input.url}
+    cache:
+      ttl: 86400  # Cache for 24 hours
+      key: scrape-${input.url}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Agents" icon="robot" href="/conductor/core-concepts/agents">
+    Learn about agents
+  </Card>
+
+  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
+    Detailed operation docs
+  </Card>
+
+  <Card title="Flow Control" icon="code-branch" href="/conductor/core-concepts/flow-control">
+    Control execution flow
+  </Card>
+
+  <Card title="Building Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Create custom agents
+  </Card>
+</CardGroup>

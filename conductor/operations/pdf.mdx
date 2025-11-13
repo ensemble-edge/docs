@@ -1,0 +1,79 @@
+---
+title: "pdf Operation"
+description: "Generate PDF documents"
+---
+
+# pdf Operation
+
+**Generate PDFs from HTML.**
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: generate
+    operation: pdf
+    config:
+      html: ${render.output}
+      filename: report.pdf
+```
+
+## Configuration
+
+```yaml
+config:
+  html: string          # HTML content
+  filename: string      # Output filename
+  format: string        # A4, Letter, etc
+  margin: object        # Page margins
+```
+
+## Examples
+
+### From HTML
+
+```yaml
+operations:
+  - name: render
+    operation: html
+    config:
+      template: invoice
+      data:
+        items: ${input.items}
+
+  - name: generate-pdf
+    operation: pdf
+    config:
+      html: ${render.output}
+      filename: invoice-${input.id}.pdf
+```
+
+### Store in R2
+
+```yaml
+operations:
+  - name: generate
+    operation: pdf
+    config:
+      html: ${render.output}
+      filename: report.pdf
+
+  - name: upload
+    operation: storage
+    config:
+      type: r2
+      action: put
+      key: reports/${input.id}.pdf
+      value: ${generate.output}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="html" icon="window" href="/conductor/operations/html">
+    Render HTML
+  </Card>
+  <Card title="email" icon="envelope" href="/conductor/operations/email">
+    Email PDFs
+  </Card>
+</CardGroup>

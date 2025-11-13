@@ -1,0 +1,494 @@
+---
+title: "HTTP Endpoints"
+description: "REST API reference"
+---
+
+# HTTP Endpoints
+
+**Complete REST API for ensemble execution and management.**
+
+## Base URL
+
+```
+https://api.ensemble.dev/v1
+```
+
+Or self-hosted:
+
+```
+https://your-worker.workers.dev/api/v1
+```
+
+## Authentication
+
+All requests require authentication via Bearer token:
+
+```http
+Authorization: Bearer {your-api-token}
+```
+
+## Execute Ensemble
+
+Execute an ensemble workflow.
+
+### Request
+
+```http
+POST /ensembles/{name}/execute
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+  "inputs": {
+    "field1": "value1",
+    "field2": "value2"
+  },
+  "options": {
+    "timeout": 30000,
+    "enableTracing": true
+  }
+}
+```
+
+### Parameters
+
+**Path**:
+- `name` (string, required) - Ensemble name
+
+**Body**:
+- `inputs` (object, required) - Input data
+- `options` (object, optional) - Execution options
+  - `timeout` (number) - Timeout in ms
+  - `enableTracing` (boolean) - Enable tracing
+  - `enableCaching` (boolean) - Enable caching
+
+### Response
+
+```json
+{
+  "id": "exec-abc123...",
+  "status": "completed",
+  "output": {
+    "result": "success",
+    "data": {...}
+  },
+  "duration": 1234,
+  "timestamp": 1705315200000,
+  "trace": {...}
+}
+```
+
+**Status Codes**:
+- `200` - Success
+- `400` - Invalid request
+- `401` - Unauthorized
+- `404` - Ensemble not found
+- `408` - Timeout
+- `500` - Server error
+
+### Example
+
+```bash
+curl -X POST https://api.ensemble.dev/v1/ensembles/user-onboarding/execute \
+  -H "Authorization: Bearer ${API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inputs": {
+      "email": "alice@example.com",
+      "name": "Alice"
+    }
+  }'
+```
+
+## Execute Agent
+
+Execute a single agent.
+
+### Request
+
+```http
+POST /agents/{name}/execute
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+  "inputs": {
+    "company_name": "Anthropic"
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "output": {
+    "company_data": {...}
+  },
+  "duration": 567,
+  "operations": [
+    {
+      "name": "search",
+      "operation": "http",
+      "duration": 234,
+      "cached": false
+    }
+  ]
+}
+```
+
+## List Ensembles
+
+Get all available ensembles.
+
+### Request
+
+```http
+GET /ensembles
+Authorization: Bearer {token}
+```
+
+**Query Parameters**:
+- `tags` (string[]) - Filter by tags
+- `search` (string) - Search by name/description
+
+### Response
+
+```json
+{
+  "ensembles": [
+    {
+      "name": "user-onboarding",
+      "description": "Onboard new users",
+      "inputs": {
+        "email": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true }
+      },
+      "outputs": {
+        "userId": "string",
+        "created": "boolean"
+      },
+      "version": "v1.2.0",
+      "tags": ["user", "onboarding"]
+    }
+  ]
+}
+```
+
+## Get Ensemble
+
+Get ensemble metadata.
+
+### Request
+
+```http
+GET /ensembles/{name}
+Authorization: Bearer {token}
+```
+
+### Response
+
+```json
+{
+  "name": "user-onboarding",
+  "description": "Onboard new users",
+  "inputs": {...},
+  "outputs": {...},
+  "agents": ["create-account", "send-welcome-email"],
+  "version": "v1.2.0"
+}
+```
+
+## List Agents
+
+Get all available agents.
+
+### Request
+
+```http
+GET /agents
+Authorization: Bearer {token}
+```
+
+### Response
+
+```json
+{
+  "agents": [
+    {
+      "name": "company-enricher",
+      "description": "Enrich company data",
+      "inputs": {...},
+      "outputs": {...},
+      "operations": ["search", "scrape", "extract"]
+    }
+  ]
+}
+```
+
+## Get Execution Status
+
+Get execution status and details.
+
+### Request
+
+```http
+GET /executions/{id}
+Authorization: Bearer {token}
+```
+
+### Response
+
+```json
+{
+  "id": "exec-abc123...",
+  "status": "running",
+  "ensemble": "user-onboarding",
+  "startTime": 1705315200000,
+  "progress": {
+    "completed": 2,
+    "total": 5,
+    "currentAgent": "send-welcome-email"
+  }
+}
+```
+
+## Cancel Execution
+
+Cancel a running execution.
+
+### Request
+
+```http
+POST /executions/{id}/cancel
+Authorization: Bearer {token}
+```
+
+### Response
+
+```json
+{
+  "cancelled": true,
+  "executionId": "exec-abc123..."
+}
+```
+
+## List Executions
+
+Get execution history.
+
+### Request
+
+```http
+GET /executions
+Authorization: Bearer {token}
+```
+
+**Query Parameters**:
+- `ensemble` (string) - Filter by ensemble
+- `status` (string) - Filter by status
+- `startTime` (number) - Filter by start time
+- `limit` (number) - Limit results (default: 100)
+
+### Response
+
+```json
+{
+  "executions": [
+    {
+      "id": "exec-abc123...",
+      "ensemble": "user-onboarding",
+      "status": "completed",
+      "duration": 1234,
+      "timestamp": 1705315200000
+    }
+  ],
+  "total": 1543,
+  "hasMore": true,
+  "nextCursor": "cursor-xyz..."
+}
+```
+
+## Get State
+
+Get ensemble state.
+
+### Request
+
+```http
+GET /executions/{id}/state
+Authorization: Bearer {token}
+```
+
+### Response
+
+```json
+{
+  "state": {
+    "counter": 5,
+    "history": [...],
+    "userPreferences": {...}
+  },
+  "lastModified": 1705315200000
+}
+```
+
+## Update State
+
+Update ensemble state.
+
+### Request
+
+```http
+PUT /executions/{id}/state
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+  "state": {
+    "counter": 6,
+    "history": [...]
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "updated": true
+}
+```
+
+## Get Logs
+
+Get execution logs.
+
+### Request
+
+```http
+GET /executions/{id}/logs
+Authorization: Bearer {token}
+```
+
+**Query Parameters**:
+- `level` (string) - Filter by log level
+- `agent` (string) - Filter by agent
+
+### Response
+
+```json
+{
+  "logs": [
+    {
+      "timestamp": 1705315200000,
+      "level": "info",
+      "agent": "create-account",
+      "message": "Creating user account",
+      "metadata": {...}
+    }
+  ]
+}
+```
+
+## Health Check
+
+Check API health.
+
+### Request
+
+```http
+GET /health
+```
+
+### Response
+
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "uptime": 123456,
+  "timestamp": 1705315200000
+}
+```
+
+## Error Response Format
+
+All errors follow this format:
+
+```json
+{
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "Missing required field: email",
+    "details": {
+      "field": "email",
+      "expected": "string"
+    }
+  }
+}
+```
+
+**Error Codes**:
+- `INVALID_INPUT` - Invalid request data
+- `UNAUTHORIZED` - Missing/invalid auth token
+- `NOT_FOUND` - Resource not found
+- `TIMEOUT` - Execution timeout
+- `RATE_LIMIT_EXCEEDED` - Rate limit hit
+- `INTERNAL_ERROR` - Server error
+
+## Rate Limiting
+
+Rate limits apply per API token:
+
+**Headers**:
+```http
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 999
+X-RateLimit-Reset: 1705315200
+```
+
+When rate limited (429):
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded",
+    "retryAfter": 3600
+  }
+}
+```
+
+## Pagination
+
+List endpoints support cursor-based pagination:
+
+```http
+GET /executions?limit=100&cursor=cursor-xyz...
+```
+
+Response includes:
+```json
+{
+  "items": [...],
+  "hasMore": true,
+  "nextCursor": "cursor-abc..."
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/http/authentication">
+    API authentication
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/api/http/webhooks">
+    Webhook integration
+  </Card>
+  <Card title="Rate Limits" icon="gauge" href="/api/http/rate-limits">
+    Rate limit details
+  </Card>
+  <Card title="TypeScript SDK" icon="code" href="/api/typescript/core-classes">
+    TypeScript API
+  </Card>
+</CardGroup>

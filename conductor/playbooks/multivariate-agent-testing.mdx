@@ -1,0 +1,84 @@
+---
+title: "Multivariate Agent Testing"
+description: "Test multiple variables simultaneously"
+---
+
+# Multivariate Agent Testing Playbook
+
+**Test combinations: models × prompts × temperatures. Find the optimal configuration.**
+
+## 2×2 Test (4 Variants)
+
+```yaml
+ensemble: multivariate-test
+
+agents:
+  # Model A + Prompt A (25%)
+  - name: variant-aa
+    condition: ${input.user_id % 4 === 0}
+    operation: think
+    config:
+      model: gpt-4o
+      prompt: ${component.prompt-a@v1.0.0}
+
+  # Model A + Prompt B (25%)
+  - name: variant-ab
+    condition: ${input.user_id % 4 === 1}
+    operation: think
+    config:
+      model: gpt-4o
+      prompt: ${component.prompt-b@v1.0.0}
+
+  # Model B + Prompt A (25%)
+  - name: variant-ba
+    condition: ${input.user_id % 4 === 2}
+    operation: think
+    config:
+      model: claude-3-5-sonnet
+      prompt: ${component.prompt-a@v1.0.0}
+
+  # Model B + Prompt B (25%)
+  - name: variant-bb
+    condition: ${input.user_id % 4 === 3}
+    operation: think
+    config:
+      model: claude-3-5-sonnet
+      prompt: ${component.prompt-b@v1.0.0}
+
+  # Log variant
+  - name: log
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO multivariate_results ...
+```
+
+## Agent Version Testing
+
+```yaml
+ensemble: test-agent-versions
+
+agents:
+  - name: v1
+    condition: ${input.user_id % 3 === 0}
+    agent: my-agent@v1.0.0
+
+  - name: v2
+    condition: ${input.user_id % 3 === 1}
+    agent: my-agent@v2.0.0
+
+  - name: v3
+    condition: ${input.user_id % 3 === 2}
+    agent: my-agent@v3.0.0
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="A/B Testing" icon="flask" href="/conductor/playbooks/ab-testing-prompts">
+    Simple A/B tests
+  </Card>
+  <Card title="A/B Testing Patterns" icon="vial" href="/conductor/building/ab-testing-patterns">
+    Testing strategies
+  </Card>
+</CardGroup>

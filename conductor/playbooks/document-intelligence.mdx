@@ -1,0 +1,402 @@
+---
+title: "Document Intelligence"
+description: "Extract insights from documents"
+---
+
+# Document Intelligence Playbook
+
+**Extract, analyze, and act on document content. PDFs, images, forms, and more.**
+
+## Complete Pipeline
+
+```yaml
+ensemble: document-pipeline
+
+agents:
+  # Extract text
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      image: ${input.document_url}
+      prompt: Extract all text from this document
+
+  # Classify document type
+  - name: classify
+    operation: think
+    config:
+      prompt: |
+        Classify this document:
+        - invoice
+        - receipt
+        - contract
+        - resume
+        - other
+
+        Text: ${extract.output}
+        Return JSON: { "type": string, "confidence": number }
+
+  # Extract structured data
+  - name: extract-invoice
+    condition: ${JSON.parse(classify.output).type === 'invoice'}
+    operation: think
+    config:
+      prompt: |
+        Extract invoice data:
+        ${extract.output}
+
+        Return JSON: {
+          "invoice_number": string,
+          "date": string,
+          "vendor": string,
+          "total": number,
+          "line_items": []
+        }
+
+  # Validate extracted data
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${extract-invoice.output}
+      schema: ${component.invoice-schema@v1.0.0}
+
+  # Store in database
+  - name: store
+    condition: ${validate.output.valid}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO invoices ...
+      params: ${validate.output.data}
+```
+
+## Invoice Processing
+
+```yaml
+ensemble: process-invoice
+
+agents:
+  # OCR + extraction
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      image: ${input.invoice_image}
+      prompt: |
+        Extract invoice information:
+        - Invoice number
+        - Date
+        - Vendor name and address
+        - Line items (description, quantity, price)
+        - Subtotal, tax, total
+
+        Return as JSON.
+
+  # Validate amounts
+  - name: validate-math
+    operation: code
+    config:
+      code: |
+        const invoice = JSON.parse(${extract.output});
+        const lineTotal = invoice.line_items.reduce((sum, item) =>
+          sum + (item.quantity * item.price), 0
+        );
+
+        return {
+          valid: Math.abs(lineTotal - invoice.subtotal) < 0.01,
+          calculated_total: lineTotal,
+          invoice_total: invoice.subtotal
+        };
+
+  # Check vendor
+  - name: check-vendor
+    operation: storage
+    config:
+      type: d1
+      query: SELECT * FROM approved_vendors WHERE name = ?
+      params: [${JSON.parse(extract.output).vendor}]
+
+  # Require approval for new vendors
+  - name: approve-vendor
+    condition: ${check-vendor.output.length === 0}
+    agent: hitl
+    inputs:
+      data: ${JSON.parse(extract.output)}
+      prompt: "New vendor - approve invoice?"
+      approvers: [finance@example.com]
+
+  # Auto-approve known vendors under threshold
+  - name: auto-approve
+    condition: ${check-vendor.output.length > 0 && JSON.parse(extract.output).total < 5000}
+    operation: code
+    config:
+      code: return { approved: true, auto: true };
+
+  # Store invoice
+  - name: store
+    condition: ${auto-approve.executed || approve-vendor.output.approved}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO invoices ...
+```
+
+## Resume Screening
+
+```yaml
+ensemble: screen-resume
+
+agents:
+  # Extract resume data
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Extract from resume:
+        ${input.resume_text}
+
+        Return JSON: {
+          "name": string,
+          "email": string,
+          "phone": string,
+          "experience_years": number,
+          "skills": [string],
+          "education": [{ "degree": string, "school": string, "year": number }],
+          "work_history": [{ "company": string, "title": string, "duration": string }]
+        }
+
+  # Score against job requirements
+  - name: score
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Score resume fit (0-100) for this position:
+
+        Requirements: ${input.job_requirements}
+
+        Resume: ${extract.output}
+
+        Return JSON: {
+          "overall_score": number,
+          "scores": {
+            "experience": number,
+            "skills": number,
+            "education": number
+          },
+          "strengths": [string],
+          "gaps": [string],
+          "recommendation": "interview" | "maybe" | "reject"
+        }
+
+  # Shortlist high scores
+  - name: shortlist
+    condition: ${JSON.parse(score.output).overall_score >= 70}
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO shortlisted_candidates (name, email, score, data, job_id)
+        VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${JSON.parse(extract.output).name}
+        - ${JSON.parse(extract.output).email}
+        - ${JSON.parse(score.output).overall_score}
+        - ${extract.output}
+        - ${input.job_id}
+
+  # Auto-reject low scores
+  - name: auto-reject
+    condition: ${JSON.parse(score.output).overall_score < 50}
+    operation: email
+    config:
+      to: ${JSON.parse(extract.output).email}
+      subject: "Application Update"
+      body: |
+        Thank you for your interest...
+```
+
+## Contract Analysis
+
+```yaml
+ensemble: analyze-contract
+
+agents:
+  # Extract key terms
+  - name: extract-terms
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Extract key contract terms:
+        ${input.contract_text}
+
+        Return JSON: {
+          "parties": [string],
+          "effective_date": string,
+          "termination_date": string,
+          "payment_terms": string,
+          "termination_clause": string,
+          "liability_cap": string
+        }
+
+  # Identify risks
+  - name: identify-risks
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Identify risks in this contract:
+        ${input.contract_text}
+
+        Return JSON: {
+          "risks": [
+            {
+              "category": "financial" | "legal" | "operational",
+              "severity": "high" | "medium" | "low",
+              "description": string,
+              "recommendation": string
+            }
+          ]
+        }
+
+  # Compare to standard template
+  - name: compare-template
+    operation: think
+    config:
+      prompt: |
+        Compare contract to our standard template:
+
+        Contract: ${input.contract_text}
+        Template: ${component.standard-contract@v1.0.0}
+
+        Identify deviations.
+
+  # Legal review for high-risk
+  - name: legal-review
+    condition: ${JSON.parse(identify-risks.output).risks.some(r => r.severity === 'high')}
+    agent: hitl
+    inputs:
+      data:
+        terms: ${extract-terms.output}
+        risks: ${identify-risks.output}
+        deviations: ${compare-template.output}
+      prompt: "Contract has high-risk clauses - legal review required"
+      approvers: [legal@example.com]
+```
+
+## Form Processing
+
+```yaml
+ensemble: process-form
+
+agents:
+  # Extract form fields
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      image: ${input.form_image}
+      prompt: |
+        Extract all form fields and values.
+        Return as JSON object.
+
+  # Validate completeness
+  - name: check-complete
+    operation: code
+    config:
+      code: |
+        const form = JSON.parse(${extract.output});
+        const required = ${input.required_fields};
+
+        const missing = required.filter(field => !form[field]);
+
+        return {
+          complete: missing.length === 0,
+          missing_fields: missing
+        };
+
+  # Request missing info
+  - name: request-info
+    condition: ${!check-complete.output.complete}
+    operation: email
+    config:
+      to: ${input.submitter_email}
+      subject: "Form incomplete"
+      body: |
+        Please provide:
+        ${check-complete.output.missing_fields.join('\n')}
+
+  # Process complete forms
+  - name: process
+    condition: ${check-complete.output.complete}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO form_submissions ...
+```
+
+## Best Practices
+
+**1. Vision Models for Images**
+```yaml
+config:
+  provider: openai
+  model: gpt-4o  # Supports vision
+  image: ${input.document_url}
+```
+
+**2. Structured Output**
+```yaml
+prompt: |
+  Extract data.
+  Return JSON: { "field1": type, "field2": type }
+```
+
+**3. Validation**
+```yaml
+- name: validate
+  agent: validator
+  inputs:
+    schema: ${component.schema@v1.0.0}
+```
+
+**4. Human Review**
+```yaml
+- name: review
+  condition: ${confidence < 0.8 || high_value}
+  agent: hitl
+```
+
+**5. Audit Trail**
+```yaml
+- name: log
+  operation: storage
+  config:
+    query: INSERT INTO processing_log ...
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="think Operation" icon="brain" href="/conductor/operations/think">
+    Vision models
+  </Card>
+  <Card title="validator Agent" icon="check-circle" href="/conductor/agents/validator">
+    Data validation
+  </Card>
+  <Card title="HITL Approval" icon="user-check" href="/conductor/playbooks/hitl-approval-flow">
+    Human review
+  </Card>
+  <Card title="Data Processing" icon="database" href="/conductor/playbooks/data-processing-etl">
+    ETL workflows
+  </Card>
+</CardGroup>

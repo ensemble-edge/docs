@@ -1,0 +1,192 @@
+---
+title: "Pre-built Agents"
+description: "Ready-made agents for common workflows"
+---
+
+# Pre-built Agents
+
+**Production-ready agents you can drop into your ensembles.**
+
+No boilerplate. No reinventing the wheel. Just proven patterns for common workflows.
+
+## Available Agents
+
+<CardGroup cols={2}>
+  <Card title="scraper" icon="spider-web" href="/conductor/agents/scraper">
+    Web scraping with retries
+  </Card>
+  <Card title="validator" icon="check-circle" href="/conductor/agents/validator">
+    Data validation
+  </Card>
+  <Card title="rag" icon="database" href="/conductor/agents/rag">
+    Vector search + LLM
+  </Card>
+  <Card title="hitl" icon="user-check" href="/conductor/agents/hitl">
+    Human approval flow
+  </Card>
+  <Card title="fetcher" icon="download" href="/conductor/agents/fetcher">
+    HTTP requests with caching
+  </Card>
+  <Card title="transformer" icon="wand-magic-sparkles" href="/conductor/agents/transformer">
+    Data transformation
+  </Card>
+  <Card title="scheduler" icon="clock" href="/conductor/agents/scheduler">
+    Cron-based execution
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Use pre-built agents like any other agent:
+
+```yaml
+ensemble: analyze-content
+
+agents:
+  - name: fetch-page
+    agent: scraper
+    inputs:
+      url: ${input.url}
+
+  - name: validate-data
+    agent: validator
+    inputs:
+      data: ${fetch-page.output}
+      schema: ${component.schema@v1.0.0}
+
+  - name: analyze
+    operation: think
+    config:
+      prompt: Analyze: ${validate-data.output}
+```
+
+## Why Pre-built Agents?
+
+**1. Proven Patterns**
+Battle-tested implementations of common workflows. Not toy examples.
+
+**2. Zero Setup**
+No configuration needed. Sensible defaults. Override what you need.
+
+**3. Maintained**
+We handle edge cases, retries, errors. You focus on your logic.
+
+**4. Versionable**
+Reference specific versions with Edgit:
+```yaml
+agents:
+  - name: scrape
+    agent: scraper@v2.1.0
+```
+
+## Customization
+
+Every pre-built agent supports:
+
+- **Custom config**: Override defaults
+- **Caching**: Add your own cache strategy
+- **Retries**: Configure retry behavior
+- **Conditions**: Conditional execution
+- **State**: Manage persistent state
+
+Example:
+```yaml
+agents:
+  - name: fetch
+    agent: scraper
+    inputs:
+      url: ${input.url}
+    cache:
+      ttl: 3600
+      key: scrape-${input.url}
+    retry:
+      maxAttempts: 5
+      backoff: exponential
+```
+
+## When to Use
+
+**Use pre-built agents when:**
+- The pattern is common (scraping, validation, RAG)
+- You want production quality without maintenance
+- You need a starting point for customization
+
+**Build custom agents when:**
+- Your logic is domain-specific
+- You need fine-grained control
+- The pattern doesn't match any pre-built agent
+
+## Composition
+
+Pre-built agents compose naturally:
+
+```yaml
+ensemble: content-pipeline
+
+agents:
+  # Scrape with retries
+  - name: scrape
+    agent: scraper
+    inputs:
+      url: ${input.url}
+
+  # Validate structure
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${scrape.output}
+
+  # Transform to target format
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${validate.output}
+      template: ${component.template@v1.0.0}
+
+  # Store in vector DB
+  - name: embed
+    agent: rag
+    config:
+      action: embed
+      text: ${transform.output}
+```
+
+## Versioning Strategy
+
+Pre-built agents follow semantic versioning:
+
+- **v1.0.0**: Initial release
+- **v1.1.0**: New features (backward compatible)
+- **v1.1.1**: Bug fixes
+- **v2.0.0**: Breaking changes
+
+Pin versions for stability:
+```yaml
+agents:
+  - name: scrape
+    agent: scraper@v1.2.3  # Exact version
+```
+
+Or use ranges for auto-updates:
+```yaml
+agents:
+  - name: scrape
+    agent: scraper@v1.x.x  # Latest v1
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="scraper" icon="spider-web" href="/conductor/agents/scraper">
+    Web scraping
+  </Card>
+  <Card title="validator" icon="check-circle" href="/conductor/agents/validator">
+    Data validation
+  </Card>
+  <Card title="rag" icon="database" href="/conductor/agents/rag">
+    Vector search
+  </Card>
+  <Card title="hitl" icon="user-check" href="/conductor/agents/hitl">
+    Human approval
+  </Card>
+</CardGroup>

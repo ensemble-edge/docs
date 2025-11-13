@@ -1,0 +1,89 @@
+---
+title: "Event-Driven Workflow"
+description: "React to events and triggers"
+---
+
+# Event-Driven Workflow Playbook
+
+**Respond to events: webhooks, database changes, cron schedules, and user actions.**
+
+## Webhook Handler
+
+```yaml
+ensemble: webhook-handler
+
+agents:
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${input.webhook}
+      schema: ${component.webhook-schema@v1.0.0}
+
+  - name: process
+    condition: ${validate.output.valid}
+    operation: code
+    config:
+      code: |
+        // Process event
+        return { processed: true };
+```
+
+## Scheduled Jobs
+
+```yaml
+ensemble: daily-report
+
+agents:
+  - name: generate
+    operation: think
+    config:
+      prompt: Generate daily report
+
+  - name: send
+    operation: email
+    config:
+      to: [team@example.com]
+      subject: "Daily Report"
+      body: ${generate.output}
+
+# Schedule with scheduler agent
+---
+ensemble: schedule-reports
+
+agents:
+  - name: schedule
+    agent: scheduler
+    inputs:
+      cron: "0 8 * * *"  # 8 AM daily
+      ensemble: daily-report
+```
+
+## Database Triggers
+
+```yaml
+ensemble: on-user-signup
+
+agents:
+  - name: send-welcome-email
+    operation: email
+    config:
+      to: ${input.user.email}
+      subject: "Welcome!"
+
+  - name: create-profile
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO profiles ...
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="scheduler Agent" icon="clock" href="/conductor/agents/scheduler">
+    Cron schedules
+  </Card>
+  <Card title="API Orchestration" icon="network-wired" href="/conductor/playbooks/api-orchestration">
+    Webhook handling
+  </Card>
+</CardGroup>

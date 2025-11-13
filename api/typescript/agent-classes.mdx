@@ -1,0 +1,282 @@
+---
+title: "Agent Classes"
+description: "Programmatic agent execution"
+---
+
+# Agent Classes
+
+**Classes for creating and executing agents programmatically.**
+
+## Agent
+
+Execute individual agents with the Agent class.
+
+### Constructor
+
+```typescript
+import { Agent } from '@ensemble/conductor';
+
+const agent = new Agent(name: string, conductor: Conductor);
+```
+
+### Methods
+
+#### execute()
+
+Execute the agent with inputs.
+
+```typescript
+async execute(inputs: Record<string, any>): Promise<AgentResult>
+```
+
+**Example**:
+
+```typescript
+const agent = new Agent('company-enricher', conductor);
+
+const result = await agent.execute({
+  company_name: 'Anthropic'
+});
+
+console.log('Company data:', result.output);
+```
+
+#### Result Type
+
+```typescript
+interface AgentResult {
+  output: any;
+  duration: number;
+  cached: boolean;
+  operations: OperationResult[];
+}
+
+interface OperationResult {
+  name: string;
+  operation: string;
+  output: any;
+  duration: number;
+  cached: boolean;
+  error?: OperationError;
+}
+```
+
+## AgentBuilder
+
+Programmatically build agents without YAML.
+
+### Constructor
+
+```typescript
+import { AgentBuilder } from '@ensemble/conductor';
+
+const builder = new AgentBuilder();
+```
+
+### Methods
+
+#### name()
+
+Set agent name.
+
+```typescript
+name(name: string): AgentBuilder
+```
+
+#### description()
+
+Set agent description.
+
+```typescript
+description(desc: string): AgentBuilder
+```
+
+#### input()
+
+Define an input.
+
+```typescript
+input(name: string, schema: InputSchema): AgentBuilder
+```
+
+**Example**:
+
+```typescript
+builder.input('company_name', {
+  type: 'string',
+  required: true,
+  description: 'Company name to enrich'
+});
+```
+
+#### operation()
+
+Add an operation.
+
+```typescript
+operation(
+  name: string,
+  operation: string,
+  config: Record<string, any>
+): AgentBuilder
+```
+
+**Example**:
+
+```typescript
+builder.operation('search', 'http', {
+  url: 'https://api.example.com/search',
+  method: 'GET',
+  params: {
+    q: '${input.company_name}'
+  }
+});
+```
+
+#### output()
+
+Define output mapping.
+
+```typescript
+output(name: string, expression: string): AgentBuilder
+```
+
+#### cache()
+
+Configure caching.
+
+```typescript
+cache(config: CacheConfig): AgentBuilder
+```
+
+#### build()
+
+Build the agent.
+
+```typescript
+build(): Agent
+```
+
+### Complete Example
+
+```typescript
+const agent = new AgentBuilder()
+  .name('company-enricher')
+  .description('Enrich company data')
+  .input('company_name', {
+    type: 'string',
+    required: true
+  })
+  .operation('search', 'http', {
+    url: 'https://api.duckduckgo.com/',
+    params: {
+      q: '${input.company_name}'
+    }
+  })
+  .operation('scrape', 'http', {
+    url: '${search.output.results[0].url}'
+  })
+  .operation('extract', 'think', {
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    prompt: 'Extract company info from: ${scrape.output.body}'
+  })
+  .output('company_data', '${extract.output}')
+  .cache({
+    ttl: 86400,
+    key: 'enrich-${input.company_name}'
+  })
+  .build();
+
+const result = await agent.execute({
+  company_name: 'Anthropic'
+});
+```
+
+## createAgent()
+
+Factory function for creating agents.
+
+```typescript
+import { createAgent } from '@ensemble/conductor/sdk';
+
+const agent = createAgent({
+  name: 'my-agent',
+  operations: [
+    {
+      name: 'step1',
+      operation: 'think',
+      config: {
+        provider: 'openai',
+        model: 'gpt-4o',
+        prompt: 'Process: ${input.data}'
+      }
+    }
+  ],
+  outputs: {
+    result: '${step1.output}'
+  }
+});
+```
+
+## Operation Helpers
+
+Helper functions for common operation patterns.
+
+### thinkOperation()
+
+```typescript
+import { thinkOperation } from '@ensemble/conductor/sdk';
+
+const op = thinkOperation({
+  name: 'analyze',
+  provider: 'openai',
+  model: 'gpt-4o',
+  prompt: 'Analyze: ${input.text}'
+});
+```
+
+### httpOperation()
+
+```typescript
+import { httpOperation } from '@ensemble/conductor/sdk';
+
+const op = httpOperation({
+  name: 'fetch',
+  url: 'https://api.example.com/data',
+  method: 'POST',
+  body: {
+    query: '${input.query}'
+  }
+});
+```
+
+### storageOperation()
+
+```typescript
+import { storageOperation } from '@ensemble/conductor/sdk';
+
+const op = storageOperation({
+  name: 'query',
+  type: 'd1',
+  query: 'SELECT * FROM users WHERE id = ?',
+  params: ['${input.user_id}']
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Classes" icon="cube" href="/api/typescript/core-classes">
+    Conductor class
+  </Card>
+  <Card title="SDK Methods" icon="code" href="/api/typescript/sdk-methods">
+    All SDK methods
+  </Card>
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Agent guide
+  </Card>
+  <Card title="Operations" icon="bolt" href="/conductor/operations/overview">
+    Operation reference
+  </Card>
+</CardGroup>

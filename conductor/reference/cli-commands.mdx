@@ -1,0 +1,485 @@
+---
+title: "CLI Commands"
+description: "Conductor command line reference"
+---
+
+# CLI Commands Reference
+
+**Complete reference for the Conductor CLI.**
+
+## Installation
+
+```bash
+npm install -g @ensemble/conductor
+```
+
+## Global Commands
+
+### init
+
+Initialize a new Conductor project.
+
+```bash
+conductor init [project-name]
+```
+
+Options:
+- `--template <template>` - Use a template (basic, api, rag, chatbot)
+- `--typescript` - Use TypeScript
+- `--no-git` - Skip git initialization
+
+Example:
+```bash
+conductor init my-project --template rag
+```
+
+### dev
+
+Start local development server.
+
+```bash
+conductor dev
+```
+
+Options:
+- `--port <port>` - Port number (default: 3000)
+- `--host <host>` - Host address (default: localhost)
+
+Example:
+```bash
+conductor dev --port 8080
+```
+
+### deploy
+
+Deploy to Cloudflare Workers.
+
+```bash
+conductor deploy [environment]
+```
+
+Options:
+- `--env <environment>` - Environment name (default: production)
+- `--dry-run` - Show what would be deployed
+
+Example:
+```bash
+conductor deploy --env staging
+```
+
+### test
+
+Run tests.
+
+```bash
+conductor test [pattern]
+```
+
+Options:
+- `--watch` - Watch mode
+- `--coverage` - Generate coverage report
+- `--verbose` - Verbose output
+
+Example:
+```bash
+conductor test --coverage
+```
+
+## Ensemble Commands
+
+### ensemble:list
+
+List all ensembles.
+
+```bash
+conductor ensemble:list
+```
+
+### ensemble:run
+
+Execute an ensemble locally.
+
+```bash
+conductor ensemble:run <ensemble> [input]
+```
+
+Example:
+```bash
+conductor ensemble:run greet-user '{"name": "Alice"}'
+```
+
+### ensemble:validate
+
+Validate ensemble YAML.
+
+```bash
+conductor ensemble:validate <file>
+```
+
+Example:
+```bash
+conductor ensemble:validate ensembles/greet.yaml
+```
+
+## Agent Commands
+
+### agent:list
+
+List all agents.
+
+```bash
+conductor agent:list
+```
+
+### agent:run
+
+Execute an agent locally.
+
+```bash
+conductor agent:run <agent> [input]
+```
+
+Example:
+```bash
+conductor agent:run company-enricher '{"company_name": "Anthropic"}'
+```
+
+### agent:validate
+
+Validate agent YAML.
+
+```bash
+conductor agent:validate <file>
+```
+
+## Component Commands
+
+### component:list
+
+List all components.
+
+```bash
+conductor component:list
+```
+
+### component:create
+
+Create a new component.
+
+```bash
+conductor component:create <name> --type <type>
+```
+
+Options:
+- `--type <type>` - Component type (prompt, template, schema, config)
+- `--version <version>` - Initial version (default: v1.0.0)
+
+Example:
+```bash
+conductor component:create user-prompt --type prompt
+```
+
+## Edgit Commands
+
+### edgit:init
+
+Initialize Edgit in project.
+
+```bash
+conductor edgit:init
+```
+
+### edgit:status
+
+Show Edgit status.
+
+```bash
+conductor edgit:status
+```
+
+### edgit:commit
+
+Commit changes.
+
+```bash
+conductor edgit:commit -m "message"
+```
+
+### edgit:tag
+
+Create version tag.
+
+```bash
+conductor edgit:tag <version>
+```
+
+Example:
+```bash
+conductor edgit:tag v1.2.0
+```
+
+### edgit:log
+
+Show commit history.
+
+```bash
+conductor edgit:log [--limit <n>]
+```
+
+### edgit:diff
+
+Show changes.
+
+```bash
+conductor edgit:diff [commit1] [commit2]
+```
+
+## Config Commands
+
+### config:get
+
+Get configuration value.
+
+```bash
+conductor config:get <key>
+```
+
+Example:
+```bash
+conductor config:get apiKey
+```
+
+### config:set
+
+Set configuration value.
+
+```bash
+conductor config:set <key> <value>
+```
+
+Example:
+```bash
+conductor config:set apiKey sk-...
+```
+
+### config:list
+
+List all configuration.
+
+```bash
+conductor config:list
+```
+
+## Secrets Commands
+
+### secret:set
+
+Set a secret.
+
+```bash
+conductor secret:set <name> [value]
+```
+
+If value is omitted, prompts securely.
+
+Example:
+```bash
+conductor secret:set OPENAI_API_KEY
+```
+
+### secret:list
+
+List secret names (not values).
+
+```bash
+conductor secret:list
+```
+
+### secret:delete
+
+Delete a secret.
+
+```bash
+conductor secret:delete <name>
+```
+
+## Database Commands
+
+### db:create
+
+Create D1 database.
+
+```bash
+conductor db:create <name>
+```
+
+### db:migrate
+
+Run database migrations.
+
+```bash
+conductor db:migrate [--env <environment>]
+```
+
+### db:query
+
+Execute SQL query.
+
+```bash
+conductor db:query <sql> [--env <environment>]
+```
+
+Example:
+```bash
+conductor db:query "SELECT * FROM users LIMIT 10"
+```
+
+## Storage Commands
+
+### storage:create
+
+Create KV namespace or R2 bucket.
+
+```bash
+conductor storage:create <type> <name>
+```
+
+Types: `kv`, `r2`, `vectorize`
+
+Example:
+```bash
+conductor storage:create kv CACHE
+```
+
+### storage:list
+
+List storage resources.
+
+```bash
+conductor storage:list <type>
+```
+
+## Logs Commands
+
+### logs
+
+Tail production logs.
+
+```bash
+conductor logs [--env <environment>] [--follow]
+```
+
+Options:
+- `--env <environment>` - Environment name
+- `--follow` - Follow logs in real-time
+- `--filter <pattern>` - Filter by pattern
+
+Example:
+```bash
+conductor logs --follow --filter error
+```
+
+## Info Commands
+
+### info
+
+Show project information.
+
+```bash
+conductor info
+```
+
+### version
+
+Show CLI version.
+
+```bash
+conductor version
+```
+
+### help
+
+Show help.
+
+```bash
+conductor help [command]
+```
+
+## Environment Management
+
+### env:list
+
+List environments.
+
+```bash
+conductor env:list
+```
+
+### env:create
+
+Create environment.
+
+```bash
+conductor env:create <name>
+```
+
+### env:switch
+
+Switch active environment.
+
+```bash
+conductor env:switch <name>
+```
+
+## Common Options
+
+Most commands support these options:
+
+- `--help` - Show help
+- `--verbose` - Verbose output
+- `--quiet` - Quiet output
+- `--env <environment>` - Target environment
+- `--config <path>` - Config file path
+
+## Configuration File
+
+Commands read from `conductor.config.js`:
+
+```javascript
+export default {
+  name: 'my-project',
+  environments: {
+    production: {
+      accountId: 'abc123...',
+      bindings: {
+        KV: 'namespace-id',
+        DB: 'database-id'
+      }
+    },
+    staging: {
+      accountId: 'abc123...',
+      bindings: {
+        KV: 'staging-namespace-id',
+        DB: 'staging-database-id'
+      }
+    }
+  }
+};
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="sliders" href="/conductor/reference/environment-variables">
+    Configuration reference
+  </Card>
+  <Card title="YAML Schema" icon="file-code" href="/conductor/reference/yaml-schema">
+    YAML reference
+  </Card>
+  <Card title="Your First Project" icon="rocket" href="/conductor/getting-started/your-first-project">
+    Get started
+  </Card>
+  <Card title="Testing" icon="vial" href="/conductor/building/testing-observability">
+    Testing guide
+  </Card>
+</CardGroup>

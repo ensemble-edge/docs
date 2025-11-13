@@ -1,0 +1,479 @@
+---
+title: "transformer Agent"
+description: "Data transformation with templates"
+---
+
+# transformer Agent
+
+**Transform data from one shape to another. No code, just templates.**
+
+## Basic Usage
+
+```yaml
+agents:
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${input.raw_data}
+      template:
+        name: ${data.firstName} ${data.lastName}
+        email: ${data.emailAddress}
+        age: ${data.age}
+```
+
+Input:
+```json
+{
+  "firstName": "Alice",
+  "lastName": "Smith",
+  "emailAddress": "alice@example.com",
+  "age": 30
+}
+```
+
+Output:
+```json
+{
+  "name": "Alice Smith",
+  "email": "alice@example.com",
+  "age": 30
+}
+```
+
+## Inputs
+
+```yaml
+inputs:
+  data:
+    type: any
+    required: true
+    description: Data to transform
+
+  template:
+    type: object
+    required: true
+    description: Transformation template
+
+  functions:
+    type: object
+    description: Custom transformation functions
+```
+
+## Configuration
+
+### Simple Mapping
+
+```yaml
+agents:
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${input}
+      template:
+        user_id: ${data.id}
+        full_name: ${data.name}
+        contact_email: ${data.email}
+```
+
+### Nested Objects
+
+```yaml
+agents:
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${input}
+      template:
+        user:
+          id: ${data.id}
+          name: ${data.name}
+        address:
+          street: ${data.street}
+          city: ${data.city}
+          zip: ${data.postal_code}
+```
+
+### Arrays
+
+```yaml
+agents:
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${input.users}
+      template:
+        - id: ${item.id}
+          name: ${item.firstName} ${item.lastName}
+          active: ${item.status === 'active'}
+```
+
+### With Functions
+
+```yaml
+agents:
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${input}
+      template:
+        name: ${uppercase(data.name)}
+        email: ${lowercase(data.email)}
+        joined: ${formatDate(data.created_at)}
+        age_group: ${ageGroup(data.age)}
+      functions:
+        uppercase: (str) => str.toUpperCase()
+        lowercase: (str) => str.toLowerCase()
+        formatDate: (date) => new Date(date).toISOString()
+        ageGroup: (age) => age < 18 ? 'minor' : 'adult'
+```
+
+## Advanced Patterns
+
+### API Response Normalization
+
+```yaml
+ensemble: normalize-api
+
+agents:
+  - name: fetch
+    agent: fetcher
+    inputs:
+      url: https://api.example.com/users
+
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${fetch.output.body.data}
+      template:
+        users:
+          - id: ${item.userId}
+            name: ${item.fullName}
+            email: ${item.emailAddress}
+            active: ${item.accountStatus === 'active'}
+            metadata:
+              created: ${item.createdAt}
+              updated: ${item.lastModified}
+```
+
+### Database to API Format
+
+```yaml
+agents:
+  - name: query
+    operation: storage
+    config:
+      type: d1
+      query: SELECT * FROM users WHERE active = 1
+
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${query.output}
+      template:
+        - id: ${item.id}
+          type: user
+          attributes:
+            name: ${item.name}
+            email: ${item.email}
+          relationships:
+            posts:
+              data:
+                - type: post
+                  id: ${item.post_id}
+```
+
+### Multi-Source Merge
+
+```yaml
+agents:
+  - name: fetch-user
+    agent: fetcher
+    inputs:
+      url: https://api.example.com/users/${input.user_id}
+
+  - name: fetch-profile
+    agent: fetcher
+    inputs:
+      url: https://api.example.com/profiles/${input.user_id}
+
+  - name: transform
+    agent: transformer
+    inputs:
+      data:
+        user: ${fetch-user.output.body}
+        profile: ${fetch-profile.output.body}
+      template:
+        id: ${data.user.id}
+        name: ${data.user.name}
+        email: ${data.user.email}
+        bio: ${data.profile.bio}
+        avatar: ${data.profile.avatar_url}
+        stats:
+          posts: ${data.profile.post_count}
+          followers: ${data.profile.follower_count}
+```
+
+### Conditional Transformation
+
+```yaml
+agents:
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${input}
+      template:
+        id: ${data.id}
+        name: ${data.name}
+        email: ${data.email}
+        role: ${data.is_admin ? 'admin' : 'user'}
+        status: ${data.active ? 'active' : 'inactive'}
+        permissions: ${data.is_admin ? ['read', 'write', 'delete'] : ['read']}
+```
+
+### Filtering + Transform
+
+```yaml
+agents:
+  - name: filter
+    operation: code
+    config:
+      code: |
+        return {
+          items: ${input.items}.filter(item => item.active)
+        };
+
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${filter.output.items}
+      template:
+        - id: ${item.id}
+          name: ${item.name}
+          timestamp: ${Date.now()}
+```
+
+## Built-in Functions
+
+The transformer agent includes these functions:
+
+```yaml
+functions:
+  # String
+  uppercase: (str) => str.toUpperCase()
+  lowercase: (str) => str.toLowerCase()
+  trim: (str) => str.trim()
+
+  # Number
+  round: (num, decimals = 0) => Number(num.toFixed(decimals))
+  abs: (num) => Math.abs(num)
+
+  # Date
+  formatDate: (date, format = 'ISO') => new Date(date).toISOString()
+  timestamp: () => Date.now()
+
+  # Array
+  first: (arr) => arr[0]
+  last: (arr) => arr[arr.length - 1]
+  length: (arr) => arr.length
+  join: (arr, sep = ',') => arr.join(sep)
+
+  # Object
+  keys: (obj) => Object.keys(obj)
+  values: (obj) => Object.values(obj)
+
+  # Type conversion
+  toNumber: (val) => Number(val)
+  toString: (val) => String(val)
+  toBoolean: (val) => Boolean(val)
+```
+
+## Output Schema
+
+The transformer returns the exact shape defined in your template:
+
+```yaml
+# Template
+template:
+  user:
+    id: ${data.id}
+    name: ${data.name}
+
+# Output
+{
+  "user": {
+    "id": 123,
+    "name": "Alice"
+  }
+}
+```
+
+## Best Practices
+
+**1. Version Templates**
+```yaml
+template: ${component.user-template@v1.2.0}
+```
+
+**2. Use Descriptive Keys**
+```yaml
+# Good
+template:
+  user_id: ${data.id}
+  full_name: ${data.name}
+
+# Bad
+template:
+  uid: ${data.id}
+  n: ${data.name}
+```
+
+**3. Handle Missing Data**
+```yaml
+template:
+  name: ${data.name || 'Unknown'}
+  email: ${data.email || null}
+```
+
+**4. Keep Templates Simple**
+```yaml
+# Good: Simple transformation
+template:
+  id: ${data.id}
+  name: ${data.name}
+
+# Bad: Complex logic (use code operation instead)
+template:
+  score: ${calculateComplexScore(data.metrics)}
+```
+
+**5. Validate After Transform**
+```yaml
+agents:
+  - name: transform
+    agent: transformer
+
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${transform.output}
+      schema: ${component.output-schema@v1.0.0}
+```
+
+## Common Use Cases
+
+### API Gateway
+
+```yaml
+ensemble: api-gateway
+
+agents:
+  - name: validate-input
+    agent: validator
+    inputs:
+      data: ${input}
+      schema: ${component.input-schema@v1.0.0}
+
+  - name: transform-request
+    agent: transformer
+    inputs:
+      data: ${validate-input.output.data}
+      template: ${component.request-template@v1.0.0}
+
+  - name: call-backend
+    agent: fetcher
+    inputs:
+      url: ${env.BACKEND_URL}
+      body: ${transform-request.output}
+
+  - name: transform-response
+    agent: transformer
+    inputs:
+      data: ${call-backend.output.body}
+      template: ${component.response-template@v1.0.0}
+
+output:
+  data: ${transform-response.output}
+```
+
+### ETL Pipeline
+
+```yaml
+ensemble: etl
+
+agents:
+  - name: extract
+    operation: storage
+    config:
+      type: d1
+      query: SELECT * FROM raw_data WHERE processed = 0
+
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${extract.output}
+      template:
+        - id: ${item.id}
+          date: ${formatDate(item.timestamp)}
+          amount: ${round(item.value, 2)}
+          category: ${categorize(item.type)}
+      functions:
+        formatDate: (ts) => new Date(ts * 1000).toISOString()
+        round: (num, dec) => Number(num.toFixed(dec))
+        categorize: (type) => type === 'A' ? 'revenue' : 'expense'
+
+  - name: load
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO processed_data (id, date, amount, category) VALUES (?, ?, ?, ?)
+      params: ${transform.output}
+```
+
+### Webhook Adapter
+
+```yaml
+ensemble: webhook-adapter
+
+agents:
+  - name: transform
+    agent: transformer
+    inputs:
+      data: ${input}
+      template:
+        event: ${data.type}
+        timestamp: ${Date.now()}
+        payload:
+          id: ${data.id}
+          action: ${data.action}
+          user: ${data.user_id}
+
+  - name: forward
+    agent: fetcher
+    inputs:
+      url: ${env.INTERNAL_WEBHOOK_URL}
+      method: POST
+      body: ${transform.output}
+```
+
+## Limitations
+
+- **Complex logic**: Use `code` operation for complex transformations
+- **Async operations**: Templates are synchronous
+- **Large datasets**: Memory limits apply (max 10MB)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="code" icon="code" href="/conductor/operations/code">
+    Complex transformations
+  </Card>
+  <Card title="validator" icon="check-circle" href="/conductor/agents/validator">
+    Validate transformed data
+  </Card>
+  <Card title="Data Processing ETL" icon="database" href="/conductor/playbooks/data-processing-etl">
+    Complete ETL playbook
+  </Card>
+  <Card title="Agents Overview" icon="layer-group" href="/conductor/agents/overview">
+    All pre-built agents
+  </Card>
+</CardGroup>

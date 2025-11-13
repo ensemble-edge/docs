@@ -1,0 +1,1244 @@
+---
+title: "email Operation"
+description: "Send emails with templates, attachments, and multi-provider support"
+---
+
+# email Operation
+
+**Send transactional and marketing emails via Cloudflare Email, Resend, or SMTP with template rendering, batch processing, and attachment support.**
+
+The `email` operation handles all email sending needs - from simple transactional messages to complex batch campaigns with personalized templates and file attachments.
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: send-welcome
+    operation: email
+    config:
+      provider: cloudflare
+      from: welcome@example.com
+      to: ${input.email}
+      subject: Welcome to Our Platform!
+      html: |
+        <h1>Welcome ${input.name}!</h1>
+        <p>We're excited to have you on board.</p>
+```
+
+## Configuration
+
+```yaml
+config:
+  provider: string           # cloudflare, resend, smtp
+  from: string              # Sender email address
+  to: string | string[]     # Recipient(s)
+  subject: string           # Email subject
+  body: string              # Plain text body
+  html: string              # HTML body
+  cc: string | string[]     # CC recipients (optional)
+  bcc: string | string[]    # BCC recipients (optional)
+  replyTo: string           # Reply-to address (optional)
+  attachments: array        # File attachments (optional)
+  headers: object           # Custom headers (optional)
+  tags: string[]            # Email tags (optional)
+  metadata: object          # Custom metadata (optional)
+```
+
+## Email Providers
+
+### Cloudflare Email (Recommended)
+
+Zero-configuration email sending via Cloudflare Email Routing:
+
+```yaml
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: noreply@example.com
+      fromName: Your App
+      to: ${input.email}
+      subject: Your Receipt
+      html: <h1>Thank you for your purchase!</h1>
+```
+
+**wrangler.toml** configuration:
+
+```toml
+[[send_email]]
+name = "EMAIL"
+destination_address_list = "allowed-recipients"  # Optional allowlist
+
+[env.production]
+[[env.production.send_email]]
+name = "EMAIL"
+destination_address_list = "production-recipients"
+```
+
+**Features**:
+- No API key required
+- Automatic DKIM signing
+- 100,000 emails/day free tier
+- Edge-native performance
+- Instant delivery
+
+### Resend
+
+Developer-friendly email API with great deliverability:
+
+```yaml
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+      from: team@example.com
+      to: ${input.email}
+      subject: Welcome!
+      html: <p>Welcome to our platform</p>
+```
+
+**Environment Variables**:
+```bash
+RESEND_API_KEY=re_123456789
+```
+
+**Features**:
+- Simple REST API
+- Email analytics dashboard
+- 100 emails/day free tier
+- Webhook support
+- React Email integration
+
+### SMTP
+
+Generic SMTP for any mail server:
+
+```yaml
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: smtp
+      host: smtp.gmail.com
+      port: 587
+      secure: true
+      auth:
+        user: ${env.SMTP_USER}
+        pass: ${env.SMTP_PASS}
+      from: alerts@example.com
+      to: ${input.email}
+      subject: Alert Notification
+      html: <p>Alert: ${input.message}</p>
+```
+
+**Supported Services**:
+- Gmail
+- SendGrid
+- Mailgun
+- Amazon SES
+- Custom SMTP servers
+
+## Email Templates
+
+### Inline HTML
+
+Simple emails with inline HTML:
+
+```yaml
+operations:
+  - name: send-confirmation
+    operation: email
+    config:
+      provider: cloudflare
+      from: orders@example.com
+      to: ${input.customer_email}
+      subject: Order #${input.order_id} Confirmed
+      html: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; }
+            .header { background: #4CAF50; color: white; padding: 20px; }
+            .content { padding: 20px; }
+            .button { background: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Order Confirmed!</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${input.customer_name},</p>
+            <p>Your order #${input.order_id} has been confirmed.</p>
+            <p>Total: $${input.total}</p>
+            <a href="${input.order_url}" class="button">View Order</a>
+          </div>
+        </body>
+        </html>
+```
+
+### Template Variables
+
+Use template expressions for dynamic content:
+
+```yaml
+operations:
+  - name: send-notification
+    operation: email
+    config:
+      provider: cloudflare
+      from: notifications@example.com
+      to: ${input.email}
+      subject: ${input.notification_type} - Action Required
+      html: |
+        <h1>Hello ${input.name}!</h1>
+        <p>${input.message}</p>
+        <p>Generated at ${new Date().toLocaleString()}</p>
+```
+
+### Liquid Templates (Advanced)
+
+For complex templates, store them in KV with Liquid syntax:
+
+```yaml
+operations:
+  # Step 1: Fetch template from KV
+  - name: get-template
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: email-templates/welcome
+
+  # Step 2: Render template with Liquid
+  - name: render
+    operation: code
+    config:
+      code: |
+        const Liquid = require('liquidjs');
+        const engine = new Liquid();
+
+        const template = ${get-template.output.value};
+        const rendered = await engine.parseAndRender(template, {
+          name: ${input.name},
+          activationUrl: ${input.activation_url},
+          appName: 'Your App'
+        });
+
+        return { html: rendered };
+
+  # Step 3: Send rendered email
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: welcome@example.com
+      to: ${input.email}
+      subject: Welcome to Your App!
+      html: ${render.output.html}
+```
+
+**Template in KV**:
+```liquid
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    .button { background: #0066cc; color: white; padding: 12px 24px; }
+  </style>
+</head>
+<body>
+  <h1>Welcome {{ name | capitalize }}!</h1>
+  <p>Click below to activate your account:</p>
+  <a href="{{ activationUrl }}" class="button">Activate Account</a>
+  <p>Best regards,<br>The {{ appName }} Team</p>
+</body>
+</html>
+```
+
+## Email Attachments
+
+### Single Attachment
+
+```yaml
+operations:
+  - name: send-invoice
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+      from: billing@example.com
+      to: ${input.customer_email}
+      subject: Your Invoice
+      html: <p>Please find your invoice attached.</p>
+      attachments:
+        - filename: invoice.pdf
+          content: ${generate-pdf.output.content}
+          contentType: application/pdf
+          encoding: base64
+```
+
+### Multiple Attachments
+
+```yaml
+operations:
+  - name: send-report
+    operation: email
+    config:
+      provider: cloudflare
+      from: reports@example.com
+      to: ${input.email}
+      subject: Monthly Report
+      html: <p>Your monthly report is attached.</p>
+      attachments:
+        - filename: report.pdf
+          content: ${generate-pdf.output}
+          contentType: application/pdf
+          encoding: base64
+        - filename: data.csv
+          content: ${export-csv.output}
+          contentType: text/csv
+          encoding: utf8
+        - filename: summary.txt
+          content: "Total Sales: $${input.total_sales}"
+          contentType: text/plain
+```
+
+### Attachment from Storage
+
+```yaml
+operations:
+  # Step 1: Fetch file from R2
+  - name: get-file
+    operation: storage
+    config:
+      type: r2
+      action: get
+      key: invoices/${input.invoice_id}.pdf
+
+  # Step 2: Email with attachment
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: billing@example.com
+      to: ${input.email}
+      subject: Invoice #${input.invoice_id}
+      html: <p>Invoice attached</p>
+      attachments:
+        - filename: invoice-${input.invoice_id}.pdf
+          content: ${get-file.output.content}
+          contentType: application/pdf
+```
+
+## Batch Sending
+
+Send personalized emails to multiple recipients:
+
+```yaml
+operations:
+  - name: send-newsletter
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+      from: newsletter@example.com
+      batch:
+        recipients:
+          - email: alice@example.com
+            name: Alice
+            lastPurchase: Laptop
+          - email: bob@example.com
+            name: Bob
+            lastPurchase: Phone
+          - email: charlie@example.com
+            name: Charlie
+            lastPurchase: Tablet
+      subject: Your Weekly Newsletter
+      html: |
+        <h1>Hi {{ name }}!</h1>
+        <p>Based on your recent purchase of {{ lastPurchase }}, we have recommendations for you.</p>
+      rateLimit: 10                    # Emails per second
+```
+
+**Output**:
+```yaml
+{
+  sent: 3,
+  failed: 0,
+  messageIds: ["msg-1", "msg-2", "msg-3"],
+  errors: []
+}
+```
+
+## CC and BCC
+
+```yaml
+operations:
+  - name: send-update
+    operation: email
+    config:
+      provider: cloudflare
+      from: updates@example.com
+      to: customer@example.com
+      cc:
+        - manager@example.com
+        - team@example.com
+      bcc: archive@example.com
+      subject: Project Update
+      html: <p>Project status: In Progress</p>
+```
+
+## Reply-To
+
+Set a different reply address:
+
+```yaml
+operations:
+  - name: send-support
+    operation: email
+    config:
+      provider: cloudflare
+      from: noreply@example.com
+      replyTo: support@example.com
+      to: ${input.email}
+      subject: Support Ticket #${input.ticket_id}
+      html: <p>Your support ticket has been created. Reply to this email for updates.</p>
+```
+
+## Custom Headers
+
+Add tracking and custom headers:
+
+```yaml
+operations:
+  - name: send-campaign
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+      from: marketing@example.com
+      to: ${input.email}
+      subject: Special Offer!
+      html: <p>Limited time offer!</p>
+      headers:
+        X-Campaign-ID: campaign-2024-q1
+        X-Customer-Segment: premium
+        List-Unsubscribe: <https://example.com/unsubscribe?id=${input.user_id}>
+        X-Priority: 1
+```
+
+## Tags and Metadata
+
+Organize and track emails:
+
+```yaml
+operations:
+  - name: send-order-confirmation
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+      from: orders@example.com
+      to: ${input.email}
+      subject: Order Confirmation
+      html: <p>Your order has been confirmed!</p>
+      tags:
+        - transactional
+        - order-confirmation
+        - ${input.customer_segment}
+      metadata:
+        orderId: ${input.order_id}
+        customerId: ${input.customer_id}
+        orderValue: ${input.total}
+```
+
+## Common Patterns
+
+### Transactional Email
+
+```yaml
+ensemble: send-order-confirmation
+
+inputs:
+  order_id: string
+  customer_email: string
+  customer_name: string
+  items: array
+  total: number
+
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: orders@shop.com
+      to: ${input.customer_email}
+      subject: Order #${input.order_id} Confirmed
+      html: |
+        <!DOCTYPE html>
+        <html>
+        <body>
+          <h1>Thank you, ${input.customer_name}!</h1>
+          <p>Your order #${input.order_id} has been confirmed.</p>
+          <h2>Order Details:</h2>
+          <ul>
+            ${input.items.map(item => `<li>${item.name} x ${item.quantity} - $${item.price}</li>`).join('')}
+          </ul>
+          <p><strong>Total: $${input.total}</strong></p>
+        </body>
+        </html>
+
+outputs:
+  messageId: ${send.output.messageId}
+  success: ${send.output.success}
+```
+
+### Welcome Email Workflow
+
+```yaml
+ensemble: welcome-new-user
+
+inputs:
+  email: string
+  name: string
+  userId: string
+
+operations:
+  # Generate activation token
+  - name: generate-token
+    operation: code
+    config:
+      code: |
+        const crypto = require('crypto');
+        const token = crypto.randomBytes(32).toString('hex');
+        return { token, expiresAt: Date.now() + 86400000 }; // 24 hours
+
+  # Store token in KV
+  - name: store-token
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: activation:${input.userId}
+      value: ${generate-token.output.token}
+      ttl: 86400                       # 24 hours
+
+  # Send welcome email
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: welcome@example.com
+      to: ${input.email}
+      subject: Welcome to Our Platform!
+      html: |
+        <h1>Welcome ${input.name}!</h1>
+        <p>Click below to activate your account:</p>
+        <a href="https://example.com/activate?token=${generate-token.output.token}">
+          Activate Account
+        </a>
+        <p>This link expires in 24 hours.</p>
+
+outputs:
+  sent: true
+  activationToken: ${generate-token.output.token}
+```
+
+### Password Reset Email
+
+```yaml
+ensemble: password-reset
+
+inputs:
+  email: string
+  userId: string
+
+operations:
+  # Generate reset token
+  - name: generate-token
+    operation: code
+    config:
+      code: |
+        const crypto = require('crypto');
+        return {
+          token: crypto.randomBytes(32).toString('hex'),
+          expiresAt: Date.now() + 3600000  // 1 hour
+        };
+
+  # Store token
+  - name: store-token
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: reset:${input.userId}
+      value: ${generate-token.output.token}
+      ttl: 3600
+
+  # Send reset email
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: security@example.com
+      to: ${input.email}
+      subject: Password Reset Request
+      html: |
+        <h1>Reset Your Password</h1>
+        <p>Click below to reset your password:</p>
+        <a href="https://example.com/reset?token=${generate-token.output.token}">
+          Reset Password
+        </a>
+        <p>This link expires in 1 hour.</p>
+        <p>If you didn't request this, ignore this email.</p>
+
+outputs:
+  sent: true
+  resetToken: ${generate-token.output.token}
+```
+
+### Email with PDF Invoice
+
+```yaml
+ensemble: send-invoice
+
+inputs:
+  customer_email: string
+  customer_name: string
+  invoice_number: string
+  items: array
+  total: number
+
+operations:
+  # Generate PDF
+  - name: generate-pdf
+    operation: pdf
+    config:
+      html: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial; padding: 40px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ddd; padding: 12px; }
+            .total { font-size: 1.2em; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h1>Invoice #${input.invoice_number}</h1>
+          <p>Bill To: ${input.customer_name}</p>
+          <table>
+            <thead>
+              <tr><th>Item</th><th>Quantity</th><th>Price</th><th>Total</th></tr>
+            </thead>
+            <tbody>
+              ${input.items.map(item => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>${item.quantity}</td>
+                  <td>$${item.price}</td>
+                  <td>$${item.quantity * item.price}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <p class="total">Total: $${input.total}</p>
+        </body>
+        </html>
+      format: A4
+
+  # Email PDF
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: billing@example.com
+      to: ${input.customer_email}
+      subject: Invoice #${input.invoice_number}
+      html: |
+        <h2>Hi ${input.customer_name},</h2>
+        <p>Thank you for your business! Your invoice is attached.</p>
+        <p><strong>Invoice #:</strong> ${input.invoice_number}</p>
+        <p><strong>Amount:</strong> $${input.total}</p>
+      attachments:
+        - filename: invoice-${input.invoice_number}.pdf
+          content: ${generate-pdf.output}
+          contentType: application/pdf
+          encoding: base64
+
+outputs:
+  sent: true
+  messageId: ${send.output.messageId}
+```
+
+### Data Export Email
+
+```yaml
+ensemble: export-and-email
+
+inputs:
+  admin_email: string
+  export_type: string
+
+operations:
+  # Export data from KV
+  - name: export
+    operation: storage
+    config:
+      type: kv
+      action: export
+      prefix: users:
+      format: csv
+      exportOptions:
+        headers: true
+        fields: [id, email, name, created_at]
+
+  # Convert to base64
+  - name: encode
+    operation: code
+    config:
+      code: |
+        return {
+          content: btoa(${export.output.data}),
+          filename: `export-${Date.now()}.csv`
+        };
+
+  # Email export
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: reports@example.com
+      to: ${input.admin_email}
+      subject: Data Export - ${input.export_type}
+      html: |
+        <h2>Data Export Report</h2>
+        <p>Your requested ${input.export_type} export is attached.</p>
+        <ul>
+          <li><strong>Format:</strong> CSV</li>
+          <li><strong>Records:</strong> ${export.output.count}</li>
+          <li><strong>Generated:</strong> ${new Date().toISOString()}</li>
+        </ul>
+      attachments:
+        - filename: ${encode.output.filename}
+          content: ${encode.output.content}
+          contentType: text/csv
+          encoding: base64
+
+outputs:
+  sent: true
+  recordCount: ${export.output.count}
+```
+
+### Newsletter Campaign
+
+```yaml
+ensemble: send-newsletter
+
+inputs:
+  subject: string
+  content: string
+
+operations:
+  # Fetch subscriber list
+  - name: get-subscribers
+    operation: storage
+    config:
+      type: d1
+      query: |
+        SELECT email, name, preferences
+        FROM subscribers
+        WHERE active = true AND newsletter_opt_in = true
+
+  # Send batch emails
+  - name: send-campaign
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+      from: newsletter@example.com
+      batch:
+        recipients: ${get-subscribers.output.results}
+      subject: ${input.subject}
+      html: ${input.content}
+      rateLimit: 5                     # 5 emails/second
+      headers:
+        List-Unsubscribe: <https://example.com/unsubscribe>
+
+outputs:
+  sent: ${send-campaign.output.sent}
+  failed: ${send-campaign.output.failed}
+  totalSubscribers: ${get-subscribers.output.results.length}
+```
+
+## Error Handling
+
+### Retry on Failure
+
+```yaml
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      from: alerts@example.com
+      to: ${input.email}
+      subject: Important Alert
+      html: <p>${input.message}</p>
+    retry:
+      maxAttempts: 3
+      backoff: exponential           # 1s, 2s, 4s delays
+```
+
+### Fallback Provider
+
+```yaml
+operations:
+  # Try primary provider
+  - name: send-primary
+    operation: email
+    config:
+      provider: cloudflare
+      from: alerts@example.com
+      to: ${input.email}
+      subject: Alert
+      html: <p>${input.message}</p>
+
+  # Fallback to SMTP if primary fails
+  - name: send-fallback
+    condition: ${send-primary.failed}
+    operation: email
+    config:
+      provider: smtp
+      host: smtp.gmail.com
+      port: 587
+      secure: true
+      auth:
+        user: ${env.SMTP_USER}
+        pass: ${env.SMTP_PASS}
+      from: backup@example.com
+      to: ${input.email}
+      subject: Alert
+      html: <p>${input.message}</p>
+
+outputs:
+  sent: ${send-primary.success || send-fallback.success}
+  provider: ${send-primary.success ? 'cloudflare' : 'smtp'}
+```
+
+### Validate Email Address
+
+```yaml
+operations:
+  # Validate email
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const email = ${input.email};
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(email)) {
+          throw new Error('Invalid email address');
+        }
+
+        return { valid: true };
+
+  # Send if valid
+  - name: send
+    condition: ${validate.output.valid}
+    operation: email
+    config:
+      provider: cloudflare
+      from: info@example.com
+      to: ${input.email}
+      subject: Welcome
+      html: <p>Welcome!</p>
+```
+
+### Handle Batch Errors
+
+```yaml
+operations:
+  - name: send-batch
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+      from: newsletter@example.com
+      batch:
+        recipients: ${input.recipients}
+      subject: Newsletter
+      html: ${input.content}
+
+  # Log errors
+  - name: log-errors
+    condition: ${send-batch.output.failed > 0}
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: email-errors:${Date.now()}
+      value: ${send-batch.output.errors}
+
+outputs:
+  sent: ${send-batch.output.sent}
+  failed: ${send-batch.output.failed}
+  errors: ${send-batch.output.errors}
+```
+
+## Testing
+
+### Test with TestConductor
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble/conductor/testing';
+
+describe('send-welcome-email', () => {
+  it('should send welcome email', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: './conductor',
+      mocks: {
+        email: {
+          'send-welcome': {
+            success: true,
+            messageId: 'msg-123',
+            provider: 'cloudflare'
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeAgent('send-welcome-email', {
+      email: 'test@example.com',
+      name: 'Test User'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.messageId).toBe('msg-123');
+  });
+
+  it('should handle invalid email', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: './conductor'
+    });
+
+    const result = await conductor.executeAgent('send-welcome-email', {
+      email: 'invalid-email',
+      name: 'Test User'
+    });
+
+    expect(result).toBeFailed();
+    expect(result.error).toContain('Invalid email');
+  });
+});
+```
+
+### Mock Email Provider
+
+```typescript
+const conductor = await TestConductor.create({
+  mocks: {
+    email: {
+      '*': {                           // Mock all email operations
+        success: true,
+        messageId: 'mock-msg-id',
+        timestamp: new Date().toISOString()
+      }
+    }
+  }
+});
+```
+
+## Best Practices
+
+**1. Use Plain Text Fallback**
+
+```yaml
+# Good: Include plain text version
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      html: <h1>Welcome!</h1><p>Thanks for signing up.</p>
+      body: |
+        Welcome!
+
+        Thanks for signing up.
+
+# Bad: HTML only
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: cloudflare
+      html: <h1>Welcome!</h1><p>Thanks for signing up.</p>
+```
+
+**2. Validate Recipients**
+
+```yaml
+# Good: Validate before sending
+operations:
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const email = ${input.email};
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw new Error('Invalid email');
+        }
+        return { valid: true };
+
+  - name: send
+    operation: email
+
+# Bad: No validation
+operations:
+  - name: send
+    operation: email
+    config:
+      to: ${input.email}  # Could be invalid
+```
+
+**3. Set Reply-To for No-Reply Emails**
+
+```yaml
+# Good: Set reply-to
+operations:
+  - name: send
+    operation: email
+    config:
+      from: noreply@example.com
+      replyTo: support@example.com
+      subject: Notification
+
+# Bad: No reply-to with noreply
+operations:
+  - name: send
+    operation: email
+    config:
+      from: noreply@example.com
+      subject: Notification
+```
+
+**4. Rate Limit Batch Sending**
+
+```yaml
+# Good: Set rate limit
+operations:
+  - name: send-batch
+    operation: email
+    config:
+      batch:
+        recipients: ${input.recipients}
+      rateLimit: 10  # 10 emails/second
+
+# Bad: No rate limiting
+operations:
+  - name: send-batch
+    operation: email
+    config:
+      batch:
+        recipients: ${input.recipients}
+```
+
+**5. Include Unsubscribe Link**
+
+```yaml
+# Good: Include unsubscribe
+operations:
+  - name: send
+    operation: email
+    config:
+      html: |
+        <p>Newsletter content...</p>
+        <p><a href="https://example.com/unsubscribe?id=${input.user_id}">Unsubscribe</a></p>
+      headers:
+        List-Unsubscribe: <https://example.com/unsubscribe?id=${input.user_id}>
+
+# Bad: No unsubscribe link
+operations:
+  - name: send
+    operation: email
+    config:
+      html: <p>Newsletter content...</p>
+```
+
+**6. Use Tags for Organization**
+
+```yaml
+# Good: Tag emails
+operations:
+  - name: send
+    operation: email
+    config:
+      tags:
+        - transactional
+        - order-confirmation
+      metadata:
+        orderId: ${input.order_id}
+
+# Bad: No tags or metadata
+operations:
+  - name: send
+    operation: email
+```
+
+**7. Store API Keys in Environment**
+
+```yaml
+# Good: Use environment variables
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: resend
+      apiKey: ${env.RESEND_API_KEY}
+
+# Bad: Hardcoded API key
+operations:
+  - name: send
+    operation: email
+    config:
+      provider: resend
+      apiKey: re_123456789  # Never do this!
+```
+
+**8. Handle Attachments Safely**
+
+```yaml
+# Good: Validate attachment size
+operations:
+  - name: validate-size
+    operation: code
+    config:
+      code: |
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (${input.attachment.length} > maxSize) {
+          throw new Error('Attachment too large');
+        }
+        return { valid: true };
+
+  - name: send
+    operation: email
+    config:
+      attachments:
+        - filename: ${input.filename}
+          content: ${input.attachment}
+
+# Bad: No size validation
+operations:
+  - name: send
+    operation: email
+    config:
+      attachments:
+        - content: ${input.attachment}
+```
+
+## Common Pitfalls
+
+### Pitfall: Missing From Address
+
+```yaml
+# Bad: No from address
+- name: send
+  operation: email
+  config:
+    to: user@example.com
+    subject: Hello
+
+# Good: Include from
+- name: send
+  operation: email
+  config:
+    from: info@example.com
+    to: user@example.com
+    subject: Hello
+```
+
+### Pitfall: HTML Without Plain Text
+
+```yaml
+# Bad: HTML only
+- name: send
+  operation: email
+  config:
+    html: <p>Content</p>
+
+# Good: Include both
+- name: send
+  operation: email
+  config:
+    html: <p>Content</p>
+    body: Content
+```
+
+### Pitfall: No Error Handling
+
+```yaml
+# Bad: No retry or fallback
+- name: send
+  operation: email
+  config:
+    provider: cloudflare
+
+# Good: Retry and fallback
+- name: send-primary
+  operation: email
+  config:
+    provider: cloudflare
+  retry:
+    maxAttempts: 3
+
+- name: send-fallback
+  condition: ${send-primary.failed}
+  operation: email
+  config:
+    provider: smtp
+```
+
+### Pitfall: Batch Without Rate Limiting
+
+```yaml
+# Bad: No rate limit
+- name: send-batch
+  operation: email
+  config:
+    batch:
+      recipients: ${input.recipients}  # Could hit rate limits
+
+# Good: Set rate limit
+- name: send-batch
+  operation: email
+  config:
+    batch:
+      recipients: ${input.recipients}
+    rateLimit: 10
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="sms Operation" icon="message" href="/conductor/operations/sms">
+    Send SMS messages
+  </Card>
+  <Card title="pdf Operation" icon="file-pdf" href="/conductor/operations/pdf">
+    Generate PDF documents
+  </Card>
+  <Card title="storage Operation" icon="database" href="/conductor/operations/storage">
+    Store email templates
+  </Card>
+  <Card title="Testing" icon="vial" href="/conductor/building/testing-observability">
+    Test email workflows
+  </Card>
+</CardGroup>

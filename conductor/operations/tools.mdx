@@ -1,0 +1,1477 @@
+---
+title: "tools Operation"
+description: "Execute MCP tools and custom skills"
+---
+
+# tools Operation
+
+**Execute external tools via Model Context Protocol (MCP) or custom skills for web search, file operations, API integrations, and more.**
+
+The `tools` operation extends Conductor with external capabilities beyond built-in operations. Use it for web search, browser automation, code execution, file operations, and any custom functionality you need.
+
+## Basic Usage
+
+```yaml
+operations:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+        max_results: 5
+```
+
+## Configuration
+
+```yaml
+config:
+  tool: string           # Tool identifier (built-in, MCP, or skill)
+  params: object         # Tool-specific parameters
+  timeout: number        # Timeout in milliseconds (default: 30000)
+  retry:                 # Optional retry configuration
+    maxAttempts: number
+    backoff: string      # linear, exponential
+```
+
+## Built-in Tools
+
+Conductor includes several built-in tools that work out of the box.
+
+### Web Search
+
+Search the web with DuckDuckGo (no API key required):
+
+```yaml
+operations:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+        max_results: 10                  # Number of results (default: 5)
+        time_range: week                 # hour, day, week, month, year, all
+```
+
+**Output**:
+```yaml
+{
+  results: [
+    {
+      title: "Result title",
+      url: "https://example.com",
+      snippet: "Description of the result..."
+    }
+  ],
+  query: "original query",
+  count: 10
+}
+```
+
+### File Read
+
+Read files from the filesystem:
+
+```yaml
+operations:
+  - name: read-config
+    operation: tools
+    config:
+      tool: file-read
+      params:
+        path: ${input.file_path}
+        encoding: utf8                   # utf8, base64, hex (default: utf8)
+```
+
+**Output**:
+```yaml
+{
+  content: "file contents",
+  path: "/path/to/file",
+  size: 1024,
+  encoding: "utf8"
+}
+```
+
+### File Write
+
+Write files to the filesystem:
+
+```yaml
+operations:
+  - name: save-report
+    operation: tools
+    config:
+      tool: file-write
+      params:
+        path: ${input.output_path}
+        content: ${generate.output}
+        encoding: utf8                   # utf8, base64, hex
+        mode: 0o644                      # File permissions (optional)
+```
+
+**Output**:
+```yaml
+{
+  success: true,
+  path: "/path/to/file",
+  bytes: 1024
+}
+```
+
+### Code Execution
+
+Execute code in a sandboxed environment:
+
+```yaml
+operations:
+  - name: run-python
+    operation: tools
+    config:
+      tool: code-exec
+      params:
+        language: python                 # python, javascript, bash
+        code: |
+          import numpy as np
+          numbers = [${input.numbers}]
+          result = {
+            'mean': float(np.mean(numbers)),
+            'std': float(np.std(numbers)),
+            'min': float(np.min(numbers)),
+            'max': float(np.max(numbers))
+          }
+          print(result)
+        timeout: 5000                    # Execution timeout (ms)
+```
+
+**Output**:
+```yaml
+{
+  stdout: "{'mean': 50.5, 'std': 28.87, 'min': 1, 'max': 100}",
+  stderr: "",
+  exitCode: 0,
+  duration: 234
+}
+```
+
+## MCP Tools
+
+Model Context Protocol (MCP) is an open protocol for connecting AI systems to external tools and data sources. Conductor implements MCP to use any MCP-compatible tool.
+
+### Configure MCP Server
+
+Create `conductor.config.ts`:
+
+```typescript
+import type { ConductorConfig } from '@ensemble-edge/conductor';
+
+const config: ConductorConfig = {
+  tools: {
+    mcp: {
+      servers: {
+        puppeteer: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-puppeteer'],
+          env: {
+            PUPPETEER_HEADLESS: 'true',
+            PUPPETEER_TIMEOUT: '30000'
+          }
+        },
+        filesystem: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem'],
+          env: {
+            ALLOWED_DIRECTORIES: '/tmp,/data,/home/user/documents'
+          }
+        },
+        github: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-github'],
+          env: {
+            GITHUB_TOKEN: process.env.GITHUB_TOKEN
+          }
+        }
+      }
+    }
+  }
+};
+
+export default config;
+```
+
+### Install MCP Servers
+
+```bash
+# Install MCP servers globally
+npm install -g @modelcontextprotocol/server-puppeteer
+npm install -g @modelcontextprotocol/server-filesystem
+npm install -g @modelcontextprotocol/server-github
+
+# Or install locally in your project
+npm install @modelcontextprotocol/server-puppeteer
+npm install @modelcontextprotocol/server-filesystem
+npm install @modelcontextprotocol/server-github
+```
+
+### Puppeteer (Browser Automation)
+
+Take screenshots, scrape pages, and automate browsers:
+
+```yaml
+operations:
+  # Screenshot
+  - name: screenshot
+    operation: tools
+    config:
+      tool: mcp:puppeteer:screenshot
+      params:
+        url: ${input.url}
+        width: 1920
+        height: 1080
+        fullPage: true
+
+  # Scrape page content
+  - name: scrape
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      params:
+        url: ${input.url}
+        selector: .main-content        # Optional CSS selector
+        waitFor: networkidle0          # Wait condition
+
+  # Click and navigate
+  - name: interact
+    operation: tools
+    config:
+      tool: mcp:puppeteer:click
+      params:
+        url: ${input.url}
+        selector: button#submit
+        waitForNavigation: true
+```
+
+### Filesystem
+
+Advanced file operations:
+
+```yaml
+operations:
+  # Read file
+  - name: read
+    operation: tools
+    config:
+      tool: mcp:filesystem:read_file
+      params:
+        path: /data/document.txt
+
+  # Write file
+  - name: write
+    operation: tools
+    config:
+      tool: mcp:filesystem:write_file
+      params:
+        path: /data/output.txt
+        content: ${process.output}
+
+  # List directory
+  - name: list
+    operation: tools
+    config:
+      tool: mcp:filesystem:list_directory
+      params:
+        path: /data
+        recursive: true
+
+  # Search files
+  - name: search
+    operation: tools
+    config:
+      tool: mcp:filesystem:search_files
+      params:
+        path: /data
+        pattern: "*.json"
+        content: ${input.search_term}  # Search file contents
+```
+
+### GitHub
+
+Interact with GitHub repositories:
+
+```yaml
+operations:
+  # Get repository info
+  - name: repo-info
+    operation: tools
+    config:
+      tool: mcp:github:get_repo
+      params:
+        owner: ${input.owner}
+        repo: ${input.repo}
+
+  # List issues
+  - name: list-issues
+    operation: tools
+    config:
+      tool: mcp:github:list_issues
+      params:
+        owner: ${input.owner}
+        repo: ${input.repo}
+        state: open
+        labels: bug,enhancement
+
+  # Create issue
+  - name: create-issue
+    operation: tools
+    config:
+      tool: mcp:github:create_issue
+      params:
+        owner: ${input.owner}
+        repo: ${input.repo}
+        title: ${input.issue_title}
+        body: ${input.issue_body}
+        labels: [bug]
+
+  # Get file contents
+  - name: get-file
+    operation: tools
+    config:
+      tool: mcp:github:get_file
+      params:
+        owner: ${input.owner}
+        repo: ${input.repo}
+        path: src/index.ts
+```
+
+## Custom Skills
+
+Create custom tools as "skills" for reusable functionality.
+
+### Define Skill
+
+```typescript
+// skills/calculate-roi/index.ts
+export interface ROIParams {
+  revenue: number;
+  cost: number;
+  years?: number;
+}
+
+export interface ROIOutput {
+  profit: number;
+  roi: number;
+  roi_formatted: string;
+  annualized_roi?: number;
+}
+
+export default async function calculateROI({ params, env }): Promise<ROIOutput> {
+  const { revenue, cost, years = 1 } = params as ROIParams;
+
+  // Validate inputs
+  if (cost === 0) {
+    throw new Error('Cost cannot be zero');
+  }
+
+  const profit = revenue - cost;
+  const roi = (profit / cost) * 100;
+
+  let result: ROIOutput = {
+    profit,
+    roi: parseFloat(roi.toFixed(2)),
+    roi_formatted: `${roi.toFixed(2)}%`
+  };
+
+  // Calculate annualized ROI if multi-year
+  if (years > 1) {
+    const annualizedRoi = (Math.pow(revenue / cost, 1 / years) - 1) * 100;
+    result.annualized_roi = parseFloat(annualizedRoi.toFixed(2));
+  }
+
+  return result;
+}
+```
+
+### Skill Metadata
+
+```yaml
+# skills/calculate-roi/skill.yaml
+name: calculate-roi
+description: Calculate return on investment with optional annualization
+
+parameters:
+  revenue:
+    type: number
+    required: true
+    description: Total revenue generated
+  cost:
+    type: number
+    required: true
+    description: Total cost invested
+  years:
+    type: number
+    required: false
+    description: Number of years for annualized ROI calculation
+    default: 1
+
+returns:
+  type: object
+  properties:
+    profit:
+      type: number
+      description: Net profit (revenue - cost)
+    roi:
+      type: number
+      description: Return on investment percentage
+    roi_formatted:
+      type: string
+      description: Formatted ROI string with % symbol
+    annualized_roi:
+      type: number
+      description: Annualized ROI for multi-year investments
+```
+
+### Use Custom Skill
+
+```yaml
+operations:
+  - name: calculate
+    operation: tools
+    config:
+      tool: skill:calculate-roi
+      params:
+        revenue: ${input.revenue}
+        cost: ${input.cost}
+        years: ${input.years}
+
+outputs:
+  roi: ${calculate.output.roi}
+  profit: ${calculate.output.profit}
+  roi_display: ${calculate.output.roi_formatted}
+```
+
+## Common Patterns
+
+### Search and Analyze
+
+```yaml
+ensemble: research-assistant
+
+operations:
+  # Step 1: Search web
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.question}
+        max_results: 5
+
+  # Step 2: Scrape top result
+  - name: scrape
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      params:
+        url: ${search.output.results[0].url}
+
+  # Step 3: Analyze with AI
+  - name: analyze
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Search Results:
+        ${search.output.results}
+
+        Page Content:
+        ${scrape.output.content}
+
+        Question: ${input.question}
+
+        Provide a comprehensive answer with citations.
+
+outputs:
+  answer: ${analyze.output}
+  sources: ${search.output.results}
+```
+
+### Sequential Tool Calls
+
+```yaml
+operations:
+  # Step 1: Search
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.company} official website
+
+  # Step 2: Scrape first result
+  - name: scrape
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      params:
+        url: ${search.output.results[0].url}
+
+  # Step 3: Extract contact info
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      responseFormat: json
+      prompt: |
+        From this website content, extract:
+        - Company name
+        - Email addresses
+        - Phone numbers
+        - Physical address
+
+        Return JSON with these fields.
+
+        Content: ${scrape.output.content}
+
+outputs:
+  contact_info: ${extract.output}
+  source_url: ${search.output.results[0].url}
+```
+
+### Parallel Tool Calls
+
+```yaml
+operations:
+  # These run in parallel
+  - name: search-web
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+
+  - name: search-docs
+    operation: tools
+    config:
+      tool: file-read
+      params:
+        path: /docs/knowledge-base.json
+
+  - name: search-github
+    operation: tools
+    config:
+      tool: mcp:github:search_code
+      params:
+        query: ${input.query}
+        repo: ${input.repo}
+
+  # Combine results
+  - name: synthesize
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Web Results: ${search-web.output}
+        Docs: ${search-docs.output}
+        Code: ${search-github.output}
+
+        Question: ${input.query}
+
+        Synthesize a comprehensive answer using all sources.
+
+outputs:
+  answer: ${synthesize.output}
+  sources:
+    web: ${search-web.output}
+    docs: ${search-docs.output}
+    code: ${search-github.output}
+```
+
+### Tool with Fallback
+
+```yaml
+operations:
+  - name: search-primary
+    operation: tools
+    config:
+      tool: mcp:brave:search
+      params:
+        query: ${input.query}
+    retry:
+      maxAttempts: 2
+
+  - name: search-fallback
+    condition: ${search-primary.failed}
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+
+outputs:
+  results: ${search-primary.output || search-fallback.output}
+  source: ${search-primary.executed ? 'brave' : 'duckduckgo'}
+```
+
+### Tool Retry with Exponential Backoff
+
+```yaml
+operations:
+  - name: flaky-tool
+    operation: tools
+    config:
+      tool: mcp:external-api:call
+      params:
+        endpoint: ${input.endpoint}
+      timeout: 10000
+    retry:
+      maxAttempts: 3
+      backoff: exponential       # Retry delays: 1s, 2s, 4s
+```
+
+## Real-World Examples
+
+### Code Analyzer Skill
+
+```typescript
+// skills/analyze-code/index.ts
+import { parse } from '@typescript-eslint/parser';
+
+export default async function analyzeCode({ params, env }) {
+  const { code, language } = params;
+
+  if (!['typescript', 'javascript'].includes(language)) {
+    throw new Error('Only TypeScript/JavaScript supported');
+  }
+
+  try {
+    const ast = parse(code, {
+      ecmaVersion: 2022,
+      sourceType: 'module'
+    });
+
+    const analysis = {
+      functions: [],
+      classes: [],
+      imports: [],
+      exports: [],
+      complexity: 0,
+      lines: code.split('\n').length
+    };
+
+    // Walk AST and collect metrics
+    // ... implementation ...
+
+    return analysis;
+  } catch (error) {
+    return {
+      error: error.message,
+      valid: false
+    };
+  }
+}
+```
+
+Usage:
+
+```yaml
+operations:
+  - name: fetch-code
+    operation: tools
+    config:
+      tool: mcp:github:get_file
+      params:
+        owner: ${input.owner}
+        repo: ${input.repo}
+        path: ${input.file_path}
+
+  - name: analyze
+    operation: tools
+    config:
+      tool: skill:analyze-code
+      params:
+        code: ${fetch-code.output.content}
+        language: typescript
+
+  - name: review
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Code Analysis:
+        - Functions: ${analyze.output.functions.length}
+        - Classes: ${analyze.output.classes.length}
+        - Lines: ${analyze.output.lines}
+        - Complexity: ${analyze.output.complexity}
+
+        Review the code and suggest improvements.
+```
+
+### Slack Notification Skill
+
+```typescript
+// skills/slack-notify/index.ts
+export default async function slackNotify({ params, env }) {
+  const { channel, message, blocks, attachments } = params;
+
+  const response = await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      channel,
+      text: message,
+      blocks,
+      attachments
+    })
+  });
+
+  const result = await response.json();
+
+  if (!result.ok) {
+    throw new Error(`Slack API error: ${result.error}`);
+  }
+
+  return {
+    success: true,
+    timestamp: result.ts,
+    channel: result.channel
+  };
+}
+```
+
+Usage:
+
+```yaml
+operations:
+  - name: notify-team
+    operation: tools
+    config:
+      tool: skill:slack-notify
+      params:
+        channel: '#alerts'
+        message: ${input.alert_message}
+        blocks:
+          - type: section
+            text:
+              type: mrkdwn
+              text: "*${input.alert_title}*"
+          - type: section
+            text:
+              type: plain_text
+              text: ${input.alert_details}
+        attachments:
+          - color: danger
+            fields:
+              - title: Severity
+                value: ${input.severity}
+                short: true
+              - title: Environment
+                value: ${input.environment}
+                short: true
+```
+
+### API Rate Limiter Skill
+
+```typescript
+// skills/rate-limited-api/index.ts
+export default async function rateLimitedApi({ params, env }) {
+  const { endpoint, method = 'GET', body, headers = {} } = params;
+
+  // Simple in-memory rate limiting (use KV for distributed)
+  const key = `rate-limit:${endpoint}`;
+  const limit = 10; // 10 requests per minute
+  const window = 60000; // 1 minute
+
+  // Check rate limit
+  const now = Date.now();
+  const requests = await env.RATE_LIMIT_KV.get(key, { type: 'json' }) || [];
+  const recentRequests = requests.filter(t => now - t < window);
+
+  if (recentRequests.length >= limit) {
+    const oldestRequest = Math.min(...recentRequests);
+    const waitTime = window - (now - oldestRequest);
+    throw new Error(`Rate limit exceeded. Retry in ${waitTime}ms`);
+  }
+
+  // Make request
+  const response = await fetch(endpoint, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  // Update rate limit
+  recentRequests.push(now);
+  await env.RATE_LIMIT_KV.put(key, JSON.stringify(recentRequests), {
+    expirationTtl: Math.ceil(window / 1000)
+  });
+
+  return {
+    status: response.status,
+    data: await response.json(),
+    remainingRequests: limit - recentRequests.length - 1
+  };
+}
+```
+
+### Data Validator Skill
+
+```typescript
+// skills/validate-data/index.ts
+import Ajv from 'ajv';
+
+export default async function validateData({ params, env }) {
+  const { data, schema, strict = true } = params;
+
+  const ajv = new Ajv({ allErrors: true, strict });
+
+  const validate = ajv.compile(schema);
+  const valid = validate(data);
+
+  return {
+    valid,
+    errors: validate.errors || [],
+    data: valid ? data : null
+  };
+}
+```
+
+Usage:
+
+```yaml
+operations:
+  - name: validate
+    operation: tools
+    config:
+      tool: skill:validate-data
+      params:
+        data: ${input.user_data}
+        schema:
+          type: object
+          required: [email, name]
+          properties:
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+              minLength: 1
+            age:
+              type: number
+              minimum: 0
+
+  - name: process
+    condition: ${validate.output.valid}
+    operation: storage
+    config:
+      type: d1
+      query: INSERT INTO users (email, name, age) VALUES (?, ?, ?)
+      params:
+        - ${input.user_data.email}
+        - ${input.user_data.name}
+        - ${input.user_data.age}
+```
+
+## Error Handling
+
+### Handle Tool Failures
+
+```yaml
+operations:
+  - name: risky-tool
+    operation: tools
+    config:
+      tool: mcp:external:api
+      params:
+        endpoint: ${input.endpoint}
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+
+  - name: handle-failure
+    condition: ${risky-tool.failed}
+    operation: code
+    config:
+      code: |
+        return {
+          error: true,
+          message: 'Tool execution failed after retries',
+          fallback_value: null
+        };
+
+outputs:
+  result: ${risky-tool.output || handle-failure.output}
+  success: ${risky-tool.success}
+```
+
+### Validate Tool Output
+
+```yaml
+operations:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const results = ${search.output.results};
+
+        if (!Array.isArray(results) || results.length === 0) {
+          throw new Error('No search results found');
+        }
+
+        return {
+          valid: true,
+          count: results.length
+        };
+```
+
+### Timeout Protection
+
+```yaml
+operations:
+  - name: slow-tool
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      params:
+        url: ${input.url}
+      timeout: 15000              # 15 second timeout
+
+  - name: use-cached
+    condition: ${slow-tool.failed}
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: cached-${input.url}
+```
+
+## Testing Tools
+
+### Unit Test Skills
+
+```typescript
+// skills/calculate-roi/index.test.ts
+import { describe, it, expect } from 'vitest';
+import calculateROI from './index';
+
+describe('calculate-roi skill', () => {
+  it('should calculate positive ROI', async () => {
+    const result = await calculateROI({
+      params: {
+        revenue: 150000,
+        cost: 100000
+      },
+      env: {}
+    });
+
+    expect(result.profit).toBe(50000);
+    expect(result.roi).toBe(50);
+    expect(result.roi_formatted).toBe('50.00%');
+  });
+
+  it('should calculate negative ROI', async () => {
+    const result = await calculateROI({
+      params: {
+        revenue: 80000,
+        cost: 100000
+      },
+      env: {}
+    });
+
+    expect(result.profit).toBe(-20000);
+    expect(result.roi).toBe(-20);
+  });
+
+  it('should calculate annualized ROI', async () => {
+    const result = await calculateROI({
+      params: {
+        revenue: 150000,
+        cost: 100000,
+        years: 3
+      },
+      env: {}
+    });
+
+    expect(result).toHaveProperty('annualized_roi');
+    expect(result.annualized_roi).toBeCloseTo(14.47, 1);
+  });
+
+  it('should throw on zero cost', async () => {
+    await expect(
+      calculateROI({
+        params: { revenue: 100000, cost: 0 },
+        env: {}
+      })
+    ).rejects.toThrow('Cost cannot be zero');
+  });
+});
+```
+
+### Test Agents with Tools
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble/conductor/testing';
+
+describe('search-and-analyze agent', () => {
+  it('should search and analyze results', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: './conductor',
+      mocks: {
+        tools: {
+          'web-search': {
+            results: [
+              {
+                title: 'Example Result',
+                url: 'https://example.com',
+                snippet: 'Test snippet'
+              }
+            ],
+            count: 1
+          }
+        },
+        ai: {
+          'analyze': {
+            answer: 'Mocked analysis',
+            confidence: 0.95
+          }
+        }
+      }
+    });
+
+    const result = await conductor.executeAgent('search-and-analyze', {
+      question: 'What is TypeScript?'
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.answer).toBe('Mocked analysis');
+    expect(result.output.sources).toHaveLength(1);
+  });
+});
+```
+
+### Mock MCP Tools
+
+```typescript
+const conductor = await TestConductor.create({
+  mocks: {
+    tools: {
+      'mcp:puppeteer:screenshot': {
+        success: true,
+        screenshot: 'base64-encoded-image',
+        width: 1920,
+        height: 1080
+      },
+      'mcp:github:get_file': {
+        content: 'export default function test() { return true; }',
+        encoding: 'utf8',
+        path: 'src/test.ts'
+      }
+    }
+  }
+});
+```
+
+## Performance Optimization
+
+**1. Cache Tool Results**
+
+```yaml
+operations:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+    cache:
+      ttl: 3600                   # Cache for 1 hour
+      key: search-${input.query}
+```
+
+**2. Parallel Tool Execution**
+
+```yaml
+# These tools run in parallel automatically
+operations:
+  - name: search-web
+    operation: tools
+    config:
+      tool: web-search
+      params:
+        query: ${input.query}
+
+  - name: search-docs
+    operation: tools
+    config:
+      tool: doc-search
+      params:
+        query: ${input.query}
+```
+
+**3. Set Appropriate Timeouts**
+
+```yaml
+# Short timeout for fast tools
+- name: cache-lookup
+  operation: tools
+  config:
+    tool: skill:check-cache
+    timeout: 1000                 # 1 second
+
+# Long timeout for slow tools
+- name: scrape-page
+  operation: tools
+  config:
+    tool: mcp:puppeteer:scrape
+    timeout: 30000                # 30 seconds
+```
+
+**4. Batch Tool Calls**
+
+```typescript
+// skills/batch-api/index.ts
+export default async function batchApi({ params, env }) {
+  const { items, endpoint } = params;
+
+  // Batch requests to avoid rate limits
+  const batchSize = 10;
+  const results = [];
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(item => fetch(`${endpoint}/${item.id}`))
+    );
+    results.push(...batchResults);
+  }
+
+  return { results, total: results.length };
+}
+```
+
+## Best Practices
+
+**1. Validate Tool Parameters**
+
+```yaml
+# Good: Validate before calling tool
+operations:
+  - name: validate
+    operation: code
+    config:
+      code: |
+        if (!${input.url} || !${input.url}.startsWith('http')) {
+          throw new Error('Invalid URL');
+        }
+        return { valid: true };
+
+  - name: scrape
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      params:
+        url: ${input.url}
+
+# Bad: No validation
+operations:
+  - name: scrape
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      params:
+        url: ${input.url}  # Could be invalid
+```
+
+**2. Handle Tool Failures**
+
+```yaml
+# Good: Retry with fallback
+operations:
+  - name: tool-primary
+    operation: tools
+    config:
+      tool: primary-tool
+    retry:
+      maxAttempts: 2
+
+  - name: tool-fallback
+    condition: ${tool-primary.failed}
+    operation: tools
+    config:
+      tool: fallback-tool
+
+# Bad: No error handling
+operations:
+  - name: tool
+    operation: tools
+    config:
+      tool: flaky-tool  # Will fail entire agent
+```
+
+**3. Set Appropriate Timeouts**
+
+```yaml
+# Good: Timeout based on tool speed
+operations:
+  - name: fast-cache-lookup
+    operation: tools
+    config:
+      tool: skill:cache-check
+      timeout: 1000  # 1 second
+
+  - name: slow-scrape
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      timeout: 30000  # 30 seconds
+
+# Bad: Same timeout for all
+operations:
+  - name: cache
+    operation: tools
+    config:
+      tool: skill:cache-check
+      timeout: 30000  # Too long
+
+  - name: scrape
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+      timeout: 5000  # Too short
+```
+
+**4. Validate Tool Output**
+
+```yaml
+# Good: Validate tool output
+operations:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const results = ${search.output.results};
+        if (!Array.isArray(results)) {
+          throw new Error('Invalid search results');
+        }
+        return { valid: true };
+
+# Bad: Trust tool output
+operations:
+  - name: search
+    operation: tools
+    config:
+      tool: web-search
+
+  - name: process
+    operation: code
+    config:
+      code: |
+        return ${search.output.results[0].url};  # Could fail
+```
+
+**5. Cache Expensive Tools**
+
+```yaml
+# Good: Cache expensive tool results
+operations:
+  - name: expensive-tool
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape
+    cache:
+      ttl: 3600
+      key: scrape-${input.url}
+
+# Bad: Re-run expensive tool every time
+operations:
+  - name: expensive-tool
+    operation: tools
+    config:
+      tool: mcp:puppeteer:scrape  # No caching
+```
+
+**6. Use Typed Skills**
+
+```typescript
+// Good: TypeScript with types
+export interface SkillParams {
+  value: number;
+  multiplier: number;
+}
+
+export interface SkillOutput {
+  result: number;
+}
+
+export default async function mySkill(
+  { params, env }: { params: SkillParams; env: any }
+): Promise<SkillOutput> {
+  return { result: params.value * params.multiplier };
+}
+
+// Bad: No types
+export default async function mySkill({ params, env }) {
+  return { result: params.value * params.multiplier };  // No type safety
+}
+```
+
+**7. Document Tool Parameters**
+
+```yaml
+# Good: Document parameters in skill.yaml
+parameters:
+  query:
+    type: string
+    required: true
+    description: Search query to execute
+  max_results:
+    type: number
+    required: false
+    default: 10
+    description: Maximum number of results to return
+
+# Bad: No documentation
+parameters:
+  query: string
+  max_results: number
+```
+
+**8. Test Tools in Isolation**
+
+```typescript
+// Good: Unit test skills separately
+describe('calculate-roi skill', () => {
+  it('should calculate ROI correctly', async () => {
+    const result = await calculateROI({
+      params: { revenue: 150000, cost: 100000 },
+      env: {}
+    });
+    expect(result.roi).toBe(50);
+  });
+});
+
+// Bad: Only test in agents
+// No isolated skill tests
+```
+
+## Common Pitfalls
+
+### Pitfall: No Timeout
+
+```yaml
+# Bad: No timeout (hangs forever)
+- name: scrape
+  operation: tools
+  config:
+    tool: mcp:puppeteer:scrape
+    params:
+      url: ${input.url}
+
+# Good: Set timeout
+- name: scrape
+  operation: tools
+  config:
+    tool: mcp:puppeteer:scrape
+    params:
+      url: ${input.url}
+    timeout: 30000
+```
+
+### Pitfall: Ignoring Tool Failures
+
+```yaml
+# Bad: Continue on failure
+- name: critical-tool
+  operation: tools
+  config:
+    tool: important-tool
+
+- name: next-step
+  operation: code  # Runs even if tool failed
+
+# Good: Check success
+- name: critical-tool
+  operation: tools
+  config:
+    tool: important-tool
+
+- name: next-step
+  condition: ${critical-tool.success}
+  operation: code
+```
+
+### Pitfall: Hardcoded Values
+
+```yaml
+# Bad: Hardcoded tool name
+- name: search
+  operation: tools
+  config:
+    tool: web-search
+    params:
+      query: "hardcoded query"
+
+# Good: Use inputs
+- name: search
+  operation: tools
+  config:
+    tool: ${input.search_tool || 'web-search'}
+    params:
+      query: ${input.query}
+```
+
+### Pitfall: No Retry for Flaky Tools
+
+```yaml
+# Bad: No retry
+- name: flaky-api
+  operation: tools
+  config:
+    tool: external-api
+
+# Good: Retry with backoff
+- name: flaky-api
+  operation: tools
+  config:
+    tool: external-api
+  retry:
+    maxAttempts: 3
+    backoff: exponential
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Tools & MCP Guide" icon="wrench" href="/conductor/building/tools-mcp-integration">
+    Complete MCP integration guide
+  </Card>
+  <Card title="think Operation" icon="brain" href="/conductor/operations/think">
+    Combine tools with AI
+  </Card>
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Build agents with tools
+  </Card>
+  <Card title="Testing" icon="vial" href="/conductor/building/testing-observability">
+    Test tool integrations
+  </Card>
+</CardGroup>

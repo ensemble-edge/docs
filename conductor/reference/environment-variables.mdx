@@ -1,0 +1,290 @@
+---
+title: "Environment Variables"
+description: "Configuration via environment variables"
+---
+
+# Environment Variables Reference
+
+**Configure Conductor with environment variables.**
+
+## Provider API Keys
+
+### OpenAI
+
+```bash
+OPENAI_API_KEY=sk-...
+OPENAI_ORG_ID=org-...              # Optional
+```
+
+### Anthropic
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Groq
+
+```bash
+GROQ_API_KEY=gsk_...
+```
+
+## Cloudflare
+
+### Account
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=abc123...
+CLOUDFLARE_API_TOKEN=...
+```
+
+### Workers AI
+
+```bash
+CF_AI_BINDING=AI                   # Binding name (default: AI)
+```
+
+## Database
+
+### D1
+
+```bash
+D1_BINDING=DB                      # Binding name (default: DB)
+D1_DATABASE_ID=...                 # Database ID
+```
+
+### KV
+
+```bash
+KV_BINDING=CACHE                   # Binding name (default: CACHE)
+KV_NAMESPACE_ID=...                # Namespace ID
+```
+
+### R2
+
+```bash
+R2_BINDING=STORAGE                 # Binding name (default: STORAGE)
+R2_BUCKET_NAME=...                 # Bucket name
+```
+
+### Vectorize
+
+```bash
+VECTORIZE_BINDING=VECTORIZE        # Binding name (default: VECTORIZE)
+VECTORIZE_INDEX_NAME=...           # Index name
+```
+
+## Email
+
+### SendGrid
+
+```bash
+SENDGRID_API_KEY=SG...
+SENDGRID_FROM_EMAIL=noreply@example.com
+```
+
+### AWS SES
+
+```bash
+AWS_SES_REGION=us-east-1
+AWS_SES_ACCESS_KEY_ID=...
+AWS_SES_SECRET_ACCESS_KEY=...
+AWS_SES_FROM_EMAIL=noreply@example.com
+```
+
+## SMS
+
+### Twilio
+
+```bash
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_FROM_NUMBER=+1234567890
+```
+
+### AWS SNS
+
+```bash
+AWS_SNS_REGION=us-east-1
+AWS_SNS_ACCESS_KEY_ID=...
+AWS_SNS_SECRET_ACCESS_KEY=...
+```
+
+## Conductor Config
+
+### Runtime
+
+```bash
+CONDUCTOR_ENV=production           # Environment name
+CONDUCTOR_LOG_LEVEL=info           # Log level (debug, info, warn, error)
+CONDUCTOR_TIMEOUT=30000            # Default timeout (ms)
+```
+
+### Caching
+
+```bash
+CACHE_ENABLED=true                 # Enable caching (default: true)
+CACHE_DEFAULT_TTL=3600             # Default TTL (seconds)
+```
+
+### Retries
+
+```bash
+RETRY_MAX_ATTEMPTS=3               # Max retry attempts
+RETRY_BACKOFF=exponential          # Backoff strategy
+```
+
+## Development
+
+### Local Dev
+
+```bash
+DEV_PORT=3000                      # Dev server port
+DEV_HOST=localhost                 # Dev server host
+```
+
+### Testing
+
+```bash
+NODE_ENV=test                      # Test environment
+TEST_TIMEOUT=10000                 # Test timeout (ms)
+```
+
+## Security
+
+### Secrets
+
+```bash
+# Use Wrangler for production secrets
+wrangler secret put OPENAI_API_KEY
+wrangler secret put DATABASE_PASSWORD
+```
+
+### HITL
+
+```bash
+HITL_APPROVAL_URL=https://...      # Approval UI URL
+HITL_WEBHOOK_SECRET=...            # Webhook signature secret
+```
+
+## Observability
+
+### Logging
+
+```bash
+LOG_LEVEL=info                     # Log level
+LOG_FORMAT=json                    # Log format (json, pretty)
+```
+
+### Metrics
+
+```bash
+METRICS_ENABLED=true               # Enable metrics
+METRICS_ENDPOINT=https://...       # Metrics endpoint
+```
+
+## Custom Environment Variables
+
+Access in YAML:
+
+```yaml
+config:
+  apiKey: ${env.MY_CUSTOM_API_KEY}
+  endpoint: ${env.MY_CUSTOM_ENDPOINT}
+```
+
+Access in JavaScript:
+
+```javascript
+const apiKey = process.env.MY_CUSTOM_API_KEY;
+```
+
+## Environment Files
+
+### .env (Local Development)
+
+```bash
+# .env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+DATABASE_URL=...
+```
+
+### .env.production
+
+```bash
+# .env.production
+# Production-specific overrides
+LOG_LEVEL=error
+CACHE_DEFAULT_TTL=7200
+```
+
+### .env.test
+
+```bash
+# .env.test
+# Test-specific config
+NODE_ENV=test
+LOG_LEVEL=debug
+```
+
+## Priority Order
+
+1. Cloudflare Secrets (production)
+2. `.env.local` (local, gitignored)
+3. `.env.${NODE_ENV}` (environment-specific)
+4. `.env` (defaults)
+
+## Best Practices
+
+**1. Never Commit Secrets**
+```bash
+# .gitignore
+.env
+.env.local
+.env.*.local
+```
+
+**2. Use Wrangler Secrets in Production**
+```bash
+wrangler secret put OPENAI_API_KEY
+```
+
+**3. Document Required Variables**
+```bash
+# .env.example
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+DATABASE_URL=...
+```
+
+**4. Validate at Startup**
+```javascript
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('OPENAI_API_KEY required');
+}
+```
+
+**5. Use Type-Safe Access**
+```typescript
+const env = z.object({
+  OPENAI_API_KEY: z.string(),
+  DATABASE_URL: z.string().url(),
+}).parse(process.env);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Commands" icon="terminal" href="/conductor/reference/cli-commands">
+    Command reference
+  </Card>
+  <Card title="YAML Schema" icon="file-code" href="/conductor/reference/yaml-schema">
+    YAML reference
+  </Card>
+  <Card title="Deployment" icon="cloud-arrow-up" href="/conductor/getting-started/your-first-deployment">
+    Deploy guide
+  </Card>
+  <Card title="Cloudflare Config" icon="cloud" href="/conductor/getting-started/configuring-cloudflare">
+    Cloudflare setup
+  </Card>
+</CardGroup>

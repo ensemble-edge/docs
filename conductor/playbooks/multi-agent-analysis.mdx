@@ -1,0 +1,545 @@
+---
+title: "Multi-Agent Analysis"
+description: "Parallel analysis with multiple AI agents"
+---
+
+# Multi-Agent Analysis Playbook
+
+**Run multiple AI agents in parallel for comprehensive analysis. Faster, more thorough, better results.**
+
+## Use Cases
+
+- Content moderation (multiple checks)
+- Document analysis (extract different aspects)
+- Code review (security, performance, style)
+- Market research (multiple sources)
+- Sentiment analysis (different models/prompts)
+
+## Basic Pattern
+
+```yaml
+ensemble: multi-agent-analysis
+
+agents:
+  # All run in parallel
+  - name: agent-1
+    operation: think
+    config:
+      prompt: Analyze aspect 1 of: ${input.content}
+
+  - name: agent-2
+    operation: think
+    config:
+      prompt: Analyze aspect 2 of: ${input.content}
+
+  - name: agent-3
+    operation: think
+    config:
+      prompt: Analyze aspect 3 of: ${input.content}
+
+  # Aggregate results
+  - name: aggregate
+    operation: code
+    config:
+      code: |
+        return {
+          aspect1: ${agent-1.output},
+          aspect2: ${agent-2.output},
+          aspect3: ${agent-3.output}
+        };
+```
+
+## Content Moderation
+
+```yaml
+ensemble: moderate-content
+
+inputs:
+  content:
+    type: string
+    required: true
+
+agents:
+  # Run all checks in parallel
+  - name: check-explicit
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0
+      prompt: |
+        Check if this content contains explicit material.
+        Return JSON: { "explicit": boolean, "confidence": number, "reason": string }
+
+        Content: ${input.content}
+
+  - name: check-hate-speech
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0
+      prompt: |
+        Check if this content contains hate speech.
+        Return JSON: { "hate_speech": boolean, "confidence": number, "reason": string }
+
+        Content: ${input.content}
+
+  - name: check-spam
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0
+      prompt: |
+        Check if this content is spam.
+        Return JSON: { "spam": boolean, "confidence": number, "reason": string }
+
+        Content: ${input.content}
+
+  - name: check-violence
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      temperature: 0
+      prompt: |
+        Check if this content contains violence.
+        Return JSON: { "violence": boolean, "confidence": number, "reason": string }
+
+        Content: ${input.content}
+
+  # Aggregate all checks
+  - name: aggregate
+    operation: code
+    config:
+      code: |
+        const checks = {
+          explicit: JSON.parse(${check-explicit.output}),
+          hate_speech: JSON.parse(${check-hate-speech.output}),
+          spam: JSON.parse(${check-spam.output}),
+          violence: JSON.parse(${check-violence.output})
+        };
+
+        const flags = Object.entries(checks)
+          .filter(([_, v]) => v[Object.keys(v)[0]])
+          .map(([k, v]) => ({ type: k, ...v }));
+
+        return {
+          safe: flags.length === 0,
+          flags,
+          checks
+        };
+
+output:
+  moderation: ${aggregate.output}
+```
+
+## Code Review
+
+```yaml
+ensemble: code-review
+
+inputs:
+  code:
+    type: string
+    required: true
+  language:
+    type: string
+    required: true
+
+agents:
+  # Parallel reviews
+  - name: security-review
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Review this ${input.language} code for security vulnerabilities:
+        - SQL injection
+        - XSS
+        - Authentication issues
+        - Data exposure
+
+        Code:
+        ```${input.language}
+        ${input.code}
+        ```
+
+        Return JSON: {
+          "issues": [{ "severity": "high|medium|low", "issue": string, "line": number }],
+          "score": number
+        }
+
+  - name: performance-review
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Review this ${input.language} code for performance issues:
+        - Inefficient algorithms
+        - Memory leaks
+        - Unnecessary computations
+        - Database query optimization
+
+        Code:
+        ```${input.language}
+        ${input.code}
+        ```
+
+        Return JSON: {
+          "issues": [{ "severity": "high|medium|low", "issue": string, "line": number }],
+          "score": number
+        }
+
+  - name: style-review
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Review this ${input.language} code for style issues:
+        - Naming conventions
+        - Code organization
+        - Comments and documentation
+        - Best practices
+
+        Code:
+        ```${input.language}
+        ${input.code}
+        ```
+
+        Return JSON: {
+          "issues": [{ "severity": "high|medium|low", "issue": string, "line": number }],
+          "score": number
+        }
+
+  - name: test-coverage-review
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Review this ${input.language} code for test coverage:
+        - Missing test cases
+        - Edge cases
+        - Error handling
+
+        Code:
+        ```${input.language}
+        ${input.code}
+        ```
+
+        Return JSON: {
+          "missing_tests": [string],
+          "score": number
+        }
+
+  # Aggregate reviews
+  - name: aggregate
+    operation: code
+    config:
+      code: |
+        const security = JSON.parse(${security-review.output});
+        const performance = JSON.parse(${performance-review.output});
+        const style = JSON.parse(${style-review.output});
+        const tests = JSON.parse(${test-coverage-review.output});
+
+        const allIssues = [
+          ...security.issues.map(i => ({ ...i, category: 'security' })),
+          ...performance.issues.map(i => ({ ...i, category: 'performance' })),
+          ...style.issues.map(i => ({ ...i, category: 'style' }))
+        ];
+
+        const overallScore = Math.round(
+          (security.score + performance.score + style.score + tests.score) / 4
+        );
+
+        return {
+          score: overallScore,
+          issues: allIssues.sort((a, b) => {
+            const severityOrder = { high: 0, medium: 1, low: 2 };
+            return severityOrder[a.severity] - severityOrder[b.severity];
+          }),
+          security: security.score,
+          performance: performance.score,
+          style: style.score,
+          test_coverage: tests.score,
+          missing_tests: tests.missing_tests
+        };
+
+output:
+  review: ${aggregate.output}
+```
+
+## Document Analysis
+
+```yaml
+ensemble: analyze-document
+
+agents:
+  # Extract different aspects in parallel
+  - name: extract-entities
+    operation: think
+    config:
+      prompt: |
+        Extract named entities (people, organizations, locations, dates).
+        Return JSON array.
+
+        Document: ${input.document}
+
+  - name: extract-topics
+    operation: think
+    config:
+      prompt: |
+        Extract main topics and themes.
+        Return JSON array of topics with confidence scores.
+
+        Document: ${input.document}
+
+  - name: sentiment-analysis
+    operation: think
+    config:
+      prompt: |
+        Analyze sentiment: positive, negative, neutral.
+        Include confidence score.
+        Return JSON.
+
+        Document: ${input.document}
+
+  - name: extract-key-points
+    operation: think
+    config:
+      prompt: |
+        Extract key points and action items.
+        Return JSON array.
+
+        Document: ${input.document}
+
+  - name: summarize
+    operation: think
+    config:
+      prompt: |
+        Provide a 2-3 sentence summary.
+
+        Document: ${input.document}
+
+  # Combine all analyses
+  - name: combine
+    operation: code
+    config:
+      code: |
+        return {
+          summary: ${summarize.output},
+          entities: JSON.parse(${extract-entities.output}),
+          topics: JSON.parse(${extract-topics.output}),
+          sentiment: JSON.parse(${sentiment-analysis.output}),
+          key_points: JSON.parse(${extract-key-points.output})
+        };
+```
+
+## Market Research
+
+```yaml
+ensemble: market-research
+
+agents:
+  # Scrape multiple sources in parallel
+  - name: scrape-competitor-1
+    agent: scraper
+    inputs:
+      url: ${input.competitor_1_url}
+
+  - name: scrape-competitor-2
+    agent: scraper
+    inputs:
+      url: ${input.competitor_2_url}
+
+  - name: scrape-competitor-3
+    agent: scraper
+    inputs:
+      url: ${input.competitor_3_url}
+
+  # Analyze each in parallel
+  - name: analyze-1
+    operation: think
+    config:
+      prompt: |
+        Analyze this competitor website:
+        - Pricing
+        - Features
+        - Positioning
+        - Target market
+
+        Content: ${scrape-competitor-1.output.text}
+
+  - name: analyze-2
+    operation: think
+    config:
+      prompt: |
+        Analyze this competitor website:
+        - Pricing
+        - Features
+        - Positioning
+        - Target market
+
+        Content: ${scrape-competitor-2.output.text}
+
+  - name: analyze-3
+    operation: think
+    config:
+      prompt: |
+        Analyze this competitor website:
+        - Pricing
+        - Features
+        - Positioning
+        - Target market
+
+        Content: ${scrape-competitor-3.output.text}
+
+  # Comparative analysis
+  - name: compare
+    operation: think
+    config:
+      prompt: |
+        Compare these three competitors:
+
+        Competitor 1: ${analyze-1.output}
+        Competitor 2: ${analyze-2.output}
+        Competitor 3: ${analyze-3.output}
+
+        Provide:
+        - Competitive advantages
+        - Market gaps
+        - Recommendations
+```
+
+## Ensemble of Ensembles
+
+```yaml
+ensemble: comprehensive-analysis
+
+agents:
+  # Run multiple ensembles in parallel
+  - name: content-check
+    agent: moderate-content
+    inputs:
+      content: ${input.content}
+
+  - name: sentiment-check
+    agent: analyze-sentiment
+    inputs:
+      text: ${input.content}
+
+  - name: quality-check
+    agent: check-quality
+    inputs:
+      text: ${input.content}
+
+  # Meta-analysis
+  - name: meta-analyze
+    operation: think
+    config:
+      prompt: |
+        Based on these analyses, provide overall assessment:
+
+        Moderation: ${content-check.output}
+        Sentiment: ${sentiment-check.output}
+        Quality: ${quality-check.output}
+
+        Should we: approve, reject, or flag for review?
+```
+
+## Best Practices
+
+**1. Parallel Execution**
+```yaml
+# All these run simultaneously
+agents:
+  - name: check-1
+    operation: think
+  - name: check-2
+    operation: think
+  - name: check-3
+    operation: think
+  # Aggregate waits for all
+  - name: aggregate
+    operation: code
+```
+
+**2. Timeout Handling**
+```yaml
+agents:
+  - name: slow-agent
+    operation: think
+    timeout: 30000
+
+  - name: aggregate
+    condition: ${slow-agent.success || slow-agent.timeout}
+    operation: code
+    config:
+      code: |
+        return {
+          result: ${slow-agent.success ? slow-agent.output : 'timeout'}
+        };
+```
+
+**3. Failure Handling**
+```yaml
+agents:
+  - name: agent-1
+    operation: think
+
+  - name: aggregate
+    operation: code
+    config:
+      code: |
+        // Only include successful results
+        const results = [];
+        if (${agent-1.success}) results.push(${agent-1.output});
+        if (${agent-2.success}) results.push(${agent-2.output});
+        if (${agent-3.success}) results.push(${agent-3.output});
+        return { results };
+```
+
+**4. Cost Optimization**
+```yaml
+# Use cheaper models for non-critical checks
+agents:
+  - name: critical-check
+    operation: think
+    config:
+      model: gpt-4o
+
+  - name: simple-check
+    operation: think
+    config:
+      model: gpt-4o-mini  # Cheaper
+```
+
+## Performance Tips
+
+1. **Limit parallelism**: Max 10 concurrent agents
+2. **Use caching**: Cache similar analyses
+3. **Timeout appropriately**: Don't wait forever
+4. **Fail gracefully**: Partial results > no results
+5. **Monitor costs**: Parallel = multiple LLM calls
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Flow Control" icon="diagram-project" href="/conductor/core-concepts/flow-control">
+    Parallel patterns
+  </Card>
+  <Card title="Code Review" icon="code" href="/conductor/operations/code">
+    Code operations
+  </Card>
+  <Card title="Content Generation" icon="pen-fancy" href="/conductor/playbooks/content-generation">
+    Content workflows
+  </Card>
+  <Card title="HITL Approval" icon="user-check" href="/conductor/playbooks/hitl-approval-flow">
+    Human approval
+  </Card>
+</CardGroup>

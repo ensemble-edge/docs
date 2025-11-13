@@ -1,0 +1,469 @@
+---
+title: "Agents"
+description: "Reusable workers that compose operations into functionality"
+---
+
+# Agents
+
+**Agents are reusable workers. They combine operations into cohesive functionality you can version, test, and deploy independently.**
+
+Think of agents as the workers in your system - each one has a specific job and does it well.
+
+## Agent Hierarchy
+
+```
+Components (prompts, configs)   Versioned artifacts
+    “
+Agents (workers)                Reusable logic
+    “
+Ensembles (orchestration)       Workflows
+```
+
+## Anatomy of an Agent
+
+An agent has:
+- **Inputs**: Parameters it accepts
+- **Operations**: Work it performs
+- **Outputs**: Data it returns
+
+Example:
+
+```yaml
+# agents/company-enricher/agent.yaml
+agent: company-enricher
+description: Enriches company data from multiple sources
+
+inputs:
+  company_name:
+    type: string
+    required: true
+  include_news:
+    type: boolean
+    default: false
+
+operations:
+  # Search for company
+  - name: search
+    operation: http
+    config:
+      url: https://api.duckduckgo.com/?q=${input.company_name}&format=json
+
+  # Scrape website
+  - name: scrape
+    operation: http
+    config:
+      url: ${search.output.AbstractURL}
+
+  # Extract with AI
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Extract company info from: ${scrape.output.body}
+        Return JSON: {name, description, industry, founded}
+
+  # Optional news
+  - name: fetch-news
+    operation: http
+    condition: ${input.include_news}
+    config:
+      url: https://news-api.com?q=${input.company_name}
+
+outputs:
+  company_data: ${extract.output}
+  news: ${fetch-news.output}
+  source: ${search.output.AbstractURL}
+```
+
+## Agent Types
+
+### 1. Custom Agents
+
+Agents you build for your specific needs.
+
+**Location**: `agents/my-agent/agent.yaml`
+
+**Example**: Company enricher, data processor, report generator
+
+### 2. Pre-built Agents
+
+Ready-made agents provided by Conductor.
+
+**Location**: Built-in, reference by name
+
+**Available**:
+- `scraper` - Web scraping
+- `validator` - Data validation
+- `rag` - Retrieval-augmented generation
+- `hitl` - Human-in-the-loop approval
+- `fetcher` - Smart HTTP fetching
+- `transformer` - Data transformation
+- `scheduler` - Task scheduling
+
+See [Pre-built Agents Reference](/conductor/agents/overview) for details.
+
+## Using Agents
+
+### In Ensembles
+
+```yaml
+# ensembles/enrich-company.yaml
+ensemble: enrich-company
+
+agents:
+  # Use custom agent
+  - name: enricher
+    agent: company-enricher
+    inputs:
+      company_name: ${input.company}
+      include_news: true
+
+  # Use pre-built agent
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${enricher.output.company_data}
+      schema: company-schema
+
+output:
+  data: ${enricher.output.company_data}
+  valid: ${validate.output.valid}
+```
+
+### Directly via API
+
+```typescript
+const result = await conductor.executeAgent('company-enricher', {
+  company_name: 'Anthropic',
+  include_news: true
+});
+```
+
+## Agent Composition
+
+Agents can use other agents:
+
+```yaml
+agent: full-company-profile
+
+inputs:
+  company_name:
+    type: string
+    required: true
+
+operations:
+  # Use company-enricher agent
+  - name: enrich
+    agent: company-enricher
+    inputs:
+      company_name: ${input.company_name}
+
+  # Use scraper agent
+  - name: scrape-social
+    agent: scraper
+    inputs:
+      url: https://linkedin.com/company/${input.company_name}
+
+  # Merge results
+  - name: merge
+    operation: code
+    config:
+      code: |
+        return {
+          ...${enrich.output.company_data},
+          social: ${scrape-social.output}
+        };
+
+outputs:
+  profile: ${merge.output}
+```
+
+## Versioning Agents
+
+Version agents with Edgit:
+
+```bash
+# Register agent
+edgit components add agent company-enricher agents/company-enricher/ --type=agent
+
+# Create version
+edgit tag create company-enricher v1.0.0 --type=agent
+
+# Deploy to production
+edgit deploy set company-enricher v1.0.0 --to prod --type=agent
+```
+
+Lock to specific versions in ensembles:
+
+```yaml
+agents:
+  - name: enricher
+    agent: company-enricher@v1.0.0  # Pinned to v1.0.0
+    inputs:
+      company_name: ${input.company}
+```
+
+## Agent Features
+
+### State Management
+
+Share state across operations:
+
+```yaml
+agent: stateful-processor
+
+state:
+  schema:
+    processed_count: number
+    items: array
+
+operations:
+  - name: process
+    operation: code
+    config:
+      code: |
+        const items = ${state.items || []};
+        return {
+          items: [...items, ${input.item}],
+          count: items.length + 1
+        };
+    state:
+      use: [items]
+      set:
+        items: ${process.output.items}
+        processed_count: ${process.output.count}
+
+outputs:
+  count: ${state.processed_count}
+```
+
+### Caching
+
+Cache entire agent execution:
+
+```yaml
+agent: expensive-analysis
+
+cache:
+  ttl: 3600
+  key: analysis-${input.document_id}
+
+operations:
+  # ...operations...
+```
+
+Or cache individual operations:
+
+```yaml
+operations:
+  - name: scrape
+    operation: http
+    config:
+      url: ${input.url}
+    cache:
+      ttl: 86400  # 24 hours
+```
+
+### Error Handling
+
+Graceful failure handling:
+
+```yaml
+operations:
+  - name: try-primary
+    operation: http
+    config:
+      url: https://primary-api.com
+    retry:
+      maxAttempts: 2
+
+  - name: fallback
+    operation: http
+    condition: ${try-primary.failed}
+    config:
+      url: https://backup-api.com
+
+outputs:
+  data: ${try-primary.output || fallback.output}
+  source: ${try-primary.executed ? 'primary' : 'fallback'}
+```
+
+## Agent Patterns
+
+### Pattern 1: Data Pipeline
+
+```yaml
+agent: data-pipeline
+
+inputs:
+  raw_data: object
+
+operations:
+  - name: validate
+    agent: validator
+    inputs:
+      data: ${input.raw_data}
+
+  - name: transform
+    agent: transformer
+    condition: ${validate.output.valid}
+    inputs:
+      data: ${input.raw_data}
+
+  - name: store
+    operation: storage
+    condition: ${validate.output.valid}
+    config:
+      type: d1
+      query: INSERT INTO data (json) VALUES (?)
+      params: [${transform.output}]
+
+outputs:
+  success: ${validate.output.valid}
+  stored: ${store.executed}
+```
+
+### Pattern 2: AI Chain
+
+```yaml
+agent: content-analyzer
+
+inputs:
+  text: string
+
+operations:
+  - name: extract-entities
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: Extract entities from: ${input.text}
+
+  - name: analyze-sentiment
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: Analyze sentiment: ${input.text}
+
+  - name: summarize
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: Summarize: ${input.text}
+
+outputs:
+  entities: ${extract-entities.output}
+  sentiment: ${analyze-sentiment.output}
+  summary: ${summarize.output}
+```
+
+### Pattern 3: API Orchestration
+
+```yaml
+agent: multi-source-aggregator
+
+inputs:
+  user_id: string
+
+operations:
+  # Parallel API calls
+  - name: fetch-profile
+    operation: http
+    config:
+      url: https://api1.com/users/${input.user_id}
+
+  - name: fetch-activity
+    operation: http
+    config:
+      url: https://api2.com/activity?user=${input.user_id}
+
+  - name: fetch-preferences
+    operation: http
+    config:
+      url: https://api3.com/prefs/${input.user_id}
+
+  # Merge results
+  - name: merge
+    operation: code
+    config:
+      code: |
+        return {
+          profile: ${fetch-profile.output.body},
+          activity: ${fetch-activity.output.body},
+          preferences: ${fetch-preferences.output.body}
+        };
+
+outputs:
+  user_data: ${merge.output}
+```
+
+## Testing Agents
+
+```typescript
+// agents/company-enricher/agent.test.ts
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('company-enricher', () => {
+  it('should enrich company data', async () => {
+    const conductor = await TestConductor.create();
+    await conductor.loadProject('./');
+
+    const result = await conductor.executeAgent('company-enricher', {
+      company_name: 'Anthropic',
+      include_news: false
+    });
+
+    expect(result).toBeSuccessful();
+    expect(result.output.company_data).toHaveProperty('name');
+    expect(result.output.company_data).toHaveProperty('industry');
+  });
+
+  it('should include news when requested', async () => {
+    const conductor = await TestConductor.create();
+    await conductor.loadProject('./');
+
+    const result = await conductor.executeAgent('company-enricher', {
+      company_name: 'Anthropic',
+      include_news: true
+    });
+
+    expect(result.output.news).toBeDefined();
+  });
+});
+```
+
+## Best Practices
+
+1. **Single Responsibility** - Each agent does one thing well
+2. **Clear Inputs/Outputs** - Document what goes in and comes out
+3. **Version Agents** - Use Edgit for version control
+4. **Test Thoroughly** - Unit test each agent
+5. **Cache Aggressively** - Cache expensive operations
+6. **Handle Failures** - Always have fallbacks
+7. **Keep It Declarative** - Let Conductor handle orchestration
+8. **Monitor Performance** - Track execution times
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Ensembles" icon="diagram-project" href="/conductor/core-concepts/ensembles">
+    Orchestrate agents
+  </Card>
+
+  <Card title="Pre-built Agents" icon="box" href="/conductor/agents/overview">
+    Use ready-made agents
+  </Card>
+
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Build custom agents
+  </Card>
+
+  <Card title="Operations" icon="bolt" href="/conductor/core-concepts/operations">
+    Learn about operations
+  </Card>
+</CardGroup>
