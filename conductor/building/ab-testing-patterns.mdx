@@ -134,7 +134,7 @@ RESULTS=$(wrangler d1 execute production-db --command="
 if echo "$RESULTS" | grep "v2.0.0" | grep -q "0.9[5-9]"; then
   edgit deploy set analysis-prompt v2.0.0 --to prod
   git push --tags
-  echo " Promoted v2.0.0 to production"
+  echo " Promoted v2.0.0 to production"
 fi
 ```
 
@@ -237,7 +237,7 @@ Test multiple variables simultaneously:
 ensemble: multivariate-test
 
 agents:
-  # 4 combinations: 2 models × 2 prompts
+  # 4 combinations: 2 models  2 prompts
   # Combo 1: GPT-4 + Prompt v1
   - name: variant-1
     condition: ${(input.user_id % 4) === 0}

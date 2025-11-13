@@ -92,7 +92,7 @@ jobs:
               LATEST=$(edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
               NEW=$(edgit version bump $LATEST patch)
               edgit tag create $COMPONENT $NEW
-              echo " Versioned $COMPONENT: $LATEST ’ $NEW"
+              echo " Versioned $COMPONENT: $LATEST  $NEW"
             fi
           done
 
@@ -182,7 +182,7 @@ jobs:
             # Deploy to production
             edgit deploy set $component $STAGING_VERSION --to prod
 
-            echo " Promoted $component: $STAGING_VERSION ’ prod"
+            echo " Promoted $component: $STAGING_VERSION  prod"
           done
 
       - name: Push Tags
@@ -312,7 +312,7 @@ else
 fi
 
 edgit tag create $COMPONENT $NEW
-echo "Versioned $COMPONENT: $LATEST ’ $NEW"
+echo "Versioned $COMPONENT: $LATEST  $NEW"
 ```
 
 Use in CI:

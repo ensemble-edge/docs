@@ -325,7 +325,7 @@ GROUP BY variant;
 
 Test multiple variables simultaneously.
 
-### 2×2 Test: Model × Prompt
+### 22 Test: Model  Prompt
 
 ```yaml
 ensemble: multivariate-2x2
@@ -414,11 +414,11 @@ prob_treatment_better = (treatment_samples > control_samples).mean()
 print(f"Probability treatment is better: {prob_treatment_better:.2%}")
 
 if prob_treatment_better > 0.95:
-    print(" Treatment wins! Deploy to all users.")
+    print(" Treatment wins! Deploy to all users.")
 elif prob_treatment_better < 0.05:
-    print(" Control wins! Keep current version.")
+    print(" Control wins! Keep current version.")
 else:
-    print("   Inconclusive. Collect more data.")
+    print("  Inconclusive. Collect more data.")
 ```
 
 ### Auto-Promote Winner
@@ -486,10 +486,10 @@ condition: ${input.user_id % 2 === 0}
 ### 3. Testing Too Many Things
 
 ```yaml
-# Bad: 4 variables × 3 options = 81 variants
+# Bad: 4 variables  3 options = 81 variants
 # Need 81,000+ samples for significance!
 
-# Good: 2 variables × 2 options = 4 variants
+# Good: 2 variables  2 options = 4 variants
 # Need 4,000+ samples
 ```
 

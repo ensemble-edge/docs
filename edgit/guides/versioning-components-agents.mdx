@@ -346,10 +346,10 @@ edgit deploy set extraction-prompt v1.1.0 --to prod
 ### When to Create Versions
 
 **Do version:**
--  After merging to main
--  After successful tests in staging
--  When deploying to any environment
--  When you want to lock a working state
+-  After merging to main
+-  After successful tests in staging
+-  When deploying to any environment
+-  When you want to lock a working state
 
 **Don't version:**
 - L Every commit during development
@@ -412,7 +412,7 @@ edgit components list --unversioned
 # L Don't
 edgit tag create my-prompt v1.0.0  # Before testing
 
-#  Do
+#  Do
 conductor dev  # Test locally first
 edgit tag create my-prompt v1.0.0  # Version after confirming it works
 ```
@@ -423,7 +423,7 @@ edgit tag create my-prompt v1.0.0  # Version after confirming it works
 # L Don't
 edgit tag create my-prompt v1.0.1  # Major change labeled as patch
 
-#  Do
+#  Do
 edgit tag create my-prompt v2.0.0  # Breaking change = major bump
 ```
 
@@ -433,7 +433,7 @@ edgit tag create my-prompt v2.0.0  # Breaking change = major bump
 # L Don't
 edgit tag create my-prompt v2.0.0 -m "Update prompt"
 
-#  Do
+#  Do
 edgit tag create my-prompt v2.0.0 -m "BREAKING: Changed output format from JSON to CSV"
 ```
 
@@ -443,7 +443,7 @@ edgit tag create my-prompt v2.0.0 -m "BREAKING: Changed output format from JSON 
 # L Don't
 git tag -d components/my-prompt/v1.0.0  # Delete old versions
 
-#  Do
+#  Do
 # Keep all versions - you might need to rollback
 ```
 
@@ -453,7 +453,7 @@ git tag -d components/my-prompt/v1.0.0  # Delete old versions
 # L Don't
 # Only test new agent with new prompt
 
-#  Do
+#  Do
 # Test all combinations:
 # - New agent + Old prompt
 # - Old agent + New prompt

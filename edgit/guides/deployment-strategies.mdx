@@ -13,18 +13,18 @@ description: "Progressive rollouts, canaries, blue-green, and A/B testing"
 
 ```bash
 edgit deploy set my-prompt v1.0.0 --to prod
-# Creates tag: components/my-prompt/prod ’ points to v1.0.0
+# Creates tag: components/my-prompt/prod  points to v1.0.0
 ```
 
 Your CI/CD reads these tags and updates your runtime (Cloudflare KV, environment variables, config files).
 
 **This means:**
--  Deployments are instant (just Git tags)
--  Rollbacks are instant (update the tag)
--  You can deploy different versions to different environments simultaneously
--  Perfect audit trail (Git history)
+-  Deployments are instant (just Git tags)
+-  Rollbacks are instant (update the tag)
+-  You can deploy different versions to different environments simultaneously
+-  Perfect audit trail (Git history)
 
-## Strategy 1: Traditional (Staging ’ Production)
+## Strategy 1: Traditional (Staging  Production)
 
 The safe, predictable approach.
 
@@ -468,7 +468,7 @@ echo "Canary healthy, continuing rollout..."
 ### 1. Start Conservative
 
 ```bash
-#  Do: Start with smallest possible audience
+#  Do: Start with smallest possible audience
 edgit deploy set my-prompt v1.1.0 --to prod-canary-1  # 1%
 
 # L Don't: YOLO full production
@@ -478,7 +478,7 @@ edgit deploy set my-prompt v1.1.0 --to prod
 ### 2. Have a Rollback Plan
 
 ```bash
-#  Do: Document rollback command
+#  Do: Document rollback command
 # If issues: edgit deploy set my-prompt v1.0.0 --to prod
 
 # L Don't: Deploy without knowing how to undo
@@ -487,7 +487,7 @@ edgit deploy set my-prompt v1.1.0 --to prod
 ### 3. Monitor Everything
 
 ```bash
-#  Do: Watch metrics during rollout
+#  Do: Watch metrics during rollout
 watch -n 5 'curl https://metrics.example.com/dashboard'
 
 # L Don't: Deploy and walk away
@@ -496,7 +496,7 @@ watch -n 5 'curl https://metrics.example.com/dashboard'
 ### 4. Use Sticky Sessions for A/B Tests
 
 ```yaml
-#  Do: Users get consistent variant
+#  Do: Users get consistent variant
 condition: ${hash(input.user_id) % 2 === 0}
 
 # L Don't: Random selection (inconsistent experience)
@@ -506,7 +506,7 @@ condition: ${Math.random() < 0.5}
 ### 5. Keep Multiple Versions Running
 
 ```bash
-#  Do: Run old version during rollout
+#  Do: Run old version during rollout
 prod: v1.0.0 (main)
 prod-canary: v1.1.0 (testing)
 
