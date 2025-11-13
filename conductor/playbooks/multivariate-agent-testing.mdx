@@ -1,84 +1,813 @@
 ---
 title: "Multivariate Agent Testing"
-description: "Test multiple variables simultaneously"
+description: "Test multiple variables simultaneously across models, prompts, temperatures, and agent versions"
 ---
 
 # Multivariate Agent Testing Playbook
 
-**Test combinations: models × prompts × temperatures. Find the optimal configuration.**
+**Test combinations: models × prompts × temperatures × agents. Find the optimal configuration faster.**
+
+Multivariate testing goes beyond simple A/B tests by testing multiple variables simultaneously. Instead of testing 2 variants, test 4, 8, or even 16 variants to find the best combination of model, prompt, temperature, and agent configuration.
+
+## Why Multivariate Testing?
+
+**A/B Testing Limitation:**
+- Test prompt A vs prompt B with model X
+- Then test model X vs model Y with prompt A
+- Sequential testing takes weeks
+
+**Multivariate Testing Advantage:**
+- Test all combinations simultaneously:
+  - Prompt A + Model X
+  - Prompt A + Model Y
+  - Prompt B + Model X
+  - Prompt B + Model Y
+- Find optimal combination in days
 
 ## 2×2 Test (4 Variants)
 
+Test 2 models × 2 prompts = 4 combinations:
+
 ```yaml
-ensemble: multivariate-test
+ensemble: multivariate-2x2
+description: Test 2 models × 2 prompts
 
 agents:
-  # Model A + Prompt A (25%)
+  # Model A (GPT-4o) + Prompt A (25%)
   - name: variant-aa
     condition: ${input.user_id % 4 === 0}
     operation: think
+    component: prompt-a@v1.0.0
     config:
+      provider: openai
       model: gpt-4o
-      prompt: ${component.prompt-a@v1.0.0}
+      temperature: 0.7
 
-  # Model A + Prompt B (25%)
+  # Model A (GPT-4o) + Prompt B (25%)
   - name: variant-ab
     condition: ${input.user_id % 4 === 1}
     operation: think
+    component: prompt-b@v1.0.0
     config:
+      provider: openai
       model: gpt-4o
-      prompt: ${component.prompt-b@v1.0.0}
+      temperature: 0.7
 
-  # Model B + Prompt A (25%)
+  # Model B (Claude) + Prompt A (25%)
   - name: variant-ba
     condition: ${input.user_id % 4 === 2}
     operation: think
+    component: prompt-a@v1.0.0
     config:
-      model: claude-3-5-sonnet
-      prompt: ${component.prompt-a@v1.0.0}
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.7
 
-  # Model B + Prompt B (25%)
+  # Model B (Claude) + Prompt B (25%)
   - name: variant-bb
     condition: ${input.user_id % 4 === 3}
     operation: think
+    component: prompt-b@v1.0.0
     config:
-      model: claude-3-5-sonnet
-      prompt: ${component.prompt-b@v1.0.0}
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.7
 
-  # Log variant
-  - name: log
+  # Log results
+  - name: log-variant
     operation: storage
     config:
       type: d1
-      query: INSERT INTO multivariate_results ...
+      query: |
+        INSERT INTO multivariate_results (
+          user_id, variant, model, prompt, latency, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${variant-aa.executed ? 'aa' : variant-ab.executed ? 'ab' : variant-ba.executed ? 'ba' : 'bb'}
+        - ${variant-aa.executed || variant-ab.executed ? 'gpt-4o' : 'claude'}
+        - ${variant-aa.executed || variant-ba.executed ? 'prompt-a' : 'prompt-b'}
+        - ${variant-aa.latency || variant-ab.latency || variant-ba.latency || variant-bb.latency}
+        - ${Date.now()}
+
+output:
+  variant: ${variant-aa.executed ? 'aa' : variant-ab.executed ? 'ab' : variant-ba.executed ? 'ba' : 'bb'}
+  result: ${variant-aa.output || variant-ab.output || variant-ba.output || variant-bb.output}
+```
+
+Analyze results:
+
+```sql
+SELECT
+  variant,
+  model,
+  prompt,
+  COUNT(*) as requests,
+  AVG(latency) as avg_latency,
+  SUM(CASE WHEN feedback_score > 0.8 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as quality_rate
+FROM multivariate_results
+WHERE timestamp > strftime('%s', 'now', '-7 days') * 1000
+GROUP BY variant, model, prompt
+ORDER BY quality_rate DESC, avg_latency ASC;
+```
+
+## 2×2×2 Test (8 Variants)
+
+Test 2 models × 2 prompts × 2 temperatures = 8 combinations:
+
+```yaml
+ensemble: multivariate-2x2x2
+description: Test 2 models × 2 prompts × 2 temperatures
+
+agents:
+  # GPT-4o + Prompt A + Temp 0.3 (12.5%)
+  - name: variant-aa-low
+    condition: ${input.user_id % 8 === 0}
+    operation: think
+    component: prompt-a@v1.0.0
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.3
+
+  # GPT-4o + Prompt A + Temp 0.9 (12.5%)
+  - name: variant-aa-high
+    condition: ${input.user_id % 8 === 1}
+    operation: think
+    component: prompt-a@v1.0.0
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.9
+
+  # GPT-4o + Prompt B + Temp 0.3 (12.5%)
+  - name: variant-ab-low
+    condition: ${input.user_id % 8 === 2}
+    operation: think
+    component: prompt-b@v1.0.0
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.3
+
+  # GPT-4o + Prompt B + Temp 0.9 (12.5%)
+  - name: variant-ab-high
+    condition: ${input.user_id % 8 === 3}
+    operation: think
+    component: prompt-b@v1.0.0
+    config:
+      provider: openai
+      model: gpt-4o
+      temperature: 0.9
+
+  # Claude + Prompt A + Temp 0.3 (12.5%)
+  - name: variant-ba-low
+    condition: ${input.user_id % 8 === 4}
+    operation: think
+    component: prompt-a@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.3
+
+  # Claude + Prompt A + Temp 0.9 (12.5%)
+  - name: variant-ba-high
+    condition: ${input.user_id % 8 === 5}
+    operation: think
+    component: prompt-a@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.9
+
+  # Claude + Prompt B + Temp 0.3 (12.5%)
+  - name: variant-bb-low
+    condition: ${input.user_id % 8 === 6}
+    operation: think
+    component: prompt-b@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.3
+
+  # Claude + Prompt B + Temp 0.9 (12.5%)
+  - name: variant-bb-high
+    condition: ${input.user_id % 8 === 7}
+    operation: think
+    component: prompt-b@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.9
 ```
 
 ## Agent Version Testing
 
+Test multiple versions of the same agent:
+
 ```yaml
 ensemble: test-agent-versions
+description: Compare agent v1.0.0 vs v2.0.0 vs v3.0.0
 
 agents:
+  # Route 33% to each version
   - name: v1
     condition: ${input.user_id % 3 === 0}
     agent: my-agent@v1.0.0
+    input:
+      data: ${input.data}
 
   - name: v2
     condition: ${input.user_id % 3 === 1}
     agent: my-agent@v2.0.0
+    input:
+      data: ${input.data}
 
   - name: v3
     condition: ${input.user_id % 3 === 2}
     agent: my-agent@v3.0.0
+    input:
+      data: ${input.data}
+
+  # Track which version was used
+  - name: log-version
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO agent_versions (
+          user_id, version, latency, success, timestamp
+        ) VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${v1.executed ? 'v1.0.0' : v2.executed ? 'v2.0.0' : 'v3.0.0'}
+        - ${v1.latency || v2.latency || v3.latency}
+        - ${v1.success || v2.success || v3.success}
+        - ${Date.now()}
+
+output:
+  version: ${v1.executed ? 'v1.0.0' : v2.executed ? 'v2.0.0' : 'v3.0.0'}
+  result: ${v1.output || v2.output || v3.output}
+```
+
+## Multi-Agent Coordination Testing
+
+Test different multi-agent coordination patterns:
+
+### Parallel Research Agents
+
+```yaml
+ensemble: multi-agent-research
+description: Coordinate research, analysis, and writing agents
+
+state:
+  schema:
+    researchFindings: array
+    analysisResults: object
+    synthesis: string
+
+agents:
+  # Phase 1: Parallel Research by Specialized Agents
+  - parallel:
+      - name: research-technical
+        operation: think
+        config:
+          provider: openai
+          model: gpt-4o
+          prompt: |
+            You are a technical research specialist.
+            Research technical aspects of: ${input.topic}
+            Provide detailed technical information and specifications.
+        state:
+          set: [researchFindings]
+
+      - name: research-market
+        operation: think
+        config:
+          provider: anthropic
+          model: claude-3-5-sonnet-20241022
+          prompt: |
+            You are a market research specialist.
+            Research market aspects of: ${input.topic}
+            Analyze trends, adoption rates, and business implications.
+        state:
+          set: [researchFindings]
+
+      - name: research-competitive
+        operation: think
+        config:
+          provider: openai
+          model: gpt-4o
+          prompt: |
+            You are a competitive analysis specialist.
+            Research competitive landscape for: ${input.topic}
+            Identify competitors and comparative advantages.
+        state:
+          set: [researchFindings]
+
+  # Phase 2: Synthesis Agent Combines Research
+  - name: synthesize-research
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: |
+        You are a research synthesis specialist.
+        Combine multiple research perspectives into cohesive insights.
+
+        Technical Research: ${research-technical.output}
+        Market Research: ${research-market.output}
+        Competitive Research: ${research-competitive.output}
+
+        Provide 5-7 key insights that integrate all perspectives.
+    state:
+      use: [researchFindings]
+      set: [synthesis]
+
+  # Phase 3: Parallel Analysis by Domain Experts
+  - parallel:
+      - name: analyze-opportunities
+        operation: think
+        config:
+          provider: openai
+          model: gpt-4o
+          prompt: |
+            You are a strategic opportunity analyst.
+            Based on these insights, identify opportunities:
+            ${synthesize-research.output}
+        state:
+          set: [analysisResults]
+
+      - name: analyze-risks
+        operation: think
+        config:
+          provider: anthropic
+          model: claude-3-5-sonnet-20241022
+          prompt: |
+            You are a risk assessment specialist.
+            Based on these insights, analyze risks:
+            ${synthesize-research.output}
+        state:
+          set: [analysisResults]
+
+      - name: analyze-recommendations
+        operation: think
+        config:
+          provider: openai
+          model: gpt-4o
+          prompt: |
+            You are a strategic advisor.
+            Based on these insights, provide actionable recommendations:
+            ${synthesize-research.output}
+        state:
+          set: [analysisResults]
+
+  # Phase 4: Generate Final Report
+  - name: generate-report
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: |
+        Generate a comprehensive report based on:
+
+        Synthesis: ${synthesize-research.output}
+        Opportunities: ${analyze-opportunities.output}
+        Risks: ${analyze-risks.output}
+        Recommendations: ${analyze-recommendations.output}
+
+output:
+  report: ${generate-report.output}
+```
+
+### Testing Different Coordination Patterns
+
+Test sequential vs parallel vs hybrid coordination:
+
+```yaml
+ensemble: test-coordination-patterns
+description: Compare different multi-agent coordination approaches
+
+agents:
+  # Pattern A: Sequential (33%)
+  - name: pattern-sequential
+    condition: ${input.user_id % 3 === 0}
+    operation: code
+    config:
+      code: |
+        // Execute agents sequentially
+        const agent1 = await executeAgent('agent-1', input);
+        const agent2 = await executeAgent('agent-2', agent1.output);
+        const agent3 = await executeAgent('agent-3', agent2.output);
+        return agent3.output;
+
+  # Pattern B: Parallel (33%)
+  - parallel:
+      - name: pattern-parallel-1
+        condition: ${input.user_id % 3 === 1}
+        operation: think
+      - name: pattern-parallel-2
+        condition: ${input.user_id % 3 === 1}
+        operation: think
+      - name: pattern-parallel-3
+        condition: ${input.user_id % 3 === 1}
+        operation: think
+
+  # Pattern C: Hybrid (33%)
+  - name: pattern-hybrid-fetch
+    condition: ${input.user_id % 3 === 2}
+    operation: http
+
+  - parallel:
+      - name: pattern-hybrid-analyze-1
+        condition: ${input.user_id % 3 === 2}
+        operation: think
+        input: ${pattern-hybrid-fetch.output}
+      - name: pattern-hybrid-analyze-2
+        condition: ${input.user_id % 3 === 2}
+        operation: think
+        input: ${pattern-hybrid-fetch.output}
+
+  - name: pattern-hybrid-synthesize
+    condition: ${input.user_id % 3 === 2}
+    operation: think
+    input:
+      analyze1: ${pattern-hybrid-analyze-1.output}
+      analyze2: ${pattern-hybrid-analyze-2.output}
+```
+
+## Component Version Matrix Testing
+
+Test all combinations of component versions:
+
+```yaml
+ensemble: component-version-matrix
+description: Test prompt@v1 vs v2 with config@v1 vs v2
+
+agents:
+  # Prompt v1 + Config v1 (25%)
+  - name: variant-p1c1
+    condition: ${input.user_id % 4 === 0}
+    operation: think
+    component: my-prompt@v1.0.0
+    config:
+      provider: openai
+      model: ${component.model-config@v1.0.0.model}
+      temperature: ${component.model-config@v1.0.0.temperature}
+
+  # Prompt v1 + Config v2 (25%)
+  - name: variant-p1c2
+    condition: ${input.user_id % 4 === 1}
+    operation: think
+    component: my-prompt@v1.0.0
+    config:
+      provider: openai
+      model: ${component.model-config@v2.0.0.model}
+      temperature: ${component.model-config@v2.0.0.temperature}
+
+  # Prompt v2 + Config v1 (25%)
+  - name: variant-p2c1
+    condition: ${input.user_id % 4 === 2}
+    operation: think
+    component: my-prompt@v2.0.0
+    config:
+      provider: openai
+      model: ${component.model-config@v1.0.0.model}
+      temperature: ${component.model-config@v1.0.0.temperature}
+
+  # Prompt v2 + Config v2 (25%)
+  - name: variant-p2c2
+    condition: ${input.user_id % 4 === 3}
+    operation: think
+    component: my-prompt@v2.0.0
+    config:
+      provider: openai
+      model: ${component.model-config@v2.0.0.model}
+      temperature: ${component.model-config@v2.0.0.temperature}
+```
+
+## Real-World Example: Customer Support Analysis
+
+Test different agent combinations for customer support ticket analysis:
+
+```yaml
+ensemble: support-ticket-analysis
+description: Test classification + sentiment + priority agents
+
+agents:
+  # Variant A: Single unified agent (33%)
+  - name: unified-agent
+    condition: ${input.ticket_id % 3 === 0}
+    operation: think
+    component: unified-support-prompt@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    input:
+      ticket: ${input.ticket_text}
+
+  # Variant B: Specialized parallel agents (33%)
+  - parallel:
+      - name: classify-ticket
+        condition: ${input.ticket_id % 3 === 1}
+        operation: think
+        component: classification-prompt@v1.0.0
+        config:
+          provider: openai
+          model: gpt-4o-mini
+        input:
+          ticket: ${input.ticket_text}
+
+      - name: analyze-sentiment
+        condition: ${input.ticket_id % 3 === 1}
+        operation: think
+        component: sentiment-prompt@v1.0.0
+        config:
+          provider: cloudflare
+          model: '@cf/meta/llama-3.1-8b-instruct'
+        input:
+          ticket: ${input.ticket_text}
+
+      - name: determine-priority
+        condition: ${input.ticket_id % 3 === 1}
+        operation: think
+        component: priority-prompt@v1.0.0
+        config:
+          provider: openai
+          model: gpt-4o-mini
+        input:
+          ticket: ${input.ticket_text}
+
+  # Variant C: Sequential specialized agents (33%)
+  - name: classify-first
+    condition: ${input.ticket_id % 3 === 2}
+    operation: think
+    component: classification-prompt@v1.0.0
+    input:
+      ticket: ${input.ticket_text}
+
+  - name: analyze-with-classification
+    condition: ${input.ticket_id % 3 === 2}
+    operation: think
+    component: contextual-analysis-prompt@v1.0.0
+    input:
+      ticket: ${input.ticket_text}
+      category: ${classify-first.output.category}
+
+  # Store results for analysis
+  - name: log-results
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO support_analysis_results (
+          ticket_id, variant, latency, cost_estimate, timestamp
+        ) VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${input.ticket_id}
+        - ${unified-agent.executed ? 'unified' : classify-ticket.executed ? 'parallel' : 'sequential'}
+        - ${unified-agent.latency || (classify-ticket.latency + analyze-sentiment.latency) || (classify-first.latency + analyze-with-classification.latency)}
+        - ${calculate-cost(variant)}
+        - ${Date.now()}
+
+output:
+  variant: ${unified-agent.executed ? 'unified' : classify-ticket.executed ? 'parallel' : 'sequential'}
+  result: ${unified-agent.output || {
+    category: classify-ticket.output,
+    sentiment: analyze-sentiment.output,
+    priority: determine-priority.output
+  } || analyze-with-classification.output}
+```
+
+## Dynamic Variant Allocation
+
+Adjust traffic allocation based on performance:
+
+```yaml
+ensemble: dynamic-multivariate
+description: Auto-adjust variant traffic based on performance
+
+agents:
+  # Get current allocation percentages from KV
+  - name: get-allocations
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: variant-allocations
+      default: { aa: 25, ab: 25, ba: 25, bb: 25 }
+
+  # Determine which variant to use
+  - name: select-variant
+    operation: code
+    config:
+      code: |
+        const allocations = ${get-allocations.output};
+        const rand = ${input.user_id % 100};
+
+        let cumulative = 0;
+        for (const [variant, pct] of Object.entries(allocations)) {
+          cumulative += pct;
+          if (rand < cumulative) return variant;
+        }
+        return 'aa';
+
+  # Execute selected variant
+  - name: variant-aa
+    condition: ${select-variant.output === 'aa'}
+    operation: think
+    component: prompt-a@v1.0.0
+    config:
+      provider: openai
+      model: gpt-4o
+
+  - name: variant-ab
+    condition: ${select-variant.output === 'ab'}
+    operation: think
+    component: prompt-b@v1.0.0
+    config:
+      provider: openai
+      model: gpt-4o
+
+  - name: variant-ba
+    condition: ${select-variant.output === 'ba'}
+    operation: think
+    component: prompt-a@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+
+  - name: variant-bb
+    condition: ${select-variant.output === 'bb'}
+    operation: think
+    component: prompt-b@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+```
+
+Auto-adjust allocations based on metrics:
+
+```typescript
+// Scheduled every hour
+export default {
+  async scheduled(event: ScheduledEvent, env: Env) {
+    // Query performance of each variant from last hour
+    const results = await env.DB.prepare(`
+      SELECT
+        variant,
+        AVG(quality_score) as avg_quality,
+        AVG(latency) as avg_latency,
+        COUNT(*) as sample_size
+      FROM multivariate_results
+      WHERE timestamp > ?
+      GROUP BY variant
+    `).bind(Date.now() - 60 * 60 * 1000).all();
+
+    // Calculate new allocations using Thompson Sampling
+    const allocations = calculateOptimalAllocations(results.results);
+
+    // Update KV
+    await env.CACHE.put('variant-allocations', JSON.stringify(allocations));
+
+    console.log('Updated variant allocations:', allocations);
+  }
+};
+```
+
+## Statistical Analysis
+
+Ensure statistical significance before declaring a winner:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('multivariate-test', () => {
+  it('should have statistically significant results', async () => {
+    const conductor = await TestConductor.create();
+    const results = { aa: [], ab: [], ba: [], bb: [] };
+
+    // Collect 1000 samples per variant
+    for (let i = 0; i < 4000; i++) {
+      const result = await conductor.execute('multivariate-2x2', {
+        user_id: i,
+        input: testInput
+      });
+
+      const variant = result.output.variant;
+      results[variant].push({
+        quality: result.quality_score,
+        latency: result.latency
+      });
+    }
+
+    // Calculate statistics for each variant
+    const stats = Object.entries(results).map(([variant, data]) => ({
+      variant,
+      mean: calculateMean(data.map(d => d.quality)),
+      stddev: calculateStdDev(data.map(d => d.quality)),
+      sampleSize: data.length
+    }));
+
+    // Find best variant
+    const best = stats.reduce((a, b) => a.mean > b.mean ? a : b);
+
+    // Run t-test against second best
+    const secondBest = stats.filter(s => s !== best)
+      .reduce((a, b) => a.mean > b.mean ? a : b);
+
+    const tTest = performTTest(best, secondBest);
+
+    // p-value < 0.05 means statistically significant
+    expect(tTest.pValue).toBeLessThan(0.05);
+
+    console.log(`Winner: ${best.variant} with p-value ${tTest.pValue}`);
+  });
+});
+```
+
+## Best Practices
+
+### 1. Start with Factorial Design
+
+Test all combinations systematically:
+
+```
+2 models × 2 prompts = 4 variants (2²)
+2 models × 2 prompts × 2 temps = 8 variants (2³)
+3 models × 2 prompts × 2 temps = 12 variants (3×2×2)
+```
+
+### 2. Ensure Sufficient Sample Size
+
+```typescript
+// Minimum sample size per variant
+const minSampleSize = 385; // For 95% confidence, ±5% margin
+
+// Monitor sample sizes
+const sampleSizes = await env.DB.prepare(`
+  SELECT variant, COUNT(*) as n
+  FROM multivariate_results
+  WHERE timestamp > ?
+  GROUP BY variant
+`).bind(Date.now() - 7 * 24 * 60 * 60 * 1000).all();
+
+const insufficient = sampleSizes.results.filter(r => r.n < minSampleSize);
+if (insufficient.length > 0) {
+  console.warn('Insufficient samples:', insufficient);
+}
+```
+
+### 3. Control for Confounding Variables
+
+Ensure random assignment:
+
+```yaml
+# Good - random based on user_id
+condition: ${input.user_id % 4 === 0}
+
+# Bad - not random (time-based bias)
+condition: ${Date.now() % 4 === 0}
+```
+
+### 4. Monitor Interaction Effects
+
+Some combinations may interact unexpectedly:
+
+```sql
+-- Check for interaction effects
+SELECT
+  model,
+  prompt,
+  AVG(quality_score) as avg_quality
+FROM multivariate_results
+GROUP BY model, prompt;
+
+-- Example result showing interaction:
+-- gpt-4o + prompt-a = 0.85  (expected: 0.80)
+-- gpt-4o + prompt-b = 0.65  (expected: 0.70)
+-- claude + prompt-a = 0.75  (expected: 0.80)
+-- claude + prompt-b = 0.85  (expected: 0.70)
+-- Prompt-b works better with Claude!
 ```
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="A/B Testing" icon="flask" href="/conductor/playbooks/ab-testing-prompts">
-    Simple A/B tests
+    Start with simple A/B tests
   </Card>
-  <Card title="A/B Testing Patterns" icon="vial" href="/conductor/building/ab-testing-patterns">
-    Testing strategies
+
+  <Card title="Progressive Deployment" icon="rocket" href="/conductor/playbooks/progressive-deployment">
+    Gradual rollout strategies
+  </Card>
+
+  <Card title="Multi-Agent Analysis" icon="diagram-project" href="/conductor/playbooks/multi-agent-analysis">
+    Complex multi-agent workflows
+  </Card>
+
+  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
+    Testing best practices
   </Card>
 </CardGroup>

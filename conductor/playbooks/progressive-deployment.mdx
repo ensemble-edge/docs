@@ -1,40 +1,785 @@
 ---
 title: "Progressive Deployment"
-description: "Gradual rollouts and canary releases"
+description: "Gradual rollouts, canary releases, and parallel execution patterns"
 ---
 
 # Progressive Deployment Playbook
 
-**Roll out changes gradually. Test in production safely.**
+**Roll out changes gradually. Test in production safely. Execute efficiently.**
+
+Progressive deployment combines gradual rollout strategies (canaries, blue-green) with parallel execution patterns to safely and efficiently deploy new versions.
 
 ## Canary Deployment
 
+Deploy new versions to a small percentage of traffic first:
+
 ```yaml
 ensemble: canary-release
+description: 10% canary, 90% stable
 
 agents:
   # 10% traffic to new version
   - name: new-version
     condition: ${input.user_id % 10 === 0}
-    agent: my-agent@v2.0.0
+    operation: think
+    component: my-prompt@v2.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
 
   # 90% traffic to stable version
   - name: stable-version
     condition: ${input.user_id % 10 !== 0}
-    agent: my-agent@v1.0.0
+    operation: think
+    component: my-prompt@v1.0.0
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+```
+
+### Dynamic Canary Percentage
+
+Store canary percentage in KV and adjust in real-time:
+
+```yaml
+ensemble: dynamic-canary
+description: Adjustable canary percentage from KV
+
+agents:
+  # Get current canary percentage (default 10%)
+  - name: get-canary-percentage
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: canary-percentage
+      default: 10
+
+  # Route to new version based on percentage
+  - name: new-version
+    condition: ${input.user_id % 100 < get-canary-percentage.output}
+    operation: think
+    component: my-prompt@v2.0.0
+
+  # Route to stable version
+  - name: stable-version
+    condition: ${input.user_id % 100 >= get-canary-percentage.output}
+    operation: think
+    component: my-prompt@v1.0.0
+```
+
+Adjust canary percentage without redeploying:
+
+```bash
+# Increase to 25%
+wrangler kv:key put --namespace-id=$KV_ID "canary-percentage" "25"
+
+# Decrease to 5% if issues detected
+wrangler kv:key put --namespace-id=$KV_ID "canary-percentage" "5"
+
+# Full rollout
+wrangler kv:key put --namespace-id=$KV_ID "canary-percentage" "100"
 ```
 
 ## Progressive Rollout
 
+Gradually increase traffic over time:
+
 ```yaml
-# Week 1: 10%
-# Week 2: 25%
-# Week 3: 50%
-# Week 4: 100%
+# Week 1: 10% -> Week 2: 25% -> Week 3: 50% -> Week 4: 100%
 
 ensemble: progressive-rollout
+description: Multi-week gradual rollout
 
 agents:
+  - name: get-rollout-percentage
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: rollout-percentage
+      default: 10
+
+  - name: new-version
+    condition: ${input.user_id % 100 < get-rollout-percentage.output}
+    operation: think
+    component: my-prompt@v2.0.0
+
+  - name: stable-version
+    condition: ${input.user_id % 100 >= get-rollout-percentage.output}
+    operation: think
+    component: my-prompt@v1.0.0
+
+  # Track which version was used
+  - name: log-version
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO deployment_logs (user_id, version, timestamp)
+        VALUES (?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${new-version.executed ? 'v2.0.0' : 'v1.0.0'}
+        - ${Date.now()}
+
+output:
+  version: ${new-version.executed ? 'v2.0.0' : 'v1.0.0'}
+  result: ${new-version.output || stable-version.output}
+```
+
+### Rollout Schedule
+
+```bash
+# Week 1: Start with 10%
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "10"
+
+# Week 2: Increase to 25%
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "25"
+
+# Week 3: Increase to 50%
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "50"
+
+# Week 4: Full rollout
+wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "100"
+```
+
+## Blue-Green Deployment
+
+Run two identical environments, switch traffic instantly:
+
+```yaml
+ensemble: blue-green-switch
+description: Instant switchover between environments
+
+agents:
+  # Get active environment (blue or green)
+  - name: get-active-env
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: active-environment
+      default: blue
+
+  # Route to blue environment
+  - name: blue-env
+    condition: ${get-active-env.output === 'blue'}
+    operation: think
+    component: my-prompt@v1.0.0
+
+  # Route to green environment
+  - name: green-env
+    condition: ${get-active-env.output === 'green'}
+    operation: think
+    component: my-prompt@v2.0.0
+
+output:
+  environment: ${get-active-env.output}
+  result: ${blue-env.output || green-env.output}
+```
+
+Switch environments:
+
+```bash
+# Deploy v2.0.0 to green (no traffic yet)
+edgit deploy set my-prompt v2.0.0 --to green
+
+# Test green environment
+curl https://api.example.com/test?env=green
+
+# Switch all traffic to green instantly
+wrangler kv:key put --namespace-id=$KV_ID "active-environment" "green"
+
+# If issues, instant rollback to blue
+wrangler kv:key put --namespace-id=$KV_ID "active-environment" "blue"
+```
+
+## Parallel Execution Patterns
+
+Execute multiple agents concurrently for faster workflows.
+
+### Basic Parallel Execution
+
+```yaml
+ensemble: parallel-fetch
+description: Fetch data from multiple sources concurrently
+
+agents:
+  # Execute all three agents in parallel
+  - parallel:
+      - name: fetch-user-data
+        operation: http
+        config:
+          url: https://api.example.com/users/${input.userId}
+
+      - name: fetch-order-history
+        operation: http
+        config:
+          url: https://api.example.com/orders?userId=${input.userId}
+
+      - name: fetch-preferences
+        operation: http
+        config:
+          url: https://api.example.com/preferences/${input.userId}
+
+  # Combine results (runs after parallel completion)
+  - name: combine-data
+    operation: code
+    config:
+      code: |
+        return {
+          user: ${fetch-user-data.output.body},
+          orders: ${fetch-order-history.output.body},
+          preferences: ${fetch-preferences.output.body}
+        };
+
+output:
+  combined: ${combine-data.output}
+```
+
+**Performance:**
+- Sequential: ~3 seconds (1s + 1s + 1s)
+- Parallel: ~1 second (max of all three)
+- **3x faster!**
+
+### API Calls in Parallel
+
+Gather data from multiple sources simultaneously:
+
+```yaml
+ensemble: gather-company-data
+description: Gather data from multiple sources
+
+agents:
+  - parallel:
+      # Official company website
+      - name: scrape-website
+        agent: scraper
+        config:
+          url: ${input.domain}
+          output: markdown
+
+      # LinkedIn profile
+      - name: fetch-linkedin
+        operation: http
+        config:
+          url: https://api.linkedin.com/companies/${input.companyName}
+          headers:
+            Authorization: Bearer ${env.LINKEDIN_TOKEN}
+
+      # Crunchbase data
+      - name: fetch-crunchbase
+        operation: http
+        config:
+          url: https://api.crunchbase.com/companies/${input.companyName}
+          headers:
+            X-API-Key: ${env.CRUNCHBASE_API_KEY}
+
+      # News articles
+      - name: fetch-news
+        operation: http
+        config:
+          url: https://api.news.com/search?q=${input.companyName}&limit=5
+
+  # Analyze all gathered data
+  - name: analyze-company
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: |
+        Analyze this company based on multiple data sources.
+
+        Website: ${scrape-website.output.content}
+        LinkedIn: ${fetch-linkedin.output.body}
+        Crunchbase: ${fetch-crunchbase.output.body}
+        Recent News: ${fetch-news.output.body.articles}
+
+output:
+  analysis: ${analyze-company.output}
+```
+
+### AI Analysis in Parallel
+
+Run multiple AI analyses concurrently:
+
+```yaml
+ensemble: multi-perspective-analysis
+description: Analyze from multiple perspectives simultaneously
+
+agents:
+  - parallel:
+      # Financial analysis
+      - name: analyze-financials
+        operation: think
+        config:
+          provider: openai
+          model: gpt-4o
+          prompt: |
+            You are a financial analyst. Analyze: ${input.companyData}
+
+      # Market analysis
+      - name: analyze-market
+        operation: think
+        config:
+          provider: anthropic
+          model: claude-3-5-sonnet-20241022
+          prompt: |
+            You are a market analyst. Analyze: ${input.companyData}
+
+      # Technical analysis
+      - name: analyze-technical
+        operation: think
+        config:
+          provider: openai
+          model: gpt-4o
+          prompt: |
+            You are a technical analyst. Analyze: ${input.companyData}
+
+      # Competitive analysis
+      - name: analyze-competition
+        operation: think
+        config:
+          provider: anthropic
+          model: claude-3-5-sonnet-20241022
+          prompt: |
+            You are a competitive analyst. Analyze: ${input.companyData}
+
+  # Synthesize all perspectives
+  - name: synthesize-analysis
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: |
+        Synthesize these analyses into a comprehensive report:
+
+        Financial: ${analyze-financials.output}
+        Market: ${analyze-market.output}
+        Technical: ${analyze-technical.output}
+        Competitive: ${analyze-competition.output}
+
+output:
+  comprehensive: ${synthesize-analysis.output}
+```
+
+### Batch Processing
+
+Process array items in parallel:
+
+```yaml
+ensemble: process-batch
+description: Process multiple items concurrently
+
+agents:
+  # Process each item in parallel
+  - name: process-item
+    operation: think
+    loop:
+      items: ${input.items}
+      parallel: true  # Enable parallel processing
+      max_concurrency: 10  # Max 10 concurrent executions
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
+      prompt: |
+        Process this item: ${loop.item}
+
+output:
+  results: ${process-item.outputs}  # Array of all results
+```
+
+### Mixed Parallel and Sequential
+
+Combine parallel and sequential execution:
+
+```yaml
+ensemble: complex-workflow
+description: Mix of parallel and sequential steps
+
+agents:
+  # Step 1: Fetch user data (sequential)
+  - name: fetch-user
+    operation: http
+    config:
+      url: https://api.example.com/users/${input.userId}
+
+  # Step 2: Fetch related data in parallel
+  - parallel:
+      - name: fetch-orders
+        operation: http
+        config:
+          url: https://api.example.com/orders?userId=${input.userId}
+
+      - name: fetch-reviews
+        operation: http
+        config:
+          url: https://api.example.com/reviews?userId=${input.userId}
+
+      - name: fetch-recommendations
+        operation: http
+        config:
+          url: https://api.example.com/recommendations/${input.userId}
+
+  # Step 3: Process in parallel
+  - parallel:
+      - name: analyze-orders
+        operation: think
+        config:
+          provider: cloudflare
+          model: '@cf/meta/llama-3.1-8b-instruct'
+          prompt: |
+            Analyze these orders: ${fetch-orders.output.body}
+
+      - name: analyze-reviews
+        operation: think
+        config:
+          provider: cloudflare
+          model: '@cf/meta/llama-3.1-8b-instruct'
+          prompt: |
+            Analyze these reviews: ${fetch-reviews.output.body}
+
+  # Step 4: Generate final report (sequential)
+  - name: generate-report
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: |
+        Generate a report based on:
+
+        User: ${fetch-user.output.body}
+        Order Analysis: ${analyze-orders.output}
+        Review Analysis: ${analyze-reviews.output}
+        Recommendations: ${fetch-recommendations.output.body}
+
+output:
+  report: ${generate-report.output}
+```
+
+## Error Handling in Parallel
+
+```yaml
+ensemble: parallel-with-error-handling
+description: Handle errors gracefully in parallel execution
+
+agents:
+  - parallel:
+      - name: critical-task
+        operation: http
+        config:
+          url: https://api.example.com/critical
+        retry:
+          max_attempts: 3
+          backoff: exponential
+
+      - name: optional-task
+        operation: http
+        config:
+          url: https://api.example.com/optional
+        continue_on_error: true  # Don't fail entire parallel block
+
+      - name: another-task
+        operation: http
+        config:
+          url: https://api.example.com/another
+
+  # Check which tasks succeeded
+  - name: handle-results
+    operation: code
+    config:
+      code: |
+        return {
+          critical: ${critical-task.success},
+          optional: ${optional-task.success},
+          another: ${another-task.success},
+          failedTasks: [
+            ${!critical-task.success ? 'critical-task' : null},
+            ${!optional-task.success ? 'optional-task' : null},
+            ${!another-task.success ? 'another-task' : null}
+          ].filter(Boolean)
+        };
+
+output:
+  results: ${handle-results.output}
+```
+
+## Real-World Example: E-commerce Checkout
+
+```yaml
+ensemble: checkout-process
+description: Process checkout with parallel validation and preparation
+
+agents:
+  # Validate everything in parallel
+  - parallel:
+      - name: validate-cart
+        operation: code
+        config:
+          code: |
+            // Validate cart items
+            return { valid: ${input.cart.items.length > 0} };
+
+      - name: validate-payment
+        operation: http
+        config:
+          url: https://api.stripe.com/v1/payment_methods/${input.paymentMethodId}
+          headers:
+            Authorization: Bearer ${env.STRIPE_SECRET_KEY}
+
+      - name: validate-shipping
+        operation: http
+        config:
+          url: https://api.shippo.com/addresses/validate
+          method: POST
+          body: ${input.shippingAddress}
+
+      - name: check-inventory
+        operation: storage
+        config:
+          type: d1
+          query: |
+            SELECT item_id, quantity
+            FROM inventory
+            WHERE item_id IN (${input.cart.items.map(i => i.id).join(',')})
+
+  # Check if all validations passed
+  - name: check-all-valid
+    operation: code
+    config:
+      code: |
+        return {
+          allValid: ${validate-cart.output.valid} &&
+                    ${validate-payment.output.status === 'valid'} &&
+                    ${validate-shipping.output.valid} &&
+                    ${check-inventory.output.length === input.cart.items.length}
+        };
+
+  # If valid, process payment and create shipment simultaneously
+  - parallel:
+      - name: process-payment
+        condition: ${check-all-valid.output.allValid}
+        operation: http
+        config:
+          url: https://api.stripe.com/v1/payment_intents
+          method: POST
+          headers:
+            Authorization: Bearer ${env.STRIPE_SECRET_KEY}
+          body:
+            amount: ${input.cart.total}
+            payment_method: ${input.paymentMethodId}
+
+      - name: create-shipment
+        condition: ${check-all-valid.output.allValid}
+        operation: http
+        config:
+          url: https://api.shippo.com/shipments
+          method: POST
+          body:
+            address: ${input.shippingAddress}
+            items: ${input.cart.items}
+
+  # Send notifications in parallel
+  - parallel:
+      - name: send-confirmation-email
+        operation: email
+        config:
+          to: ${input.customerEmail}
+          subject: Order Confirmation ${process-payment.output.id}
+          template: order-confirmation
+
+      - name: send-sms
+        operation: sms
+        config:
+          to: ${input.customerPhone}
+          message: Your order ${process-payment.output.id} is confirmed!
+
+      - name: update-analytics
+        operation: storage
+        config:
+          type: d1
+          query: |
+            INSERT INTO orders (id, user_id, amount, created_at)
+            VALUES (?, ?, ?, ?)
+          params:
+            - ${process-payment.output.id}
+            - ${input.userId}
+            - ${input.cart.total}
+            - ${Date.now()}
+
+output:
+  orderId: ${process-payment.output.id}
+  trackingNumber: ${create-shipment.output.tracking_number}
+  success: ${check-all-valid.output.allValid}
+```
+
+## Performance Comparison
+
+### Sequential Execution
+
+```yaml
+# Total time: 5 seconds
+agents:
+  - name: task-1
+    operation: http  # 1 second
+  - name: task-2
+    operation: http  # 1 second
+  - name: task-3
+    operation: http  # 1 second
+  - name: task-4
+    operation: http  # 1 second
+  - name: task-5
+    operation: http  # 1 second
+```
+
+### Parallel Execution
+
+```yaml
+# Total time: 1 second
+agents:
+  - parallel:
+      - name: task-1
+        operation: http  # 1 second
+      - name: task-2
+        operation: http  # 1 second
+      - name: task-3
+        operation: http  # 1 second
+      - name: task-4
+        operation: http  # 1 second
+      - name: task-5
+        operation: http  # 1 second
+```
+
+### Mixed Execution
+
+```yaml
+# Total time: 3 seconds
+agents:
+  - name: task-1
+    operation: http  # 1 second
+
+  - parallel:          # 1 second (max of parallel)
+      - name: task-2
+        operation: http
+      - name: task-3
+        operation: http
+      - name: task-4
+        operation: http
+
+  - name: task-5
+    operation: http  # 1 second
+```
+
+## Best Practices
+
+### 1. Parallelize Independent Tasks
+
+```yaml
+# Good - tasks don't depend on each other
+agents:
+  - parallel:
+      - name: fetch-user
+        operation: http
+      - name: fetch-settings
+        operation: http
+      - name: fetch-config
+        operation: http
+
+# Bad - task-2 depends on task-1
+agents:
+  - parallel:
+      - name: fetch-user
+        operation: http
+      - name: analyze-user  # Needs fetch-user output
+        operation: think
+        input: ${fetch-user.output}  # Won't work!
+```
+
+### 2. Use State for Shared Data
+
+```yaml
+ensemble: shared-data-example
+
+state:
+  schema:
+    baseData: object
+
+agents:
+  # Fetch shared data first
+  - name: fetch-base-data
+    operation: http
+    config:
+      url: https://api.example.com/base
+    state:
+      set: [baseData]
+
+  # Use shared data in parallel
+  - parallel:
+      - name: process-a
+        operation: think
+        state:
+          use: [baseData]
+        config:
+          prompt: Process A with ${state.baseData}
+
+      - name: process-b
+        operation: think
+        state:
+          use: [baseData]
+        config:
+          prompt: Process B with ${state.baseData}
+```
+
+### 3. Set Concurrency Limits
+
+```yaml
+# Good - limit concurrent API calls
+agents:
+  - name: process-items
+    operation: http
+    loop:
+      items: ${input.items}
+      parallel: true
+      max_concurrency: 10  # Max 10 at once
+
+# Bad - might hit rate limits
+agents:
+  - name: process-items
+    operation: http
+    loop:
+      items: ${input.items}
+      parallel: true  # Could spawn 1000s
+```
+
+### 4. Handle Partial Failures
+
+```yaml
+agents:
+  - parallel:
+      - name: critical-task
+        operation: http
+        # Fail if this fails
+
+      - name: optional-task
+        operation: http
+        continue_on_error: true  # Don't fail workflow
+
+      - name: log-task
+        operation: storage
+        continue_on_error: true  # Logging shouldn't block
+```
+
+## Monitoring Progressive Deployments
+
+Track deployment metrics in real-time:
+
+```yaml
+ensemble: monitored-deployment
+description: Track version performance
+
+agents:
+  # Route to version
   - name: get-rollout-percentage
     operation: storage
     config:
@@ -44,20 +789,156 @@ agents:
 
   - name: new-version
     condition: ${input.user_id % 100 < get-rollout-percentage.output}
-    agent: my-agent@v2.0.0
+    operation: think
+    component: my-prompt@v2.0.0
 
   - name: stable-version
     condition: ${input.user_id % 100 >= get-rollout-percentage.output}
-    agent: my-agent@v1.0.0
+    operation: think
+    component: my-prompt@v1.0.0
+
+  # Log metrics
+  - name: log-metrics
+    operation: storage
+    config:
+      type: d1
+      query: |
+        INSERT INTO metrics (
+          user_id, version, latency, success, timestamp
+        ) VALUES (?, ?, ?, ?, ?)
+      params:
+        - ${input.user_id}
+        - ${new-version.executed ? 'v2.0.0' : 'v1.0.0'}
+        - ${new-version.latency || stable-version.latency}
+        - ${new-version.success || stable-version.success}
+        - ${Date.now()}
+
+output:
+  version: ${new-version.executed ? 'v2.0.0' : 'v1.0.0'}
+  result: ${new-version.output || stable-version.output}
+```
+
+Query metrics:
+
+```sql
+-- Compare version performance
+SELECT
+  version,
+  COUNT(*) as requests,
+  AVG(latency) as avg_latency,
+  SUM(CASE WHEN success THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate
+FROM metrics
+WHERE timestamp > strftime('%s', 'now', '-1 hour') * 1000
+GROUP BY version;
+```
+
+## Auto-Rollback on Errors
+
+Automatically rollback if error rate exceeds threshold:
+
+```typescript
+// Check error rates every minute
+export default {
+  async scheduled(event: ScheduledEvent, env: Env) {
+    // Query error rates from last 5 minutes
+    const result = await env.DB.prepare(`
+      SELECT
+        version,
+        SUM(CASE WHEN success THEN 0 ELSE 1 END) * 100.0 / COUNT(*) as error_rate
+      FROM metrics
+      WHERE timestamp > ? AND version = 'v2.0.0'
+      GROUP BY version
+    `).bind(Date.now() - 5 * 60 * 1000).first();
+
+    // If error rate > 5%, rollback
+    if (result && result.error_rate > 5) {
+      console.log(`Error rate ${result.error_rate}% exceeds threshold. Rolling back...`);
+
+      // Set canary to 0% (effectively disables new version)
+      await env.CACHE.put('rollout-percentage', '0');
+
+      // Alert team
+      await fetch('https://hooks.slack.com/...', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: `Auto-rollback triggered: v2.0.0 error rate at ${result.error_rate}%`
+        })
+      });
+    }
+  }
+};
+```
+
+## Testing Progressive Deployments
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TestConductor } from '@ensemble-edge/conductor/testing';
+
+describe('progressive-rollout', () => {
+  it('should route based on rollout percentage', async () => {
+    const conductor = await TestConductor.create();
+
+    // Set 25% rollout
+    await conductor.env.CACHE.put('rollout-percentage', '25');
+
+    let newVersionCount = 0;
+    let stableVersionCount = 0;
+
+    // Test 100 users
+    for (let i = 0; i < 100; i++) {
+      const result = await conductor.execute('progressive-rollout', {
+        user_id: i
+      });
+
+      if (result.output.version === 'v2.0.0') {
+        newVersionCount++;
+      } else {
+        stableVersionCount++;
+      }
+    }
+
+    // Should be approximately 25/75 split
+    expect(newVersionCount).toBeCloseTo(25, 5);
+    expect(stableVersionCount).toBeCloseTo(75, 5);
+  });
+
+  it('should execute parallel agents faster than sequential', async () => {
+    const conductor = await TestConductor.create();
+
+    const startTime = performance.now();
+    const result = await conductor.execute('parallel-fetch', {
+      userId: 123
+    });
+    const duration = performance.now() - startTime;
+
+    expect(result).toBeSuccessful();
+    expect(result).toHaveExecutedAgent('fetch-user-data');
+    expect(result).toHaveExecutedAgent('fetch-order-history');
+    expect(result).toHaveExecutedAgent('fetch-preferences');
+
+    // Should be faster than sequential (< 2s vs 3s)
+    expect(duration).toBeLessThan(2000);
+  });
+});
 ```
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="A/B Testing" icon="flask" href="/conductor/playbooks/ab-testing-prompts">
-    Testing patterns
+    Test multiple versions simultaneously
   </Card>
+
   <Card title="Multivariate Testing" icon="vials" href="/conductor/playbooks/multivariate-agent-testing">
-    Multiple variants
+    Test multiple variables at once
+  </Card>
+
+  <Card title="Deployment Strategies" icon="rocket" href="/edgit/guides/deployment-strategies">
+    Edgit deployment patterns
+  </Card>
+
+  <Card title="Rollback & Time Travel" icon="clock-rotate-left" href="/edgit/guides/rollback-time-travel">
+    Emergency rollback procedures
   </Card>
 </CardGroup>
