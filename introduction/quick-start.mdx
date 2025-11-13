@@ -172,7 +172,7 @@ Response:
 }
 ```
 
-Run it again - see `"cached": true` and <10ms response time.
+Run it again - see `"cached": true` and &lt;10ms response time.
 
 ## Step 6: Deploy to Production
 
@@ -197,7 +197,7 @@ curl https://my-ai-workflow.your-subdomain.workers.dev/ensembles/company-intel \
 ## What Just Happened?
 
 1. **Edge Execution** - Your workflow runs on Cloudflare's network at 200+ locations
-2. **Sub-50ms Cold Starts** - First request takes ~40ms, cached requests <10ms
+2. **Sub-50ms Cold Starts** - First request takes ~40ms, cached requests &lt;10ms
 3. **Built-in Caching** - HTTP responses cached in KV automatically
 4. **AI Gateway** - All AI calls tracked and cached via Cloudflare AI Gateway
 5. **Structured Outputs** - JSON response format enforced
@@ -346,9 +346,9 @@ agents:
   </Accordion>
 
   <Accordion icon="circle-exclamation" title="Cold starts taking longer than 50ms">
-    First request always takes longer (~100-200ms). Subsequent requests should be <50ms cold start + execution time.
+    First request always takes longer (~100-200ms). Subsequent requests should be &lt;50ms cold start + execution time.
 
-    Enable caching to get <10ms for repeated requests:
+    Enable caching to get &lt;10ms for repeated requests:
     ```yaml
     config:
       cache_ttl: 3600  # Cache for 1 hour
