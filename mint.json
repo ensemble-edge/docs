@@ -24,6 +24,9 @@
     "default": "light",
     "isHidden": false
   },
+  "cache": {
+    "enabled": false
+  },
   "font": {
     "headings": {
       "family": "Space Grotesk",
