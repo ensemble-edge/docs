@@ -365,7 +365,7 @@ Run all three in parallel and compare results. Welcome to the multiverse.
 
 ### A/B Testing Made Trivial
 
-Test 2 agent versions × 3 prompt versions × 2 configs = 12 variants:
+Test 2 agent versions  3 prompt versions  2 configs = 12 variants:
 
 ```yaml
 agents:
@@ -453,11 +453,11 @@ Cached request: &lt;10ms
 **Ensembles can't use operations directly:**
 
 ```yaml
-# ❌ Wrong - ensembles don't execute operations
+#  Wrong - ensembles don't execute operations
 ensemble: my-workflow
 operation: think  # ERROR
 
-# ✅ Right - ensembles orchestrate agents
+#  Right - ensembles orchestrate agents
 ensemble: my-workflow
 agents:
   - name: analyzer
@@ -467,10 +467,10 @@ agents:
 **Ensembles aren't versioned:**
 
 ```yaml
-# ❌ No such thing as ensemble@v1.0.0
+#  No such thing as ensemble@v1.0.0
 # Ensembles are deployment configurations
 
-# ✅ Components and agents are versioned
+#  Components and agents are versioned
 agents:
   - name: analyzer
     agent: analyzer@v1.0.0
@@ -486,7 +486,7 @@ Think of it like a restaurant:
 - **Components** = Recipes (versioned, can be updated independently)
 - **Agents** = Chefs (execute using recipes and tools)
 - **Ensembles** = Menu/Order (orchestrate which chefs make which dishes)
-- **Operations** = Cooking techniques (grill, bake, sauté)
+- **Operations** = Cooking techniques (grill, bake, saut)
 - **Conductor** = Kitchen manager (coordinates everything)
 
 You version the recipes and train chefs. The menu composition changes based on what's optimal.

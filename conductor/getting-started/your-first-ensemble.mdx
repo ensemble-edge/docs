@@ -114,7 +114,7 @@ Result:
 
 ## Parallel Execution
 
-The previous example runs sequentially (check-explicit ’ check-hate ’ check-spam). Let's run checks in parallel:
+The previous example runs sequentially (check-explicit  check-hate  check-spam). Let's run checks in parallel:
 
 ```yaml
 ensemble: moderate-content-parallel
@@ -163,7 +163,7 @@ output:
   safe: ${aggregate.output.safe}
 ```
 
-**Performance**: Sequential ~1200ms ’ Parallel ~400ms (3x faster!)
+**Performance**: Sequential ~1200ms  Parallel ~400ms (3x faster!)
 
 Conductor automatically runs agents in parallel when there are no dependencies.
 

@@ -545,7 +545,7 @@ agents:
       url: ${env.SLACK_WEBHOOK}
       method: POST
       body:
-        text: ⚠️ Low Stock Alert
+        text:  Low Stock Alert
         blocks:
           - type: section
             text:
@@ -553,7 +553,7 @@ agents:
               text: |
                 *Low Stock Items (${has-low-stock.output.count})*
                 ${check-low-stock.output.map(item =>
-                  `• ${item.product_name}: ${item.quantity} units (reorder at ${item.reorder_level})`
+                  ` ${item.product_name}: ${item.quantity} units (reorder at ${item.reorder_level})`
                 ).join('\n')}
 
   # Send email to purchasing team

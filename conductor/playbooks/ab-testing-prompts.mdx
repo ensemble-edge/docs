@@ -354,7 +354,7 @@ agents:
           - ${extract.qualityScore}
 ```
 
-**This tests 2 × 2 × 2 = 8 variants:**
+**This tests 2  2  2 = 8 variants:**
 - conservative + gpt-4o + 0.3
 - conservative + gpt-4o + 0.7
 - conservative + claude + 0.3
@@ -580,11 +580,11 @@ edgit deploy set extraction-prompt v1.0.0 --to prod
 Start simple:
 
 ```yaml
-# ✅ Good: Test prompt only
+#  Good: Test prompt only
 variant-a: extraction-prompt@v1.0.0 + gpt-4o + temp 0.3
 variant-b: extraction-prompt@v2.0.0 + gpt-4o + temp 0.3
 
-# ❌ Bad: Change everything
+#  Bad: Change everything
 variant-a: extraction-prompt@v1.0.0 + gpt-4o + temp 0.3
 variant-b: different-prompt@v1.0.0 + claude + temp 0.7
 ```
@@ -607,7 +607,7 @@ if (samples < MIN_SAMPLES || daysSinceStart < MIN_DAYS) {
 Track actual outcomes:
 
 ```typescript
-// ✅ Good
+//  Good
 await logMetric({
   variant,
   qualityScore: result.score,
@@ -615,7 +615,7 @@ await logMetric({
   revenue: await getRevenue(userId)
 });
 
-// ❌ Bad - optimize proxy without checking actual goal
+//  Bad - optimize proxy without checking actual goal
 await logMetric({
   variant,
   clicks: clickCount
@@ -691,5 +691,5 @@ describe('prompt-ab-test', () => {
 </CardGroup>
 
 <Note>
-  A/B testing is not a feature—it's a fundamental architectural capability of Ensemble Edge. Version prompts independently, deploy instantly at the edge, and let Conductor measure quality automatically.
+  A/B testing is not a featureit's a fundamental architectural capability of Ensemble Edge. Version prompts independently, deploy instantly at the edge, and let Conductor measure quality automatically.
 </Note>

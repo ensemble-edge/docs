@@ -5,7 +5,7 @@ description: "Test multiple variables simultaneously across models, prompts, tem
 
 # Multivariate Agent Testing Playbook
 
-**Test combinations: models × prompts × temperatures × agents. Find the optimal configuration faster.**
+**Test combinations: models  prompts  temperatures  agents. Find the optimal configuration faster.**
 
 Multivariate testing goes beyond simple A/B tests by testing multiple variables simultaneously. Instead of testing 2 variants, test 4, 8, or even 16 variants to find the best combination of model, prompt, temperature, and agent configuration.
 
@@ -24,13 +24,13 @@ Multivariate testing goes beyond simple A/B tests by testing multiple variables 
   - Prompt B + Model Y
 - Find optimal combination in days
 
-## 2×2 Test (4 Variants)
+## 22 Test (4 Variants)
 
-Test 2 models × 2 prompts = 4 combinations:
+Test 2 models  2 prompts = 4 combinations:
 
 ```yaml
 ensemble: multivariate-2x2
-description: Test 2 models × 2 prompts
+description: Test 2 models  2 prompts
 
 agents:
   # Model A (GPT-4o) + Prompt A (25%)
@@ -111,13 +111,13 @@ GROUP BY variant, model, prompt
 ORDER BY quality_rate DESC, avg_latency ASC;
 ```
 
-## 2×2×2 Test (8 Variants)
+## 222 Test (8 Variants)
 
-Test 2 models × 2 prompts × 2 temperatures = 8 combinations:
+Test 2 models  2 prompts  2 temperatures = 8 combinations:
 
 ```yaml
 ensemble: multivariate-2x2x2
-description: Test 2 models × 2 prompts × 2 temperatures
+description: Test 2 models  2 prompts  2 temperatures
 
 agents:
   # GPT-4o + Prompt A + Temp 0.3 (12.5%)
@@ -734,16 +734,16 @@ describe('multivariate-test', () => {
 Test all combinations systematically:
 
 ```
-2 models × 2 prompts = 4 variants (2²)
-2 models × 2 prompts × 2 temps = 8 variants (2³)
-3 models × 2 prompts × 2 temps = 12 variants (3×2×2)
+2 models  2 prompts = 4 variants (2)
+2 models  2 prompts  2 temps = 8 variants (2)
+3 models  2 prompts  2 temps = 12 variants (322)
 ```
 
 ### 2. Ensure Sufficient Sample Size
 
 ```typescript
 // Minimum sample size per variant
-const minSampleSize = 385; // For 95% confidence, ±5% margin
+const minSampleSize = 385; // For 95% confidence, 5% margin
 
 // Monitor sample sizes
 const sampleSizes = await env.DB.prepare(`
