@@ -157,6 +157,12 @@
       ]
     },
     {
+      "group": "Components",
+      "pages": [
+        "conductor/components/schemas"
+      ]
+    },
+    {
       "group": "Operations Reference",
       "pages": [
         "conductor/operations/overview",

@@ -1,1475 +1,737 @@
 ---
 title: "tools Operation"
-description: "Execute MCP tools and custom skills"
+description: "Invoke external MCP tools over HTTP"
 ---
 
 # tools Operation
 
-**Execute external tools via Model Context Protocol (MCP) or custom skills for web search, file operations, API integrations, and more.**
+**Invoke external Model Context Protocol (MCP) tools over HTTP to extend Conductor with third-party capabilities.**
 
-The `tools` operation extends Conductor with external capabilities beyond built-in operations. Use it for web search, browser automation, code execution, file operations, and any custom functionality you need.
+The `tools` operation allows ensembles to call external MCP servers (like GitHub MCP, Brave Search MCP, or custom MCP servers) via HTTP. This enables integration with any MCP-compatible service without requiring subprocess execution.
+
+## Overview
+
+With Cloudflare's announcement of MCP support (November 2024), Conductor implements **HTTP-only MCP** transport for secure, scalable tool integration on the edge. This approach:
+
+- Works in Cloudflare Workers (no Node.js required)
+- Scales horizontally with zero configuration
+- Provides built-in auth (bearer tokens, OAuth)
+- Supports HMAC signature verification
+- Integrates seamlessly with existing infrastructure
 
 ## Basic Usage
 
 ```yaml
-operations:
-  - name: search
+ensemble: github-pr-analyzer
+
+agents:
+  - name: get-pr
     operation: tools
     config:
-      tool: web-search
-      params:
-        query: ${input.query}
-        max_results: 5
+      mcp: github              # MCP server name
+      tool: get_pull_request   # Tool to invoke
+      timeout: 10000
+
+inputs:
+  owner: anthropics
+  repo: anthropic-sdk-typescript
+  pull_number: 123
+
+outputs:
+  pr_data: ${get-pr.output}
 ```
 
 ## Configuration
 
+### Agent Config
+
 ```yaml
 config:
-  tool: string           # Tool identifier (built-in, MCP, or skill)
-  params: object         # Tool-specific parameters
-  timeout: number        # Timeout in milliseconds (default: 30000)
-  retry:                 # Optional retry configuration
-    maxAttempts: number
-    backoff: string      # linear, exponential
+  mcp: string          # MCP server name from conductor.config.ts
+  tool: string         # Tool name to invoke
+  timeout: number      # Request timeout in ms (default: 30000)
+  cacheDiscovery: boolean   # Cache tool discovery (default: false)
+  cacheTTL: number     # Discovery cache TTL in seconds (default: 300)
 ```
 
-## Built-in Tools
+### Input
 
-Conductor includes several built-in tools that work out of the box.
-
-### Web Search
-
-Search the web with DuckDuckGo (no API key required):
+The agent input becomes the tool's `arguments`:
 
 ```yaml
-operations:
-  - name: search
-    operation: tools
-    config:
-      tool: web-search
-      params:
-        query: ${input.query}
-        max_results: 10                  # Number of results (default: 5)
-        time_range: week                 # hour, day, week, month, year, all
+inputs:
+  owner: anthropics
+  repo: anthropic-sdk-typescript
+  pull_number: 123
 ```
 
-**Output**:
-```yaml
+Becomes:
+
+```json
 {
-  results: [
-    {
-      title: "Result title",
-      url: "https://example.com",
-      snippet: "Description of the result..."
-    }
-  ],
-  query: "original query",
-  count: 10
+  "name": "get_pull_request",
+  "arguments": {
+    "owner": "anthropics",
+    "repo": "anthropic-sdk-typescript",
+    "pull_number": 123
+  }
 }
 ```
 
-### File Read
+### Output
 
-Read files from the filesystem:
-
-```yaml
-operations:
-  - name: read-config
-    operation: tools
-    config:
-      tool: file-read
-      params:
-        path: ${input.file_path}
-        encoding: utf8                   # utf8, base64, hex (default: utf8)
-```
-
-**Output**:
-```yaml
+```typescript
 {
-  content: "file contents",
-  path: "/path/to/file",
-  size: 1024,
-  encoding: "utf8"
+  tool: string         // Tool name that was invoked
+  server: string       // MCP server name
+  content: unknown     // Tool output (format varies by tool)
+  duration: number     // Execution time in ms
+  isError: boolean     // Whether tool returned an error
 }
 ```
 
-### File Write
+## Setup MCP Servers
 
-Write files to the filesystem:
-
-```yaml
-operations:
-  - name: save-report
-    operation: tools
-    config:
-      tool: file-write
-      params:
-        path: ${input.output_path}
-        content: ${generate.output}
-        encoding: utf8                   # utf8, base64, hex
-        mode: 0o644                      # File permissions (optional)
-```
-
-**Output**:
-```yaml
-{
-  success: true,
-  path: "/path/to/file",
-  bytes: 1024
-}
-```
-
-### Code Execution
-
-Execute code in a sandboxed environment:
-
-```yaml
-operations:
-  - name: run-python
-    operation: tools
-    config:
-      tool: code-exec
-      params:
-        language: python                 # python, javascript, bash
-        code: |
-          import numpy as np
-          numbers = [${input.numbers}]
-          result = {
-            'mean': float(np.mean(numbers)),
-            'std': float(np.std(numbers)),
-            'min': float(np.min(numbers)),
-            'max': float(np.max(numbers))
-          }
-          print(result)
-        timeout: 5000                    # Execution timeout (ms)
-```
-
-**Output**:
-```yaml
-{
-  stdout: "{'mean': 50.5, 'std': 28.87, 'min': 1, 'max': 100}",
-  stderr: "",
-  exitCode: 0,
-  duration: 234
-}
-```
-
-## MCP Tools
-
-Model Context Protocol (MCP) is an open protocol for connecting AI systems to external tools and data sources. Conductor implements MCP to use any MCP-compatible tool.
-
-### Configure MCP Server
+### 1. Configure MCP Servers
 
 Create `conductor.config.ts`:
 
 ```typescript
-import type { ConductorConfig } from '@ensemble-edge/conductor';
+import type { ConductorConfig } from '@ensemble-edge/conductor'
 
 const config: ConductorConfig = {
-  tools: {
-    mcp: {
-      servers: {
-        puppeteer: {
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-puppeteer'],
-          env: {
-            PUPPETEER_HEADLESS: 'true',
-            PUPPETEER_TIMEOUT: '30000'
-          }
-        },
-        filesystem: {
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-filesystem'],
-          env: {
-            ALLOWED_DIRECTORIES: '/tmp,/data,/home/user/documents'
-          }
-        },
-        github: {
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-github'],
-          env: {
-            GITHUB_TOKEN: process.env.GITHUB_TOKEN
-          }
-        }
+  mcpServers: {
+    // GitHub MCP Server
+    github: {
+      url: 'https://github-mcp.example.com',
+      auth: {
+        type: 'bearer',
+        token: process.env.GITHUB_MCP_TOKEN
+      },
+      timeout: 15000
+    },
+
+    // Brave Search MCP Server
+    brave: {
+      url: 'https://brave-search-mcp.example.com',
+      auth: {
+        type: 'bearer',
+        token: process.env.BRAVE_API_KEY
       }
+    },
+
+    // Custom MCP Server with OAuth
+    custom: {
+      url: 'https://custom-mcp.example.com',
+      auth: {
+        type: 'oauth',
+        clientId: process.env.OAUTH_CLIENT_ID,
+        clientSecret: process.env.OAUTH_CLIENT_SECRET,
+        tokenUrl: 'https://auth.example.com/oauth/token'
+      },
+      timeout: 20000
+    },
+
+    // Public MCP Server (no auth)
+    public: {
+      url: 'https://public-mcp.example.com'
     }
   }
-};
+}
 
-export default config;
+export default config
 ```
 
-### Install MCP Servers
+### 2. Set Environment Variables
 
 ```bash
-# Install MCP servers globally
-npm install -g @modelcontextprotocol/server-puppeteer
-npm install -g @modelcontextprotocol/server-filesystem
-npm install -g @modelcontextprotocol/server-github
-
-# Or install locally in your project
-npm install @modelcontextprotocol/server-puppeteer
-npm install @modelcontextprotocol/server-filesystem
-npm install @modelcontextprotocol/server-github
+# .dev.vars (for local development)
+GITHUB_MCP_TOKEN=ghp_xxx
+BRAVE_API_KEY=BSAxxx
+OAUTH_CLIENT_ID=client_xxx
+OAUTH_CLIENT_SECRET=secret_xxx
 ```
 
-### Puppeteer (Browser Automation)
+```toml
+# wrangler.toml (for production)
+[vars]
+# Public variables (non-sensitive)
 
-Take screenshots, scrape pages, and automate browsers:
-
-```yaml
-operations:
-  # Screenshot
-  - name: screenshot
-    operation: tools
-    config:
-      tool: mcp:puppeteer:screenshot
-      params:
-        url: ${input.url}
-        width: 1920
-        height: 1080
-        fullPage: true
-
-  # Scrape page content
-  - name: scrape
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape
-      params:
-        url: ${input.url}
-        selector: .main-content        # Optional CSS selector
-        waitFor: networkidle0          # Wait condition
-
-  # Click and navigate
-  - name: interact
-    operation: tools
-    config:
-      tool: mcp:puppeteer:click
-      params:
-        url: ${input.url}
-        selector: button#submit
-        waitForNavigation: true
+[[env.production.vars]]
+# Production secrets via wrangler secret
 ```
 
-### Filesystem
-
-Advanced file operations:
-
-```yaml
-operations:
-  # Read file
-  - name: read
-    operation: tools
-    config:
-      tool: mcp:filesystem:read_file
-      params:
-        path: /data/document.txt
-
-  # Write file
-  - name: write
-    operation: tools
-    config:
-      tool: mcp:filesystem:write_file
-      params:
-        path: /data/output.txt
-        content: ${process.output}
-
-  # List directory
-  - name: list
-    operation: tools
-    config:
-      tool: mcp:filesystem:list_directory
-      params:
-        path: /data
-        recursive: true
-
-  # Search files
-  - name: search
-    operation: tools
-    config:
-      tool: mcp:filesystem:search_files
-      params:
-        path: /data
-        pattern: "*.json"
-        content: ${input.search_term}  # Search file contents
+```bash
+# Set secrets in production
+wrangler secret put GITHUB_MCP_TOKEN
+wrangler secret put BRAVE_API_KEY
+wrangler secret put OAUTH_CLIENT_SECRET
 ```
 
-### GitHub
+## MCP Server Examples
 
-Interact with GitHub repositories:
+### GitHub MCP
+
+Interact with GitHub repositories, pull requests, and issues:
 
 ```yaml
-operations:
-  # Get repository info
-  - name: repo-info
-    operation: tools
-    config:
-      tool: mcp:github:get_repo
-      params:
-        owner: ${input.owner}
-        repo: ${input.repo}
+ensemble: github-pr-review
 
-  # List issues
-  - name: list-issues
+agents:
+  # Get pull request data
+  - name: get-pr
     operation: tools
     config:
-      tool: mcp:github:list_issues
-      params:
-        owner: ${input.owner}
-        repo: ${input.repo}
-        state: open
-        labels: bug,enhancement
+      mcp: github
+      tool: get_pull_request
 
-  # Create issue
-  - name: create-issue
+  # List PR files
+  - name: list-files
     operation: tools
     config:
-      tool: mcp:github:create_issue
-      params:
-        owner: ${input.owner}
-        repo: ${input.repo}
-        title: ${input.issue_title}
-        body: ${input.issue_body}
-        labels: [bug]
+      mcp: github
+      tool: list_pull_request_files
 
   # Get file contents
   - name: get-file
     operation: tools
     config:
-      tool: mcp:github:get_file
-      params:
-        owner: ${input.owner}
-        repo: ${input.repo}
-        path: src/index.ts
-```
+      mcp: github
+      tool: get_file_contents
 
-## Custom Skills
-
-Create custom tools as "skills" for reusable functionality.
-
-### Define Skill
-
-```typescript
-// skills/calculate-roi/index.ts
-export interface ROIParams {
-  revenue: number;
-  cost: number;
-  years?: number;
-}
-
-export interface ROIOutput {
-  profit: number;
-  roi: number;
-  roi_formatted: string;
-  annualized_roi?: number;
-}
-
-export default async function calculateROI({ params, env }): Promise<ROIOutput> {
-  const { revenue, cost, years = 1 } = params as ROIParams;
-
-  // Validate inputs
-  if (cost === 0) {
-    throw new Error('Cost cannot be zero');
-  }
-
-  const profit = revenue - cost;
-  const roi = (profit / cost) * 100;
-
-  let result: ROIOutput = {
-    profit,
-    roi: parseFloat(roi.toFixed(2)),
-    roi_formatted: `${roi.toFixed(2)}%`
-  };
-
-  // Calculate annualized ROI if multi-year
-  if (years > 1) {
-    const annualizedRoi = (Math.pow(revenue / cost, 1 / years) - 1) * 100;
-    result.annualized_roi = parseFloat(annualizedRoi.toFixed(2));
-  }
-
-  return result;
-}
-```
-
-### Skill Metadata
-
-```yaml
-# skills/calculate-roi/skill.yaml
-name: calculate-roi
-description: Calculate return on investment with optional annualization
-
-parameters:
-  revenue:
-    type: number
-    required: true
-    description: Total revenue generated
-  cost:
-    type: number
-    required: true
-    description: Total cost invested
-  years:
-    type: number
-    required: false
-    description: Number of years for annualized ROI calculation
-    default: 1
-
-returns:
-  type: object
-  properties:
-    profit:
-      type: number
-      description: Net profit (revenue - cost)
-    roi:
-      type: number
-      description: Return on investment percentage
-    roi_formatted:
-      type: string
-      description: Formatted ROI string with % symbol
-    annualized_roi:
-      type: number
-      description: Annualized ROI for multi-year investments
-```
-
-### Use Custom Skill
-
-```yaml
-operations:
-  - name: calculate
-    operation: tools
-    config:
-      tool: skill:calculate-roi
-      params:
-        revenue: ${input.revenue}
-        cost: ${input.cost}
-        years: ${input.years}
-
-outputs:
-  roi: ${calculate.output.roi}
-  profit: ${calculate.output.profit}
-  roi_display: ${calculate.output.roi_formatted}
-```
-
-## Common Patterns
-
-### Search and Analyze
-
-```yaml
-ensemble: research-assistant
-
-operations:
-  # Step 1: Search web
-  - name: search
-    operation: tools
-    config:
-      tool: web-search
-      params:
-        query: ${input.question}
-        max_results: 5
-
-  # Step 2: Scrape top result
-  - name: scrape
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape
-      params:
-        url: ${search.output.results[0].url}
-
-  # Step 3: Analyze with AI
+  # Analyze with AI
   - name: analyze
     operation: think
     config:
-      provider: openai
-      model: gpt-4o-mini
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: |
+        Pull Request: ${get-pr.output}
+        Files Changed: ${list-files.output}
+        File Contents: ${get-file.output}
+
+        Review this PR and provide feedback.
+
+inputs:
+  owner: anthropics
+  repo: anthropic-sdk-typescript
+  pull_number: 123
+  file_path: src/index.ts
+
+outputs:
+  review: ${analyze.output}
+  pr_data: ${get-pr.output}
+```
+
+### Brave Search MCP
+
+Web search with Brave Search API:
+
+```yaml
+ensemble: web-research
+
+agents:
+  # Web search
+  - name: search
+    operation: tools
+    config:
+      mcp: brave
+      tool: web_search
+
+  # Summarize results with AI
+  - name: summarize
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
       prompt: |
         Search Results:
-        ${search.output.results}
-
-        Page Content:
-        ${scrape.output.content}
+        ${search.output}
 
         Question: ${input.question}
 
         Provide a comprehensive answer with citations.
 
+inputs:
+  query: "Model Context Protocol specification"
+  count: 10
+
 outputs:
-  answer: ${analyze.output}
-  sources: ${search.output.results}
+  answer: ${summarize.output}
+  sources: ${search.output}
 ```
+
+### Custom MCP Server
+
+Call your own MCP server:
+
+```yaml
+ensemble: data-processor
+
+agents:
+  # Call custom tool
+  - name: process
+    operation: tools
+    config:
+      mcp: custom
+      tool: process_data
+      timeout: 30000
+
+inputs:
+  data: ${input.raw_data}
+  format: json
+
+outputs:
+  processed: ${process.output}
+```
+
+## Common Patterns
 
 ### Sequential Tool Calls
 
 ```yaml
-operations:
-  # Step 1: Search
-  - name: search
+ensemble: github-analysis
+
+agents:
+  # Step 1: Get repository
+  - name: get-repo
     operation: tools
     config:
-      tool: web-search
-      params:
-        query: ${input.company} official website
+      mcp: github
+      tool: get_repo
 
-  # Step 2: Scrape first result
-  - name: scrape
+  # Step 2: List issues
+  - name: list-issues
     operation: tools
     config:
-      tool: mcp:puppeteer:scrape
-      params:
-        url: ${search.output.results[0].url}
+      mcp: github
+      tool: list_issues
 
-  # Step 3: Extract contact info
-  - name: extract
+  # Step 3: Analyze issues
+  - name: analyze
     operation: think
     config:
-      provider: openai
-      model: gpt-4o-mini
-      responseFormat: json
+      provider: anthropic
+      model: claude-sonnet-4
       prompt: |
-        From this website content, extract:
-        - Company name
-        - Email addresses
-        - Phone numbers
-        - Physical address
+        Repository: ${get-repo.output}
+        Issues: ${list-issues.output}
 
-        Return JSON with these fields.
+        Analyze the project's issue trends.
 
-        Content: ${scrape.output.content}
+inputs:
+  owner: anthropics
+  repo: anthropic-sdk-typescript
+  state: open
 
 outputs:
-  contact_info: ${extract.output}
-  source_url: ${search.output.results[0].url}
+  analysis: ${analyze.output}
+  issue_count: ${list-issues.output.length}
 ```
 
 ### Parallel Tool Calls
 
 ```yaml
-operations:
-  # These run in parallel
-  - name: search-web
-    operation: tools
-    config:
-      tool: web-search
-      params:
-        query: ${input.query}
+ensemble: multi-source-search
 
-  - name: search-docs
+agents:
+  # These run in parallel
+  - name: search-brave
     operation: tools
     config:
-      tool: file-read
-      params:
-        path: /docs/knowledge-base.json
+      mcp: brave
+      tool: web_search
 
   - name: search-github
     operation: tools
     config:
-      tool: mcp:github:search_code
-      params:
-        query: ${input.query}
-        repo: ${input.repo}
+      mcp: github
+      tool: search_code
 
   # Combine results
   - name: synthesize
     operation: think
     config:
-      provider: openai
-      model: gpt-4o
+      provider: anthropic
+      model: claude-sonnet-4
       prompt: |
-        Web Results: ${search-web.output}
-        Docs: ${search-docs.output}
-        Code: ${search-github.output}
+        Brave Results: ${search-brave.output}
+        GitHub Results: ${search-github.output}
 
-        Question: ${input.query}
+        Question: ${input.question}
 
-        Synthesize a comprehensive answer using all sources.
+        Synthesize a comprehensive answer.
+
+inputs:
+  question: "How to implement MCP servers"
+  brave_query: "MCP server implementation guide"
+  github_query: "mcp server"
+  github_repo: "anthropics/model-context-protocol"
 
 outputs:
   answer: ${synthesize.output}
   sources:
-    web: ${search-web.output}
-    docs: ${search-docs.output}
-    code: ${search-github.output}
+    brave: ${search-brave.output}
+    github: ${search-github.output}
 ```
 
 ### Tool with Fallback
 
 ```yaml
-operations:
+agents:
+  # Try primary tool
   - name: search-primary
     operation: tools
     config:
-      tool: mcp:brave:search
-      params:
-        query: ${input.query}
-    retry:
-      maxAttempts: 2
+      mcp: brave
+      tool: web_search
 
+  # Fallback if primary fails
   - name: search-fallback
     condition: ${search-primary.failed}
-    operation: tools
+    operation: api
     config:
-      tool: web-search
+      url: https://api.duckduckgo.com/
+      method: GET
       params:
-        query: ${input.query}
+        q: ${input.query}
 
 outputs:
   results: ${search-primary.output || search-fallback.output}
   source: ${search-primary.executed ? 'brave' : 'duckduckgo'}
 ```
 
-### Tool Retry with Exponential Backoff
+### Caching Tool Discovery
 
 ```yaml
-operations:
-  - name: flaky-tool
+agents:
+  - name: get-pr
     operation: tools
     config:
-      tool: mcp:external-api:call
-      params:
-        endpoint: ${input.endpoint}
-      timeout: 10000
-    retry:
-      maxAttempts: 3
-      backoff: exponential       # Retry delays: 1s, 2s, 4s
+      mcp: github
+      tool: get_pull_request
+      cacheDiscovery: true    # Cache tool list from server
+      cacheTTL: 3600          # Cache for 1 hour
 ```
 
-## Real-World Examples
+This is useful when:
+- MCP server's tool list doesn't change often
+- You want to reduce latency
+- You're making many tool calls to the same server
 
-### Code Analyzer Skill
+## Authentication
+
+### Bearer Token
 
 ```typescript
-// skills/analyze-code/index.ts
-import { parse } from '@typescript-eslint/parser';
-
-export default async function analyzeCode({ params, env }) {
-  const { code, language } = params;
-
-  if (!['typescript', 'javascript'].includes(language)) {
-    throw new Error('Only TypeScript/JavaScript supported');
-  }
-
-  try {
-    const ast = parse(code, {
-      ecmaVersion: 2022,
-      sourceType: 'module'
-    });
-
-    const analysis = {
-      functions: [],
-      classes: [],
-      imports: [],
-      exports: [],
-      complexity: 0,
-      lines: code.split('\n').length
-    };
-
-    // Walk AST and collect metrics
-    // ... implementation ...
-
-    return analysis;
-  } catch (error) {
-    return {
-      error: error.message,
-      valid: false
-    };
+// conductor.config.ts
+mcpServers: {
+  github: {
+    url: 'https://github-mcp.example.com',
+    auth: {
+      type: 'bearer',
+      token: process.env.GITHUB_MCP_TOKEN
+    }
   }
 }
 ```
 
-Usage:
+HTTP Request:
+```http
+POST /tools/get_pull_request
+Authorization: Bearer ghp_xxx
+Content-Type: application/json
 
-```yaml
-operations:
-  - name: fetch-code
-    operation: tools
-    config:
-      tool: mcp:github:get_file
-      params:
-        owner: ${input.owner}
-        repo: ${input.repo}
-        path: ${input.file_path}
-
-  - name: analyze
-    operation: tools
-    config:
-      tool: skill:analyze-code
-      params:
-        code: ${fetch-code.output.content}
-        language: typescript
-
-  - name: review
-    operation: think
-    config:
-      provider: openai
-      model: gpt-4o
-      prompt: |
-        Code Analysis:
-        - Functions: ${analyze.output.functions.length}
-        - Classes: ${analyze.output.classes.length}
-        - Lines: ${analyze.output.lines}
-        - Complexity: ${analyze.output.complexity}
-
-        Review the code and suggest improvements.
+{
+  "name": "get_pull_request",
+  "arguments": { "owner": "...", "repo": "...", "pull_number": 123 }
+}
 ```
 
-### Slack Notification Skill
+### OAuth
 
 ```typescript
-// skills/slack-notify/index.ts
-export default async function slackNotify({ params, env }) {
-  const { channel, message, blocks, attachments } = params;
+// conductor.config.ts
+mcpServers: {
+  custom: {
+    url: 'https://custom-mcp.example.com',
+    auth: {
+      type: 'oauth',
+      clientId: process.env.OAUTH_CLIENT_ID,
+      clientSecret: process.env.OAUTH_CLIENT_SECRET,
+      tokenUrl: 'https://auth.example.com/oauth/token'
+    }
+  }
+}
+```
 
-  const response = await fetch('https://slack.com/api/chat.postMessage', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`,
-      'Content-Type': 'application/json'
+OAuth flow:
+1. Conductor requests token from `tokenUrl` using client credentials
+2. Token is cached and reused for subsequent requests
+3. Token is automatically refreshed when expired
+
+### HMAC Signature
+
+For MCP servers that require signature verification:
+
+```typescript
+mcpServers: {
+  secure: {
+    url: 'https://secure-mcp.example.com',
+    auth: {
+      type: 'bearer',
+      token: process.env.MCP_TOKEN
     },
-    body: JSON.stringify({
-      channel,
-      text: message,
-      blocks,
-      attachments
-    })
-  });
-
-  const result = await response.json();
-
-  if (!result.ok) {
-    throw new Error(`Slack API error: ${result.error}`);
+    secret: process.env.MCP_SECRET  // For signing requests
   }
-
-  return {
-    success: true,
-    timestamp: result.ts,
-    channel: result.channel
-  };
 }
 ```
 
-Usage:
-
-```yaml
-operations:
-  - name: notify-team
-    operation: tools
-    config:
-      tool: skill:slack-notify
-      params:
-        channel: '#alerts'
-        message: ${input.alert_message}
-        blocks:
-          - type: section
-            text:
-              type: mrkdwn
-              text: "*${input.alert_title}*"
-          - type: section
-            text:
-              type: plain_text
-              text: ${input.alert_details}
-        attachments:
-          - color: danger
-            fields:
-              - title: Severity
-                value: ${input.severity}
-                short: true
-              - title: Environment
-                value: ${input.environment}
-                short: true
-```
-
-### API Rate Limiter Skill
-
-```typescript
-// skills/rate-limited-api/index.ts
-export default async function rateLimitedApi({ params, env }) {
-  const { endpoint, method = 'GET', body, headers = {} } = params;
-
-  // Simple in-memory rate limiting (use KV for distributed)
-  const key = `rate-limit:${endpoint}`;
-  const limit = 10; // 10 requests per minute
-  const window = 60000; // 1 minute
-
-  // Check rate limit
-  const now = Date.now();
-  const requests = await env.RATE_LIMIT_KV.get(key, { type: 'json' }) || [];
-  const recentRequests = requests.filter(t => now - t < window);
-
-  if (recentRequests.length >= limit) {
-    const oldestRequest = Math.min(...recentRequests);
-    const waitTime = window - (now - oldestRequest);
-    throw new Error(`Rate limit exceeded. Retry in ${waitTime}ms`);
-  }
-
-  // Make request
-  const response = await fetch(endpoint, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  });
-
-  // Update rate limit
-  recentRequests.push(now);
-  await env.RATE_LIMIT_KV.put(key, JSON.stringify(recentRequests), {
-    expirationTtl: Math.ceil(window / 1000)
-  });
-
-  return {
-    status: response.status,
-    data: await response.json(),
-    remainingRequests: limit - recentRequests.length - 1
-  };
-}
-```
-
-### Data Validator Skill
-
-```typescript
-// skills/validate-data/index.ts
-import Ajv from 'ajv';
-
-export default async function validateData({ params, env }) {
-  const { data, schema, strict = true } = params;
-
-  const ajv = new Ajv({ allErrors: true, strict });
-
-  const validate = ajv.compile(schema);
-  const valid = validate(data);
-
-  return {
-    valid,
-    errors: validate.errors || [],
-    data: valid ? data : null
-  };
-}
-```
-
-Usage:
-
-```yaml
-operations:
-  - name: validate
-    operation: tools
-    config:
-      tool: skill:validate-data
-      params:
-        data: ${input.user_data}
-        schema:
-          type: object
-          required: [email, name]
-          properties:
-            email:
-              type: string
-              format: email
-            name:
-              type: string
-              minLength: 1
-            age:
-              type: number
-              minimum: 0
-
-  - name: process
-    condition: ${validate.output.valid}
-    operation: storage
-    config:
-      type: d1
-      query: INSERT INTO users (email, name, age) VALUES (?, ?, ?)
-      params:
-        - ${input.user_data.email}
-        - ${input.user_data.name}
-        - ${input.user_data.age}
+Request includes:
+```http
+POST /tools/my_tool
+Authorization: Bearer token_xxx
+X-Conductor-Signature: sha256=abc123...
+X-Conductor-Timestamp: 1705315200
 ```
 
 ## Error Handling
 
-### Handle Tool Failures
+### Tool Invocation Errors
 
 ```yaml
-operations:
+agents:
   - name: risky-tool
     operation: tools
     config:
-      tool: mcp:external:api
-      params:
-        endpoint: ${input.endpoint}
-    retry:
-      maxAttempts: 3
-      backoff: exponential
+      mcp: external
+      tool: flaky_api
 
-  - name: handle-failure
+  - name: handle-error
     condition: ${risky-tool.failed}
     operation: code
     config:
       code: |
         return {
           error: true,
-          message: 'Tool execution failed after retries',
+          message: 'Tool failed',
           fallback_value: null
-        };
+        }
 
 outputs:
-  result: ${risky-tool.output || handle-failure.output}
+  result: ${risky-tool.output || handle-error.output}
   success: ${risky-tool.success}
 ```
 
-### Validate Tool Output
+### Check Tool Errors
+
+Tools can return `isError: true` even if the HTTP request succeeds:
 
 ```yaml
-operations:
-  - name: search
+agents:
+  - name: call-tool
     operation: tools
     config:
-      tool: web-search
-      params:
-        query: ${input.query}
+      mcp: github
+      tool: get_file_contents
 
-  - name: validate
+  - name: check-result
     operation: code
     config:
       code: |
-        const results = ${search.output.results};
-
-        if (!Array.isArray(results) || results.length === 0) {
-          throw new Error('No search results found');
+        if (${call-tool.output.isError}) {
+          throw new Error('Tool returned error: ' + ${call-tool.output.content});
         }
-
-        return {
-          valid: true,
-          count: results.length
-        };
+        return ${call-tool.output.content};
 ```
 
-### Timeout Protection
+### Timeout Handling
 
 ```yaml
-operations:
+agents:
   - name: slow-tool
     operation: tools
     config:
-      tool: mcp:puppeteer:scrape
-      params:
-        url: ${input.url}
-      timeout: 15000              # 15 second timeout
+      mcp: external
+      tool: slow_operation
+      timeout: 15000    # 15 second timeout
 
-  - name: use-cached
+  - name: use-cache
     condition: ${slow-tool.failed}
     operation: storage
     config:
       type: kv
       action: get
-      key: cached-${input.url}
+      key: cached-result
 ```
 
-## Testing Tools
-
-### Unit Test Skills
-
-```typescript
-// skills/calculate-roi/index.test.ts
-import { describe, it, expect } from 'vitest';
-import calculateROI from './index';
-
-describe('calculate-roi skill', () => {
-  it('should calculate positive ROI', async () => {
-    const result = await calculateROI({
-      params: {
-        revenue: 150000,
-        cost: 100000
-      },
-      env: {}
-    });
-
-    expect(result.profit).toBe(50000);
-    expect(result.roi).toBe(50);
-    expect(result.roi_formatted).toBe('50.00%');
-  });
-
-  it('should calculate negative ROI', async () => {
-    const result = await calculateROI({
-      params: {
-        revenue: 80000,
-        cost: 100000
-      },
-      env: {}
-    });
-
-    expect(result.profit).toBe(-20000);
-    expect(result.roi).toBe(-20);
-  });
-
-  it('should calculate annualized ROI', async () => {
-    const result = await calculateROI({
-      params: {
-        revenue: 150000,
-        cost: 100000,
-        years: 3
-      },
-      env: {}
-    });
-
-    expect(result).toHaveProperty('annualized_roi');
-    expect(result.annualized_roi).toBeCloseTo(14.47, 1);
-  });
-
-  it('should throw on zero cost', async () => {
-    await expect(
-      calculateROI({
-        params: { revenue: 100000, cost: 0 },
-        env: {}
-      })
-    ).rejects.toThrow('Cost cannot be zero');
-  });
-});
-```
-
-### Test Agents with Tools
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { TestConductor } from '@ensemble/conductor/testing';
-
-describe('search-and-analyze agent', () => {
-  it('should search and analyze results', async () => {
-    const conductor = await TestConductor.create({
-      projectPath: './conductor',
-      mocks: {
-        tools: {
-          'web-search': {
-            results: [
-              {
-                title: 'Example Result',
-                url: 'https://example.com',
-                snippet: 'Test snippet'
-              }
-            ],
-            count: 1
-          }
-        },
-        ai: {
-          'analyze': {
-            answer: 'Mocked analysis',
-            confidence: 0.95
-          }
-        }
-      }
-    });
-
-    const result = await conductor.executeAgent('search-and-analyze', {
-      question: 'What is TypeScript?'
-    });
-
-    expect(result).toBeSuccessful();
-    expect(result.output.answer).toBe('Mocked analysis');
-    expect(result.output.sources).toHaveLength(1);
-  });
-});
-```
+## Testing
 
 ### Mock MCP Tools
 
 ```typescript
-const conductor = await TestConductor.create({
-  mocks: {
-    tools: {
-      'mcp:puppeteer:screenshot': {
-        success: true,
-        screenshot: 'base64-encoded-image',
-        width: 1920,
-        height: 1080
-      },
-      'mcp:github:get_file': {
-        content: 'export default function test() { return true; }',
-        encoding: 'utf8',
-        path: 'src/test.ts'
+import { describe, it, expect } from 'vitest'
+import { TestConductor } from '@ensemble-edge/conductor/testing'
+
+describe('github-pr-analyzer', () => {
+  it('should analyze pull request', async () => {
+    const conductor = await TestConductor.create({
+      mocks: {
+        tools: {
+          'github:get_pull_request': {
+            number: 123,
+            title: 'Add new feature',
+            state: 'open',
+            user: { login: 'octocat' }
+          }
+        }
       }
-    }
-  }
-});
+    })
+
+    const result = await conductor.executeEnsemble('github-pr-analyzer', {
+      owner: 'anthropics',
+      repo: 'anthropic-sdk-typescript',
+      pull_number: 123
+    })
+
+    expect(result).toBeSuccessful()
+    expect(result.output.pr_data.number).toBe(123)
+  })
+})
 ```
 
-## Performance Optimization
+### Integration Testing
 
-**1. Cache Tool Results**
+```typescript
+// Test against real MCP server
+describe('github MCP integration', () => {
+  it('should call real GitHub MCP', async () => {
+    const conductor = await TestConductor.create({
+      projectPath: './conductor'
+    })
 
-```yaml
-operations:
-  - name: search
-    operation: tools
-    config:
-      tool: web-search
-      params:
-        query: ${input.query}
-    cache:
-      ttl: 3600                   # Cache for 1 hour
-      key: search-${input.query}
+    const result = await conductor.executeEnsemble('github-pr-analyzer', {
+      owner: 'anthropics',
+      repo: 'anthropic-sdk-typescript',
+      pull_number: 1
+    })
+
+    expect(result).toBeSuccessful()
+    expect(result.output.pr_data).toHaveProperty('number')
+  })
+})
 ```
 
-**2. Parallel Tool Execution**
+## Best Practices
 
-```yaml
-# These tools run in parallel automatically
-operations:
-  - name: search-web
-    operation: tools
-    config:
-      tool: web-search
-      params:
-        query: ${input.query}
-
-  - name: search-docs
-    operation: tools
-    config:
-      tool: doc-search
-      params:
-        query: ${input.query}
-```
-
-**3. Set Appropriate Timeouts**
+### 1. Set Appropriate Timeouts
 
 ```yaml
 # Short timeout for fast tools
 - name: cache-lookup
   operation: tools
   config:
-    tool: skill:check-cache
-    timeout: 1000                 # 1 second
+    mcp: cache-server
+    tool: get
+    timeout: 2000    # 2 seconds
 
 # Long timeout for slow tools
-- name: scrape-page
+- name: ai-analysis
   operation: tools
   config:
-    tool: mcp:puppeteer:scrape
-    timeout: 30000                # 30 seconds
+    mcp: ai-server
+    tool: analyze
+    timeout: 60000   # 60 seconds
 ```
 
-**4. Batch Tool Calls**
-
-```typescript
-// skills/batch-api/index.ts
-export default async function batchApi({ params, env }) {
-  const { items, endpoint } = params;
-
-  // Batch requests to avoid rate limits
-  const batchSize = 10;
-  const results = [];
-
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
-      batch.map(item => fetch(`${endpoint}/${item.id}`))
-    );
-    results.push(...batchResults);
-  }
-
-  return { results, total: results.length };
-}
-```
-
-## Best Practices
-
-**1. Validate Tool Parameters**
+### 2. Cache Tool Discovery
 
 ```yaml
-# Good: Validate before calling tool
-operations:
-  - name: validate
-    operation: code
-    config:
-      code: |
-        if (!${input.url} || !${input.url}.startsWith('http')) {
-          throw new Error('Invalid URL');
-        }
-        return { valid: true };
-
-  - name: scrape
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape
-      params:
-        url: ${input.url}
-
-# Bad: No validation
-operations:
-  - name: scrape
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape
-      params:
-        url: ${input.url}  # Could be invalid
+# Enable caching for stable tool lists
+- name: frequent-tool
+  operation: tools
+  config:
+    mcp: github
+    tool: get_repo
+    cacheDiscovery: true
+    cacheTTL: 3600  # 1 hour
 ```
 
-**2. Handle Tool Failures**
+### 3. Handle Tool Failures
 
 ```yaml
-# Good: Retry with fallback
-operations:
-  - name: tool-primary
-    operation: tools
-    config:
-      tool: primary-tool
-    retry:
-      maxAttempts: 2
+# Always check for failures
+- name: tool-call
+  operation: tools
+  config:
+    mcp: external
+    tool: api_call
 
-  - name: tool-fallback
-    condition: ${tool-primary.failed}
-    operation: tools
-    config:
-      tool: fallback-tool
-
-# Bad: No error handling
-operations:
-  - name: tool
-    operation: tools
-    config:
-      tool: flaky-tool  # Will fail entire agent
+- name: verify
+  operation: code
+  config:
+    code: |
+      if (${tool-call.failed} || ${tool-call.output.isError}) {
+        throw new Error('Tool failed');
+      }
+      return ${tool-call.output.content};
 ```
 
-**3. Set Appropriate Timeouts**
+### 4. Use Typed Inputs
 
 ```yaml
-# Good: Timeout based on tool speed
-operations:
-  - name: fast-cache-lookup
-    operation: tools
-    config:
-      tool: skill:cache-check
-      timeout: 1000  # 1 second
-
-  - name: slow-scrape
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape
-      timeout: 30000  # 30 seconds
-
-# Bad: Same timeout for all
-operations:
-  - name: cache
-    operation: tools
-    config:
-      tool: skill:cache-check
-      timeout: 30000  # Too long
-
-  - name: scrape
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape
-      timeout: 5000  # Too short
-```
-
-**4. Validate Tool Output**
-
-```yaml
-# Good: Validate tool output
-operations:
-  - name: search
-    operation: tools
-    config:
-      tool: web-search
-
-  - name: validate
-    operation: code
-    config:
-      code: |
-        const results = ${search.output.results};
-        if (!Array.isArray(results)) {
-          throw new Error('Invalid search results');
-        }
-        return { valid: true };
-
-# Bad: Trust tool output
-operations:
-  - name: search
-    operation: tools
-    config:
-      tool: web-search
-
-  - name: process
-    operation: code
-    config:
-      code: |
-        return ${search.output.results[0].url};  # Could fail
-```
-
-**5. Cache Expensive Tools**
-
-```yaml
-# Good: Cache expensive tool results
-operations:
-  - name: expensive-tool
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape
-    cache:
-      ttl: 3600
-      key: scrape-${input.url}
-
-# Bad: Re-run expensive tool every time
-operations:
-  - name: expensive-tool
-    operation: tools
-    config:
-      tool: mcp:puppeteer:scrape  # No caching
-```
-
-**6. Use Typed Skills**
-
-```typescript
-// Good: TypeScript with types
-export interface SkillParams {
-  value: number;
-  multiplier: number;
-}
-
-export interface SkillOutput {
-  result: number;
-}
-
-export default async function mySkill(
-  { params, env }: { params: SkillParams; env: any }
-): Promise<SkillOutput> {
-  return { result: params.value * params.multiplier };
-}
-
-// Bad: No types
-export default async function mySkill({ params, env }) {
-  return { result: params.value * params.multiplier };  // No type safety
-}
-```
-
-**7. Document Tool Parameters**
-
-```yaml
-# Good: Document parameters in skill.yaml
-parameters:
-  query:
+# Define clear input schema
+inputs:
+  owner:
     type: string
     required: true
-    description: Search query to execute
-  max_results:
+    description: GitHub repository owner
+  repo:
+    type: string
+    required: true
+    description: GitHub repository name
+  pull_number:
     type: number
-    required: false
-    default: 10
-    description: Maximum number of results to return
-
-# Bad: No documentation
-parameters:
-  query: string
-  max_results: number
+    required: true
+    description: Pull request number
 ```
 
-**8. Test Tools in Isolation**
-
-```typescript
-// Good: Unit test skills separately
-describe('calculate-roi skill', () => {
-  it('should calculate ROI correctly', async () => {
-    const result = await calculateROI({
-      params: { revenue: 150000, cost: 100000 },
-      env: {}
-    });
-    expect(result.roi).toBe(50);
-  });
-});
-
-// Bad: Only test in agents
-// No isolated skill tests
-```
-
-## Common Pitfalls
-
-### Pitfall: No Timeout
+### 5. Document Tool Usage
 
 ```yaml
-# Bad: No timeout (hangs forever)
-- name: scrape
-  operation: tools
-  config:
-    tool: mcp:puppeteer:scrape
-    params:
-      url: ${input.url}
+ensemble: github-pr-analyzer
+description: Analyzes GitHub pull requests using MCP
 
-# Good: Set timeout
-- name: scrape
-  operation: tools
-  config:
-    tool: mcp:puppeteer:scrape
-    params:
-      url: ${input.url}
-    timeout: 30000
+agents:
+  - name: get-pr
+    description: Fetch pull request data from GitHub
+    operation: tools
+    config:
+      mcp: github
+      tool: get_pull_request
 ```
 
-### Pitfall: Ignoring Tool Failures
+## Limitations
 
-```yaml
-# Bad: Continue on failure
-- name: critical-tool
-  operation: tools
-  config:
-    tool: important-tool
+**HTTP Only**: Conductor only supports HTTP transport for MCP. Stdio/subprocess MCP servers are not supported in Cloudflare Workers.
 
-- name: next-step
-  operation: code  # Runs even if tool failed
+**No Streaming**: The current implementation doesn't support streaming responses from MCP servers.
 
-# Good: Check success
-- name: critical-tool
-  operation: tools
-  config:
-    tool: important-tool
+**Tool Discovery**: Tool discovery is performed on-demand. Use `cacheDiscovery: true` to cache the tool list.
 
-- name: next-step
-  condition: ${critical-tool.success}
-  operation: code
-```
-
-### Pitfall: Hardcoded Values
-
-```yaml
-# Bad: Hardcoded tool name
-- name: search
-  operation: tools
-  config:
-    tool: web-search
-    params:
-      query: "hardcoded query"
-
-# Good: Use inputs
-- name: search
-  operation: tools
-  config:
-    tool: ${input.search_tool || 'web-search'}
-    params:
-      query: ${input.query}
-```
-
-### Pitfall: No Retry for Flaky Tools
-
-```yaml
-# Bad: No retry
-- name: flaky-api
-  operation: tools
-  config:
-    tool: external-api
-
-# Good: Retry with backoff
-- name: flaky-api
-  operation: tools
-  config:
-    tool: external-api
-  retry:
-    maxAttempts: 3
-    backoff: exponential
-```
+**OAuth Refresh**: OAuth token refresh is automatic but requires the MCP server to support token refresh.
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Tools & MCP Guide" icon="wrench" href="/conductor/building/tools-mcp-integration">
+  <Card title="MCP Integration" icon="plug" href="/conductor/building/tools-mcp-integration">
     Complete MCP integration guide
+  </Card>
+  <Card title="Expose as MCP" icon="share" href="/conductor/mcp/expose-ensembles">
+    Expose ensembles as MCP tools
   </Card>
   <Card title="think Operation" icon="brain" href="/conductor/operations/think">
     Combine tools with AI
-  </Card>
-  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
-    Build agents with tools
   </Card>
   <Card title="Testing" icon="vial" href="/conductor/building/testing-observability">
     Test tool integrations

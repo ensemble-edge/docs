@@ -11,7 +11,7 @@ Version every AI component independently. Deploy any combination from any point 
 
 ## What Edgit Does
 
-Edgit extends Git with component-aware versioning. It tracks components (prompts, configs, queries, scripts) and agents in a registry, uses Git tags for semantic versioning, and provides deployment tracking.
+Edgit extends Git with component-aware versioning. It tracks components (prompts, configs, queries, scripts, schemas) and agents in a registry, uses Git tags for semantic versioning, and provides deployment tracking.
 
 **Everything lives in Git.** No proprietary storage. No vendor database. You own the source of truth.
 
@@ -33,11 +33,12 @@ Modern AI systems have hundreds of independently evolving pieces:
 edgit tag create extraction-prompt v1.0.0
 edgit tag create company-agent v2.1.0
 edgit tag create validation-query v0.5.0
+edgit tag create invoice-schema v1.0.0
 
 # Deploy optimal combination
 edgit deploy set extraction-prompt v0.1.0 --to prod  # Ancient but perfect
 edgit deploy set company-agent v3.0.0 --to prod      # Latest stable
-edgit deploy set validation-query v2.5.0 --to prod   # Best performance
+edgit deploy set invoice-schema v1.0.0 --to prod     # Structured outputs
 
 # Rollback one component instantly
 edgit deploy set extraction-prompt v0.1.0 --to prod  # &lt;50ms globally
@@ -53,6 +54,7 @@ edgit deploy set extraction-prompt v0.1.0 --to prod  # &lt;50ms globally
 - **Configs** (`.json`, `.yaml`) - Settings
 - **Queries** (`.sql`) - Database queries
 - **Scripts** (`.js`, `.ts`) - Reusable functions
+- **Schemas** (`.json`) - JSON Schema for structured AI outputs
 
 Each gets its own version history via Git tags.
 

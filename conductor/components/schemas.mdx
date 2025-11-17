@@ -1,0 +1,533 @@
+---
+title: "Schema Components"
+description: "Use JSON Schema components for structured AI outputs"
+---
+
+# Schema Components
+
+**Define reusable JSON Schemas for structured AI outputs with Claude's native JSON Schema support.**
+
+## Overview
+
+Schema components enable you to:
+- **Get structured outputs** from AI models using JSON Schema
+- **Version schemas** with edgit for consistency
+- **Share schemas** across multiple agents and ensembles
+- **Validate outputs** against well-defined schemas
+
+## Quick Start
+
+### 1. Create a Schema Component
+
+Create a JSON Schema file:
+
+```json
+// schemas/contact.json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Contact",
+  "description": "Contact information schema",
+  "type": "object",
+  "properties": {
+    "first_name": {
+      "type": "string",
+      "description": "Contact's first name"
+    },
+    "last_name": {
+      "type": "string",
+      "description": "Contact's last name"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Email address"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Phone number"
+    },
+    "company": {
+      "type": "string",
+      "description": "Company name"
+    }
+  },
+  "required": ["first_name", "last_name"],
+  "anyOf": [
+    {"required": ["email"]},
+    {"required": ["phone"]}
+  ]
+}
+```
+
+### 2. Reference the Schema
+
+Use the schema in your ensemble:
+
+```yaml
+name: contact-extractor
+
+flow:
+  - agent: extract
+
+agents:
+  - name: extract
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      temperature: 0.1
+      prompt: |
+        Extract contact information from: ${input.text}
+      # Reference the schema component
+      schema: schemas/contact@v1
+
+inputs:
+  text:
+    type: string
+    required: true
+
+outputs:
+  contact: ${extract.output}
+```
+
+### 3. Get Structured Output
+
+```bash
+curl -X POST https://your-worker.workers.dev/execute/contact-extractor \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "John Smith, john@acme.com, works at Acme Corp"
+  }'
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "output": {
+    "first_name": "John",
+    "last_name": "Smith",
+    "email": "john@acme.com",
+    "company": "Acme Corp"
+  }
+}
+```
+
+## Schema Reference Formats
+
+### Component Reference
+
+Reference a versioned schema from edgit:
+
+```yaml
+schema: schemas/invoice@v1.0.0      # Specific version
+schema: schemas/invoice@v1          # Major version
+schema: schemas/invoice@latest      # Latest version
+schema: schemas/invoice             # Defaults to @latest
+```
+
+### Inline Schema
+
+Define the schema directly in the YAML:
+
+```yaml
+agents:
+  - name: classify
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: "Classify: ${input.text}"
+      schema:
+        type: object
+        properties:
+          category:
+            type: string
+            enum: [positive, negative, neutral]
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+        required: [category, confidence]
+```
+
+## Example Schemas
+
+### Invoice Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Invoice",
+  "description": "Invoice data extraction schema",
+  "type": "object",
+  "properties": {
+    "invoice_number": {
+      "type": "string",
+      "description": "Invoice number or ID"
+    },
+    "invoice_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Invoice date (YYYY-MM-DD)"
+    },
+    "vendor": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "address": {"type": "string"},
+        "email": {"type": "string", "format": "email"}
+      },
+      "required": ["name"]
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {"type": "string"},
+          "quantity": {"type": "number"},
+          "unit_price": {"type": "number"},
+          "total": {"type": "number"}
+        },
+        "required": ["description", "quantity", "unit_price", "total"]
+      }
+    },
+    "total": {
+      "type": "number",
+      "description": "Total amount due"
+    }
+  },
+  "required": ["invoice_number", "invoice_date", "vendor", "line_items", "total"]
+}
+```
+
+### Sentiment Analysis Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SentimentAnalysis",
+  "type": "object",
+  "properties": {
+    "sentiment": {
+      "type": "string",
+      "enum": ["positive", "negative", "neutral", "mixed"],
+      "description": "Overall sentiment"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score (0-1)"
+    },
+    "emotions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "emotion": {
+            "type": "string",
+            "enum": ["joy", "sadness", "anger", "fear", "surprise", "disgust"]
+          },
+          "intensity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": ["emotion", "intensity"]
+      }
+    },
+    "key_phrases": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "Explanation of the sentiment analysis"
+    }
+  },
+  "required": ["sentiment", "confidence", "reasoning"]
+}
+```
+
+## Schema Versioning
+
+Schema components follow semantic versioning:
+
+```bash
+# Version a schema
+edgit version schemas/invoice v1.0.0
+
+# Update schema
+edgit version schemas/invoice v1.1.0
+
+# Tag as production
+edgit tag schemas/invoice@v1.1.0 production
+```
+
+**In YAML**:
+```yaml
+schema: schemas/invoice@v1.0.0     # Specific version (immutable)
+schema: schemas/invoice@v1         # Major version (gets latest v1.x.x)
+schema: schemas/invoice@production # Tagged version
+schema: schemas/invoice@latest     # Always latest
+```
+
+## Provider Support
+
+### Anthropic (Claude)
+
+Claude natively supports JSON Schema for structured outputs:
+
+```yaml
+agents:
+  - name: extract
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4  # Full JSON Schema support
+      schema: schemas/invoice@v1
+```
+
+**Models with schema support**:
+- `claude-opus-4` - Best for complex schemas
+- `claude-sonnet-4` - Balanced performance
+- `claude-haiku-4` - Fast for simple schemas
+
+### OpenAI
+
+OpenAI supports structured outputs via function calling:
+
+```yaml
+agents:
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4-turbo
+      schema: schemas/contact@v1
+```
+
+### Cloudflare Workers AI
+
+```yaml
+agents:
+  - name: extract
+    operation: think
+    config:
+      provider: cloudflare
+      model: "@cf/meta/llama-3-8b-instruct"
+      schema: schemas/simple@v1  # Use simpler schemas for smaller models
+```
+
+## Best Practices
+
+### 1. Use Descriptive Field Names
+
+```json
+{
+  "properties": {
+    "invoice_number": {"type": "string"},      // Good: Clear and specific
+    "num": {"type": "string"}                  // Bad: Ambiguous
+  }
+}
+```
+
+### 2. Add Descriptions
+
+```json
+{
+  "properties": {
+    "total": {
+      "type": "number",
+      "description": "Total amount in USD, including tax"  // Helps AI understand
+    }
+  }
+}
+```
+
+### 3. Use Enums for Categories
+
+```json
+{
+  "properties": {
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],  // Constrains output
+      "description": "Task priority level"
+    }
+  }
+}
+```
+
+### 4. Set Constraints
+
+```json
+{
+  "properties": {
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score between 0 and 1"
+    },
+    "email": {
+      "type": "string",
+      "format": "email"  // Built-in validation
+    }
+  }
+}
+```
+
+### 5. Version Schemas Carefully
+
+```yaml
+# Production ensemble
+schema: schemas/invoice@production
+
+# Development ensemble
+schema: schemas/invoice@latest
+
+# Specific version for reproducibility
+schema: schemas/invoice@v1.2.3
+```
+
+### 6. Test with Different Temperature
+
+```yaml
+agents:
+  - name: extract-structured
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      temperature: 0.1  # Low for accurate extraction
+      schema: schemas/invoice@v1
+```
+
+## Common Patterns
+
+### Extraction with Validation
+
+```yaml
+name: validated-extractor
+
+flow:
+  - agent: extract
+  - agent: validate
+
+agents:
+  - name: extract
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      schema: schemas/contact@v1
+      prompt: "Extract contact from: ${input.text}"
+
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const contact = input.extract_output
+
+        // Additional validation
+        if (!contact.email && !contact.phone) {
+          throw new Error('Contact must have email or phone')
+        }
+
+        return { valid: true, contact }
+
+outputs:
+  contact: ${validate.output.contact}
+```
+
+### Multi-Schema Workflow
+
+```yaml
+name: invoice-processor
+
+flow:
+  - agent: extract-invoice
+  - agent: extract-vendor
+  - agent: extract-line-items
+
+agents:
+  - name: extract-invoice
+    operation: think
+    config:
+      schema: schemas/invoice@v1
+      prompt: "Extract invoice header: ${input.document}"
+
+  - name: extract-vendor
+    operation: think
+    config:
+      schema: schemas/vendor@v1
+      prompt: "Extract vendor details: ${input.document}"
+
+  - name: extract-line-items
+    operation: think
+    config:
+      schema: schemas/line-items@v1
+      prompt: "Extract line items: ${input.document}"
+
+outputs:
+  invoice: ${extract-invoice.output}
+  vendor: ${extract-vendor.output}
+  line_items: ${extract-line-items.output}
+```
+
+## Troubleshooting
+
+### Schema Not Found
+
+**Error**: `Failed to resolve schema "schemas/invoice@v1"`
+
+**Solution**:
+1. Check schema exists: `edgit list schemas`
+2. Verify version: `edgit versions schemas/invoice`
+3. Use local file path for testing: `./schemas/invoice.json`
+
+### Invalid JSON Output
+
+**Issue**: AI returns text instead of JSON
+
+**Solutions**:
+1. Lower temperature: `temperature: 0.1`
+2. Use more capable model: `claude-sonnet-4` or `claude-opus-4`
+3. Add explicit instruction in prompt:
+   ```yaml
+   prompt: |
+     Extract contact information and return ONLY valid JSON matching the schema.
+
+     Text: ${input.text}
+   ```
+
+### Schema Too Complex
+
+**Issue**: AI struggles with complex nested schemas
+
+**Solutions**:
+1. Break into multiple agents with simpler schemas
+2. Use `claude-opus-4` for complex schemas
+3. Simplify schema structure
+4. Provide examples in the prompt
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Think Operation" icon="brain" href="/conductor/operations/think">
+    Learn about AI reasoning operations
+  </Card>
+  <Card title="Component Versioning" icon="code-branch" href="/edgit/versioning">
+    Version control for components
+  </Card>
+  <Card title="JSON Schema" icon="book" href="https://json-schema.org/">
+    JSON Schema specification
+  </Card>
+  <Card title="Example Ensembles" icon="folder" href="/conductor/examples">
+    Browse schema examples
+  </Card>
+</CardGroup>

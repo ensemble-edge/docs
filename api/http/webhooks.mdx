@@ -1,62 +1,196 @@
 ---
 title: "Webhooks"
-description: "Event notifications via webhooks"
+description: "Inbound webhooks and outbound notifications"
 ---
 
 # Webhooks
 
-**Receive real-time notifications for ensemble events.**
+**Receive ensemble triggers via webhooks and send event notifications.**
 
 ## Overview
 
-Webhooks allow your application to receive notifications when events occur in Conductor. Instead of polling for updates, Conductor pushes events to your endpoint.
+Conductor supports webhooks in two directions:
 
-## Configure Webhook
+1. **Inbound Webhooks** - Trigger ensembles by calling a webhook URL
+2. **Outbound Notifications** - Send events from ensembles to your webhooks
 
-### Via YAML
+## Inbound Webhooks
+
+Expose ensembles as webhook endpoints that can be triggered by external services.
+
+### Configure Inbound Webhook
 
 ```yaml
-ensemble: user-onboarding
+name: github-pr-review
 
-webhook:
-  url: https://your-api.example.com/webhooks/conductor
-  events:
-    - execution.started
-    - execution.completed
-    - execution.failed
-  secret: ${env.WEBHOOK_SECRET}
-  retries: 3
-  timeout: 5000
+expose:
+  - type: webhook
+    path: /github/pr-review
+    methods: [POST]
+    public: false
+    auth:
+      type: bearer
+      secret: ${env.GITHUB_WEBHOOK_SECRET}
+
+flow:
+  - agent: review-pr
 
 agents:
-  # ... your agents
+  - name: review-pr
+    operation: api
+    config:
+      # ... analyze PR
+
+outputs:
+  analysis: ${review-pr.output}
 ```
 
-### Via API
+### Trigger Inbound Webhook
 
 ```bash
-curl -X POST https://api.ensemble.dev/v1/webhooks \
-  -H "Authorization: Bearer ${API_TOKEN}" \
+curl -X POST https://your-worker.workers.dev/webhooks/github/pr-review \
+  -H "Authorization: Bearer ${GITHUB_WEBHOOK_SECRET}" \
+  -H "Content-Type: application/json" \
   -d '{
-    "url": "https://your-api.example.com/webhooks/conductor",
-    "events": ["execution.completed", "execution.failed"],
-    "secret": "your-webhook-secret"
+    "action": "opened",
+    "pull_request": {
+      "number": 123,
+      "title": "Add new feature"
+    }
   }'
 ```
 
 Response:
 ```json
 {
-  "id": "webhook_abc123",
-  "url": "https://your-api.example.com/webhooks/conductor",
-  "events": ["execution.completed", "execution.failed"],
-  "createdAt": 1705315200000
+  "executionId": "exec-abc123...",
+  "status": "completed",
+  "output": {
+    "analysis": "LGTM",
+    "score": 95
+  },
+  "metrics": {
+    "totalDuration": 1234,
+    "agents": 3
+  }
 }
 ```
 
-## Webhook Events
+### Authentication Options
 
-### execution.started
+**Bearer Token**:
+```yaml
+expose:
+  - type: webhook
+    path: /secure-endpoint
+    auth:
+      type: bearer
+      secret: ${env.WEBHOOK_TOKEN}
+```
+
+**HMAC Signature**:
+```yaml
+expose:
+  - type: webhook
+    path: /github-webhook
+    auth:
+      type: signature
+      secret: ${env.GITHUB_SECRET}
+```
+
+When using HMAC signature auth, the sender must include these headers:
+
+```http
+X-Webhook-Signature: sha256=abc123def456...
+X-Webhook-Timestamp: 1705315200
+```
+
+The signature is computed as:
+```javascript
+const payload = `${timestamp}.${body}`;
+const signature = 'sha256=' + crypto
+  .createHmac('sha256', secret)
+  .update(payload)
+  .digest('hex');
+```
+
+**OAuth** (coming soon):
+```yaml
+expose:
+  - type: webhook
+    path: /oauth-endpoint
+    auth:
+      type: oauth
+      issuer: https://auth.example.com
+      audience: https://api.example.com
+```
+
+**Basic Authentication**:
+```yaml
+expose:
+  - type: webhook
+    path: /basic-auth
+    auth:
+      type: basic
+      secret: ${env.BASIC_AUTH_CREDENTIALS}  # Format: username:password
+```
+
+**Public (No Auth)**:
+```yaml
+expose:
+  - type: webhook
+    path: /public-webhook
+    public: true  # Explicitly allow anonymous access
+```
+
+## Outbound Notifications
+
+Send notifications when events occur during ensemble execution.
+
+### Configure Notifications
+
+```yaml
+name: user-onboarding
+
+notifications:
+  # Webhook notification
+  - type: webhook
+    url: https://your-api.example.com/webhooks/conductor
+    events:
+      - execution.started
+      - execution.completed
+      - execution.failed
+    secret: ${env.WEBHOOK_SECRET}
+    retries: 3
+    timeout: 5000
+
+  # Email notification
+  - type: email
+    to:
+      - devops@example.com
+      - alerts@example.com
+    from: conductor@example.com
+    subject: "Ensemble ${ensemble.name}: ${event}"
+    events:
+      - execution.failed
+      - execution.timeout
+
+flow:
+  - agent: onboard-user
+
+agents:
+  - name: onboard-user
+    operation: think
+    config:
+      # ... your agent config
+
+outputs:
+  userId: ${onboard-user.output.userId}
+```
+
+### Notification Events
+
+#### execution.started
 
 Triggered when execution begins.
 
@@ -74,7 +208,7 @@ Triggered when execution begins.
 }
 ```
 
-### execution.completed
+#### execution.completed
 
 Triggered when execution completes successfully.
 
@@ -95,7 +229,7 @@ Triggered when execution completes successfully.
 }
 ```
 
-### execution.failed
+#### execution.failed
 
 Triggered when execution fails.
 
@@ -108,16 +242,14 @@ Triggered when execution fails.
     "ensemble": "user-onboarding",
     "status": "failed",
     "error": {
-      "code": "AGENT_FAILED",
-      "message": "Database connection failed",
-      "agent": "create-account"
+      "message": "Database connection failed"
     },
     "duration": 567
   }
 }
 ```
 
-### execution.timeout
+#### execution.timeout
 
 Triggered when execution times out.
 
@@ -127,14 +259,13 @@ Triggered when execution times out.
   "timestamp": "2024-01-15T10:35:00Z",
   "data": {
     "id": "exec-abc123...",
-    "ensemble": "user-onboarding",
     "duration": 30000,
     "timeout": 30000
   }
 }
 ```
 
-### agent.completed
+#### agent.completed
 
 Triggered when individual agent completes.
 
@@ -153,7 +284,7 @@ Triggered when individual agent completes.
 }
 ```
 
-### state.updated
+#### state.updated
 
 Triggered when state changes.
 
@@ -171,18 +302,20 @@ Triggered when state changes.
 }
 ```
 
-## Signature Verification
+### Signature Verification
 
-All webhooks include a signature for verification.
+All webhook notifications include a signature for verification.
 
-### Header
+#### Headers
 
 ```http
 X-Conductor-Signature: sha256=abc123def456...
 X-Conductor-Timestamp: 1705315200
+X-Conductor-Event: execution.completed
+X-Conductor-Delivery-Attempt: 1
 ```
 
-### Verify Signature (Node.js)
+#### Verify Signature (Node.js)
 
 ```javascript
 const crypto = require('crypto');
@@ -191,28 +324,28 @@ function verifyWebhookSignature(req, secret) {
   const signature = req.headers['x-conductor-signature'];
   const timestamp = req.headers['x-conductor-timestamp'];
   const body = JSON.stringify(req.body);
-  
-  // Prevent replay attacks
+
+  // Prevent replay attacks (5 min window)
   const currentTime = Math.floor(Date.now() / 1000);
   if (Math.abs(currentTime - parseInt(timestamp)) > 300) {
     throw new Error('Webhook timestamp too old');
   }
-  
+
   // Compute expected signature
   const payload = `${timestamp}.${body}`;
   const expectedSignature = 'sha256=' + crypto
     .createHmac('sha256', secret)
     .update(payload)
     .digest('hex');
-  
-  // Compare signatures
+
+  // Compare signatures (timing-safe)
   if (!crypto.timingSafeEqual(
     Buffer.from(signature),
     Buffer.from(expectedSignature)
   )) {
     throw new Error('Invalid webhook signature');
   }
-  
+
   return true;
 }
 
@@ -220,11 +353,11 @@ function verifyWebhookSignature(req, secret) {
 app.post('/webhooks/conductor', (req, res) => {
   try {
     verifyWebhookSignature(req, process.env.WEBHOOK_SECRET);
-    
-    // Process webhook
+
+    // Process notification
     const { event, data } = req.body;
     console.log(`Received ${event}:`, data);
-    
+
     res.status(200).json({ received: true });
   } catch (error) {
     console.error('Webhook verification failed:', error);
@@ -233,7 +366,7 @@ app.post('/webhooks/conductor', (req, res) => {
 });
 ```
 
-### Verify Signature (Python)
+#### Verify Signature (Python)
 
 ```python
 import hmac
@@ -244,12 +377,12 @@ def verify_webhook_signature(request, secret):
     signature = request.headers.get('X-Conductor-Signature')
     timestamp = request.headers.get('X-Conductor-Timestamp')
     body = request.get_data(as_text=True)
-    
+
     # Prevent replay attacks
     current_time = int(time.time())
     if abs(current_time - int(timestamp)) > 300:
         raise ValueError('Webhook timestamp too old')
-    
+
     # Compute expected signature
     payload = f"{timestamp}.{body}"
     expected_signature = 'sha256=' + hmac.new(
@@ -257,100 +390,150 @@ def verify_webhook_signature(request, secret):
         payload.encode(),
         hashlib.sha256
     ).hexdigest()
-    
-    # Compare signatures
+
+    # Compare signatures (timing-safe)
     if not hmac.compare_digest(signature, expected_signature):
         raise ValueError('Invalid webhook signature')
-    
+
     return True
 ```
 
-## Handling Webhooks
+### Handling Notifications
 
-### Basic Handler
+#### Basic Handler
 
 ```javascript
 app.post('/webhooks/conductor', async (req, res) => {
   // Verify signature
   verifyWebhookSignature(req, process.env.WEBHOOK_SECRET);
-  
+
   const { event, data } = req.body;
-  
+
   // Handle event
   switch (event) {
     case 'execution.completed':
       await handleExecutionCompleted(data);
       break;
-    
+
     case 'execution.failed':
       await handleExecutionFailed(data);
+      await sendAlert(data);
       break;
-    
+
     default:
       console.log(`Unhandled event: ${event}`);
   }
-  
+
   // Respond quickly
   res.status(200).json({ received: true });
 });
 ```
 
-### Async Processing
+#### Async Processing
 
 ```javascript
 app.post('/webhooks/conductor', async (req, res) => {
   // Verify and respond quickly
   verifyWebhookSignature(req, process.env.WEBHOOK_SECRET);
   res.status(200).json({ received: true });
-  
+
   // Process asynchronously
   const { event, data } = req.body;
-  
+
   // Queue for processing
   await queue.add('webhook', { event, data });
 });
 ```
 
-### Error Handling
+#### Error Handling
 
 ```javascript
 app.post('/webhooks/conductor', async (req, res) => {
   try {
     verifyWebhookSignature(req, process.env.WEBHOOK_SECRET);
-    
+
     const { event, data } = req.body;
-    await processWebhook(event, data);
-    
+    await processNotification(event, data);
+
     res.status(200).json({ received: true });
   } catch (error) {
     console.error('Webhook error:', error);
-    
+
     // Return 5xx to trigger retry
     res.status(500).json({ error: 'Processing failed' });
   }
 });
 ```
 
-## Retry Logic
+### Retry Logic
 
-Conductor retries failed webhooks with exponential backoff:
+Conductor retries failed webhook notifications with exponential backoff:
 
-1. Immediate
-2. 1 minute
-3. 5 minutes
-4. 30 minutes
-5. 2 hours
+1. **1 second** - First retry
+2. **5 seconds** - Second retry
+3. **30 seconds** - Third retry
+4. **2 minutes** - Fourth retry
+5. **5 minutes** - Final retry
 
-**Total attempts**: 5
+**Total attempts**: Up to 3 retries (configurable)
 
 **Status codes that trigger retry**:
 - `5xx` - Server errors
-- `408` - Timeout
-- Connection errors
+- `408` - Request Timeout
+- Connection errors / timeouts
 
 **Status codes that don't retry**:
-- `2xx` - Success
+- `2xx`, `3xx` - Success
 - `4xx` - Client errors (except 408)
+
+## Email Notifications
+
+Send email alerts for ensemble events.
+
+### Configure Email Notifications
+
+```yaml
+name: critical-workflow
+
+notifications:
+  - type: email
+    to:
+      - oncall@example.com
+      - devops@example.com
+    from: conductor@example.com
+    subject: "[${event}] ${ensemble.name}"
+    events:
+      - execution.failed
+      - execution.timeout
+
+flow:
+  - agent: critical-task
+
+agents:
+  - name: critical-task
+    operation: think
+    config:
+      # ... your agent config
+
+outputs:
+  result: ${critical-task.output}
+```
+
+### Subject Template Variables
+
+- `${event}` - Event type (e.g., "execution.failed")
+- `${ensemble.name}` - Ensemble name
+- `${timestamp}` - Event timestamp
+
+### Email Content
+
+Emails include both plain text and HTML versions:
+
+- **Plain Text**: JSON-formatted event data
+- **HTML**: Styled template with color-coded event types
+  - Green: execution.completed
+  - Red: execution.failed, execution.timeout
+  - Blue: Other events
 
 ## Testing Webhooks
 
@@ -360,23 +543,22 @@ Conductor retries failed webhooks with exponential backoff:
 # Start ngrok
 ngrok http 3000
 
-# Use ngrok URL
-curl -X POST https://api.ensemble.dev/v1/webhooks \
-  -H "Authorization: Bearer ${API_TOKEN}" \
-  -d '{
-    "url": "https://abc123.ngrok.io/webhooks/conductor",
-    "events": ["execution.completed"]
-  }'
+# Test inbound webhook
+curl -X POST https://abc123.ngrok.io/webhooks/test \
+  -H "Authorization: Bearer test-token" \
+  -H "Content-Type: application/json" \
+  -d '{"test": true}'
 ```
 
-### Test Payload
+### Test Notification Delivery
 
 ```bash
-# Send test webhook
+# Send test notification webhook
 curl -X POST https://your-api.example.com/webhooks/conductor \
   -H "Content-Type: application/json" \
   -H "X-Conductor-Signature: sha256=..." \
   -H "X-Conductor-Timestamp: $(date +%s)" \
+  -H "X-Conductor-Event: execution.completed" \
   -d '{
     "event": "execution.completed",
     "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
@@ -390,60 +572,165 @@ curl -X POST https://your-api.example.com/webhooks/conductor \
 
 ## Best Practices
 
-**1. Verify Signatures**
+### 1. Verify Signatures
+
+```yaml
+# Always configure secrets for notifications
+notifications:
+  - type: webhook
+    url: https://api.example.com/webhooks
+    secret: ${env.WEBHOOK_SECRET}  # Required for security
+```
+
 ```javascript
 // Always verify before processing
 verifyWebhookSignature(req, secret);
 ```
 
-**2. Respond Quickly**
+### 2. Respond Quickly
+
 ```javascript
-// Respond within 5 seconds
+// Respond within 5 seconds to avoid timeouts
 res.status(200).json({ received: true });
 
 // Process async
 queueProcessor.add(event, data);
 ```
 
-**3. Handle Idempotency**
+### 3. Handle Idempotency
+
 ```javascript
-// Store processed webhook IDs
-const processed = await db.webhooks.findOne({ id: data.id });
+// Store processed notification IDs
+const processed = await db.notifications.findOne({
+  id: data.id,
+  event: event
+});
 if (processed) {
   return res.status(200).json({ received: true });
 }
+
+// Process and store
+await processNotification(event, data);
+await db.notifications.insert({
+  id: data.id,
+  event,
+  processedAt: new Date()
+});
 ```
 
-**4. Log All Webhooks**
+### 4. Log All Notifications
+
 ```javascript
 await db.webhooks.insert({
   id: data.id,
   event,
   data,
-  receivedAt: new Date()
+  receivedAt: new Date(),
+  attempt: req.headers['x-conductor-delivery-attempt']
 });
 ```
 
-**5. Monitor Failures**
+### 5. Monitor Failures
+
 ```javascript
-if (failures > 3) {
-  await alerts.notify('Webhook failures detected', { event, failures });
+const attempt = parseInt(req.headers['x-conductor-delivery-attempt']);
+if (attempt > 1) {
+  console.warn(`Retry attempt ${attempt} for ${event}`);
+}
+
+// Alert on persistent failures
+if (recentFailures > 3) {
+  await alerts.notify('Webhook failures detected', {
+    event,
+    failures: recentFailures
+  });
 }
 ```
+
+### 6. Use Default-Deny Security
+
+```yaml
+# GOOD: Explicit authentication
+expose:
+  - type: webhook
+    path: /secure
+    auth:
+      type: bearer
+      secret: ${env.SECRET}
+
+# GOOD: Explicitly public
+expose:
+  - type: webhook
+    path: /public
+    public: true
+
+# BAD: No auth, not marked public (will be rejected)
+expose:
+  - type: webhook
+    path: /unsafe  # Error: requires auth or public: true
+```
+
+## Migration Guide
+
+If you're migrating from the old `webhook:` config to the new model:
+
+### Old Configuration
+
+```yaml
+ensemble: my-workflow
+
+webhook:
+  url: https://api.example.com/hooks
+  events: [execution.completed]
+  secret: ${env.SECRET}
+
+agents:
+  # ...
+```
+
+### New Configuration
+
+```yaml
+name: my-workflow
+
+notifications:
+  - type: webhook
+    url: https://api.example.com/hooks
+    events: [execution.completed]
+    secret: ${env.SECRET}
+
+flow:
+  - agent: process
+
+agents:
+  - name: process
+    operation: think
+    config:
+      # ... agent config
+
+outputs:
+  result: ${process.output}
+```
+
+**Key Changes**:
+- `webhook:` → `notifications:` (array)
+- Single webhook → Multiple notifications supported
+- Can mix webhook and email notifications
+- Inbound webhooks moved to `expose:` array
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Endpoints" icon="route" href="/api/http/endpoints">
-    API reference
+  <Card title="MCP Integration" icon="plug" href="/conductor/mcp/overview">
+    Expose ensembles as MCP tools
+  </Card>
+  <Card title="Email Routing" icon="envelope" href="/conductor/integrations/email">
+    Trigger ensembles via email
   </Card>
   <Card title="Authentication" icon="key" href="/api/http/authentication">
-    Webhook secrets
+    Security best practices
   </Card>
   <Card title="Event-Driven" icon="bolt" href="/conductor/playbooks/event-driven-workflow">
     Event patterns
-  </Card>
-  <Card title="Testing" icon="vial" href="/api/typescript/testing-utilities">
-    Testing webhooks
   </Card>
 </CardGroup>
