@@ -153,6 +153,7 @@
         "conductor/building/writing-ensembles",
         "conductor/building/ab-testing-patterns",
         "conductor/building/tools-mcp-integration",
+        "conductor/building/workers-ai-ml",
         "conductor/building/testing-observability"
       ]
     },
@@ -167,7 +168,6 @@
       "pages": [
         "conductor/operations/overview",
         "conductor/operations/think",
-        "conductor/operations/ml",
         "conductor/operations/code",
         "conductor/operations/storage",
         "conductor/operations/http",

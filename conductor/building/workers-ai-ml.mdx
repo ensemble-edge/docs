@@ -1,0 +1,721 @@
+---
+title: "Machine Learning with Workers AI"
+description: "Run ML inference at the edge - embeddings, image classification, object detection, and vision models via the think operation"
+---
+
+Machine learning models run at the edge via Cloudflare Workers AI. Access them through Conductor's `think` operation using the `workers-ai` provider.
+
+## Overview
+
+**Workers AI** provides serverless GPU inference for ML models:
+
+- **Free tier:** 10,000 requests/day
+- **Latency:** Runs at edge, near your users
+- **Provider:** Use `workers-ai` in `think` operation
+- **Binding:** Requires `[ai]` binding in wrangler.toml
+
+**Model Categories:**
+- Text Embeddings (7 models)
+- Image Classification (1 model)
+- Object Detection (1 model)
+- Image-to-Text (2 models)
+- Vision Models (2 multimodal LLMs)
+- Text Classification (2 models)
+
+## Configuration
+
+### wrangler.toml
+
+```toml
+[ai]
+binding = "AI"
+```
+
+### Environment Variable
+
+Set `CONDUCTOR_AI_PROVIDER=workers-ai` or configure per-agent.
+
+## Text Embeddings
+
+Convert text into vector representations for semantic search, RAG, clustering, and similarity tasks.
+
+### Available Models
+
+**English Models (BGE):**
+- `@cf/baai/bge-small-en-v1.5` - 384 dimensions, fastest
+- `@cf/baai/bge-base-en-v1.5` - 768 dimensions, balanced
+- `@cf/baai/bge-large-en-v1.5` - 1024 dimensions, most accurate
+
+**Multilingual:**
+- `@cf/baai/bge-m3` - 1024 dims, 100+ languages, multi-vector retrieval
+
+**Specialized:**
+- `@cf/google/embeddinggemma-300m` - From Gemma 3, 100+ languages
+- `@cf/pfnet/plamo-embedding-1b` - Japanese text
+- `@cf/qwen/qwen3-embedding-0.6b` - Chinese/multilingual
+
+### Generate Embeddings
+
+```yaml
+agents:
+  - name: embed-text
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/baai/bge-base-en-v1.5'
+      prompt: ${input.text}
+```
+
+### Store in Vectorize
+
+```yaml
+agents:
+  - name: generate-embedding
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/baai/bge-base-en-v1.5'
+      prompt: ${input.document}
+
+  - name: store-vector
+    operation: storage
+    config:
+      action: vectorize-insert
+      index: documents
+      vectors:
+        - id: ${input.id}
+          values: ${generate-embedding.output}
+          metadata:
+            text: ${input.document}
+```
+
+### Semantic Search
+
+```yaml
+agents:
+  - name: embed-query
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/baai/bge-base-en-v1.5'
+      prompt: ${input.query}
+
+  - name: search
+    operation: storage
+    config:
+      action: vectorize-query
+      index: documents
+      vector: ${embed-query.output}
+      topK: 5
+```
+
+### Choosing an Embedding Model
+
+**Use bge-small-en-v1.5 when:**
+- Speed is critical
+- Low latency required
+- English-only content
+- Cost-sensitive (fewer dimensions = cheaper storage)
+
+**Use bge-base-en-v1.5 when:**
+- Balanced performance needed
+- General-purpose embeddings
+- English content with some multilingual
+
+**Use bge-large-en-v1.5 when:**
+- Maximum accuracy required
+- Complex semantic understanding
+- Willing to trade speed for quality
+
+**Use bge-m3 when:**
+- Multilingual content (100+ languages)
+- Need multi-vector retrieval
+- Cross-language search
+
+## Image Classification
+
+Classify images into categories using ResNet-50.
+
+### Model
+
+- `@cf/microsoft/resnet-50` - 1000 ImageNet classes
+
+### Classify Image
+
+```yaml
+agents:
+  - name: classify-image
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/microsoft/resnet-50'
+      image: ${input.image_url}
+```
+
+Output:
+```json
+{
+  "predictions": [
+    { "label": "golden retriever", "score": 0.92 },
+    { "label": "Labrador retriever", "score": 0.05 },
+    { "label": "cocker spaniel", "score": 0.02 }
+  ]
+}
+```
+
+### Use Cases
+
+**Content Moderation:**
+```yaml
+agents:
+  - name: classify
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/microsoft/resnet-50'
+      image: ${input.uploaded_image}
+
+  - name: filter
+    operation: code
+    config:
+      code: |
+        const top = ${classify.output.predictions[0]};
+        if (top.label.includes('inappropriate')) {
+          throw new Error('Content violation');
+        }
+        return { approved: true };
+```
+
+**Auto-Tagging:**
+```yaml
+agents:
+  - name: classify
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/microsoft/resnet-50'
+      image: ${input.product_image}
+
+  - name: generate-tags
+    operation: code
+    config:
+      code: |
+        const tags = ${classify.output.predictions}
+          .slice(0, 5)
+          .map(p => p.label);
+        return { tags };
+```
+
+## Object Detection
+
+Detect objects in images with bounding boxes and class labels.
+
+### Model
+
+- `@cf/facebook/detr-resnet-50` - Detection Transformer
+
+### Detect Objects
+
+```yaml
+agents:
+  - name: detect-objects
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/facebook/detr-resnet-50'
+      image: ${input.image_url}
+```
+
+Output:
+```json
+{
+  "objects": [
+    {
+      "label": "person",
+      "score": 0.98,
+      "box": { "xmin": 120, "ymin": 50, "xmax": 250, "ymax": 400 }
+    },
+    {
+      "label": "car",
+      "score": 0.95,
+      "box": { "xmin": 300, "ymin": 200, "xmax": 500, "ymax": 350 }
+    }
+  ]
+}
+```
+
+### Use Cases
+
+**Count Objects:**
+```yaml
+agents:
+  - name: detect
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/facebook/detr-resnet-50'
+      image: ${input.warehouse_photo}
+
+  - name: count-inventory
+    operation: code
+    config:
+      code: |
+        const boxes = ${detect.output.objects}.filter(o =>
+          o.label === 'box' && o.score > 0.8
+        );
+        return { count: boxes.length };
+```
+
+**Scene Understanding:**
+```yaml
+agents:
+  - name: detect
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/facebook/detr-resnet-50'
+      image: ${input.scene_image}
+
+  - name: analyze-scene
+    operation: code
+    config:
+      code: |
+        const objects = ${detect.output.objects};
+        const summary = {
+          people: objects.filter(o => o.label === 'person').length,
+          vehicles: objects.filter(o => ['car', 'truck', 'bus'].includes(o.label)).length,
+          confidence: objects.reduce((sum, o) => sum + o.score, 0) / objects.length
+        };
+        return summary;
+```
+
+## Image-to-Text
+
+Generate text descriptions or answers from images.
+
+### Models
+
+- `@cf/llava-hf/llava-1.5-7b-hf` - Vision Q&A and captioning
+- `@cf/unum/uform-gen2-qwen-500m` - Lightweight image-to-text
+
+### Generate Caption
+
+```yaml
+agents:
+  - name: caption-image
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/llava-hf/llava-1.5-7b-hf'
+      prompt: "Describe this image in detail"
+      image: ${input.image_url}
+```
+
+### Image Q&A
+
+```yaml
+agents:
+  - name: answer-question
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/llava-hf/llava-1.5-7b-hf'
+      prompt: ${input.question}
+      image: ${input.image_url}
+```
+
+Example:
+```yaml
+input:
+  question: "How many people are in this photo?"
+  image_url: "https://example.com/photo.jpg"
+
+output: "There are 3 people visible in this photograph."
+```
+
+### Use Cases
+
+**Accessibility:**
+```yaml
+agents:
+  - name: generate-alt-text
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/llava-hf/llava-1.5-7b-hf'
+      prompt: "Generate descriptive alt text for screen readers"
+      image: ${input.image}
+```
+
+**Product Descriptions:**
+```yaml
+agents:
+  - name: describe-product
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/llava-hf/llava-1.5-7b-hf'
+      prompt: "Describe this product's features, color, and style"
+      image: ${input.product_photo}
+```
+
+## Vision Models (Multimodal LLMs)
+
+Advanced vision understanding using multimodal language models.
+
+### Models
+
+- `@cf/meta/llama-3.2-11b-vision-instruct` - Llama with vision
+- `@cf/google/gemma-3-12b-it` - Gemma with image support
+
+### Visual Reasoning
+
+```yaml
+agents:
+  - name: analyze-chart
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/meta/llama-3.2-11b-vision-instruct'
+      prompt: "Extract all data points from this chart and summarize the trends"
+      image: ${input.chart_image}
+```
+
+### Document OCR
+
+```yaml
+agents:
+  - name: extract-text
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/meta/llama-3.2-11b-vision-instruct'
+      prompt: "Extract all text from this document, preserving structure"
+      image: ${input.document_scan}
+```
+
+### Visual Q&A with Context
+
+```yaml
+agents:
+  - name: visual-qa
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/meta/llama-3.2-11b-vision-instruct'
+      prompt: |
+        Context: ${input.context}
+        Question: ${input.question}
+
+        Analyze the image and answer the question using both the visual information and context.
+      image: ${input.image}
+```
+
+### Use Cases
+
+**Invoice Processing:**
+```yaml
+agents:
+  - name: process-invoice
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/meta/llama-3.2-11b-vision-instruct'
+      prompt: |
+        Extract the following from this invoice:
+        - Invoice number
+        - Date
+        - Total amount
+        - Line items with quantities and prices
+      image: ${input.invoice_image}
+
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const data = JSON.parse(${process-invoice.output});
+        if (!data.invoice_number || !data.total) {
+          throw new Error('Missing required fields');
+        }
+        return data;
+```
+
+**Chart Analysis:**
+```yaml
+agents:
+  - name: analyze-metrics
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/google/gemma-3-12b-it'
+      prompt: "Analyze this metrics dashboard. What are the key trends and anomalies?"
+      image: ${input.dashboard_screenshot}
+```
+
+## Text Classification & Reranking
+
+Classify text or rerank search results for better relevance.
+
+### Models
+
+**Reranking:**
+- `@cf/baai/bge-reranker-base` - Semantic similarity scoring
+
+**Sentiment Analysis:**
+- `@cf/huggingface/distilbert-sst-2-int8` - Positive/negative classification
+
+### Rerank Search Results
+
+```yaml
+agents:
+  - name: initial-search
+    operation: storage
+    config:
+      action: vectorize-query
+      index: documents
+      vector: ${query-embedding.output}
+      topK: 20
+
+  - name: rerank
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/baai/bge-reranker-base'
+      query: ${input.query}
+      documents: ${initial-search.output.matches}
+      topK: 5
+```
+
+### Sentiment Analysis
+
+```yaml
+agents:
+  - name: classify-sentiment
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/huggingface/distilbert-sst-2-int8'
+      prompt: ${input.review_text}
+```
+
+Output:
+```json
+{
+  "label": "POSITIVE",
+  "score": 0.94
+}
+```
+
+## Complete Examples
+
+### Semantic Search with Reranking
+
+```yaml
+ensemble: semantic-search
+
+agents:
+  # Generate query embedding
+  - name: embed-query
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/baai/bge-base-en-v1.5'
+      prompt: ${input.query}
+
+  # Initial vector search (broad)
+  - name: vector-search
+    operation: storage
+    config:
+      action: vectorize-query
+      index: knowledge-base
+      vector: ${embed-query.output}
+      topK: 20
+
+  # Rerank for precision
+  - name: rerank
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/baai/bge-reranker-base'
+      query: ${input.query}
+      documents: ${vector-search.output.matches}
+      topK: 5
+```
+
+### Image Upload Pipeline
+
+```yaml
+ensemble: process-upload
+
+agents:
+  # Classify image
+  - name: classify
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/microsoft/resnet-50'
+      image: ${input.image_url}
+
+  # Detect objects
+  - name: detect
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/facebook/detr-resnet-50'
+      image: ${input.image_url}
+
+  # Generate caption
+  - name: caption
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/llava-hf/llava-1.5-7b-hf'
+      prompt: "Generate a descriptive caption for this image"
+      image: ${input.image_url}
+
+  # Store metadata
+  - name: store
+    operation: storage
+    config:
+      action: d1-insert
+      table: images
+      data:
+        url: ${input.image_url}
+        category: ${classify.output.predictions[0].label}
+        objects: ${detect.output.objects}
+        caption: ${caption.output}
+```
+
+### Visual Document Processing
+
+```yaml
+ensemble: process-document
+
+agents:
+  # Extract text with OCR
+  - name: ocr
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/meta/llama-3.2-11b-vision-instruct'
+      prompt: "Extract all text from this document, maintaining structure"
+      image: ${input.document_image}
+
+  # Generate embedding of content
+  - name: embed
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/baai/bge-base-en-v1.5'
+      prompt: ${ocr.output}
+
+  # Store in vector database
+  - name: index
+    operation: storage
+    config:
+      action: vectorize-insert
+      index: documents
+      vectors:
+        - id: ${input.document_id}
+          values: ${embed.output}
+          metadata:
+            text: ${ocr.output}
+            image_url: ${input.document_image}
+```
+
+## Best Practices
+
+### Model Selection
+
+**Embeddings:**
+- English-only → bge-base-en-v1.5
+- Multilingual → bge-m3
+- Speed critical → bge-small-en-v1.5
+- Max accuracy → bge-large-en-v1.5
+
+**Vision:**
+- Simple classification → resnet-50
+- Object detection → detr-resnet-50
+- Image Q&A → llava-1.5-7b-hf
+- Complex reasoning → llama-3.2-vision or gemma-3
+
+### Caching
+
+Workers AI responses can be cached:
+
+```yaml
+agents:
+  - name: classify
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/microsoft/resnet-50'
+      image: ${input.image}
+      cache: true
+      cacheTTL: 3600
+```
+
+### Error Handling
+
+```yaml
+agents:
+  - name: detect
+    operation: think
+    config:
+      provider: workers-ai
+      model: '@cf/facebook/detr-resnet-50'
+      image: ${input.image}
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+
+  - name: handle-failure
+    condition: ${!detect.success}
+    operation: code
+    config:
+      code: |
+        return {
+          error: 'Object detection failed',
+          fallback: true
+        };
+```
+
+### Performance Tips
+
+1. **Batch requests** when possible
+2. **Use smaller models** for simple tasks
+3. **Cache embeddings** for repeated queries
+4. **Parallelize independent operations**
+5. **Choose appropriate dimensions** (smaller = faster + cheaper storage)
+
+## Limitations
+
+**Free Tier:**
+- 10,000 requests/day
+- Rate limits apply
+
+**Image Requirements:**
+- Max size varies by model
+- Supported formats: JPEG, PNG, WebP
+- Must be accessible URLs or base64
+
+**Model Availability:**
+- Some models may be in beta
+- Check [Cloudflare Workers AI docs](https://developers.cloudflare.com/workers-ai/models/) for latest
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="think Operation" icon="brain" href="/conductor/operations/think">
+    Full think operation reference
+  </Card>
+  <Card title="storage Operation" icon="database" href="/conductor/operations/storage">
+    Store embeddings in Vectorize
+  </Card>
+  <Card title="RAG Pipeline" icon="book" href="/conductor/playbooks/rag-pipeline">
+    Complete RAG example
+  </Card>
+  <Card title="Workers AI Docs" icon="cloud" href="https://developers.cloudflare.com/workers-ai/">
+    Cloudflare Workers AI documentation
+  </Card>
+</CardGroup>
