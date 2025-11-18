@@ -310,33 +310,7 @@ outputs:
 - `max_retries` - Retry failed messages (default: 3)
 - `max_wait_time` - Max seconds to wait for batch to fill
 
-### Sending to Queues
-
-Ensembles can send messages to queues:
-
-```yaml
-agents:
-  - name: enqueue-tasks
-    operation: queue
-    config:
-      mode: send
-      queue: TASK_QUEUE
-      messages:
-        - body: ${input.task1}
-        - body: ${input.task2}
-```
-
-### Batch Sending
-
-```yaml
-agents:
-  - name: bulk-enqueue
-    operation: queue
-    config:
-      mode: send-batch
-      queue: TASK_QUEUE
-      messages: ${input.tasks}  # Array of messages
-```
+**Note**: To **send** messages to queues, use the `queue` operation - see [Queue Operation documentation](/conductor/operations/queue).
 
 ## Cron Triggers
 
