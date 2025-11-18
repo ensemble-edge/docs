@@ -1,0 +1,512 @@
+---
+title: "Config Components"
+description: "Reusable JSON settings for agents and operations"
+---
+
+**Define and version reusable configuration objects as components for consistent settings across ensembles.**
+
+## Overview
+
+Config components enable you to:
+- **Centralize settings** used across multiple agents and ensembles
+- **Version configurations** for reproducibility and rollback
+- **Manage secrets** securely in KV storage
+- **Test different configurations** with version tags
+- **A/B test** different settings
+
+## Quick Start
+
+### 1. Create a Config Component
+
+Create a JSON configuration file:
+
+```json
+// configs/anthropic-settings.json
+{
+  "provider": "anthropic",
+  "model": "claude-sonnet-4",
+  "temperature": 0.2,
+  "max_tokens": 2048,
+  "top_p": 0.95,
+  "timeout": 30
+}
+```
+
+### 2. Add to Edgit
+
+```bash
+edgit components add anthropic-settings configs/anthropic-settings.json config
+edgit tag create anthropic-settings v1.0.0
+edgit deploy set anthropic-settings v1.0.0 --to production
+```
+
+### 3. Reference in Your Ensemble
+
+```yaml
+ensemble: text-processor
+
+agents:
+  - name: process
+    operation: think
+    # Reference the config component
+    config: "config://anthropic-settings@v1.0.0"
+    prompt: |
+      Process the following text: ${input.text}
+
+inputs:
+  text:
+    type: string
+
+outputs:
+  result: ${process.output}
+```
+
+## URI Format and Versioning
+
+All config components use the standardized URI format:
+
+```
+config://{path}[@{version}]
+```
+
+**Format breakdown:**
+- `config://` - Protocol identifier for config components
+- `{path}` - Logical path to the config (e.g., `anthropic-settings`, `providers/openai`)
+- `[@{version}]` - Optional version identifier (defaults to `@latest`)
+
+**Version format**:
+- `@latest` - Always uses the most recent version
+- `@v1` - Uses latest patch of major version (v1.x.x)
+- `@v1.0.0` - Specific semantic version (immutable)
+- `@prod` - Custom tag for production versions
+- `@staging` - Custom tag for staging versions
+
+### Example URIs
+
+```yaml
+# Always latest version
+config: "config://anthropic-settings"
+config: "config://anthropic-settings@latest"
+
+# Specific semantic version
+config: "config://anthropic-settings@v1.0.0"
+config: "config://anthropic-settings@v2.1.3"
+
+# Custom tags
+config: "config://anthropic-settings@prod"
+config: "config://anthropic-settings@staging"
+
+# Nested paths
+config: "config://providers/anthropic@v1"
+config: "config://model-settings/gpt4@v1"
+```
+
+## How to Reference in Ensembles
+
+### Simple Config Reference
+
+```yaml
+ensemble: blog-analyzer
+
+agents:
+  - name: analyze
+    operation: think
+    config: "config://anthropic-settings@v1"
+    prompt: "Analyze this blog post: ${input.post}"
+
+inputs:
+  post:
+    type: string
+
+outputs:
+  analysis: ${analyze.output}
+```
+
+### Override Specific Fields
+
+```yaml
+ensemble: fast-processor
+
+agents:
+  - name: process
+    operation: think
+    config:
+      # Load base config
+      ...
+      # Override specific fields
+      temperature: 0.1
+      max_tokens: 1024
+
+inputs:
+  data:
+    type: string
+```
+
+### Multiple Agents with Different Configs
+
+```yaml
+ensemble: multi-model-analysis
+
+agents:
+  - name: analyze-text
+    operation: think
+    config: "config://anthropic-settings@v1"
+    prompt: "Analyze text: ${input.text}"
+
+  - name: analyze-with-gpt
+    operation: think
+    config: "config://openai-settings@v1"
+    prompt: "Analyze text: ${input.text}"
+
+  - name: analyze-with-llama
+    operation: think
+    config: "config://llama-settings@v1"
+    prompt: "Analyze text: ${input.text}"
+
+inputs:
+  text:
+    type: string
+
+outputs:
+  anthropic_result: ${analyze-text.output}
+  openai_result: ${analyze-with-gpt.output}
+  llama_result: ${analyze-with-llama.output}
+```
+
+## Config Types and Examples
+
+### AI Provider Settings
+
+```json
+// configs/anthropic-settings.json
+{
+  "provider": "anthropic",
+  "model": "claude-opus-4",
+  "temperature": 0.3,
+  "max_tokens": 4096,
+  "top_p": 0.98,
+  "timeout": 60,
+  "system_prompt_prefix": "You are an expert analyst."
+}
+```
+
+### API Configuration
+
+```json
+// configs/data-api.json
+{
+  "base_url": "https://api.data-provider.com",
+  "timeout": 30,
+  "retry_attempts": 3,
+  "retry_delay_ms": 1000,
+  "headers": {
+    "Accept": "application/json",
+    "User-Agent": "Conductor/1.0"
+  }
+}
+```
+
+### Database Connection Settings
+
+```json
+// configs/postgres-prod.json
+{
+  "engine": "postgres",
+  "host": "db.example.com",
+  "port": 5432,
+  "database": "production",
+  "pool_size": 10,
+  "max_lifetime": 3600,
+  "timeout": 30
+}
+```
+
+### Processing Parameters
+
+```json
+// configs/document-processing.json
+{
+  "chunk_size": 2048,
+  "overlap": 256,
+  "use_streaming": true,
+  "cache_embeddings": true,
+  "batch_size": 100,
+  "max_parallel": 5
+}
+```
+
+### Feature Flags
+
+```json
+// configs/feature-flags.json
+{
+  "enable_advanced_analytics": true,
+  "enable_caching": true,
+  "enable_logging": true,
+  "debug_mode": false,
+  "use_legacy_api": false,
+  "enable_telemetry": true
+}
+```
+
+## Caching and Performance
+
+Config components are automatically cached for 1 hour (3600 seconds) after first load.
+
+### Default Caching
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config: "config://anthropic-settings@v1"
+    # Cached for 1 hour automatically
+```
+
+### Custom Cache TTL
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config: "config://anthropic-settings@v1"
+    cache:
+      ttl: 86400  # 24 hours in seconds
+```
+
+### Bypass Cache
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config: "config://anthropic-settings@v1"
+    cache:
+      bypass: true  # Fresh load every time
+```
+
+## Best Practices
+
+### 1. Version All Configurations
+
+Use semantic versioning:
+
+```bash
+edgit tag create anthropic-settings v1.0.0
+edgit tag create anthropic-settings v1.1.0
+edgit tag create anthropic-settings v2.0.0
+```
+
+### 2. Use Semantic Versioning
+
+- **PATCH** (v1.0.1): Bug fixes, non-breaking adjustments
+- **MINOR** (v1.1.0): New optional features, compatible changes
+- **MAJOR** (v2.0.0): Breaking changes, incompatible updates
+
+```json
+// v1.0.0 - Initial release
+{"temperature": 0.2, "max_tokens": 2048}
+
+// v1.1.0 - Add new field (compatible)
+{"temperature": 0.2, "max_tokens": 2048, "top_p": 0.95}
+
+// v2.0.0 - Remove field (breaking)
+{"temperature": 0.3, "max_tokens": 4096}
+```
+
+### 3. Separate By Concern
+
+Organize configs by their purpose:
+
+```
+configs/
+├── providers/
+│   ├── anthropic-prod.json
+│   ├── anthropic-staging.json
+│   ├── openai-prod.json
+│   └── openai-staging.json
+├── databases/
+│   ├── postgres-prod.json
+│   ├── postgres-staging.json
+│   ├── redis-prod.json
+│   └── redis-staging.json
+└── features/
+    ├── feature-flags.json
+    └── processing-params.json
+```
+
+### 3. Create Environment-Specific Versions
+
+```json
+// configs/anthropic-prod.json
+{
+  "provider": "anthropic",
+  "model": "claude-opus-4",
+  "temperature": 0.2,
+  "max_tokens": 4096,
+  "timeout": 60
+}
+```
+
+```json
+// configs/anthropic-dev.json
+{
+  "provider": "anthropic",
+  "model": "claude-haiku-4",
+  "temperature": 0.5,
+  "max_tokens": 1024,
+  "timeout": 30
+}
+```
+
+### 4. Document Configuration Fields
+
+```json
+// configs/api-settings.json
+{
+  "base_url": "https://api.example.com",                    // API endpoint URL
+  "timeout": 30,                                            // Request timeout in seconds
+  "retry_attempts": 3,                                      // Number of retries on failure
+  "retry_delay_ms": 1000,                                   // Delay between retries
+  "cache_responses": true,                                  // Cache successful responses
+  "max_payload_size": 10485760                              // Max payload size (10MB)
+}
+```
+
+### 5. Use Descriptive Names
+
+```bash
+# Good: Clear what the config is for
+edgit components add anthropic-prod configs/anthropic-prod.json config
+edgit components add postgres-staging configs/postgres-staging.json config
+
+# Bad: Unclear purpose
+edgit components add settings1 configs/settings1.json config
+edgit components add config2 configs/config2.json config
+```
+
+### 6. Handle Sensitive Values
+
+For secrets, store in KV with appropriate access controls:
+
+```bash
+# Don't include secrets in JSON
+# Instead, reference them at runtime or use secure KV storage
+edgit secrets set DB_PASSWORD "your-password"
+```
+
+```json
+// configs/secure-api.json
+{
+  "api_endpoint": "https://api.example.com",
+  "timeout": 30,
+  "use_auth": true,
+  "auth_type": "bearer_token"
+  // Password/tokens stored separately in KV
+}
+```
+
+## Versioning Strategy
+
+### Development Workflow
+
+```bash
+# 1. Create base version
+edgit tag create anthropic-settings v1.0.0
+
+# 2. Test and iterate
+edgit tag create anthropic-settings v1.1.0
+edgit tag create anthropic-settings v1.2.0
+
+# 3. Promote to production
+edgit tag create anthropic-settings@v1.2.0 production
+```
+
+### Staged Rollout
+
+```yaml
+ensemble: api-processor-v1
+
+agents:
+  - name: process
+    operation: think
+    config: "config://anthropic-settings@staging"
+    # Test new config in staging ensemble
+```
+
+```yaml
+ensemble: api-processor-prod
+
+agents:
+  - name: process
+    operation: think
+    config: "config://anthropic-settings@production"
+    # Use stable config in production
+```
+
+### A/B Testing Configs
+
+```yaml
+ensemble: config-comparison
+
+agents:
+  - name: process-v1
+    operation: think
+    config: "config://anthropic-settings@v1.0.0"
+    prompt: "Process: ${input.text}"
+
+  - name: process-v2
+    operation: think
+    config: "config://anthropic-settings@v2.0.0"
+    prompt: "Process: ${input.text}"
+
+outputs:
+  version_1: ${process-v1.output}
+  version_2: ${process-v2.output}
+```
+
+## Troubleshooting
+
+### Config Not Found
+
+**Error**: `Component not found: config://anthropic-settings@v1.0.0`
+
+**Solution**:
+1. Check config exists: `edgit list configs`
+2. Check version: `edgit versions anthropic-settings`
+3. Verify deployment: `edgit status anthropic-settings@v1.0.0`
+
+### Invalid Configuration
+
+**Error**: JSON parse error when loading config
+
+**Solution**:
+1. Validate JSON: `jsonlint configs/anthropic-settings.json`
+2. Check for required fields
+3. Verify format matches expected schema
+
+### Configuration Mismatch
+
+**Issue**: Agent doesn't recognize config fields
+
+**Solution**:
+1. Check agent documentation for supported fields
+2. Verify config format matches agent requirements
+3. Test with inline config first
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Prompt Components" icon="wand2" href="/conductor/components/prompts">
+    Reusable AI instructions
+  </Card>
+  <Card title="Query Components" icon="database" href="/conductor/components/queries">
+    SQL queries as components
+  </Card>
+  <Card title="Think Operation" icon="brain" href="/conductor/operations/think">
+    AI reasoning operations
+  </Card>
+  <Card title="Edgit Versioning" icon="code-branch" href="/edgit/guides/versioning-components-agents">
+    Version control for components
+  </Card>
+</CardGroup>

@@ -1,0 +1,309 @@
+---
+title: "Components"
+description: "Reusable, versioned building blocks for your ensembles"
+---
+
+## Overview
+
+Components are **reusable artifacts** that can be versioned, shared, and referenced across your ensembles. They're managed by [edgit](/edgit/overview), Ensemble's version control system for AI artifacts.
+
+## Component Types
+
+Conductor supports five types of components:
+
+| Component | File Type | Purpose | Example Reference |
+|-----------|-----------|---------|-------------------|
+| **Schemas** | `.json` | JSON Schema for structured AI outputs | `schemas/invoice@v1` |
+| **Prompts** | `.md` | AI instruction templates | `prompts/summarizer@latest` |
+| **Configs** | `.json`, `.yaml` | Reusable configuration | `configs/db-prod@stable` |
+| **Queries** | `.sql` | Database query templates | `queries/analytics@v2` |
+| **Scripts** | `.js`, `.ts` | Reusable functions | `scripts/validators@v1` |
+
+## Why Use Components?
+
+### Version Control
+```yaml
+# Lock to specific version
+schema: schemas/invoice@v1.2.3
+
+# Use latest stable
+prompt: prompts/summarizer@production
+
+# Follow major version
+config: configs/api@v2
+```
+
+### Reusability
+Define once, use everywhere:
+```yaml
+# ensemble-1.yaml
+agents:
+  - name: extract
+    operation: think
+    config:
+      schema: schemas/contact@v1
+      prompt: prompts/extractor@v1
+
+# ensemble-2.yaml
+agents:
+  - name: validate
+    operation: think
+    config:
+      schema: schemas/contact@v1  # Same schema
+```
+
+### Team Collaboration
+- Share components across teams
+- Review changes before deployment
+- Roll back to previous versions
+- A/B test different versions
+
+### Gradual Rollouts
+```bash
+# Start with canary
+edgit tag prompts/summarizer@v2.0.0 canary
+
+# Promote to production
+edgit tag prompts/summarizer@v2.0.0 production
+```
+
+## Component References
+
+### Versioned Reference
+Reference a specific version:
+```yaml
+schema: schemas/invoice@v1.2.3
+prompt: prompts/summarizer@v2.0.0
+config: configs/database@v1.5.2
+query: queries/analytics@v3.1.0
+script: scripts/validator@v2.0.0
+```
+
+### Tag Reference
+Reference by tag:
+```yaml
+schema: schemas/invoice@production
+prompt: prompts/summarizer@stable
+config: configs/database@canary
+```
+
+### Major Version Reference
+Auto-upgrade to latest patch/minor:
+```yaml
+schema: schemas/invoice@v1       # Gets latest v1.x.x
+prompt: prompts/summarizer@v2    # Gets latest v2.x.x
+```
+
+### Latest Reference
+Always use the latest version:
+```yaml
+schema: schemas/invoice@latest
+prompt: prompts/summarizer@latest
+```
+
+### Shorthand (defaults to @latest)
+```yaml
+schema: schemas/invoice
+prompt: prompts/summarizer
+```
+
+## Component Organization
+
+Organize components in your project:
+
+```
+my-project/
+├── schemas/
+│   ├── invoice.json
+│   ├── contact.json
+│   └── sentiment.json
+├── prompts/
+│   ├── summarizer.md
+│   ├── extractor.md
+│   └── classifier.md
+├── configs/
+│   ├── database.yaml
+│   ├── api-keys.json
+│   └── rate-limits.yaml
+├── queries/
+│   ├── analytics.sql
+│   ├── reports.sql
+│   └── cleanup.sql
+└── scripts/
+    ├── validators.ts
+    ├── transformers.js
+    └── formatters.ts
+```
+
+## Versioning Components
+
+### Initialize Component
+```bash
+# Version a component
+edgit version schemas/invoice v1.0.0
+
+# Version with message
+edgit version prompts/summarizer v1.0.0 -m "Initial release"
+```
+
+### Semantic Versioning
+Follow semver for clear version meanings:
+
+- **Major (v2.0.0)**: Breaking changes
+- **Minor (v1.1.0)**: New features, backwards compatible
+- **Patch (v1.0.1)**: Bug fixes, no new features
+
+```bash
+# Bug fix
+edgit version schemas/invoice v1.0.1
+
+# New optional field
+edgit version schemas/invoice v1.1.0
+
+# Breaking change to schema structure
+edgit version schemas/invoice v2.0.0
+```
+
+### Tagging
+Tag versions for deployment stages:
+```bash
+# Tag for canary testing
+edgit tag schemas/invoice@v2.0.0 canary
+
+# Promote to staging
+edgit tag schemas/invoice@v2.0.0 staging
+
+# Promote to production
+edgit tag schemas/invoice@v2.0.0 production
+```
+
+### View Versions
+```bash
+# List all versions
+edgit versions schemas/invoice
+
+# Show version details
+edgit show schemas/invoice@v1.2.3
+```
+
+## A/B Testing Components
+
+Test different component versions:
+
+```yaml
+name: ab-test-prompts
+
+agents:
+  - name: summarize-a
+    operation: think
+    config:
+      prompt: prompts/summarizer@v1  # Control
+      percentage: 50
+
+  - name: summarize-b
+    operation: think
+    config:
+      prompt: prompts/summarizer@v2  # Treatment
+      percentage: 50
+```
+
+See [A/B Testing](/conductor/playbooks/ab-testing-prompts) for more patterns.
+
+## Component Types Deep Dive
+
+### Schemas
+JSON Schema definitions for structured AI outputs.
+- **Use for**: Extracting structured data from AI
+- **Docs**: [Schema Components](/conductor/components/schemas)
+
+### Prompts
+Markdown files with AI instructions and templates.
+- **Use for**: Reusable AI prompts with variable interpolation
+- **Docs**: [Prompt Components](/conductor/components/prompts)
+
+### Configs
+JSON/YAML configuration files.
+- **Use for**: Database configs, API settings, feature flags
+- **Docs**: [Config Components](/conductor/components/configs)
+
+### Queries
+SQL query templates.
+- **Use for**: Reusable database queries with parameters
+- **Docs**: [Query Components](/conductor/components/queries)
+
+### Scripts
+JavaScript/TypeScript functions.
+- **Use for**: Custom validators, transformers, utilities
+- **Docs**: [Script Components](/conductor/components/scripts)
+
+## Best Practices
+
+### 1. Version Early and Often
+```bash
+# Version from the start
+edgit version prompts/new-feature v0.1.0
+```
+
+### 2. Use Semantic Versioning
+```bash
+# Clear version progression
+v1.0.0 → v1.0.1 (fix) → v1.1.0 (feature) → v2.0.0 (breaking)
+```
+
+### 3. Tag Production Versions
+```yaml
+# Development
+prompt: prompts/summarizer@latest
+
+# Production
+prompt: prompts/summarizer@production
+```
+
+### 4. Document Breaking Changes
+```bash
+edgit version schemas/invoice v2.0.0 -m "BREAKING: Renamed 'total' to 'amount'"
+```
+
+### 5. Test Before Promoting
+```bash
+# Test in canary
+edgit tag schemas/contact@v2.0.0 canary
+
+# If successful, promote
+edgit tag schemas/contact@v2.0.0 production
+```
+
+### 6. Lock Production to Versions
+```yaml
+# ❌ Bad: production using @latest
+schema: schemas/invoice@latest
+
+# ✅ Good: production locked to tag
+schema: schemas/invoice@production
+
+# ✅ Better: production locked to specific version
+schema: schemas/invoice@v1.2.3
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Schemas" icon="file-code" href="/conductor/components/schemas">
+    JSON Schema for structured outputs
+  </Card>
+  <Card title="Prompts" icon="message" href="/conductor/components/prompts">
+    Reusable AI instruction templates
+  </Card>
+  <Card title="Configs" icon="sliders" href="/conductor/components/configs">
+    Configuration management
+  </Card>
+  <Card title="Queries" icon="database" href="/conductor/components/queries">
+    SQL query templates
+  </Card>
+  <Card title="Scripts" icon="code" href="/conductor/components/scripts">
+    Reusable JavaScript/TypeScript
+  </Card>
+  <Card title="Edgit" icon="code-branch" href="/edgit/overview">
+    Version control system
+  </Card>
+</CardGroup>

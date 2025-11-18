@@ -141,6 +141,7 @@
         "conductor/core-concepts/agents",
         "conductor/core-concepts/ensembles",
         "conductor/core-concepts/triggers",
+        "conductor/core-concepts/components",
         "conductor/core-concepts/flow-control",
         "conductor/core-concepts/state-management",
         "conductor/core-concepts/ab-testing"
@@ -161,7 +162,11 @@
     {
       "group": "Components",
       "pages": [
-        "conductor/components/schemas"
+        "conductor/components/schemas",
+        "conductor/components/prompts",
+        "conductor/components/configs",
+        "conductor/components/queries",
+        "conductor/components/scripts"
       ]
     },
     {

@@ -1,0 +1,510 @@
+---
+title: "Prompt Components"
+description: "Reusable AI instructions for Think agents"
+---
+
+**Define and version reusable AI prompts as components for consistent reasoning across ensembles.**
+
+## Overview
+
+Prompt components enable you to:
+- **Reuse prompts** across multiple agents and ensembles
+- **Version prompts** with semantic versioning for reproducibility
+- **A/B test** different prompt versions
+- **Organize** complex multi-step instructions
+- **Deploy** prompts independently from code
+
+## Quick Start
+
+### 1. Create a Prompt Component
+
+Create a prompt file (plain text or Markdown):
+
+```text
+// prompts/analyze-company.txt
+You are a company research specialist. Analyze the provided company information and extract:
+- Core business description
+- Key products and services
+- Market position
+- Growth metrics
+- Risk factors
+
+Provide analysis in a structured format with clear sections.
+```
+
+### 2. Add to Edgit
+
+```bash
+edgit components add analyze-company prompts/analyze-company.txt prompt
+edgit tag create analyze-company v1.0.0
+edgit deploy set analyze-company v1.0.0 --to production
+```
+
+### 3. Reference in Your Ensemble
+
+```yaml
+ensemble: company-analyzer
+
+agents:
+  - name: analyze
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      # Reference the prompt component with URI
+      prompt: "prompt://analyze-company@v1.0.0"
+
+inputs:
+  company_data:
+    type: string
+    required: true
+
+outputs:
+  analysis: ${analyze.output}
+```
+
+## URI Format and Versioning
+
+All prompt components use the standardized URI format:
+
+```
+prompt://{path}[@{version}]
+```
+
+**Format breakdown:**
+- `prompt://` - Protocol identifier for prompt components
+- `{path}` - Logical path to the prompt (e.g., `analyze-company`, `workflows/extraction/step1`)
+- `[@{version}]` - Optional version identifier (defaults to `@latest`)
+
+**Version format**:
+- `@latest` - Always uses the most recent version
+- `@v1` - Uses latest patch of major version (v1.x.x)
+- `@v1.0.0` - Specific semantic version (immutable)
+- `@prod` - Custom tag for production versions
+- `@staging` - Custom tag for staging versions
+
+### Example URIs
+
+```yaml
+# Always latest version
+prompt: "prompt://analyze-company"
+prompt: "prompt://analyze-company@latest"
+
+# Specific semantic version
+prompt: "prompt://analyze-company@v1.0.0"
+prompt: "prompt://analyze-company@v2.1.3"
+
+# Major/minor version (gets latest patch)
+prompt: "prompt://analyze-company@v1"
+prompt: "prompt://analyze-company@v1.2"
+
+# Custom tags
+prompt: "prompt://analyze-company@prod"
+prompt: "prompt://analyze-company@staging"
+
+# Nested paths
+prompt: "prompt://workflows/extraction/company-info@v1"
+```
+
+## How to Reference in Ensembles
+
+### Using Think Operation
+
+```yaml
+ensemble: financial-analyst
+
+agents:
+  - name: extract-metrics
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      temperature: 0.1
+      # Reference prompt component
+      prompt: "prompt://extract-financial-metrics@v1.0.0"
+      # Pass input to the prompt
+      instructions: |
+        Financial data: ${input.financials}
+
+outputs:
+  metrics: ${extract-metrics.output}
+```
+
+### With Parameters
+
+```yaml
+ensemble: query-responder
+
+agents:
+  - name: respond
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-opus-4
+      # Combine component with dynamic content
+      prompt: |
+        ${components.system_prompt@v1}
+
+        User question: ${input.question}
+        Context: ${input.context}
+      temperature: 0.7
+
+inputs:
+  question:
+    type: string
+  context:
+    type: string
+
+outputs:
+  response: ${respond.output}
+```
+
+### Multi-Step Workflow
+
+```yaml
+ensemble: document-processor
+
+flow:
+  - agent: summarize
+  - agent: extract-topics
+  - agent: generate-questions
+
+agents:
+  - name: summarize
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: "prompt://summarize-document@v1"
+      temperature: 0.3
+
+  - name: extract-topics
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: "prompt://extract-topics@v1"
+      temperature: 0.1
+
+  - name: generate-questions
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-opus-4
+      prompt: "prompt://generate-comprehension-questions@v2"
+      temperature: 0.8
+
+outputs:
+  summary: ${summarize.output}
+  topics: ${extract-topics.output}
+  questions: ${generate-questions.output}
+```
+
+## Caching and Performance
+
+Prompt components are automatically cached for 1 hour (3600 seconds) after first load.
+
+### Default Caching
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config:
+      prompt: "prompt://analyze-company@v1"
+      # Cached for 1 hour automatically
+```
+
+### Custom Cache TTL
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config:
+      prompt: "prompt://analyze-company@v1"
+      cache:
+        ttl: 7200  # 2 hours in seconds
+
+inputs:
+  data:
+    type: string
+```
+
+### Bypass Cache
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config:
+      prompt: "prompt://analyze-company@v1"
+      cache:
+        bypass: true  # Fresh load every time
+```
+
+## Best Practices
+
+### 1. Version Your Prompts
+
+Use semantic versioning to track changes:
+
+```bash
+# First version
+edgit tag create analyze-company v1.0.0
+
+# Improvement
+edgit tag create analyze-company v1.1.0
+
+# Major change
+edgit tag create analyze-company v2.0.0
+```
+
+### 2. Use Production Tags
+
+Create stable version tags for production ensembles:
+
+```bash
+edgit tag create analyze-company@v1.2.3 production
+```
+
+```yaml
+# Production ensemble uses stable tag
+prompt: "prompt://analyze-company@production"
+```
+
+### 3. Test Before Promoting
+
+```yaml
+ensemble: company-analyzer-test
+
+agents:
+  - name: analyze-current
+    operation: think
+    config:
+      prompt: "prompt://analyze-company@latest"
+
+  - name: analyze-production
+    operation: think
+    config:
+      prompt: "prompt://analyze-company@production"
+```
+
+### 4. Clear, Specific Instructions
+
+```text
+# Good: Clear, specific guidance
+You are an expert financial analyst. Extract the following from the earnings report:
+1. Revenue (include year-over-year growth %)
+2. Net income (include margin %)
+3. Cash flow from operations
+4. Key business metrics specific to this industry
+
+Format as structured JSON.
+
+# Bad: Vague instructions
+Analyze the financial data.
+```
+
+### 5. Include Examples
+
+```text
+You are a sentiment analyzer. Classify text sentiment as positive, negative, or neutral.
+
+Examples:
+- "I love this product!" → positive
+- "Terrible experience" → negative
+- "It's okay" → neutral
+
+Text to analyze: ${input.text}
+```
+
+### 6. Organize by Purpose
+
+Use path hierarchies for organization:
+
+```
+prompts/
+├── extraction/
+│   ├── company-info.txt
+│   ├── financial-metrics.txt
+│   └── contact-details.txt
+├── analysis/
+│   ├── sentiment.txt
+│   └── classification.txt
+└── generation/
+    ├── summarization.txt
+    └── question-generation.txt
+```
+
+## Provider-Specific Considerations
+
+### Anthropic (Claude)
+
+Optimized for detailed instructions and reasoning:
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-opus-4
+      prompt: "prompt://complex-reasoning@v1"
+      temperature: 0.2  # Precise following of instructions
+```
+
+### OpenAI (GPT)
+
+Works well with concise instructions:
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4-turbo
+      prompt: "prompt://task-instruction@v1"
+      temperature: 0.5
+```
+
+### Cloudflare Workers AI
+
+Use simpler, shorter prompts:
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config:
+      provider: cloudflare
+      model: "@cf/meta/llama-3-8b-instruct"
+      prompt: "prompt://simple-task@v1"
+      temperature: 0.1
+```
+
+## Common Patterns
+
+### Sentiment Analysis
+
+```text
+// prompts/sentiment-analysis.txt
+Analyze the sentiment of the provided text. Return:
+- sentiment: positive | negative | neutral | mixed
+- confidence: 0-1 (confidence score)
+- reasoning: brief explanation
+
+Text: ${input.text}
+```
+
+### Information Extraction
+
+```text
+// prompts/extract-contacts.txt
+Extract all contact information from the provided text. Include:
+- Names (with titles if available)
+- Email addresses
+- Phone numbers
+- Company affiliations
+
+Return as structured JSON with an array of contacts.
+
+Text: ${input.text}
+```
+
+### Content Summarization
+
+```text
+// prompts/summarize-content.txt
+Summarize the provided content in 2-3 sentences, highlighting the key points.
+Focus on the most important information for someone unfamiliar with the topic.
+
+Content: ${input.content}
+```
+
+## Versioning Strategy
+
+### Development Workflow
+
+```bash
+# 1. Create new version
+edgit tag create analyze-company v1.1.0
+
+# 2. Test with staging ensemble
+ensemble: analyzer-staging
+  agents:
+    - name: analyze
+      operation: think
+      config:
+        prompt: "prompt://analyze-company@v1.1.0"
+
+# 3. Promote to production
+edgit tag create analyze-company@v1.1.0 production
+```
+
+### Rollback Strategy
+
+```yaml
+# If v1.1.0 has issues, keep using v1.0.0
+ensemble: company-analyzer-stable
+
+agents:
+  - name: analyze
+    operation: think
+    config:
+      prompt: "prompt://analyze-company@v1.0.0"
+```
+
+## Troubleshooting
+
+### Prompt Not Found
+
+**Error**: `Component not found: prompt://analyze-company@v1.0.0`
+
+**Solution**:
+1. Check prompt exists: `edgit list prompts`
+2. Check version: `edgit versions analyze-company`
+3. Verify deployment: `edgit status analyze-company@v1.0.0`
+
+### Inconsistent Results
+
+**Issue**: Same prompt produces different outputs
+
+**Solutions**:
+1. Set `temperature: 0` for deterministic results
+2. Use specific model versions: `claude-sonnet-4-20250514`
+3. Include more specific examples in the prompt
+
+### Cache Issues
+
+**Issue**: Updated prompt not being used
+
+**Solution**: Invalidate cache or set `cache.bypass: true`
+
+```yaml
+agents:
+  - name: analyze
+    operation: think
+    config:
+      prompt: "prompt://analyze-company@latest"
+      cache:
+        bypass: true
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Query Components" icon="database" href="/conductor/components/queries">
+    SQL queries as components
+  </Card>
+  <Card title="Config Components" icon="gear" href="/conductor/components/configs">
+    JSON settings as components
+  </Card>
+  <Card title="Think Operation" icon="brain" href="/conductor/operations/think">
+    AI reasoning operations
+  </Card>
+  <Card title="Edgit Versioning" icon="code-branch" href="/edgit/guides/versioning-components-agents">
+    Version control for components
+  </Card>
+</CardGroup>

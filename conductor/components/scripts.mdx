@@ -1,0 +1,514 @@
+---
+title: "Script Components"
+description: "Reusable JavaScript/TypeScript code for Code agents (Planned Feature)"
+---
+
+**Define and version reusable code scripts as components for consistent business logic across ensembles.**
+
+## Overview
+
+Script components are designed to enable you to:
+- **Reuse code logic** across multiple agents and ensembles
+- **Version scripts** for reproducibility and rollback
+- **Organize** complex JavaScript/TypeScript code
+- **Share utilities** across teams
+- **A/B test** different implementations
+
+## Current Status
+
+Script components as a versioned resource are currently a **planned feature** in development. Today, you can:
+- **Embed code directly** in Code agents within ensemble YAML
+- **Reference stored code** using the component system (available through operations)
+- **Use composition** to build complex workflows
+
+We're actively developing support for script versioning similar to prompts, queries, and configs. Once available, you'll be able to:
+
+```yaml
+# Planned future syntax (not yet available)
+script: "script://transform-data@v1.0.0"
+```
+
+## Current Workaround: Inline Code
+
+Until script components are available, embed code directly in your ensembles:
+
+```yaml
+ensemble: data-transformer
+
+agents:
+  - name: transform
+    operation: code
+    config:
+      code: |
+        // Process the input data
+        const data = input.raw_data;
+
+        return {
+          processed: data.map(item => ({
+            id: item.id,
+            normalized_value: (item.value - item.min) / (item.max - item.min),
+            timestamp: new Date(item.created_at).toISOString()
+          })),
+          total_items: data.length
+        };
+
+inputs:
+  raw_data:
+    type: array
+
+outputs:
+  result: ${transform.output}
+```
+
+## Code Agent Operations
+
+Code agents enable you to execute JavaScript/TypeScript logic within ensembles. They're useful for:
+- **Data transformation** - Processing and normalizing data
+- **Business logic** - Custom calculations and rules
+- **Integration** - Connecting multiple data sources
+- **Validation** - Checking data quality and constraints
+
+### Basic Code Agent
+
+```yaml
+ensemble: process-order
+
+agents:
+  - name: validate
+    operation: code
+    config:
+      code: |
+        const order = input.order;
+
+        // Validate required fields
+        if (!order.customer_id || !order.items || order.items.length === 0) {
+          throw new Error('Invalid order: missing required fields');
+        }
+
+        // Calculate total
+        const total = order.items.reduce((sum, item) => {
+          return sum + (item.price * item.quantity);
+        }, 0);
+
+        return {
+          valid: true,
+          order_id: order.id,
+          total: total,
+          item_count: order.items.length
+        };
+
+inputs:
+  order:
+    type: object
+
+outputs:
+  validation_result: ${validate.output}
+```
+
+### Multi-Step Code Workflow
+
+```yaml
+ensemble: data-pipeline
+
+flow:
+  - agent: extract
+  - agent: transform
+  - agent: validate
+  - agent: aggregate
+
+agents:
+  - name: extract
+    operation: code
+    config:
+      code: |
+        // Extract relevant fields from raw input
+        return input.data.map(item => ({
+          id: item['ID'],
+          name: item['Full Name'],
+          amount: parseFloat(item['Amount'])
+        }));
+
+  - name: transform
+    operation: code
+    config:
+      code: |
+        // Normalize and enhance data
+        return input.extract_output.map(item => ({
+          ...item,
+          amount_cents: Math.round(item.amount * 100),
+          processed_at: new Date().toISOString(),
+          normalized_name: item.name.toUpperCase().trim()
+        }));
+
+  - name: validate
+    operation: code
+    config:
+      code: |
+        // Validate data quality
+        const items = input.transform_output;
+        const valid = items.filter(item => {
+          return item.id && item.amount_cents > 0;
+        });
+
+        const invalid = items.filter(item => {
+          return !item.id || item.amount_cents <= 0;
+        });
+
+        return {
+          valid_items: valid,
+          invalid_items: invalid,
+          success_rate: (valid.length / items.length) * 100
+        };
+
+  - name: aggregate
+    operation: code
+    config:
+      code: |
+        // Aggregate results
+        const items = input.validate_output.valid_items;
+
+        return {
+          total_items: items.length,
+          total_amount: items.reduce((sum, item) => sum + item.amount_cents, 0),
+          items: items,
+          processed_at: new Date().toISOString()
+        };
+
+inputs:
+  data:
+    type: array
+
+outputs:
+  result: ${aggregate.output}
+```
+
+## Best Practices (Today)
+
+### 1. Keep Code Modular
+
+Break complex logic into multiple code agents:
+
+```yaml
+ensemble: complex-workflow
+
+flow:
+  - agent: step1
+  - agent: step2
+  - agent: step3
+
+agents:
+  - name: step1
+    operation: code
+    config:
+      code: |
+        return { step1_result: input.data };
+
+  - name: step2
+    operation: code
+    config:
+      code: |
+        const result = input.step1_result;
+        return { step2_result: result };
+
+  - name: step3
+    operation: code
+    config:
+      code: |
+        const result = input.step2_result;
+        return { final_result: result };
+```
+
+### 2. Add Error Handling
+
+```yaml
+agents:
+  - name: process
+    operation: code
+    config:
+      code: |
+        try {
+          const data = JSON.parse(input.json_string);
+          return { success: true, data: data };
+        } catch (error) {
+          throw new Error(`Failed to parse JSON: ${error.message}`);
+        }
+```
+
+### 3. Use Meaningful Variable Names
+
+```javascript
+// Good: Clear variable names
+const totalAmount = items.reduce((sum, item) => sum + item.price, 0);
+const customerName = customer.first_name + ' ' + customer.last_name;
+
+// Bad: Unclear names
+const t = items.reduce((s, i) => s + i.p, 0);
+const cn = c.f + ' ' + c.l;
+```
+
+### 4. Add Comments for Complex Logic
+
+```yaml
+agents:
+  - name: calculate-compound-interest
+    operation: code
+    config:
+      code: |
+        // Calculate compound interest using A = P(1 + r/n)^(nt)
+        const principal = input.principal;
+        const rate = input.rate / 100;  // Convert percentage to decimal
+        const compounds = input.compounds_per_year;
+        const years = input.years;
+
+        const amount = principal * Math.pow(1 + rate / compounds, compounds * years);
+
+        return {
+          principal: principal,
+          final_amount: Math.round(amount * 100) / 100,
+          interest_earned: Math.round((amount - principal) * 100) / 100
+        };
+```
+
+### 5. Validate Input Data
+
+```yaml
+agents:
+  - name: process-with-validation
+    operation: code
+    config:
+      code: |
+        // Validate input exists and has required fields
+        if (!input.data) {
+          throw new Error('Input data is required');
+        }
+
+        if (!Array.isArray(input.data)) {
+          throw new Error('Input data must be an array');
+        }
+
+        if (input.data.length === 0) {
+          throw new Error('Input data cannot be empty');
+        }
+
+        return { items_processed: input.data.length };
+```
+
+## Integration Patterns
+
+### With Think Agents
+
+```yaml
+ensemble: analyze-with-code-prep
+
+flow:
+  - agent: prepare
+  - agent: analyze
+
+agents:
+  - name: prepare
+    operation: code
+    config:
+      code: |
+        // Prepare data for AI analysis
+        return {
+          summary: input.text.substring(0, 1000),
+          word_count: input.text.split(' ').length,
+          char_count: input.text.length
+        };
+
+  - name: analyze
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: |
+        Analyze this text and provide insights:
+        ${input.prepare_output}
+```
+
+### With Data Agents
+
+```yaml
+ensemble: query-and-process
+
+flow:
+  - agent: fetch
+  - agent: process
+
+agents:
+  - name: fetch
+    operation: data
+    config:
+      database: postgres
+      query: "query://get-users@v1"
+
+  - name: process
+    operation: code
+    config:
+      code: |
+        // Process database results
+        const users = input.fetch_output;
+        return {
+          total_users: users.length,
+          active_users: users.filter(u => u.active).length,
+          avg_age: users.reduce((sum, u) => sum + u.age, 0) / users.length
+        };
+
+outputs:
+  stats: ${process.output}
+```
+
+## Planned Features
+
+When script components become available, you'll be able to:
+
+### Version Scripts
+
+```bash
+edgit components add transform-data scripts/transform.js code
+edgit tag create transform-data v1.0.0
+edgit deploy set transform-data v1.0.0 --to production
+```
+
+### Reference Scripts in Ensembles
+
+```yaml
+# Planned future syntax
+ensemble: data-processor
+
+agents:
+  - name: transform
+    operation: code
+    config:
+      script: "script://transform-data@v1.0.0"
+
+inputs:
+  raw_data:
+    type: array
+```
+
+### A/B Test Implementations
+
+```yaml
+# Planned future syntax
+ensemble: implementation-test
+
+agents:
+  - name: process-v1
+    operation: code
+    config:
+      script: "script://transform@v1.0.0"
+
+  - name: process-v2
+    operation: code
+    config:
+      script: "script://transform@v2.0.0"
+
+outputs:
+  v1_result: ${process-v1.output}
+  v2_result: ${process-v2.output}
+```
+
+## Migration Path
+
+When script components become available:
+
+1. **Extract inline code** from ensembles
+2. **Store as script files** in repository
+3. **Add to Edgit** as versioned components
+4. **Update ensemble references** to use URI format
+5. **Version and promote** through environments
+
+```bash
+# Future workflow
+# 1. Create script file
+# scripts/transform-data.js
+
+# 2. Add to Edgit
+edgit components add transform-data scripts/transform-data.js code
+
+# 3. Version it
+edgit tag create transform-data v1.0.0
+
+# 4. Update ensemble
+# ensemble.yaml now uses: script: "script://transform-data@v1.0.0"
+```
+
+## JavaScript Runtime Environment
+
+Code agents execute in a secure JavaScript runtime with:
+
+- **Full ES6+ support** - All modern JavaScript features
+- **Built-in objects** - Array, Object, Math, Date, JSON, etc.
+- **Safe execution** - Isolated from other agents
+- **Input access** - Access via `input` object
+- **Output requirement** - Must return a value
+
+### Available Globals
+
+```yaml
+agents:
+  - name: demo
+    operation: code
+    config:
+      code: |
+        // All standard JavaScript is available
+        const now = new Date();
+        const random = Math.random();
+        const text = "Hello World";
+        const arr = [1, 2, 3];
+        const obj = { key: "value" };
+
+        // Return result
+        return {
+          timestamp: now.toISOString(),
+          random_number: random,
+          arrays_work: arr.map(x => x * 2)
+        };
+```
+
+## Troubleshooting
+
+### Syntax Errors
+
+**Issue**: Code doesn't execute
+
+**Solutions**:
+1. Check JavaScript syntax (use `node` locally to test)
+2. Ensure all variables are defined
+3. Check for missing parentheses or braces
+
+### Runtime Errors
+
+**Issue**: Code throws an error during execution
+
+**Solutions**:
+1. Add error handling with try/catch
+2. Validate input data before processing
+3. Check that referenced properties exist
+
+### Type Errors
+
+**Issue**: Cannot perform operation on undefined value
+
+**Solutions**:
+1. Check input structure
+2. Add null/undefined checks
+3. Use optional chaining: `obj?.property`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Prompt Components" icon="wand2" href="/conductor/components/prompts">
+    Reusable AI instructions
+  </Card>
+  <Card title="Config Components" icon="gear" href="/conductor/components/configs">
+    JSON settings as components
+  </Card>
+  <Card title="Query Components" icon="database" href="/conductor/components/queries">
+    SQL queries as components
+  </Card>
+  <Card title="Code Operation" icon="terminal" href="/conductor/operations/code">
+    Custom code execution
+  </Card>
+</CardGroup>
