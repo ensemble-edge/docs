@@ -1,36 +1,235 @@
 ---
 title: "Script Components"
-description: "Reusable JavaScript/TypeScript code for Code agents (Planned Feature)"
+description: "Reusable JavaScript/TypeScript code for Code operations"
 ---
 
 **Define and version reusable code scripts as components for consistent business logic across ensembles.**
 
 ## Overview
 
-Script components are designed to enable you to:
+Script components enable you to:
 - **Reuse code logic** across multiple agents and ensembles
-- **Version scripts** for reproducibility and rollback
-- **Organize** complex JavaScript/TypeScript code
-- **Share utilities** across teams
+- **Version scripts** with semantic versioning for reproducibility
 - **A/B test** different implementations
+- **Organize** complex JavaScript/TypeScript code separately from YAML
+- **Deploy** scripts independently from ensembles
+- **Collaborate** by sharing utility functions across teams
 
-## Current Status
+## Quick Start
 
-Script components as a versioned resource are currently a **planned feature** in development. Today, you can:
-- **Embed code directly** in Code agents within ensemble YAML
-- **Reference stored code** using the component system (available through operations)
-- **Use composition** to build complex workflows
+### 1. Create a Script Component
 
-We're actively developing support for script versioning similar to prompts, queries, and configs. Once available, you'll be able to:
+Create a JavaScript/TypeScript file that exports a default function:
 
-```yaml
-# Planned future syntax (not yet available)
-script: "script://transform-data@v1.0.0"
+```javascript
+// scripts/transform-data.js
+export default async function(context) {
+  const data = context.input.raw_data;
+
+  // Process the input data
+  const processed = data.map(item => ({
+    id: item.id,
+    normalized_value: (item.value - item.min) / (item.max - item.min),
+    timestamp: new Date(item.created_at).toISOString()
+  }));
+
+  return {
+    processed,
+    total_items: processed.length
+  };
+}
 ```
 
-## Current Workaround: Inline Code
+### 2. Add to Edgit
 
-Until script components are available, embed code directly in your ensembles:
+```bash
+edgit components add transform-data scripts/transform-data.js script
+edgit tag create transform-data v1.0.0
+edgit deploy set transform-data v1.0.0 --to production
+```
+
+### 3. Reference in Your Ensemble
+
+```yaml
+ensemble: data-processor
+
+agents:
+  - name: transform
+    operation: code
+    config:
+      script: "script://transform-data@v1.0.0"
+
+inputs:
+  raw_data:
+    type: array
+
+outputs:
+  result: ${transform.output}
+```
+
+## URI Format and Versioning
+
+All script components use the standardized URI format:
+
+```
+script://{path}[@{version}]
+```
+
+**Format breakdown:**
+- `script://` - Protocol identifier for script components
+- `{path}` - Logical path to the script (e.g., `transform-data`, `utils/validation`)
+- `[@{version}]` - Optional version identifier (defaults to `@latest`)
+
+**Version format**:
+- `@latest` - Always uses the most recent version
+- `@v1` - Uses latest patch of major version (v1.x.x)
+- `@v1.0.0` - Specific semantic version (immutable)
+- `@prod` - Custom tag for production versions
+- `@staging` - Custom tag for staging versions
+
+### Example URIs
+
+```yaml
+# Always latest version
+script: "script://transform-data"
+script: "script://transform-data@latest"
+
+# Specific semantic version
+script: "script://transform-data@v1.0.0"
+script: "script://transform-data@v2.1.3"
+
+# Major/minor version (gets latest patch)
+script: "script://transform-data@v1"
+script: "script://transform-data@v1.2"
+
+# Custom tags
+script: "script://transform-data@prod"
+script: "script://transform-data@staging"
+
+# Nested paths
+script: "script://utils/validation@v1.0.0"
+script: "script://pipelines/etl/normalize@v2"
+```
+
+## Script Format
+
+Scripts must export a default function that receives the agent execution context:
+
+```javascript
+// scripts/example.js
+export default async function(context) {
+  // Available in context:
+  const {
+    input,      // Input data from ensemble
+    env,        // Environment variables and bindings (KV, D1, etc.)
+    state,      // Shared state (if configured)
+    cache,      // Cache instance
+    logger,     // Logger instance
+    agents      // Results from previous agents
+  } = context;
+
+  // Your logic here
+  const result = processData(input);
+
+  // Return value becomes agent output
+  return result;
+}
+
+function processData(data) {
+  // Helper functions can be defined in the same file
+  return data;
+}
+```
+
+### TypeScript Support
+
+```typescript
+// scripts/typed-transform.ts
+import type { AgentExecutionContext } from '@ensemble/conductor';
+
+interface InputData {
+  items: Array<{
+    id: string;
+    value: number;
+  }>;
+}
+
+interface OutputData {
+  processed: Array<{
+    id: string;
+    normalized: number;
+  }>;
+  total: number;
+}
+
+export default async function(
+  context: AgentExecutionContext
+): Promise<OutputData> {
+  const data = context.input as InputData;
+
+  const processed = data.items.map(item => ({
+    id: item.id,
+    normalized: item.value / 100
+  }));
+
+  return {
+    processed,
+    total: processed.length
+  };
+}
+```
+
+## How to Reference in Ensembles
+
+There are three ways to reference scripts in your ensembles:
+
+### 1. URI Format (Recommended)
+
+Use the `script://` URI format to reference versioned script components:
+
+```yaml
+ensemble: data-processor
+
+agents:
+  - name: transform
+    operation: code
+    config:
+      script: "script://transform-data@v1.0.0"
+
+inputs:
+  raw_data:
+    type: array
+
+outputs:
+  result: ${transform.output}
+```
+
+### 2. Template Expression Format
+
+Use `${components.script_name@version}` to embed script references in code:
+
+```yaml
+ensemble: data-pipeline
+
+agents:
+  - name: process
+    operation: code
+    config:
+      code: |
+        // Load reusable script logic
+        ${components.transform-data@v1}
+
+        // Execute with custom input
+        return transformData(input.raw_data);
+
+inputs:
+  raw_data:
+    type: array
+```
+
+### 3. Inline Code
+
+For simple operations or during development, use inline code directly:
 
 ```yaml
 ensemble: data-transformer
@@ -60,7 +259,99 @@ outputs:
   result: ${transform.output}
 ```
 
-## Code Agent Operations
+## Using Script Components
+
+### With Caching Options
+
+```yaml
+agents:
+  - name: transform
+    operation: code
+    config:
+      script: "script://transform-data@v1.0.0"
+      cache:
+        ttl: 7200  # Cache script for 2 hours
+        # or bypass: true to skip cache
+```
+
+### Multiple Scripts in Workflow
+
+```yaml
+ensemble: data-pipeline
+
+flow:
+  - agent: extract
+  - agent: transform
+  - agent: validate
+  - agent: aggregate
+
+agents:
+  - name: extract
+    operation: code
+    config:
+      script: "script://pipelines/extract@v1"
+
+  - name: transform
+    operation: code
+    config:
+      script: "script://pipelines/transform@v1"
+
+  - name: validate
+    operation: code
+    config:
+      script: "script://pipelines/validate@v1"
+
+  - name: aggregate
+    operation: code
+    config:
+      script: "script://pipelines/aggregate@v1"
+```
+
+## Caching and Performance
+
+Script components are automatically cached for 1 hour (3600 seconds) after first load.
+
+### Default Caching
+
+```yaml
+agents:
+  - name: process
+    operation: code
+    config:
+      script: "script://transform-data@v1.0.0"
+      # Cached for 1 hour automatically
+```
+
+**Performance:**
+- **First load**: Fetched from KV and compiled (~10-20ms)
+- **Subsequent loads**: Served from edge cache (~0.1ms)
+- **Cache per version**: Each version cached independently
+
+### Custom Cache TTL
+
+```yaml
+agents:
+  - name: process
+    operation: code
+    config:
+      script: "script://transform-data@v1"
+      cache:
+        ttl: 86400  # 24 hours for stable scripts
+```
+
+### Bypass Cache
+
+```yaml
+agents:
+  - name: process
+    operation: code
+    config:
+      script: "script://transform-data@latest"
+      cache:
+        bypass: true  # Fresh load during development
+```
+
+## Code Operation Patterns
 
 Code agents enable you to execute JavaScript/TypeScript logic within ensembles. They're useful for:
 - **Data transformation** - Processing and normalizing data

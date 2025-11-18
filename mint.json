@@ -166,7 +166,8 @@
         "conductor/components/prompts",
         "conductor/components/configs",
         "conductor/components/queries",
-        "conductor/components/scripts"
+        "conductor/components/scripts",
+        "conductor/components/templates"
       ]
     },
     {
@@ -180,6 +181,7 @@
         "conductor/operations/tools",
         "conductor/operations/email",
         "conductor/operations/sms",
+        "conductor/operations/form",
         "conductor/operations/html",
         "conductor/operations/pdf",
         "conductor/operations/page",

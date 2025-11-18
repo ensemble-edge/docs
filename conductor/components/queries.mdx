@@ -110,7 +110,11 @@ query: "query://reports/customer-summary@v1"
 
 ## How to Reference in Ensembles
 
-### Simple Query Reference
+There are three ways to reference queries in your ensembles:
+
+### 1. URI Format (Recommended)
+
+Use the `query://` URI format to reference versioned query components:
 
 ```yaml
 ensemble: user-analyzer
@@ -120,13 +124,76 @@ agents:
     operation: data
     config:
       database: "postgres"
-      query: "query://active-users@v1"
+      query: "query://active-users@v1.0.0"
       params:
         days: 30
 
 outputs:
   users: ${get-users.output}
 ```
+
+### 2. Template Expression Format
+
+Use `${components.query_name@version}` to embed query references:
+
+```yaml
+ensemble: complex-report
+
+agents:
+  - name: generate-report
+    operation: data
+    config:
+      database: "analytics"
+      query: |
+        -- Base query from component
+        ${components.base-report-query@v1}
+
+        -- Add custom filters
+        WHERE created_at >= ${input.start_date}
+          AND region = ${input.region}
+      params:
+        start_date: ${input.start_date}
+        region: ${input.region}
+
+inputs:
+  start_date:
+    type: string
+  region:
+    type: string
+
+outputs:
+  report: ${generate-report.output}
+```
+
+### 3. Inline Query
+
+For simple operations or during development, use inline SQL directly:
+
+```yaml
+ensemble: simple-lookup
+
+agents:
+  - name: get-user
+    operation: data
+    config:
+      database: "postgres"
+      query: |
+        SELECT id, name, email, created_at
+        FROM users
+        WHERE id = ?
+        LIMIT 1
+      params:
+        - ${input.user_id}
+
+inputs:
+  user_id:
+    type: integer
+
+outputs:
+  user: ${get-user.output}
+```
+
+## Using Query Components
 
 ### With Dynamic Parameters
 

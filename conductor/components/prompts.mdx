@@ -108,7 +108,11 @@ prompt: "prompt://workflows/extraction/company-info@v1"
 
 ## How to Reference in Ensembles
 
-### Using Think Operation
+There are three ways to reference prompts in your ensembles:
+
+### 1. URI Format (Recommended)
+
+Use the `prompt://` URI format to reference versioned prompt components:
 
 ```yaml
 ensemble: financial-analyst
@@ -122,15 +126,18 @@ agents:
       temperature: 0.1
       # Reference prompt component
       prompt: "prompt://extract-financial-metrics@v1.0.0"
-      # Pass input to the prompt
-      instructions: |
-        Financial data: ${input.financials}
+
+inputs:
+  financials:
+    type: string
 
 outputs:
   metrics: ${extract-metrics.output}
 ```
 
-### With Parameters
+### 2. Template Expression Format
+
+Use `${components.prompt_name@version}` to embed prompt references in prompts:
 
 ```yaml
 ensemble: query-responder
@@ -158,6 +165,39 @@ inputs:
 outputs:
   response: ${respond.output}
 ```
+
+### 3. Inline Prompt
+
+For simple operations or during development, use inline prompts directly:
+
+```yaml
+ensemble: content-analyzer
+
+agents:
+  - name: analyze
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      temperature: 0.3
+      prompt: |
+        You are a content analyst. Analyze the following text and provide:
+        - Main topic
+        - Key themes
+        - Sentiment (positive/negative/neutral)
+        - Word count
+
+        Text: ${input.content}
+
+inputs:
+  content:
+    type: string
+
+outputs:
+  analysis: ${analyze.output}
+```
+
+## Using Prompt Components
 
 ### Multi-Step Workflow
 

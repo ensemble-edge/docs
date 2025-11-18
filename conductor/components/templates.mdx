@@ -1,0 +1,749 @@
+---
+title: "Template Components"
+description: "Reusable HTML templates for HTML and Page operations"
+---
+
+**Define and version reusable HTML templates as components for consistent UI across ensembles.**
+
+## Overview
+
+Template components enable you to:
+- **Reuse templates** across multiple HTML and Page operations
+- **Version templates** with semantic versioning for consistency
+- **A/B test** different template versions
+- **Organize** layouts and components separately
+- **Deploy** templates independently from code
+- **Cache at the edge** for fast loading (~0.1ms)
+
+## Quick Start
+
+### 1. Create a Template Component
+
+Create an HTML template file with your preferred template engine:
+
+```html
+<!-- templates/layouts/main.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title>
+  {{#if description}}
+  <meta name="description" content="{{description}}">
+  {{/if}}
+</head>
+<body>
+  <header>
+    <h1>{{title}}</h1>
+  </header>
+  <main>
+    {{{content}}}
+  </main>
+  <footer>
+    <p>&copy; {{year}} {{companyName}}</p>
+  </footer>
+</body>
+</html>
+```
+
+### 2. Add to Edgit
+
+```bash
+edgit components add main-layout templates/layouts/main.html template
+edgit tag create main-layout v1.0.0
+edgit deploy set main-layout v1.0.0 --to production
+```
+
+### 3. Reference in Your Ensemble
+
+```yaml
+ensemble: company-page
+
+agents:
+  - name: render
+    operation: html
+    config:
+      template:
+        inline: |
+          <h1>{{heading}}</h1>
+          <p>{{content}}</p>
+      layout: "template://main-layout@v1.0.0"
+      engine: handlebars
+      data:
+        title: "Company Page"
+        description: "Our company information"
+        heading: "Welcome"
+        content: "This is our company page"
+        year: 2025
+        companyName: "Acme Corp"
+
+outputs:
+  html: ${render.output}
+```
+
+## URI Format and Versioning
+
+All template components use the standardized URI format:
+
+```
+template://{path}[@{version}]
+```
+
+**Format breakdown:**
+- `template://` - Protocol identifier for template components
+- `{path}` - Logical path to the template (e.g., `layouts/main`, `components/header`)
+- `[@{version}]` - Optional version identifier (defaults to `@latest`)
+
+**Version format**:
+- `@latest` - Always uses the most recent version
+- `@v1` - Uses latest patch of major version (v1.x.x)
+- `@v1.0.0` - Specific semantic version (immutable)
+- `@prod` - Custom tag for production versions
+- `@staging` - Custom tag for staging versions
+
+### Example URIs
+
+```yaml
+# Always latest version
+layout: "template://layouts/main"
+layout: "template://layouts/main@latest"
+
+# Specific semantic version
+layout: "template://layouts/main@v1.0.0"
+layout: "template://layouts/main@v2.1.3"
+
+# Major/minor version (gets latest patch)
+layout: "template://layouts/main@v1"
+layout: "template://layouts/main@v1.2"
+
+# Custom tags
+layout: "template://layouts/main@prod"
+layout: "template://layouts/main@staging"
+
+# Nested paths
+layout: "template://layouts/dashboard/admin@v1"
+```
+
+## Template Engines
+
+Templates support multiple rendering engines:
+
+### Handlebars (Default)
+
+Full featured with helpers, partials, and blocks:
+
+```html
+<!-- templates/components/card.html -->
+<div class="card">
+  {{#if image}}
+  <img src="{{image}}" alt="{{imageAlt}}">
+  {{/if}}
+  <h3>{{title}}</h3>
+  <p>{{description}}</p>
+  {{#if link}}
+  <a href="{{link}}">{{linkText}}</a>
+  {{/if}}
+</div>
+```
+
+### Liquid
+
+Django/Jekyll-style templates:
+
+```html
+<!-- templates/layouts/blog.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ title }}</title>
+</head>
+<body>
+  {% if featured %}
+  <div class="featured">{{ featured }}</div>
+  {% endif %}
+
+  {{ content }}
+
+  {% for post in posts %}
+  <article>
+    <h2>{{ post.title }}</h2>
+    <p>{{ post.excerpt }}</p>
+  </article>
+  {% endfor %}
+</body>
+</html>
+```
+
+### Simple
+
+Lightweight variable substitution:
+
+```html
+<!-- templates/emails/notification.html -->
+<p>Hello ${name},</p>
+<p>You have ${count} new notifications:</p>
+<ul>
+  ${notifications}
+</ul>
+```
+
+### MJML
+
+Email templates with responsive design:
+
+```html
+<!-- templates/emails/welcome.mjml -->
+<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-text font-size="20px" color="#626262">
+          Welcome ${name}!
+        </mj-text>
+        <mj-button href="${confirmUrl}">
+          Confirm Your Email
+        </mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
+```
+
+## How to Reference in Ensembles
+
+There are three ways to reference templates in your ensembles:
+
+### 1. URI Format (Recommended)
+
+Use the `template://` URI format to reference versioned template components as layouts or partials:
+
+```yaml
+ensemble: landing-page
+
+agents:
+  - name: render
+    operation: html
+    config:
+      template:
+        inline: |
+          <section class="hero">
+            <h2>{{headline}}</h2>
+            <p>{{tagline}}</p>
+          </section>
+      layout: "template://layouts/main@v1.0.0"
+      engine: handlebars
+      data:
+        title: "Product Launch"
+        headline: "Revolutionary New Product"
+        tagline: "Transform your workflow"
+
+outputs:
+  html: ${render.output}
+```
+
+### 2. Template Expression Format
+
+Use `${components.template_name@version}` to embed template references:
+
+```yaml
+ensemble: email-campaign
+
+agents:
+  - name: render-email
+    operation: html
+    config:
+      template:
+        inline: |
+          ${components.email-header@v1}
+
+          <p>Hello {{name}},</p>
+          <p>{{message}}</p>
+
+          ${components.email-footer@v1}
+      engine: handlebars
+      data:
+        name: ${input.name}
+        message: ${input.message}
+
+inputs:
+  name:
+    type: string
+  message:
+    type: string
+
+outputs:
+  html: ${render-email.output}
+```
+
+### 3. Inline Template
+
+For simple operations or during development, use inline templates directly.
+
+**Option A: Structured template with engine:**
+
+```yaml
+ensemble: simple-page
+
+agents:
+  - name: render
+    operation: html
+    config:
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>{{title}}</title>
+          </head>
+          <body>
+            <h1>{{heading}}</h1>
+            <p>{{content}}</p>
+          </body>
+          </html>
+      engine: handlebars
+      data:
+        title: "Simple Page"
+        heading: "Welcome"
+        content: "This is a simple inline template"
+
+outputs:
+  html: ${render.output}
+```
+
+**Option B: Raw HTML (no template engine):**
+
+```yaml
+ensemble: static-page
+
+agents:
+  - name: render
+    operation: html
+    config:
+      html: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Welcome</title>
+        </head>
+        <body>
+          <h1>Hello ${input.name}</h1>
+          <p>Welcome to our site!</p>
+        </body>
+        </html>
+
+inputs:
+  name:
+    type: string
+
+outputs:
+  html: ${render.output}
+```
+
+## Using Templates in Operations
+
+### With Partial Components
+
+```yaml
+ensemble: dashboard
+
+agents:
+  - name: render
+    operation: html
+    config:
+      template:
+        inline: |
+          {{> template://components/header}}
+
+          <main>
+            <h1>Dashboard</h1>
+            {{#each widgets}}
+              {{> template://components/card}}
+            {{/each}}
+          </main>
+
+          {{> template://components/footer}}
+      engine: handlebars
+      data:
+        title: "Dashboard"
+        widgets:
+          - title: "Sales"
+            description: "$1.2M this month"
+          - title: "Users"
+            description: "10,543 active"
+
+outputs:
+  html: ${render.output}
+```
+
+### Page Operation with Template
+
+```yaml
+ensemble: admin-page
+
+agents:
+  - name: render-page
+    operation: page
+    config:
+      component:
+        template: "template://pages/admin@v1"
+      props:
+        user: ${input.user}
+        stats: ${input.stats}
+
+inputs:
+  user:
+    type: object
+  stats:
+    type: object
+
+outputs:
+  html: ${render-page.output}
+```
+
+### Email with Template
+
+```yaml
+ensemble: welcome-email
+
+agents:
+  - name: send-welcome
+    operation: email
+    config:
+      to: ${input.email}
+      subject: "Welcome to Acme Corp"
+      html:
+        template: "template://emails/welcome@v1"
+        engine: mjml
+        data:
+          name: ${input.name}
+          confirmUrl: ${input.confirmUrl}
+
+inputs:
+  email:
+    type: string
+  name:
+    type: string
+  confirmUrl:
+    type: string
+```
+
+## Layouts and Partials
+
+### Layouts
+
+Layouts wrap content with common structure (header, footer, etc.):
+
+```yaml
+agents:
+  - name: render
+    operation: html
+    config:
+      template:
+        inline: "<h1>{{heading}}</h1><p>{{body}}</p>"
+      layout: "template://layouts/main@v1"
+      data:
+        title: "Page Title"
+        heading: "Welcome"
+        body: "Page content"
+```
+
+The `{{{content}}}` variable in the layout receives the rendered template.
+
+### Partials
+
+Partials are reusable components included in templates:
+
+```handlebars
+<!-- Main template -->
+<div class="page">
+  {{> template://components/header}}
+
+  <main>
+    {{content}}
+  </main>
+
+  {{> template://components/footer}}
+</div>
+```
+
+Partials automatically receive the same data context as the parent template.
+
+## Caching and Performance
+
+Template components are automatically cached for 1 hour (3600 seconds) after first load.
+
+### Default Caching
+
+```yaml
+agents:
+  - name: render
+    operation: html
+    config:
+      layout: "template://layouts/main@v1"
+      # Cached for 1 hour automatically
+```
+
+**Performance:**
+- **First load**: Fetched from KV (~5-10ms)
+- **Subsequent loads**: Served from edge cache (~0.1ms)
+- **Cache per version**: Each version cached independently
+
+### Custom Cache TTL
+
+```yaml
+agents:
+  - name: render
+    operation: html
+    config:
+      layout: "template://layouts/main@v1"
+      cache:
+        ttl: 86400  # 24 hours for stable layouts
+```
+
+### Bypass Cache
+
+```yaml
+agents:
+  - name: render
+    operation: html
+    config:
+      layout: "template://layouts/main@latest"
+      cache:
+        bypass: true  # Fresh load every time during development
+```
+
+## Best Practices
+
+### 1. Version Your Templates
+
+Use semantic versioning to track changes:
+
+```bash
+# First version
+edgit tag create main-layout v1.0.0
+
+# Visual improvement
+edgit tag create main-layout v1.1.0
+
+# Breaking change (structure changed)
+edgit tag create main-layout v2.0.0
+```
+
+### 2. Use Production Tags
+
+Create stable version tags for production ensembles:
+
+```bash
+edgit tag create main-layout@v1.2.3 production
+```
+
+```yaml
+# Production ensemble uses stable tag
+layout: "template://layouts/main@production"
+```
+
+### 3. Organize by Purpose
+
+Use path hierarchies for organization:
+
+```
+templates/
+├── layouts/
+│   ├── main.html          # Standard page layout
+│   ├── dashboard.html     # Dashboard layout
+│   └── email.html         # Email layout
+├── components/
+│   ├── header.html        # Site header
+│   ├── footer.html        # Site footer
+│   ├── card.html          # Content card
+│   └── navigation.html    # Navigation menu
+└── emails/
+    ├── welcome.mjml       # Welcome email
+    ├── notification.mjml  # Notification email
+    └── report.html        # Report email
+```
+
+### 4. Long Cache for Stable Templates
+
+```yaml
+# Static layouts that rarely change
+layout: "template://layouts/main@v1"
+cache:
+  ttl: 86400  # 24 hours
+```
+
+### 5. Include Metadata
+
+Add comments to templates for documentation:
+
+```html
+<!--
+  Template: Main Layout
+  Version: v1.0.0
+  Variables:
+    - title (required): Page title
+    - description (optional): Meta description
+    - content (required): Page content
+    - year (optional): Copyright year
+    - companyName (optional): Company name
+-->
+<!DOCTYPE html>
+<html>
+...
+</html>
+```
+
+### 6. Test Before Promoting
+
+```yaml
+ensemble: template-test
+
+agents:
+  # Test new version
+  - name: test-new
+    operation: html
+    config:
+      template:
+        inline: "<p>Test content</p>"
+      layout: "template://layouts/main@v2.0.0"
+      data:
+        title: "Test"
+
+  # Compare with production
+  - name: test-prod
+    operation: html
+    config:
+      template:
+        inline: "<p>Test content</p>"
+      layout: "template://layouts/main@production"
+      data:
+        title: "Test"
+```
+
+## Component Catalog
+
+Conductor includes a catalog of production-ready templates:
+
+```
+conductor/catalog/components/templates/
+├── layouts/
+│   └── main.html          # Full page layout
+└── components/
+    ├── header.html        # Site header with navigation
+    ├── footer.html        # Site footer with links
+    ├── card.html          # Content card component
+    └── navigation.html    # Navigation menu
+```
+
+### Deploy Catalog Templates
+
+```bash
+# Deploy header component
+edgit components add header conductor/catalog/components/templates/components/header.html template
+edgit tag create header v1.0.0
+edgit deploy set header v1.0.0 --to production
+
+# Deploy main layout
+edgit components add main-layout conductor/catalog/components/templates/layouts/main.html template
+edgit tag create main-layout v1.0.0
+edgit deploy set main-layout v1.0.0 --to production
+```
+
+See the [catalog README](/conductor/catalog/components/templates/README.md) for complete documentation.
+
+## Versioning Strategy
+
+### Development Workflow
+
+```bash
+# 1. Create new version
+edgit tag create main-layout v1.1.0
+
+# 2. Test with staging ensemble
+ensemble: page-staging
+  agents:
+    - name: render
+      operation: html
+      config:
+        layout: "template://layouts/main@v1.1.0"
+
+# 3. Promote to production
+edgit tag create main-layout@v1.1.0 production
+```
+
+### Rollback Strategy
+
+```yaml
+# If v2.0.0 has issues, keep using v1.0.0
+ensemble: landing-page-stable
+
+agents:
+  - name: render
+    operation: html
+    config:
+      layout: "template://layouts/main@v1.0.0"
+```
+
+## Troubleshooting
+
+### Template Not Found
+
+**Error**: `Component not found: template://layouts/main@v1.0.0`
+
+**Solution**:
+1. Check template exists: `edgit list templates`
+2. Check version: `edgit versions main-layout`
+3. Verify deployment: `edgit status main-layout@v1.0.0`
+
+### Template Rendering Errors
+
+**Issue**: Variables not being replaced or syntax errors
+
+**Solutions**:
+1. Check engine matches template syntax (handlebars vs liquid vs simple)
+2. Verify all required variables are provided in `data`
+3. Check template syntax is valid for the chosen engine
+4. Test template locally before deploying
+
+### Partial Not Loading
+
+**Issue**: `{{> template://components/header}}` not rendering
+
+**Solution**: Ensure the partial is:
+1. Deployed to KV with correct path
+2. Using correct URI format
+3. Compatible with the template engine (handlebars supports partials)
+
+### Cache Issues
+
+**Issue**: Updated template not being used
+
+**Solution**: Invalidate cache or set `cache.bypass: true`
+
+```yaml
+agents:
+  - name: render
+    operation: html
+    config:
+      layout: "template://layouts/main@latest"
+      cache:
+        bypass: true  # Force fresh load
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="HTML Operation" icon="code" href="/conductor/operations/html">
+    Generate HTML with templates
+  </Card>
+  <Card title="Page Operation" icon="window" href="/conductor/operations/page">
+    Full-stack page generation
+  </Card>
+  <Card title="Email Operation" icon="envelope" href="/conductor/operations/email">
+    Send emails with templates
+  </Card>
+  <Card title="Edgit Versioning" icon="code-branch" href="/edgit/guides/versioning-components-agents">
+    Version control for components
+  </Card>
+</CardGroup>

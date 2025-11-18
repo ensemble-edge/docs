@@ -9,7 +9,7 @@ Components are **reusable artifacts** that can be versioned, shared, and referen
 
 ## Component Types
 
-Conductor supports five types of components:
+Conductor supports six types of components:
 
 | Component | File Type | Purpose | Example Reference |
 |-----------|-----------|---------|-------------------|
@@ -17,7 +17,8 @@ Conductor supports five types of components:
 | **Prompts** | `.md` | AI instruction templates | `prompts/summarizer@latest` |
 | **Configs** | `.json`, `.yaml` | Reusable configuration | `configs/db-prod@stable` |
 | **Queries** | `.sql` | Database query templates | `queries/analytics@v2` |
-| **Scripts** | `.js`, `.ts` | Reusable functions | `scripts/validators@v1` |
+| **Scripts** | `.js`, `.ts` | JavaScript/TypeScript functions | `scripts/validators@v1` |
+| **Templates** | `.html` | HTML templates for rendering | `templates/layouts/main@v1` |
 
 ## Why Use Components?
 
@@ -77,6 +78,7 @@ prompt: prompts/summarizer@v2.0.0
 config: configs/database@v1.5.2
 query: queries/analytics@v3.1.0
 script: scripts/validator@v2.0.0
+template: templates/layouts/main@v1.0.0
 ```
 
 ### Tag Reference
@@ -85,6 +87,7 @@ Reference by tag:
 schema: schemas/invoice@production
 prompt: prompts/summarizer@stable
 config: configs/database@canary
+template: templates/layouts/main@production
 ```
 
 ### Major Version Reference
@@ -92,6 +95,7 @@ Auto-upgrade to latest patch/minor:
 ```yaml
 schema: schemas/invoice@v1       # Gets latest v1.x.x
 prompt: prompts/summarizer@v2    # Gets latest v2.x.x
+template: templates/layouts/main@v1  # Gets latest v1.x.x
 ```
 
 ### Latest Reference
@@ -99,12 +103,14 @@ Always use the latest version:
 ```yaml
 schema: schemas/invoice@latest
 prompt: prompts/summarizer@latest
+template: templates/layouts/main@latest
 ```
 
 ### Shorthand (defaults to @latest)
 ```yaml
 schema: schemas/invoice
 prompt: prompts/summarizer
+template: templates/layouts/main
 ```
 
 ## Component Organization

@@ -1,0 +1,910 @@
+---
+title: "Form Operation"
+description: "Declarative form generation with validation and security"
+---
+
+**Generate secure, validated HTML forms with built-in CSRF protection, CAPTCHA, rate limiting, and multi-step support.**
+
+## Overview
+
+The Form operation enables you to:
+- **Generate forms declaratively** - Define fields in YAML, get production-ready HTML
+- **Server-side validation** - Built-in validation rules with custom error messages
+- **Security features** - CSRF tokens, CAPTCHA, honeypot, rate limiting
+- **Multi-step forms** - Complex workflows with conditional steps
+- **Flexible styling** - Tailwind, Bootstrap, or custom CSS
+- **Type-safe** - Full TypeScript support
+
+## Quick Start
+
+### Simple Contact Form
+
+```yaml
+ensemble: contact-form
+
+agents:
+  - name: render-form
+    operation: form
+    config:
+      title: "Contact Us"
+      description: "Send us a message"
+      fields:
+        - name: name
+          type: text
+          label: "Your Name"
+          placeholder: "John Doe"
+          validation:
+            required: "Name is required"
+            minLength:
+              value: 2
+              message: "Name must be at least 2 characters"
+
+        - name: email
+          type: email
+          label: "Email Address"
+          placeholder: "john@example.com"
+          validation:
+            required: true
+            email: "Please enter a valid email"
+
+        - name: message
+          type: textarea
+          label: "Message"
+          rows: 5
+          validation:
+            required: true
+            maxLength:
+              value: 1000
+              message: "Message must be less than 1000 characters"
+
+      submitText: "Send Message"
+      csrf:
+        enabled: true
+        secret: ${env.CSRF_SECRET}
+
+inputs:
+  mode:
+    type: string
+    default: "render"  # render | validate | submit
+
+outputs:
+  html: ${render-form.output.html}
+  valid: ${render-form.output.valid}
+  data: ${render-form.output.data}
+```
+
+## Field Types
+
+The Form operation supports all standard HTML5 input types:
+
+### Text Inputs
+
+```yaml
+fields:
+  - name: username
+    type: text
+    label: "Username"
+    placeholder: "Choose a username"
+    autocomplete: "username"
+    validation:
+      required: true
+      pattern:
+        regex: "^[a-zA-Z0-9_]{3,20}$"
+        message: "Username must be 3-20 alphanumeric characters"
+```
+
+### Email
+
+```yaml
+fields:
+  - name: email
+    type: email
+    label: "Email Address"
+    validation:
+      required: true
+      email: "Please enter a valid email address"
+```
+
+### Password
+
+```yaml
+fields:
+  - name: password
+    type: password
+    label: "Password"
+    autocomplete: "new-password"
+    validation:
+      required: true
+      minLength:
+        value: 8
+        message: "Password must be at least 8 characters"
+
+  - name: confirm_password
+    type: password
+    label: "Confirm Password"
+    validation:
+      required: true
+      matches:
+        field: password
+        message: "Passwords must match"
+```
+
+### Number
+
+```yaml
+fields:
+  - name: age
+    type: number
+    label: "Age"
+    min: 18
+    max: 120
+    step: 1
+    validation:
+      required: true
+      min:
+        value: 18
+        message: "You must be at least 18 years old"
+```
+
+### Tel (Phone)
+
+```yaml
+fields:
+  - name: phone
+    type: tel
+    label: "Phone Number"
+    placeholder: "+1 (555) 123-4567"
+    autocomplete: "tel"
+    validation:
+      pattern:
+        regex: "^\\+?[1-9]\\d{1,14}$"
+        message: "Please enter a valid phone number"
+```
+
+### URL
+
+```yaml
+fields:
+  - name: website
+    type: url
+    label: "Website"
+    placeholder: "https://example.com"
+    validation:
+      url: "Please enter a valid URL starting with http:// or https://"
+```
+
+### Textarea
+
+```yaml
+fields:
+  - name: bio
+    type: textarea
+    label: "Biography"
+    placeholder: "Tell us about yourself..."
+    rows: 5
+    cols: 50
+    validation:
+      maxLength:
+        value: 500
+        message: "Biography must be less than 500 characters"
+```
+
+### Select (Dropdown)
+
+```yaml
+fields:
+  - name: country
+    type: select
+    label: "Country"
+    options:
+      - label: "United States"
+        value: "US"
+        selected: true
+      - label: "Canada"
+        value: "CA"
+      - label: "United Kingdom"
+        value: "UK"
+      - label: "Australia"
+        value: "AU"
+    validation:
+      required: "Please select a country"
+```
+
+### Checkbox
+
+```yaml
+fields:
+  - name: terms
+    type: checkbox
+    label: "I agree to the terms and conditions"
+    validation:
+      required: "You must accept the terms"
+
+  - name: newsletter
+    type: checkbox
+    label: "Subscribe to newsletter"
+    default: true
+```
+
+### Radio Buttons
+
+```yaml
+fields:
+  - name: plan
+    type: radio
+    label: "Select Plan"
+    options:
+      - label: "Free"
+        value: "free"
+      - label: "Pro ($19/mo)"
+        value: "pro"
+        selected: true
+      - label: "Enterprise ($99/mo)"
+        value: "enterprise"
+    validation:
+      required: "Please select a plan"
+```
+
+### Date & Time
+
+```yaml
+fields:
+  - name: birth_date
+    type: date
+    label: "Date of Birth"
+    max: "2005-12-31"  # Must be 18+ years old
+    validation:
+      required: true
+
+  - name: appointment_time
+    type: datetime-local
+    label: "Appointment Time"
+    min: "2025-01-01T09:00"
+    max: "2025-12-31T17:00"
+    validation:
+      required: "Please select an appointment time"
+```
+
+### File Upload
+
+```yaml
+fields:
+  - name: resume
+    type: file
+    label: "Upload Resume"
+    accept: ".pdf,.doc,.docx"
+    validation:
+      required: "Please upload your resume"
+```
+
+### Hidden Fields
+
+```yaml
+fields:
+  - name: user_id
+    type: hidden
+    default: ${input.userId}
+```
+
+## Validation Rules
+
+### Built-in Validators
+
+```yaml
+fields:
+  - name: username
+    type: text
+    validation:
+      # Required field
+      required: true  # or custom message: "Username is required"
+
+      # String length
+      minLength: 3  # or { value: 3, message: "Too short" }
+      maxLength: 20  # or { value: 20, message: "Too long" }
+
+      # Pattern matching (regex)
+      pattern: "^[a-zA-Z0-9_]+$"
+      # or with custom message:
+      pattern:
+        regex: "^[a-zA-Z0-9_]+$"
+        message: "Only letters, numbers, and underscores allowed"
+
+  - name: age
+    type: number
+    validation:
+      # Number range
+      min: 18  # or { value: 18, message: "Must be 18+" }
+      max: 120  # or { value: 120, message: "Invalid age" }
+
+  - name: email
+    type: email
+    validation:
+      # Email validation
+      email: true  # or custom message: "Invalid email format"
+
+  - name: website
+    type: url
+    validation:
+      # URL validation
+      url: "Please enter a valid URL"
+
+  - name: password_confirm
+    type: password
+    validation:
+      # Match another field
+      matches: password  # field name
+      # or with custom message:
+      matches:
+        field: password
+        message: "Passwords must match"
+```
+
+## Multi-Step Forms
+
+For complex workflows, use multi-step forms:
+
+```yaml
+ensemble: onboarding-form
+
+agents:
+  - name: render-onboarding
+    operation: form
+    config:
+      title: "Account Setup"
+      description: "Complete your profile"
+
+      steps:
+        - id: account
+          title: "Account Information"
+          description: "Create your account"
+          fields:
+            - name: email
+              type: email
+              label: "Email"
+              validation:
+                required: true
+                email: true
+            - name: password
+              type: password
+              label: "Password"
+              validation:
+                required: true
+                minLength: 8
+
+        - id: profile
+          title: "Profile Details"
+          description: "Tell us about yourself"
+          fields:
+            - name: name
+              type: text
+              label: "Full Name"
+              validation:
+                required: true
+            - name: company
+              type: text
+              label: "Company"
+
+        - id: preferences
+          title: "Preferences"
+          description: "Customize your experience"
+          fields:
+            - name: newsletter
+              type: checkbox
+              label: "Subscribe to newsletter"
+            - name: notifications
+              type: checkbox
+              label: "Enable notifications"
+              default: true
+
+      submitText: "Complete Setup"
+
+inputs:
+  mode:
+    type: string
+    default: "render"
+  currentStep:
+    type: string
+    default: "account"
+  data:
+    type: object
+
+outputs:
+  html: ${render-onboarding.output.html}
+  currentStep: ${render-onboarding.output.currentStep}
+  nextStep: ${render-onboarding.output.nextStep}
+  isLastStep: ${render-onboarding.output.isLastStep}
+```
+
+## Security Features
+
+### CSRF Protection
+
+Prevent cross-site request forgery attacks:
+
+```yaml
+agents:
+  - name: secure-form
+    operation: form
+    config:
+      csrf:
+        enabled: true
+        secret: ${env.CSRF_SECRET}  # Required
+        fieldName: "_csrf"  # Optional, defaults to "_csrf"
+        cookieName: "csrf_token"  # Optional
+        expiresIn: 3600  # Optional, seconds (default: 1 hour)
+      fields:
+        # ... your fields ...
+```
+
+The CSRF token is automatically:
+- Generated on form render
+- Included as a hidden field
+- Validated on form submission
+
+### CAPTCHA Integration
+
+Protect against bots with CAPTCHA:
+
+```yaml
+agents:
+  - name: protected-form
+    operation: form
+    config:
+      captcha:
+        type: turnstile  # Cloudflare Turnstile (recommended)
+        siteKey: ${env.TURNSTILE_SITE_KEY}
+        secretKey: ${env.TURNSTILE_SECRET_KEY}
+        theme: auto  # light | dark | auto
+        size: normal  # normal | compact
+
+      fields:
+        # ... your fields ...
+```
+
+**Supported CAPTCHA types:**
+- `turnstile` - Cloudflare Turnstile (recommended for Cloudflare Workers)
+- `recaptcha` - Google reCAPTCHA v2/v3
+- `hcaptcha` - hCaptcha
+
+### Honeypot Field
+
+Catch bots with invisible honeypot field:
+
+```yaml
+agents:
+  - name: bot-protected-form
+    operation: form
+    config:
+      honeypot: "website_url"  # Field name bots will fill out
+      fields:
+        # ... your fields ...
+```
+
+The honeypot field is:
+- Hidden with CSS
+- Automatically validated (should be empty)
+- Rejects submissions if filled out
+
+### Rate Limiting
+
+Prevent spam and abuse:
+
+```yaml
+agents:
+  - name: rate-limited-form
+    operation: form
+    config:
+      rateLimit:
+        max: 5  # Maximum submissions
+        window: 3600  # Time window in seconds (1 hour)
+        identifier: ${input.request.ip}  # Rate limit by IP
+
+      fields:
+        # ... your fields ...
+```
+
+## Styling and Theming
+
+### Tailwind CSS
+
+```yaml
+agents:
+  - name: styled-form
+    operation: form
+    config:
+      style:
+        framework: tailwind
+        classes:
+          form: "space-y-6"
+          field: "mb-4"
+          label: "block text-sm font-medium text-gray-700"
+          input: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          error: "mt-2 text-sm text-red-600"
+          button: "w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+
+      fields:
+        # ... your fields ...
+```
+
+### Bootstrap
+
+```yaml
+agents:
+  - name: bootstrap-form
+    operation: form
+    config:
+      style:
+        framework: bootstrap
+        includeDefaultStyles: true
+
+      fields:
+        # ... your fields ...
+```
+
+### Custom CSS
+
+```yaml
+agents:
+  - name: custom-form
+    operation: form
+    config:
+      style:
+        framework: custom
+        classes:
+          form: "my-form"
+          field: "form-group"
+          label: "form-label"
+          input: "form-input"
+          error: "error-message"
+          button: "btn btn-primary"
+        includeDefaultStyles: false
+
+      fields:
+        # ... your fields ...
+```
+
+## Form Modes
+
+The Form operation has three modes:
+
+### 1. Render Mode (Default)
+
+Generate form HTML:
+
+```yaml
+inputs:
+  mode:
+    type: string
+    default: "render"
+```
+
+**Output:**
+```javascript
+{
+  html: "<form>...</form>",
+  csrfToken: "abc123...",
+  valid: true
+}
+```
+
+### 2. Validate Mode
+
+Validate form data without processing:
+
+```yaml
+inputs:
+  mode:
+    type: string
+    default: "validate"
+  data:
+    type: object
+```
+
+**Output:**
+```javascript
+{
+  valid: true|false,
+  errors: [
+    { field: "email", message: "Invalid email", rule: "email" }
+  ],
+  data: { /* validated data */ }
+}
+```
+
+### 3. Submit Mode
+
+Validate and process submission:
+
+```yaml
+inputs:
+  mode:
+    type: string
+    default: "submit"
+  data:
+    type: object
+```
+
+**Output:**
+```javascript
+{
+  valid: true|false,
+  errors: [ /* validation errors */ ],
+  data: { /* sanitized data */ },
+  csrfToken: "...",
+  rateLimit: {
+    remaining: 4,
+    reset: 1640000000
+  }
+}
+```
+
+## Complete Example: Contact Form with Security
+
+```yaml
+ensemble: secure-contact-form
+
+agents:
+  - name: render-form
+    operation: form
+    config:
+      title: "Contact Us"
+      description: "We'd love to hear from you"
+
+      fields:
+        - name: name
+          type: text
+          label: "Your Name"
+          placeholder: "John Doe"
+          autocomplete: "name"
+          validation:
+            required: "Name is required"
+            minLength:
+              value: 2
+              message: "Name must be at least 2 characters"
+
+        - name: email
+          type: email
+          label: "Email Address"
+          placeholder: "john@example.com"
+          autocomplete: "email"
+          validation:
+            required: "Email is required"
+            email: "Please enter a valid email address"
+
+        - name: subject
+          type: select
+          label: "Subject"
+          options:
+            - "General Inquiry"
+            - "Sales"
+            - "Support"
+            - "Partnership"
+          validation:
+            required: "Please select a subject"
+
+        - name: message
+          type: textarea
+          label: "Message"
+          placeholder: "Your message here..."
+          rows: 5
+          validation:
+            required: "Message is required"
+            minLength:
+              value: 10
+              message: "Message must be at least 10 characters"
+            maxLength:
+              value: 1000
+              message: "Message must be less than 1000 characters"
+
+      # Security features
+      csrf:
+        enabled: true
+        secret: ${env.CSRF_SECRET}
+
+      captcha:
+        type: turnstile
+        siteKey: ${env.TURNSTILE_SITE_KEY}
+        secretKey: ${env.TURNSTILE_SECRET_KEY}
+
+      honeypot: "website_url"
+
+      rateLimit:
+        max: 3
+        window: 3600  # 3 submissions per hour
+
+      # Styling
+      style:
+        framework: tailwind
+        classes:
+          form: "max-w-2xl mx-auto space-y-6"
+          field: "mb-4"
+          label: "block text-sm font-medium text-gray-700 mb-2"
+          input: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          error: "mt-1 text-sm text-red-600"
+          button: "w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors"
+
+      submitText: "Send Message"
+      successMessage: "Thank you! We'll be in touch soon."
+
+inputs:
+  mode:
+    type: string
+    default: "render"
+  data:
+    type: object
+  request:
+    type: object
+
+outputs:
+  html: ${render-form.output.html}
+  valid: ${render-form.output.valid}
+  errors: ${render-form.output.errors}
+  data: ${render-form.output.data}
+```
+
+## Integration with Ensembles
+
+### Render and Process Flow
+
+```yaml
+ensemble: contact-workflow
+
+flow:
+  - agent: render-form
+  - agent: validate-data
+    condition: ${render-form.output.valid}
+  - agent: save-to-database
+    condition: ${validate-data.output.valid}
+  - agent: send-notification
+    condition: ${save-to-database.success}
+
+agents:
+  - name: render-form
+    operation: form
+    config:
+      # ... form config ...
+
+  - name: validate-data
+    operation: code
+    config:
+      handler: |
+        async function({ input }) {
+          // Custom business logic validation
+          return { valid: true, data: input.data }
+        }
+
+  - name: save-to-database
+    operation: storage
+    config:
+      operation: insert
+      table: contacts
+      data: ${validate-data.output.data}
+
+  - name: send-notification
+    operation: email
+    config:
+      to: admin@example.com
+      subject: "New Contact Form Submission"
+      html: "New message from ${validate-data.output.data.name}"
+```
+
+## Best Practices
+
+### 1. Always Enable CSRF Protection
+
+```yaml
+csrf:
+  enabled: true
+  secret: ${env.CSRF_SECRET}
+```
+
+### 2. Use Rate Limiting for Public Forms
+
+```yaml
+rateLimit:
+  max: 5
+  window: 3600  # 1 hour
+```
+
+### 3. Add CAPTCHA for High-Value Forms
+
+```yaml
+captcha:
+  type: turnstile
+  siteKey: ${env.TURNSTILE_SITE_KEY}
+  secretKey: ${env.TURNSTILE_SECRET_KEY}
+```
+
+### 4. Validate on Server-Side
+
+Never trust client-side validation alone. Always validate on submission:
+
+```yaml
+inputs:
+  mode: "submit"  # Triggers server-side validation
+  data: ${input.formData}
+```
+
+### 5. Provide Clear Error Messages
+
+```yaml
+validation:
+  required: "Email is required"
+  email: "Please enter a valid email address (e.g., user@example.com)"
+```
+
+### 6. Use Appropriate Field Types
+
+```yaml
+- name: email
+  type: email  # Browser validation + server validation
+
+- name: phone
+  type: tel  # Mobile keyboard optimization
+
+- name: birth_date
+  type: date  # Date picker UI
+```
+
+## Troubleshooting
+
+### Form Not Rendering
+
+**Issue**: Form HTML is empty or undefined
+
+**Solution**: Check that form config has either `fields` or `steps`:
+```yaml
+config:
+  fields: [ /* at least one field */ ]
+```
+
+### Validation Errors Not Showing
+
+**Issue**: Validation runs but errors aren't displayed
+
+**Solution**: Ensure mode is set correctly:
+```yaml
+inputs:
+  mode: "submit"  # or "validate"
+  data: ${input.formData}
+```
+
+### CSRF Token Invalid
+
+**Issue**: Form submission fails with CSRF error
+
+**Solution**: Ensure CSRF secret is configured and consistent:
+```yaml
+csrf:
+  enabled: true
+  secret: ${env.CSRF_SECRET}  # Must be set in environment
+```
+
+### Rate Limit Not Working
+
+**Issue**: Users can submit multiple times rapidly
+
+**Solution**: Ensure rate limit KV namespace is bound:
+```toml
+# wrangler.toml
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "your-kv-namespace-id"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="HTML Operation" icon="code" href="/conductor/operations/html">
+    Generate custom HTML
+  </Card>
+  <Card title="Email Operation" icon="envelope" href="/conductor/operations/email">
+    Send emails with forms
+  </Card>
+  <Card title="Storage Operation" icon="database" href="/conductor/operations/storage">
+    Save form data to database
+  </Card>
+  <Card title="Code Operation" icon="brackets-curly" href="/conductor/operations/code">
+    Custom form processing
+  </Card>
+</CardGroup>

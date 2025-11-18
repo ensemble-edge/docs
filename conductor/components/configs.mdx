@@ -103,7 +103,11 @@ config: "config://model-settings/gpt4@v1"
 
 ## How to Reference in Ensembles
 
-### Simple Config Reference
+There are three ways to reference configs in your ensembles:
+
+### 1. URI Format (Recommended)
+
+Use the `config://` URI format to reference versioned config components:
 
 ```yaml
 ensemble: blog-analyzer
@@ -111,7 +115,7 @@ ensemble: blog-analyzer
 agents:
   - name: analyze
     operation: think
-    config: "config://anthropic-settings@v1"
+    config: "config://anthropic-settings@v1.0.0"
     prompt: "Analyze this blog post: ${input.post}"
 
 inputs:
@@ -122,25 +126,60 @@ outputs:
   analysis: ${analyze.output}
 ```
 
-### Override Specific Fields
+### 2. Template Expression Format
+
+Use `${components.config_name@version}` to embed config references in YAML:
 
 ```yaml
-ensemble: fast-processor
+ensemble: dynamic-config
 
 agents:
   - name: process
     operation: think
     config:
-      # Load base config
-      ...
+      # Spread config component
+      provider: ${components.base-ai-config@v1.provider}
+      model: ${components.base-ai-config@v1.model}
+      temperature: ${components.base-ai-config@v1.temperature}
       # Override specific fields
-      temperature: 0.1
       max_tokens: 1024
+      timeout: 30
+    prompt: "Process: ${input.data}"
 
 inputs:
   data:
     type: string
+
+outputs:
+  result: ${process.output}
 ```
+
+### 3. Inline Config
+
+For simple operations or during development, use inline config objects directly:
+
+```yaml
+ensemble: simple-analyzer
+
+agents:
+  - name: analyze
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      temperature: 0.3
+      max_tokens: 2048
+    prompt: "Analyze this: ${input.text}"
+
+inputs:
+  text:
+    type: string
+
+outputs:
+  analysis: ${analyze.output}
+```
+
+## Using Config Components
 
 ### Multiple Agents with Different Configs
 
