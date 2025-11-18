@@ -47,6 +47,14 @@ Every agent uses operations to do work. Each operation does one thing well.
   <Card title="page" icon="browser" href="/conductor/operations/page">
     Full-stack pages
   </Card>
+
+  <Card title="form" icon="square-check" href="/conductor/operations/form">
+    Generate validated forms
+  </Card>
+
+  <Card title="queue" icon="list" href="/conductor/operations/queue">
+    Message queue processing
+  </Card>
 </CardGroup>
 
 ## Operation Basics
@@ -132,15 +140,6 @@ Execute logic and transform data.
     code: |
       const data = ${input.data};
       return { transformed: data.map(x => x * 2) };
-```
-
-**ml** - Machine learning (coming soon):
-```yaml
-- name: predict
-  operation: ml
-  config:
-    model: my-model
-    input: ${input.features}
 ```
 
 ### 2. Data Operations
@@ -253,7 +252,38 @@ Render content for users.
       data: ${fetch-data.output}
 ```
 
-### 5. Extension Operations
+**form** - Form generation:
+```yaml
+- name: contact-form
+  operation: form
+  config:
+    fields:
+      - name: email
+        type: email
+        required: true
+      - name: message
+        type: textarea
+        required: true
+    csrf: true
+```
+
+### 5. Async Operations
+
+Process background jobs and messages.
+
+**queue** - Message queue processing:
+```yaml
+- name: process-job
+  operation: queue
+  config:
+    action: send
+    queue: background-jobs
+    body:
+      task: ${input.task}
+      priority: high
+```
+
+### 6. Extension Operations
 
 Extend functionality with external tools.
 

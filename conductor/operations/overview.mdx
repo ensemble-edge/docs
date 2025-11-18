@@ -47,11 +47,19 @@ Send messages and make requests.
   </Card>
 </CardGroup>
 
+### Async Operations
+
+Background processing and message queues.
+
+<Card title="queue" icon="list" href="/conductor/operations/queue">
+  Cloudflare Queue message processing
+</Card>
+
 ### Presentation Operations
 
 Render content for users.
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="html" icon="window" href="/conductor/operations/html">
     Render HTML
   </Card>
@@ -62,6 +70,10 @@ Render content for users.
 
   <Card title="page" icon="browser" href="/conductor/operations/page">
     Full-stack pages
+  </Card>
+
+  <Card title="form" icon="square-check" href="/conductor/operations/form">
+    Generate validated forms
   </Card>
 </CardGroup>
 
@@ -79,7 +91,6 @@ Extend functionality with external tools.
 |-----------|----------|---------|
 | **think** | AI reasoning, text generation | Analyze sentiment, generate content |
 | **code** | Data transformation, business logic | Calculate totals, format data |
-| **ml** | Machine learning inference | Image classification, predictions |
 | **storage** | Data persistence, caching | Store in D1, cache in KV |
 | **http** | API calls, web requests | Fetch external data |
 | **email** | Send notifications | Order confirmations, alerts |
@@ -87,6 +98,8 @@ Extend functionality with external tools.
 | **html** | Render web pages | Dashboard, reports |
 | **pdf** | Generate documents | Invoices, reports |
 | **page** | Full-stack components | Interactive UIs |
+| **form** | Generate validated forms | User registration, surveys |
+| **queue** | Message queue processing | Background jobs, event processing |
 | **tools** | External tool integration | Web search, file operations |
 
 ## Common Configuration
