@@ -190,8 +190,7 @@
         "conductor/agents/rag",
         "conductor/agents/hitl",
         "conductor/agents/fetcher",
-        "conductor/agents/transformer",
-        "conductor/agents/scheduler"
+        "conductor/agents/transformer"
       ]
     },
     {
