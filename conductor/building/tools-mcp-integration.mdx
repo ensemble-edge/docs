@@ -246,7 +246,7 @@ Add `expose` configuration to your ensemble:
 ```yaml
 ensemble: github-pr-reviewer
 
-expose:
+trigger:
   - type: mcp
     public: false
     auth:
@@ -469,7 +469,7 @@ outputs:
 ensemble: pr-analyzer
 
 # This ensemble is exposed as an MCP tool
-expose:
+trigger:
   - type: mcp
     public: false
     auth:
@@ -562,19 +562,19 @@ Claude will automatically call your `pr-analyzer` tool!
 
 ```yaml
 # GOOD: Explicit auth required
-expose:
+trigger:
   - type: mcp
     auth:
       type: bearer
       tokens: [${env.TOKEN}]
 
 # GOOD: Explicitly public
-expose:
+trigger:
   - type: mcp
     public: true
 
 # BAD: No auth, not marked public (will fail)
-expose:
+trigger:
   - type: mcp  # Error!
 ```
 
@@ -591,7 +591,7 @@ wrangler secret put MCP_CLIENT_TOKEN_1
 ### 3. Use OAuth for Third-Party Access
 
 ```yaml
-expose:
+trigger:
   - type: mcp
     auth:
       type: oauth
@@ -702,7 +702,7 @@ Combine multiple MCP tools into one:
 ```yaml
 ensemble: multi-source-search
 
-expose:
+trigger:
   - type: mcp
     auth:
       type: bearer
@@ -745,7 +745,7 @@ Add AI-powered transformations:
 ```yaml
 ensemble: smart-pr-reviewer
 
-expose:
+trigger:
   - type: mcp
     auth:
       type: bearer
@@ -795,7 +795,7 @@ Create workflows across MCP servers:
 ```yaml
 ensemble: research-to-pr
 
-expose:
+trigger:
   - type: mcp
     auth:
       type: bearer

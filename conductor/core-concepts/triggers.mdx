@@ -1,0 +1,669 @@
+---
+title: "Triggers"
+description: "Invoke ensembles via webhooks, MCP tools, email, queues, and cron schedules using the unified trigger system"
+---
+
+## Overview
+
+Triggers define how ensembles are invoked. Conductor supports five trigger types, all configured using the unified `trigger:` array in your ensemble YAML:
+
+1. **Webhook** - HTTP endpoints for external integrations
+2. **MCP** - Model Context Protocol tool exposure
+3. **Email** - Email routing and processing
+4. **Queue** - Cloudflare Queues message processing
+5. **Cron** - Scheduled execution with cron expressions
+
+All triggers use the same configuration pattern:
+
+```yaml
+name: my-ensemble
+
+trigger:
+  - type: <trigger-type>
+    # trigger-specific configuration
+```
+
+## Webhook Triggers
+
+Expose ensembles as HTTP endpoints for external services.
+
+### Basic Webhook
+
+```yaml
+name: data-processor
+
+trigger:
+  - type: webhook
+    path: /process
+    methods: [POST]
+    public: true
+
+flow:
+  - agent: process-data
+
+agents:
+  - name: process-data
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: "Process this data: ${input.data}"
+
+outputs:
+  result: ${process-data.output}
+```
+
+Invoke via HTTP:
+
+```bash
+curl -X POST https://your-worker.workers.dev/webhooks/process \
+  -H "Content-Type: application/json" \
+  -d '{"data": "hello world"}'
+```
+
+### Authenticated Webhook
+
+```yaml
+trigger:
+  - type: webhook
+    path: /secure-endpoint
+    methods: [POST, PUT]
+    auth:
+      type: bearer
+      secret: ${env.API_TOKEN}
+```
+
+Invoke with authentication:
+
+```bash
+curl -X POST https://your-worker.workers.dev/webhooks/secure-endpoint \
+  -H "Authorization: Bearer ${API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "process"}'
+```
+
+### Webhook Authentication Types
+
+**Bearer Token:**
+```yaml
+trigger:
+  - type: webhook
+    path: /bearer-auth
+    auth:
+      type: bearer
+      secret: ${env.WEBHOOK_SECRET}
+```
+
+**HMAC Signature (GitHub-style):**
+```yaml
+trigger:
+  - type: webhook
+    path: /github-webhook
+    auth:
+      type: signature
+      secret: ${env.GITHUB_SECRET}
+```
+
+Sender must include:
+```http
+X-Webhook-Signature: sha256=abc123...
+X-Webhook-Timestamp: 1705315200
+```
+
+**Basic Authentication:**
+```yaml
+trigger:
+  - type: webhook
+    path: /basic-auth
+    auth:
+      type: basic
+      secret: ${env.BASIC_CREDS}  # Format: username:password
+```
+
+### Async Webhook Execution
+
+For long-running ensembles, return immediately and process in background:
+
+```yaml
+trigger:
+  - type: webhook
+    path: /long-task
+    methods: [POST]
+    async: true
+    timeout: 300000  # 5 minutes
+    public: true
+```
+
+Returns immediately with execution ID:
+```json
+{
+  "executionId": "exec-abc123",
+  "status": "processing"
+}
+```
+
+## MCP Triggers
+
+Expose ensembles as Model Context Protocol tools for AI assistants.
+
+### Basic MCP Tool
+
+```yaml
+name: search-docs
+
+trigger:
+  - type: mcp
+    public: false
+    auth:
+      type: bearer
+      secret: ${env.MCP_TOKEN}
+
+flow:
+  - agent: search
+
+agents:
+  - name: search
+    operation: storage
+    config:
+      type: vectorize
+      action: query
+      index: DOCS_INDEX
+      query: ${input.query}
+      topK: 5
+
+outputs:
+  results: ${search.output}
+```
+
+The ensemble becomes available as an MCP tool:
+
+```typescript
+// AI assistants can call via MCP
+{
+  "tool": "search-docs",
+  "parameters": {
+    "query": "how to configure webhooks"
+  }
+}
+```
+
+### Public MCP Tool
+
+```yaml
+trigger:
+  - type: mcp
+    public: true  # No authentication required
+```
+
+See [MCP Integration](/conductor/building/tools-mcp-integration) for complete guide.
+
+## Email Triggers
+
+Trigger ensembles via Cloudflare Email Routing.
+
+### Basic Email Trigger
+
+```yaml
+name: support-ticket-router
+
+trigger:
+  - type: email
+    addresses:
+      - support@example.com
+      - help@example.com
+    public: false
+    auth:
+      from:
+        - "*@example.com"  # Only accept from company domain
+    reply_with_output: true
+
+flow:
+  - agent: classify-ticket
+  - agent: route-ticket
+
+agents:
+  - name: classify-ticket
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: |
+        Classify this support email:
+        From: ${input.from}
+        Subject: ${input.subject}
+        Body: ${input.body}
+
+  - name: route-ticket
+    operation: http
+    config:
+      url: ${env.TICKET_SYSTEM_API}/tickets
+      method: POST
+      body:
+        category: ${classify-ticket.output.category}
+        priority: ${classify-ticket.output.priority}
+        content: ${input.body}
+
+outputs:
+  ticketId: ${route-ticket.output.id}
+  category: ${classify-ticket.output.category}
+```
+
+Configure Cloudflare Email Routing to forward to your Worker.
+
+### Email Input Fields
+
+Ensembles receive:
+- `input.from` - Sender email address
+- `input.to` - Recipient email address
+- `input.subject` - Email subject
+- `input.body` - Email body (text or HTML)
+- `input.headers` - All email headers
+
+### Reply with Output
+
+When `reply_with_output: true`, ensemble outputs are sent back via email:
+
+```yaml
+trigger:
+  - type: email
+    addresses: [assistant@example.com]
+    reply_with_output: true
+
+outputs:
+  response: ${process-email.output.response}
+```
+
+## Queue Triggers
+
+Process Cloudflare Queue messages in batches.
+
+### Basic Queue Consumer
+
+```yaml
+name: task-processor
+
+trigger:
+  - type: queue
+    queue: TASK_QUEUE
+    batch_size: 10
+    max_retries: 3
+    max_wait_time: 5  # seconds
+
+flow:
+  - agent: process-batch
+
+agents:
+  - name: process-batch
+    operation: queue
+    config:
+      mode: consume
+      queue: TASK_QUEUE
+
+outputs:
+  processed: ${process-batch.output.count}
+```
+
+### Queue Configuration
+
+- `queue` - Cloudflare Queue binding name (must match wrangler.toml)
+- `batch_size` - Maximum messages per batch (default: 10)
+- `max_retries` - Retry failed messages (default: 3)
+- `max_wait_time` - Max seconds to wait for batch to fill
+
+### Sending to Queues
+
+Ensembles can send messages to queues:
+
+```yaml
+agents:
+  - name: enqueue-tasks
+    operation: queue
+    config:
+      mode: send
+      queue: TASK_QUEUE
+      messages:
+        - body: ${input.task1}
+        - body: ${input.task2}
+```
+
+### Batch Sending
+
+```yaml
+agents:
+  - name: bulk-enqueue
+    operation: queue
+    config:
+      mode: send-batch
+      queue: TASK_QUEUE
+      messages: ${input.tasks}  # Array of messages
+```
+
+## Cron Triggers
+
+Schedule ensemble execution with cron expressions.
+
+### Basic Cron Trigger
+
+```yaml
+name: daily-report
+
+trigger:
+  - type: cron
+    cron: "0 8 * * *"  # Daily at 8 AM UTC
+    timezone: "America/New_York"
+    enabled: true
+
+flow:
+  - agent: generate-report
+  - agent: send-email
+
+agents:
+  - name: generate-report
+    operation: storage
+    config:
+      type: d1
+      query: |
+        SELECT COUNT(*) as orders,
+               SUM(total) as revenue
+        FROM orders
+        WHERE created_at >= strftime('%s', 'now', '-1 day') * 1000
+
+  - name: send-email
+    operation: email
+    config:
+      to: [team@example.com]
+      subject: "Daily Report - ${new Date().toDateString()}"
+      body: |
+        Orders: ${generate-report.output[0].orders}
+        Revenue: $${generate-report.output[0].revenue}
+
+outputs:
+  sent: ${send-email.success}
+```
+
+### Cron Expression Format
+
+Standard cron syntax (5 or 6 fields):
+
+```
+* * * * *
+│ │ │ │ │
+│ │ │ │ └─ Day of week (0-7, 0 and 7 are Sunday)
+│ │ │ └─── Month (1-12)
+│ │ └───── Day of month (1-31)
+│ └─────── Hour (0-23)
+└───────── Minute (0-59)
+```
+
+**Examples:**
+- `"0 0 * * *"` - Daily at midnight UTC
+- `"0 */4 * * *"` - Every 4 hours
+- `"0 9 * * 1-5"` - Weekdays at 9 AM
+- `"0 0 1 * *"` - First day of month
+- `"0 0 * * 0"` - Every Sunday
+
+### Cron with Custom Input
+
+Pass data to scheduled executions:
+
+```yaml
+trigger:
+  - type: cron
+    cron: "0 8 * * *"
+    timezone: "America/New_York"
+    input:
+      report_type: "daily"
+      recipients: ["team@example.com"]
+    metadata:
+      description: "Daily morning report"
+      team: "analytics"
+```
+
+Access in ensemble:
+```yaml
+agents:
+  - name: process
+    operation: think
+    config:
+      prompt: "Generate ${input.report_type} report"
+```
+
+### Multiple Cron Triggers
+
+Ensembles can have multiple schedules:
+
+```yaml
+trigger:
+  # Daily report
+  - type: cron
+    cron: "0 8 * * *"
+    timezone: "America/New_York"
+    input:
+      frequency: "daily"
+
+  # Weekly summary
+  - type: cron
+    cron: "0 9 * * 1"
+    timezone: "America/New_York"
+    input:
+      frequency: "weekly"
+```
+
+### Disable Cron Trigger
+
+Temporarily disable without removing:
+
+```yaml
+trigger:
+  - type: cron
+    cron: "0 0 * * *"
+    enabled: false  # Disabled
+```
+
+### Schedule Metadata
+
+Access schedule information in ensemble:
+
+```yaml
+flow:
+  - agent: process
+    input:
+      cron: ${input._schedule.cron}
+      timezone: ${input._schedule.timezone}
+      triggered_at: ${input._schedule.triggeredAt}
+```
+
+## Multiple Triggers
+
+Ensembles can have multiple triggers of different types:
+
+```yaml
+name: data-processor
+
+trigger:
+  # HTTP API
+  - type: webhook
+    path: /process
+    methods: [POST]
+    auth:
+      type: bearer
+      secret: ${env.API_TOKEN}
+
+  # MCP Tool
+  - type: mcp
+    public: false
+    auth:
+      type: bearer
+      secret: ${env.MCP_TOKEN}
+
+  # Email
+  - type: email
+    addresses: [process@example.com]
+    reply_with_output: true
+
+  # Queue
+  - type: queue
+    queue: PROCESS_QUEUE
+    batch_size: 10
+
+  # Scheduled
+  - type: cron
+    cron: "0 */6 * * *"  # Every 6 hours
+    timezone: "UTC"
+
+flow:
+  - agent: process-data
+
+agents:
+  - name: process-data
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: "Process: ${input}"
+
+outputs:
+  result: ${process-data.output}
+```
+
+This ensemble can be invoked via:
+- POST to `/webhooks/process`
+- MCP tool call `data-processor`
+- Email to `process@example.com`
+- Queue message to `PROCESS_QUEUE`
+- Cron schedule every 6 hours
+
+## Trigger Security
+
+### Default-Deny Policy
+
+All triggers (except queue and cron) require either:
+- **Authentication** (`auth` configuration), OR
+- **Explicit public access** (`public: true`)
+
+**✅ Valid:**
+```yaml
+trigger:
+  # Has authentication
+  - type: webhook
+    path: /secure
+    auth:
+      type: bearer
+      secret: ${env.TOKEN}
+
+  # Explicitly public
+  - type: webhook
+    path: /public
+    public: true
+
+  # Queue/cron don't need auth (internal triggers)
+  - type: queue
+    queue: TASK_QUEUE
+```
+
+**❌ Invalid:**
+```yaml
+trigger:
+  # ERROR: No auth and not marked public
+  - type: webhook
+    path: /unsafe
+```
+
+### Best Practices
+
+1. **Use environment variables for secrets:**
+   ```yaml
+   auth:
+     type: bearer
+     secret: ${env.API_TOKEN}  # Never hardcode!
+   ```
+
+2. **Verify webhook signatures:**
+   Use `signature` auth type for external webhooks
+
+3. **Limit email senders:**
+   ```yaml
+   trigger:
+     - type: email
+       addresses: [support@example.com]
+       auth:
+         from: ["*@trusted-domain.com"]
+   ```
+
+4. **Use async for long operations:**
+   ```yaml
+   trigger:
+     - type: webhook
+       async: true
+       timeout: 300000
+   ```
+
+## Configuration Reference
+
+### Webhook Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"webhook"` | Yes | Trigger type |
+| `path` | `string` | No | Endpoint path (default: `/{ensemble-name}`) |
+| `methods` | `string[]` | No | HTTP methods (default: `["POST"]`) |
+| `auth` | `object` | Conditional | Authentication config (required unless `public: true`) |
+| `public` | `boolean` | No | Allow unauthenticated access (default: `false`) |
+| `async` | `boolean` | No | Background execution (default: `false`) |
+| `timeout` | `number` | No | Timeout in milliseconds |
+
+### MCP Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"mcp"` | Yes | Trigger type |
+| `auth` | `object` | Conditional | Authentication config (required unless `public: true`) |
+| `public` | `boolean` | No | Allow unauthenticated access (default: `false`) |
+
+### Email Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"email"` | Yes | Trigger type |
+| `addresses` | `string[]` | Yes | Email addresses to receive |
+| `auth` | `object` | No | Sender whitelist patterns |
+| `public` | `boolean` | No | Allow any sender (default: `false`) |
+| `reply_with_output` | `boolean` | No | Send output via email reply (default: `false`) |
+
+### Queue Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"queue"` | Yes | Trigger type |
+| `queue` | `string` | Yes | Queue binding name |
+| `batch_size` | `number` | No | Max messages per batch (default: `10`) |
+| `max_retries` | `number` | No | Retry failed messages (default: `3`) |
+| `max_wait_time` | `number` | No | Max seconds to wait for batch |
+
+### Cron Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"cron"` | Yes | Trigger type |
+| `cron` | `string` | Yes | Cron expression |
+| `timezone` | `string` | No | IANA timezone (default: `"UTC"`) |
+| `enabled` | `boolean` | No | Enable trigger (default: `true`) |
+| `input` | `object` | No | Default input data |
+| `metadata` | `object` | No | Schedule metadata |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/api/http/webhooks">
+    Complete webhook integration guide
+  </Card>
+  <Card title="MCP Integration" icon="plug" href="/conductor/building/tools-mcp-integration">
+    Expose ensembles as MCP tools
+  </Card>
+  <Card title="Queue Operation" icon="layer-group" href="/conductor/operations/queue">
+    Queue message processing
+  </Card>
+  <Card title="Event-Driven" icon="bolt" href="/conductor/playbooks/event-driven-workflow">
+    Event-driven patterns
+  </Card>
+</CardGroup>

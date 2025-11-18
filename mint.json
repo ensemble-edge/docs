@@ -140,6 +140,7 @@
         "conductor/core-concepts/operations",
         "conductor/core-concepts/agents",
         "conductor/core-concepts/ensembles",
+        "conductor/core-concepts/triggers",
         "conductor/core-concepts/flow-control",
         "conductor/core-concepts/state-management",
         "conductor/core-concepts/ab-testing"
@@ -176,7 +177,8 @@
         "conductor/operations/sms",
         "conductor/operations/html",
         "conductor/operations/pdf",
-        "conductor/operations/page"
+        "conductor/operations/page",
+        "conductor/operations/queue"
       ]
     },
     {

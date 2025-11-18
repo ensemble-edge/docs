@@ -19,7 +19,7 @@ Expose ensembles as webhook endpoints that can be triggered by external services
 ```yaml
 name: github-pr-review
 
-expose:
+trigger:
   - type: webhook
     path: /github/pr-review
     methods: [POST]
@@ -76,7 +76,7 @@ Response:
 
 **Bearer Token**:
 ```yaml
-expose:
+trigger:
   - type: webhook
     path: /secure-endpoint
     auth:
@@ -86,7 +86,7 @@ expose:
 
 **HMAC Signature**:
 ```yaml
-expose:
+trigger:
   - type: webhook
     path: /github-webhook
     auth:
@@ -112,7 +112,7 @@ const signature = 'sha256=' + crypto
 
 **OAuth** (coming soon):
 ```yaml
-expose:
+trigger:
   - type: webhook
     path: /oauth-endpoint
     auth:
@@ -123,7 +123,7 @@ expose:
 
 **Basic Authentication**:
 ```yaml
-expose:
+trigger:
   - type: webhook
     path: /basic-auth
     auth:
@@ -133,7 +133,7 @@ expose:
 
 **Public (No Auth)**:
 ```yaml
-expose:
+trigger:
   - type: webhook
     path: /public-webhook
     public: true  # Explicitly allow anonymous access
@@ -647,7 +647,7 @@ if (recentFailures > 3) {
 
 ```yaml
 # GOOD: Explicit authentication
-expose:
+trigger:
   - type: webhook
     path: /secure
     auth:
@@ -655,13 +655,13 @@ expose:
       secret: ${env.SECRET}
 
 # GOOD: Explicitly public
-expose:
+trigger:
   - type: webhook
     path: /public
     public: true
 
 # BAD: No auth, not marked public (will be rejected)
-expose:
+trigger:
   - type: webhook
     path: /unsafe  # Error: requires auth or public: true
 ```
@@ -712,7 +712,7 @@ outputs:
 - `webhook:` -> `notifications:` (array)
 - Single webhook -> Multiple notifications supported
 - Can mix webhook and email notifications
-- Inbound webhooks moved to `expose:` array
+- Inbound webhooks moved to `trigger:` array
 
 ## Next Steps
 

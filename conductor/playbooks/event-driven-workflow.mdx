@@ -100,13 +100,24 @@ output:
 
 ## Scheduled Jobs
 
-Execute ensembles on a schedule using Cloudflare Cron Triggers:
+Execute ensembles on a schedule using cron triggers:
 
 ### Daily Report Generation
 
 ```yaml
-ensemble: daily-report
+name: daily-report
 description: Generate and send daily report
+
+trigger:
+  - type: cron
+    cron: "0 8 * * *"  # Daily at 8 AM UTC
+    timezone: "America/New_York"
+    enabled: true
+
+flow:
+  - agent: get-metrics
+  - agent: generate-report
+  - agent: send-email
 
 agents:
   # Query yesterday's metrics
@@ -127,7 +138,7 @@ agents:
     operation: think
     config:
       provider: anthropic
-      model: claude-3-5-sonnet-20241022
+      model: claude-sonnet-4
       prompt: |
         Generate a professional daily business report based on these metrics:
 
@@ -147,33 +158,53 @@ agents:
         <h1>Daily Business Report</h1>
         ${generate-report.output}
 
-output:
+outputs:
   sent: ${send-email.success}
   metrics: ${get-metrics.output[0]}
 ```
 
-Configure cron trigger in `src/index.ts`:
+### Multiple Schedules
 
-```typescript
-export default {
-  async scheduled(event: ScheduledEvent, env: Env) {
-    const conductor = new Conductor({ env });
+Run different tasks on different schedules:
 
-    switch (event.cron) {
-      case '0 8 * * *': // 8 AM daily
-        await conductor.execute('daily-report', {});
-        break;
+```yaml
+name: maintenance-tasks
 
-      case '0 */4 * * *': // Every 4 hours
-        await conductor.execute('check-inventory', {});
-        break;
+trigger:
+  # Every 4 hours - check inventory
+  - type: cron
+    cron: "0 */4 * * *"
+    timezone: "UTC"
+    input:
+      task: "inventory-check"
 
-      case '0 0 * * 0': // Weekly on Sunday
-        await conductor.execute('weekly-summary', {});
-        break;
-    }
-  }
-};
+  # Weekly on Sunday - generate summary
+  - type: cron
+    cron: "0 0 * * 0"
+    timezone: "America/New_York"
+    input:
+      task: "weekly-summary"
+
+flow:
+  - agent: route-task
+
+agents:
+  - name: route-task
+    operation: code
+    config:
+      code: |
+        const task = ${input.task};
+
+        if (task === 'inventory-check') {
+          // Check inventory levels
+          return { action: 'check_inventory' };
+        } else if (task === 'weekly-summary') {
+          // Generate weekly summary
+          return { action: 'generate_summary' };
+        }
+
+outputs:
+  completed: ${route-task.output.action}
 ```
 
 Configure in `wrangler.toml`:
@@ -186,6 +217,8 @@ crons = [
   "0 0 * * 0"     # Weekly on Sunday
 ]
 ```
+
+**Note:** Conductor automatically discovers cron triggers from ensemble configurations. The `wrangler.toml` crons must match your ensemble trigger configurations.
 
 ## Database Triggers
 
