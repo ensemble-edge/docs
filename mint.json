@@ -187,7 +187,8 @@
         "conductor/operations/html",
         "conductor/operations/pdf",
         "conductor/operations/page",
-        "conductor/operations/queue"
+        "conductor/operations/queue",
+        "conductor/operations/docs"
       ]
     },
     {

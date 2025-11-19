@@ -1,0 +1,502 @@
+---
+title: "docs"
+description: "Auto-generate and serve interactive API documentation with OpenAPI specs"
+---
+
+The `docs` operation generates and serves interactive API documentation for your Conductor project. It auto-generates OpenAPI 3.1 specifications from your ensembles and agents, and serves them through multiple documentation UIs.
+
+## Features
+
+- **Auto-generated OpenAPI specs** - Scans your ensembles and agents to create accurate API docs
+- **Multiple UI frameworks** - Stoplight Elements, Redoc, Swagger UI, Scalar, RapiDoc
+- **Custom branding** - Add your logo, colors, and styling
+- **Built-in caching** - Fast documentation serving with optional KV caching
+- **Authentication** - Public, authenticated, or admin-only documentation
+- **Multiple formats** - Serve docs as HTML, YAML, or JSON
+
+## Basic Usage
+
+Create a docs agent configuration:
+
+```yaml
+name: docs-simple
+operation: docs
+description: API documentation with minimal configuration
+
+route:
+  path: default  # Auto-resolves to /docs-simple
+  auth:
+    requirement: public
+```
+
+Access your docs:
+```bash
+curl http://localhost:8787/docs-simple
+```
+
+## Configuration Options
+
+### UI Framework
+
+Choose your preferred documentation UI:
+
+```yaml
+name: my-docs
+operation: docs
+ui: stoplight  # Options: stoplight, redoc, swagger, scalar, rapidoc
+```
+
+**Available UIs:**
+- `stoplight` (default) - Modern, interactive Stoplight Elements
+- `redoc` - Clean, mobile-friendly Redoc
+- `swagger` - Classic Swagger UI
+- `scalar` - Beautiful, customizable Scalar
+- `rapidoc` - Fast, lightweight RapiDoc
+
+### Authentication
+
+Control who can access your docs:
+
+```yaml
+name: docs-public
+operation: docs
+route:
+  auth:
+    requirement: public  # No authentication required
+```
+
+```yaml
+name: docs-authenticated
+operation: docs
+route:
+  auth:
+    requirement: authenticated  # Must be logged in
+```
+
+```yaml
+name: docs-admin
+operation: docs
+route:
+  auth:
+    requirement: admin  # Admin role required
+```
+
+### Custom Branding
+
+Add your brand identity:
+
+```yaml
+name: branded-docs
+operation: docs
+branding:
+  title: "My API Documentation"
+  description: "Complete API reference for My Product"
+  logo: "https://example.com/logo.png"
+  favicon: "https://example.com/favicon.ico"
+  primaryColor: "#007bff"
+  customCss: |
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+```
+
+### OpenAPI Specification
+
+Customize your OpenAPI spec:
+
+```yaml
+name: my-docs
+operation: docs
+openApiVersion: "3.1"  # or "3.0"
+servers:
+  - url: https://api.example.com/v1
+    description: Production
+  - url: https://staging-api.example.com/v1
+    description: Staging
+```
+
+### Custom OpenAPI Spec
+
+Provide your own OpenAPI specification:
+
+```yaml
+name: custom-docs
+operation: docs
+customSpec:
+  openapi: 3.1.0
+  info:
+    title: My API
+    version: 1.0.0
+  paths:
+    /users:
+      get:
+        summary: List users
+        responses:
+          '200':
+            description: Success
+```
+
+### Auto-Generation
+
+Control automatic spec generation:
+
+```yaml
+name: auto-docs
+operation: docs
+autoGenerate:
+  enabled: true  # Scan ensembles/agents (default: true)
+  includeExamples: true
+  includeSchemas: true
+```
+
+### Caching
+
+Enable caching for better performance:
+
+```yaml
+name: cached-docs
+operation: docs
+cache:
+  enabled: true
+  ttl: 3600  # Cache for 1 hour (in seconds)
+```
+
+Requires a KV binding named `DOCS_CACHE` in your wrangler.toml:
+
+```toml
+[[kv_namespaces]]
+binding = "DOCS_CACHE"
+id = "your-kv-namespace-id"
+```
+
+### Multiple Documentation Paths
+
+Serve specs at different paths:
+
+```yaml
+name: my-docs
+operation: docs
+paths:
+  docs: /api/docs          # HTML UI
+  yaml: /api/openapi.yaml  # YAML spec
+  json: /api/openapi.json  # JSON spec
+```
+
+## Complete Example
+
+```yaml
+name: company-api-docs
+operation: docs
+description: Complete API documentation for internal teams
+
+# UI Configuration
+ui: stoplight
+openApiVersion: "3.1"
+
+# Branding
+branding:
+  title: "Company API Documentation"
+  description: "Internal API reference for engineering teams"
+  logo: "https://company.com/logo.png"
+  favicon: "https://company.com/favicon.ico"
+  primaryColor: "#1a73e8"
+
+# Servers
+servers:
+  - url: https://api.company.com/v1
+    description: Production API
+  - url: https://staging.company.com/v1
+    description: Staging Environment
+
+# Authentication
+route:
+  path: /docs
+  auth:
+    requirement: authenticated
+
+# Caching
+cache:
+  enabled: true
+  ttl: 1800  # 30 minutes
+
+# Auto-generation
+autoGenerate:
+  enabled: true
+  includeExamples: true
+  includeSchemas: true
+```
+
+## Template Examples
+
+The Conductor template includes pre-configured docs agents:
+
+### docs-simple.yaml
+Basic documentation with defaults:
+```yaml
+name: docs-simple
+operation: docs
+description: API documentation with minimal configuration
+
+route:
+  path: default
+  auth:
+    requirement: public
+```
+
+### docs-public.yaml
+Public-facing API documentation:
+```yaml
+name: docs-public
+operation: docs
+description: Public API documentation
+
+route:
+  path: /docs-public
+  auth:
+    requirement: public
+
+branding:
+  title: "Public API Reference"
+```
+
+### docs-authenticated.yaml
+Documentation for logged-in users:
+```yaml
+name: docs-authenticated
+operation: docs
+description: Documentation for authenticated users
+
+route:
+  path: /docs-authenticated
+  auth:
+    requirement: authenticated
+```
+
+### docs-admin.yaml
+Admin-only documentation:
+```yaml
+name: docs-admin
+operation: docs
+description: Admin-only API documentation
+
+route:
+  path: /docs-admin
+  auth:
+    requirement: admin
+
+branding:
+  title: "Admin API Reference"
+```
+
+## How It Works
+
+1. **Auto-Discovery** - Docs agent scans your ensembles and agents
+2. **OpenAPI Generation** - Creates OpenAPI 3.1 specification
+3. **UI Rendering** - Serves interactive HTML documentation
+4. **Multiple Formats** - Provides YAML and JSON spec downloads
+
+### Request Routing
+
+The docs agent handles three types of requests:
+
+```bash
+# HTML Documentation UI
+GET /docs-simple
+→ Returns interactive HTML documentation
+
+# YAML Specification
+GET /docs-simple/openapi.yaml
+→ Returns OpenAPI spec in YAML format
+
+# JSON Specification
+GET /docs-simple/openapi.json
+→ Returns OpenAPI spec in JSON format
+```
+
+## Advanced Usage
+
+### AI-Enhanced Documentation
+
+Combine with AI to generate better descriptions:
+
+```yaml
+# agents/docs-writer/agent.yaml
+name: docs-writer
+operation: think
+description: AI-powered documentation generation
+
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  prompt: |
+    Generate clear API documentation for:
+    ${input.endpoint}
+
+    Include examples and use cases.
+```
+
+### Searchable Documentation
+
+Add vector search to your docs:
+
+```yaml
+# agents/docs-search/agent.yaml
+name: docs-search
+operation: storage
+description: Semantic documentation search
+
+config:
+  vectorize:
+    enabled: true
+    index: docs-embeddings
+```
+
+### Documentation Pipeline
+
+Create an ensemble to auto-generate docs:
+
+```yaml
+# ensembles/auto-docs.yaml
+name: auto-docs
+description: Automatically generate and index documentation
+
+flow:
+  - agent: docs-writer
+    input:
+      codebase: ./src
+
+  - agent: docs-search
+    input:
+      content: ${docs-writer.output.markdown}
+      operation: index
+
+output:
+  documentation: ${docs-writer.output.markdown}
+  indexed: ${docs-search.output.success}
+```
+
+## Best Practices
+
+### Organization
+
+Keep docs agents in the `agents/docs/` directory:
+
+```
+agents/
+├── docs/
+│   ├── docs-simple.yaml      # Basic docs
+│   ├── docs-public.yaml      # Public API
+│   ├── docs-authenticated.yaml
+│   └── docs-admin.yaml
+├── examples/                  # Example agents
+└── your-agents/              # Production agents
+```
+
+### Security
+
+1. **Use authentication** - Protect sensitive endpoints
+2. **Separate docs** - Different docs for different audiences
+3. **Filter endpoints** - Don't expose internal APIs
+
+```yaml
+name: docs-public
+operation: docs
+route:
+  auth:
+    requirement: public
+
+# Only document public endpoints
+include:
+  - /api/v1/public/*
+exclude:
+  - /api/v1/admin/*
+  - /api/v1/internal/*
+```
+
+### Performance
+
+1. **Enable caching** - Reduce generation overhead
+2. **Use CDN** - Serve docs through Cloudflare CDN
+3. **Optimize assets** - Minimize custom CSS
+
+```yaml
+cache:
+  enabled: true
+  ttl: 3600  # Cache for 1 hour
+```
+
+### Maintenance
+
+1. **Version your docs** - Separate docs for each API version
+2. **Update regularly** - Keep docs in sync with code
+3. **Test examples** - Ensure code samples work
+
+```yaml
+name: docs-v1
+operation: docs
+branding:
+  title: "API Documentation v1.0"
+servers:
+  - url: https://api.example.com/v1
+```
+
+## Troubleshooting
+
+### Docs Not Showing
+
+1. Check agent is registered:
+```bash
+npm run build
+```
+
+2. Verify path matches agent name:
+```yaml
+name: docs-simple  # Serves at /docs-simple
+```
+
+3. Check logs for errors:
+```bash
+npx wrangler tail
+```
+
+### Authentication Issues
+
+1. Verify auth configuration in conductor.config.ts
+2. Test with correct authentication headers:
+```bash
+curl -H "Authorization: Bearer TOKEN" http://localhost:8787/docs-authenticated
+```
+
+### Caching Problems
+
+1. Ensure KV namespace is bound:
+```toml
+[[kv_namespaces]]
+binding = "DOCS_CACHE"
+id = "your-kv-id"
+```
+
+2. Clear cache if needed:
+```typescript
+await env.DOCS_CACHE.delete('docs:agent-name:/docs')
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Your First Docs" href="/conductor/getting-started/your-first-documentation">
+    Set up interactive API documentation
+  </Card>
+
+  <Card title="Operations Overview" href="/conductor/core-concepts/operations">
+    Learn about all available operations
+  </Card>
+
+  <Card title="Agent Guide" href="/conductor/getting-started/your-first-agent">
+    Create custom agents
+  </Card>
+
+  <Card title="Template Reference" href="/conductor/building/templates">
+    Explore the template structure
+  </Card>
+</CardGroup>
