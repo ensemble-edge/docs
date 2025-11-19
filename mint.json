@@ -131,6 +131,7 @@
         "conductor/getting-started/your-first-upgrade",
         "conductor/getting-started/your-first-agent",
         "conductor/getting-started/your-first-ensemble",
+        "conductor/getting-started/your-first-documentation",
         "conductor/getting-started/your-first-deployment",
         "conductor/getting-started/configuring-cloudflare"
       ]
