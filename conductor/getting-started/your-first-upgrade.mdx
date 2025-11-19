@@ -1,9 +1,9 @@
 ---
-title: "Upgrade Guide"
+title: "Your First Upgrade"
 description: "Step-by-step guide to upgrading Conductor to the latest version"
 ---
 
-**Target Audience**: Existing Conductor users upgrading from older versions
+**Target Audience**: Existing Conductor users upgrading to the latest version
 **Difficulty**: Easy (5-10 minutes)
 **Prerequisites**: Existing Conductor project
 
@@ -26,152 +26,6 @@ npm run deploy
 
 That's it! Most upgrades are seamless.
 
-## Upgrading from 1.8.0 to 1.8.1+
-
-**Why upgrade?** Critical fixes for dynamic routing and test templates.
-
-### What's Fixed
-- ✅ Dynamic route parameters (`/blog/:slug`) now work
-- ✅ Page handlers with data fetching now work
-- ✅ All test templates pass without modification
-- ✅ Better developer experience
-
-### Upgrade Steps
-
-```bash
-# Update dependency
-npm install @ensemble-edge/conductor@^1.8.1
-
-# Verify tests pass
-npm test
-# You should see 9/9 tests passing!
-
-# Build and test
-npm run build
-npx wrangler dev --local-protocol http
-```
-
-### What's New You Can Use
-
-**Dynamic Routes** (now working!):
-```yaml
-# pages/blog-post/page.yaml
-name: blog-post
-type: Page
-route:
-  path: /blog/:slug  # ✅ Now works!
-  methods: [GET]
-```
-
-**Page Handlers** (now working!):
-```typescript
-// pages/blog-post/handler.ts
-export async function handler(context) {
-  const { params } = context;
-  const slug = params.slug; // ✅ Extracts route parameter
-
-  // Fetch data from KV, D1, or external API
-  const post = await fetchPost(slug);
-
-  return { post };
-}
-```
-
-### Breaking Changes
-None! This is a drop-in replacement.
-
-## Upgrading from 1.4.2 or Earlier
-
-**Why upgrade?** Major reliability improvements.
-
-### What's Fixed
-- ✅ `npm install` works reliably (no more package-lock errors)
-- ✅ Dynamic routing now works
-- ✅ Better test coverage
-- ✅ Improved template quality
-
-### Upgrade Steps
-
-```bash
-# Clean installation recommended for major version jumps
-rm -rf node_modules package-lock.json
-
-# Update dependency
-npm install @ensemble-edge/conductor@latest
-
-# Verify everything works
-npm test
-npm run build
-npx wrangler dev --local-protocol http
-
-# Check your pages still work
-curl http://localhost:8787/
-```
-
-### Potential Issues
-
-<AccordionGroup>
-  <Accordion title="Routes not working after upgrade">
-    **Solution**: Rebuild and restart dev server
-    ```bash
-    npm run build
-    npx wrangler dev --local-protocol http
-    ```
-  </Accordion>
-
-  <Accordion title="TypeScript errors">
-    **Solution**: Update type definitions
-    ```bash
-    npm install --save-dev @cloudflare/workers-types@latest
-    ```
-  </Accordion>
-</AccordionGroup>
-
-## Version-Specific Upgrade Notes
-
-### To 1.8.1 (Latest)
-
-**New Features**:
-- Dynamic route parameters
-- Page handler functions
-- Improved test templates
-
-**How to use dynamic routes**:
-
-1. Create a page with route parameters:
-```yaml
-# pages/products/page.yaml
-route:
-  path: /products/:id
-  methods: [GET]
-```
-
-2. Create a handler to fetch data:
-```typescript
-// pages/products/handler.ts
-export async function handler(context) {
-  const productId = context.params.id;
-  const product = await fetchProduct(productId);
-  return { product };
-}
-```
-
-3. Use the data in your template:
-```html
-<!-- In your component -->
-<h1>{{product.name}}</h1>
-<p>{{product.description}}</p>
-```
-
-### To 1.8.0
-
-**New Features**:
-- Fixed package-lock.json installation issues
-- More consistent build performance
-
-**Notes**:
-- Upgrade to 1.8.1+ recommended for dynamic routing
-
 ## Testing Your Upgrade
 
 ### Automated Tests
@@ -181,7 +35,6 @@ export async function handler(context) {
 npm test
 
 # Expected: All tests should pass
-# v1.8.1+: 9/9 tests passing
 ```
 
 ### Manual Testing Checklist
@@ -207,7 +60,7 @@ time npm run build
 # After upgrade
 time npm run build
 
-# Should be similar or faster (~100-150ms)
+# Should be similar or faster
 ```
 
 ## Troubleshooting Common Issues
@@ -234,7 +87,7 @@ time npm run build
     TypeError: this.ctx.waitUntil is not a function
     ```
 
-    **Solution** (v1.8.0 only):
+    **Solution**:
     Update your test files to include proper ExecutionContext mock:
 
     ```typescript
@@ -243,8 +96,14 @@ time npm run build
       passThroughOnException: () => {}
     } as ExecutionContext;
     ```
+  </Accordion>
 
-    **Better Solution**: Upgrade to 1.8.1+ where this is fixed in templates.
+  <Accordion title="Routes not working after upgrade">
+    **Solution**: Rebuild and restart dev server
+    ```bash
+    npm run build
+    npx wrangler dev --local-protocol http
+    ```
   </Accordion>
 
   <Accordion title="Dynamic routes return 404">
@@ -253,16 +112,14 @@ time npm run build
     GET /blog/my-post → 404 Not Found
     ```
 
-    **Diagnosis**:
+    **Solution**: Check your route configuration and ensure you're using the latest version:
     ```bash
     # Check your Conductor version
     npm list @ensemble-edge/conductor
 
-    # If < 1.8.1, upgrade
-    npm install @ensemble-edge/conductor@^1.8.1
+    # Upgrade to latest
+    npm install @ensemble-edge/conductor@latest
     ```
-
-    **Solution**: Upgrade to 1.8.1+ where dynamic routing is fixed.
   </Accordion>
 
   <Accordion title="Build fails with module errors">
@@ -292,6 +149,13 @@ time npm run build
     ```
 
     **Solution**: This is harmless and can be ignored. It's a cosmetic warning.
+  </Accordion>
+
+  <Accordion title="TypeScript errors">
+    **Solution**: Update type definitions
+    ```bash
+    npm install --save-dev @cloudflare/workers-types@latest
+    ```
   </Accordion>
 </AccordionGroup>
 
@@ -363,7 +227,7 @@ If you need to rollback after an upgrade:
 git log package.json
 
 # 2. Reinstall the old version
-npm install @ensemble-edge/conductor@1.8.0
+npm install @ensemble-edge/conductor@<previous-version>
 
 # 3. Restore package-lock.json from git
 git checkout HEAD~1 package-lock.json
@@ -376,72 +240,47 @@ npm install
 npm test && npm run build
 ```
 
-## New Project Template Updates
+## New Feature Discovery
 
-After upgrading Conductor, you may want to update your project structure to match the latest template:
+After upgrading, check the latest template to discover new features:
 
-### Pages Directory Structure
+### Latest Template Structure
 
-**Latest template structure**:
-```
-pages/
-├── examples/          # Example pages
-│   ├── home/          # Homepage
-│   ├── dashboard/     # Dashboard page
-│   ├── login/         # Login page
-│   └── blog-post/     # Dynamic blog (new in 1.8.1!)
-│       ├── page.yaml
-│       └── handler.ts # Data fetching
-├── docs-*/            # Documentation examples
-└── error-404/         # Custom 404 page
+```bash
+# Generate a new project in a temp directory
+npx @ensemble-edge/conductor@latest init temp-project
+
+# Explore the template
+cd temp-project
+tree pages/
+tree agents/
+tree ensembles/
 ```
 
-### Handler Pattern (New in 1.8.1)
+### Compare Your Project
 
-Add `handler.ts` to any page for data fetching:
+```bash
+# Compare pages directory
+diff -r your-project/pages temp-project/pages
 
-```typescript
-// pages/your-page/handler.ts
-import type { HandlerContext } from '@ensemble-edge/conductor';
+# Compare agent patterns
+diff -r your-project/agents temp-project/agents
 
-export async function handler(context: HandlerContext) {
-  const { params, query, env, request } = context;
-
-  // Fetch data from KV, D1, R2, or external APIs
-  const data = await fetchYourData(params, env);
-
-  // Return data to your template
-  return { data };
-}
+# Compare ensemble patterns
+diff -r your-project/ensembles temp-project/ensembles
 ```
 
-```yaml
-# pages/your-page/page.yaml
-route:
-  path: /items/:id
-  methods: [GET]
+### Adopt New Patterns
 
-component: |
-  <h1>{{data.title}}</h1>
-  <p>{{data.description}}</p>
-```
+Look for:
+- New page handler patterns
+- Improved agent configurations
+- Better ensemble orchestration
+- Updated test patterns
 
 ## Post-Upgrade Optimization
 
-### 1. Enable New Features
-
-**Dynamic Routing** (if you weren't using it):
-```yaml
-# Convert static pages to dynamic
-# Before: /blog/post-1, /blog/post-2, /blog/post-3
-# After: /blog/:slug (one page handles all posts)
-
-route:
-  path: /blog/:slug
-  methods: [GET]
-```
-
-### 2. Update Test Coverage
+### 1. Update Test Coverage
 
 ```bash
 # Run tests with coverage
@@ -450,7 +289,7 @@ npm run test:coverage
 # Goal: Maintain or improve coverage after upgrade
 ```
 
-### 3. Performance Tuning
+### 2. Performance Tuning
 
 ```bash
 # Check bundle size
@@ -463,7 +302,7 @@ npm run build
 # - Lazy load pages/agents
 ```
 
-### 4. Update Documentation
+### 3. Update Documentation
 
 Update your project's README with:
 - [ ] Current Conductor version
@@ -475,7 +314,7 @@ Update your project's README with:
 ### Keep Dependencies Updated
 
 ```bash
-# Check for Conductor updates monthly
+# Check for Conductor updates regularly
 npm outdated
 
 # Update Conductor and related packages
@@ -522,9 +361,8 @@ Track your upgrades in a changelog:
 # CHANGELOG.md
 
 ## 2025-11-19
-- Upgraded Conductor from 1.8.0 to 1.8.1
-- Added dynamic blog post routing using new feature
-- All tests passing (9/9)
+- Upgraded Conductor to latest version
+- All tests passing
 - Deployed to production successfully
 ```
 
@@ -554,16 +392,6 @@ npm --version
 ```
 
 [Report an issue on GitHub](https://github.com/ensemble-edge/conductor/issues/new)
-
-## Version History
-
-| Version | Released | Status | Notes |
-|---------|----------|--------|-------|
-| 1.8.1 | 2025-11-19 | ✅ Current | Dynamic routing fixed, all tests pass |
-| 1.8.0 | 2025-11-18 | ⚠️ Upgrade | npm install fixed, but upgrade to 1.8.1 recommended |
-| 1.4.2 | Earlier | ❌ Legacy | Known issues, upgrade recommended |
-
-**Always use the latest version** for the best experience.
 
 ## Summary
 
@@ -597,11 +425,11 @@ rm -rf node_modules package-lock.json && npm install
   </Card>
 
   <Card title="Dynamic Pages" icon="file" href="/conductor/core-concepts/pages">
-    Learn about new dynamic routing features
+    Learn about dynamic routing features
   </Card>
 
   <Card title="Testing Guide" icon="check-circle" href="/conductor/building/testing-observability">
-    Update your tests for v1.8.1+
+    Update your test patterns
   </Card>
 
   <Card title="Changelog" icon="list" href="https://github.com/ensemble-edge/conductor/blob/master/CHANGELOG.md">
