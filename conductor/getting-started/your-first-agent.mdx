@@ -45,7 +45,11 @@ This declares:
 ### index.ts
 
 ```typescript
-export default function hello({ name, style }: { name: string; style?: string }) {
+import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+export default function hello({ input }: AgentExecutionContext) {
+  const { name, style } = input as { name: string; style?: string };
+
   const styles = {
     formal: `Good day, ${name}. It is a pleasure to make your acquaintance.`,
     casual: `Hey ${name}! What's up?`,
@@ -60,7 +64,12 @@ export default function hello({ name, style }: { name: string; style?: string })
 }
 ```
 
-Simple TypeScript function that returns an object matching the output schema.
+**Note the signature**: Agents use `AgentExecutionContext` which provides:
+- `input` - Your agent's parameters
+- `env` - Cloudflare bindings (KV, D1, AI, etc.)
+- `ctx` - ExecutionContext (waitUntil, etc.)
+
+This signature works everywhere: direct calls, ensembles, and tests.
 
 ## Understanding Operation Types
 
@@ -157,6 +166,94 @@ schema:
 
 [See all operations ](/conductor/operations/overview)
 
+## Critical: Agent Signatures for Ensembles
+
+**All agents MUST use the `AgentExecutionContext` signature to work in ensembles!**
+
+### The Correct Pattern ✅
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+interface MyAgentInput {
+  param1: string;
+  param2: number;
+}
+
+interface MyAgentOutput {
+  result: string;
+}
+
+export default function myAgent({ input, env, ctx }: AgentExecutionContext): MyAgentOutput {
+  // Destructure your parameters from input
+  const { param1, param2 } = input as MyAgentInput;
+
+  // Your logic here
+  const result = `Processed: ${param1} with ${param2}`;
+
+  return { result };
+}
+```
+
+### Why This Signature?
+
+When called through an ensemble, Conductor wraps your parameters:
+
+```typescript
+// Ensemble passes:
+{
+  input: { param1: 'hello', param2: 42 },  // Your parameters
+  env: { /* Cloudflare bindings */ },       // KV, D1, AI, etc.
+  ctx: { /* ExecutionContext */ }           // waitUntil, etc.
+}
+```
+
+**Benefits**:
+- ✅ Works in ensembles (orchestrated workflows)
+- ✅ Works with direct calls
+- ✅ Works in tests
+- ✅ Access to Cloudflare bindings (env)
+- ✅ Access to ExecutionContext (ctx)
+
+### Wrong Pattern (Don't Do This) ❌
+
+```typescript
+// ❌ DOESN'T WORK IN ENSEMBLES
+export default function myAgent({ param1, param2 }: MyInput) {
+  return { result: param1 + param2 };
+}
+```
+
+This only works for direct function calls, but **fails in ensembles** because the parameters are wrapped in `input`.
+
+### Using env and ctx
+
+The signature gives you access to powerful features:
+
+```typescript
+export default async function myAgent({ input, env, ctx }: AgentExecutionContext) {
+  const { query } = input as { query: string };
+
+  // Access KV storage
+  const cached = await env.KV.get(query);
+  if (cached) return JSON.parse(cached);
+
+  // Use AI binding
+  const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    prompt: query
+  });
+
+  // Schedule background work
+  ctx.waitUntil(env.KV.put(query, JSON.stringify(result)));
+
+  return { result };
+}
+```
+
+<Note>
+**Quick Rule**: Always use `AgentExecutionContext` signature. It's the only pattern that works everywhere!
+</Note>
+
 ## Test the Hello Agent
 
 The template includes working tests. Let's look at `tests/basic.test.ts`:
@@ -239,15 +336,19 @@ schema:
 Create `agents/greeter/index.ts`:
 
 ```typescript
-export default function greeter({
-  name,
-  time_of_day = 'day',
-  language = 'en'
-}: {
-  name: string;
-  time_of_day?: string;
-  language?: string;
-}) {
+import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+export default function greeter({ input }: AgentExecutionContext) {
+  const {
+    name,
+    time_of_day = 'day',
+    language = 'en'
+  } = input as {
+    name: string;
+    time_of_day?: string;
+    language?: string;
+  };
+
   const greetings: Record<string, Record<string, string>> = {
     en: {
       morning: `Good morning, ${name}!`,
@@ -427,15 +528,15 @@ Pure logic, no external dependencies:
 
 ```typescript
 // agents/calculator/index.ts
-export default function calculator({
-  operation,
-  a,
-  b
-}: {
-  operation: string;
-  a: number;
-  b: number;
-}) {
+import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+export default function calculator({ input }: AgentExecutionContext) {
+  const { operation, a, b } = input as {
+    operation: string;
+    a: number;
+    b: number;
+  };
+
   const ops: Record<string, number> = {
     add: a + b,
     subtract: a - b,
@@ -561,10 +662,15 @@ schema:
 ### 4. Handle Errors Gracefully
 
 ```typescript
-export default function myAgent({ input }: { input: string }) {
+import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+export default function myAgent({ input }: AgentExecutionContext) {
+  const { data } = input as { data: string };
+
   try {
     // Your logic
-    return { success: true, result: processedData };
+    const result = processData(data);
+    return { success: true, result };
   } catch (error) {
     return {
       success: false,
@@ -648,14 +754,35 @@ describe('My Agent', () => {
     ```
   </Accordion>
 
+  <Accordion title="Agent fails in ensemble but works in tests">
+    **Problem**: Agent works when called directly but fails in ensembles
+
+    **Cause**: Agent not using `AgentExecutionContext` signature
+
+    **Fix**: Update agent signature:
+    ```typescript
+    import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+    export default function myAgent({ input, env, ctx }: AgentExecutionContext) {
+      const { params } = input as MyInput;
+      // Your logic...
+    }
+    ```
+
+    See [Agent Signatures section](#critical-agent-signatures-for-ensembles) above.
+  </Accordion>
+
   <Accordion title="Operation type not supported">
     **Problem**: Want to use an operation that doesn't exist
 
     **Fix**: Use `operation: code` and implement in TypeScript:
     ```typescript
-    export default async function myAgent({ input }) {
+    import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+    export default async function myAgent({ input, env, ctx }: AgentExecutionContext) {
+      const { data } = input as { data: string };
       // Your custom logic here
-      const result = await customOperation(input);
+      const result = await customOperation(data);
       return { result };
     }
     ```

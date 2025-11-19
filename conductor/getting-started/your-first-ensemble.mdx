@@ -114,6 +114,75 @@ output:
   result: ${risky-operation.output || fallback.output}
 ```
 
+## Important: Agent Signatures for Ensembles
+
+**Critical**: For agents to work in ensembles, they MUST use the `AgentExecutionContext` signature!
+
+### Why This Matters
+
+When you reference an agent in an ensemble, Conductor calls it with this structure:
+
+```typescript
+{
+  input: { /* your parameters */ },
+  env: { /* Cloudflare bindings */ },
+  ctx: { /* ExecutionContext */ }
+}
+```
+
+### Correct Agent Signature ✅
+
+All agents used in ensembles must follow this pattern:
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+
+export default function myAgent({ input, env, ctx }: AgentExecutionContext) {
+  // Destructure parameters from input
+  const { param1, param2 } = input as MyInput;
+
+  // Your logic here
+  return { result: 'success' };
+}
+```
+
+### What Happens If You Don't?
+
+**Wrong signature** (direct parameters):
+```typescript
+// ❌ DOESN'T WORK IN ENSEMBLES
+export default function myAgent({ param1, param2 }: MyInput) {
+  return { result: param1 + param2 };
+}
+```
+
+**Result**: Agent receives `undefined` values because ensemble passes `{ input: {...}, env, ctx }` but agent expects direct parameters!
+
+### Quick Fix for Existing Agents
+
+If your agent isn't working in an ensemble:
+
+1. Import `AgentExecutionContext`:
+   ```typescript
+   import type { AgentExecutionContext } from '@ensemble-edge/conductor';
+   ```
+
+2. Change signature to accept `{ input, env, ctx }`:
+   ```typescript
+   export default function myAgent({ input, env, ctx }: AgentExecutionContext) {
+   ```
+
+3. Destructure your parameters from `input`:
+   ```typescript
+   const { param1, param2 } = input as MyInput;
+   ```
+
+**That's it!** Your agent now works everywhere: ensembles, direct calls, and tests.
+
+<Note>
+See [Agent Signatures](/conductor/getting-started/your-first-agent#critical-agent-signatures-for-ensembles) in "Your First Agent" for detailed explanation.
+</Note>
+
 ## Create Your First Ensemble
 
 Let's build a simple two-step workflow.
