@@ -169,7 +169,8 @@
         "conductor/components/configs",
         "conductor/components/queries",
         "conductor/components/scripts",
-        "conductor/components/templates"
+        "conductor/components/templates",
+        "conductor/components/docs"
       ]
     },
     {

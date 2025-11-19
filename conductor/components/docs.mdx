@@ -1,0 +1,500 @@
+---
+title: "Docs Components"
+description: "Reusable markdown documentation with Handlebars rendering"
+---
+
+**Define and version reusable documentation as components with Handlebars template support for dynamic content.**
+
+## Overview
+
+Docs components enable you to:
+- **Reuse documentation** across multiple projects and contexts
+- **Version docs** with semantic versioning for consistency
+- **Dynamic content** using Handlebars variables and helpers
+- **A/B test** different documentation versions
+- **Deploy** documentation independently from code
+- **Auto-discover** markdown files at build time
+
+## Quick Start
+
+### 1. Create a Docs Component
+
+Create a markdown file with optional Handlebars variables:
+
+```markdown
+// docs/getting-started.md
+---
+title: Getting Started
+description: Quick start guide
+---
+
+# Welcome to {{projectName}}
+
+Version: {{version}}
+
+Get started with {{projectName}} in just a few minutes.
+
+## Prerequisites
+
+- Node.js {{nodeVersion}} or higher
+- npm or yarn
+
+## Installation
+
+\`\`\`bash
+npm install {{projectName}}
+\`\`\`
+
+## Your First Request
+
+{{#if hasApiKey}}
+Use your API key to make authenticated requests:
+
+\`\`\`javascript
+const client = new {{projectName}}Client({
+  apiKey: '{{apiKey}}'
+});
+\`\`\`
+{{else}}
+Sign up to get your API key at {{signupUrl}}
+{{/if}}
+```
+
+### 2. Add to Edgit
+
+```bash
+edgit components add getting-started docs/getting-started.md docs
+edgit tag create getting-started v1.0.0
+edgit deploy set getting-started v1.0.0 --to production
+```
+
+### 3. Use in Your Application
+
+```typescript
+import { DocsLoader } from './lib/docs-loader'
+
+const loader = new DocsLoader()
+await loader.init(docsMap) // Auto-discovered docs
+
+// Render with variables
+const content = await loader.get('getting-started', {
+  projectName: 'My API',
+  version: '1.0.0',
+  nodeVersion: '18',
+  hasApiKey: true,
+  apiKey: user.apiKey,
+  signupUrl: 'https://example.com/signup'
+})
+```
+
+## YAML Frontmatter
+
+Add metadata to your markdown files:
+
+```markdown
+---
+title: Authentication Guide
+description: Learn how to authenticate with our API
+author: API Team
+version: 2.1.0
+tags:
+  - authentication
+  - security
+  - oauth
+updated: 2025-01-15
+---
+
+# Authentication Guide
+
+Your content here...
+```
+
+Access frontmatter in your code:
+
+```typescript
+const doc = docsLoader.getRaw('authentication')
+console.log(doc.metadata.title) // "Authentication Guide"
+console.log(doc.metadata.tags)  // ["authentication", "security", "oauth"]
+```
+
+## Handlebars Features
+
+### Variables
+
+```markdown
+Hello {{userName}}, welcome to {{appName}}!
+```
+
+### Conditionals
+
+```markdown
+{{#if isPremium}}
+## Premium Features
+Access advanced analytics and reporting.
+{{else}}
+## Free Tier
+Upgrade to unlock premium features.
+{{/if}}
+```
+
+### Loops
+
+```markdown
+## Available Endpoints
+
+{{#each endpoints}}
+- **{{this.method}}** `{{this.path}}` - {{this.description}}
+{{/each}}
+```
+
+### Built-in Helpers
+
+```markdown
+# {{capitalize pageName}}
+
+Last updated: {{date lastModified}}
+
+Total users: {{formatNumber userCount}}
+
+Description: {{truncate longDescription 100}}
+
+Status: {{upper status}}
+```
+
+### Custom Helpers
+
+Register your own helpers:
+
+```typescript
+docsLoader.registerHelper('apiUrl', (endpoint) => {
+  return `https://api.example.com/v1${endpoint}`
+})
+
+docsLoader.registerHelper('codeBlock', (lang, code) => {
+  return `\`\`\`${lang}\n${code}\n\`\`\``
+})
+```
+
+Use in markdown:
+
+```markdown
+API Endpoint: {{apiUrl "/users"}}
+
+{{codeBlock "javascript" exampleCode}}
+```
+
+### Partials
+
+Register reusable snippets:
+
+```typescript
+docsLoader.registerPartial('header', `
+# {{title}}
+**Version {{version}}** | Last updated: {{date updated}}
+`)
+```
+
+Use in markdown:
+
+```markdown
+{{> header title="API Guide" version="1.0.0" updated=now}}
+
+Your content here...
+```
+
+## Auto-Discovery
+
+Docs are automatically discovered at build time via Vite plugin:
+
+```typescript
+// vite.config.ts
+import { docsDiscoveryPlugin } from './scripts/vite-plugin-docs-discovery'
+
+export default defineConfig({
+  plugins: [
+    docsDiscoveryPlugin(), // Auto-discovers docs/**.md files
+  ],
+})
+```
+
+This generates a virtual module:
+
+```typescript
+// Automatically available in your code
+import { docs } from 'virtual:conductor-docs'
+
+// docs contains all .md files from docs/ directory
+docs.forEach(doc => {
+  console.log(doc.name)    // File name without extension
+  console.log(doc.content) // Raw markdown content
+})
+```
+
+## First-Class Component Pattern
+
+Docs work exactly like prompts/ with the same infrastructure:
+
+| Feature | Prompts | Docs |
+|---------|---------|------|
+| Auto-discovery | ✅ | ✅ |
+| Handlebars | ✅ | ✅ |
+| Frontmatter | ✅ | ✅ |
+| Caching | ✅ | ✅ |
+| Versioning | ✅ | ✅ |
+| Component refs | ✅ | ✅ |
+
+```typescript
+// Both use the same pattern
+const prompt = await promptManager.renderByName('summarize', vars)
+const docs = await docsLoader.get('getting-started', vars)
+```
+
+## Versioning Documentation
+
+### Semantic Versioning
+
+Follow semver for documentation changes:
+
+- **Major (v2.0.0)**: Breaking changes to examples or structure
+- **Minor (v1.1.0)**: New sections, backwards compatible
+- **Patch (v1.0.1)**: Typo fixes, clarifications
+
+```bash
+# Bug fix
+edgit version docs/getting-started v1.0.1
+
+# New section added
+edgit version docs/getting-started v1.1.0
+
+# Restructured guide
+edgit version docs/getting-started v2.0.0
+```
+
+### Tagging for Deployment
+
+```bash
+# Tag for different environments
+edgit tag docs/api-guide@v2.0.0 canary
+edgit tag docs/api-guide@v2.0.0 staging
+edgit tag docs/api-guide@v2.0.0 production
+```
+
+### Version-Specific Documentation
+
+```yaml
+# Development
+docs: docs/getting-started@latest
+
+# Production
+docs: docs/getting-started@production
+
+# Lock to specific version
+docs: docs/getting-started@v1.2.3
+```
+
+## Integration with Documentation Generation
+
+Combine auto-generated API docs with custom markdown guides:
+
+```typescript
+// agents/generate-docs/docs-public.yaml
+name: docs-public
+operation: docs
+
+# Auto-generate OpenAPI from agents
+autoGenerate:
+  enabled: true
+  includeAgents: true
+  includeEnsembles: true
+
+# Reference custom docs from docs/ directory
+customGuides:
+  - name: Getting Started
+    component: docs/getting-started@production
+  - name: Authentication
+    component: docs/authentication@production
+  - name: Advanced Workflows
+    component: docs/advanced-workflows@production
+```
+
+## Use Cases
+
+### API Documentation
+
+```markdown
+---
+title: {{apiName}} API Reference
+version: {{apiVersion}}
+---
+
+# {{apiName}} API
+
+Base URL: `{{baseUrl}}`
+
+## Authentication
+
+All requests require a valid API key:
+
+\`\`\`bash
+curl {{baseUrl}}/users \\
+  -H "Authorization: Bearer YOUR_API_KEY"
+\`\`\`
+
+{{#each endpoints}}
+## {{this.name}}
+
+**{{this.method}}** `{{this.path}}`
+
+{{this.description}}
+
+### Example
+
+\`\`\`bash
+{{this.example}}
+\`\`\`
+{{/each}}
+```
+
+### User Guides
+
+```markdown
+---
+title: {{productName}} User Guide
+audience: end-users
+---
+
+# Getting Started with {{productName}}
+
+{{#if userTier}}
+You're on the **{{userTier}}** plan.
+{{/if}}
+
+## Quick Setup
+
+1. Create an account at {{signupUrl}}
+2. Install the {{productName}} client
+3. Configure your API key
+
+{{#if isPremium}}
+## Premium Features
+
+As a premium user, you have access to:
+{{#each premiumFeatures}}
+- {{this.name}}: {{this.description}}
+{{/each}}
+{{/if}}
+```
+
+### Changelog
+
+```markdown
+---
+title: Changelog
+type: release-notes
+---
+
+# Changelog
+
+## Version {{latestVersion}} - {{releaseDate}}
+
+{{#each changes}}
+### {{this.type}}
+{{#each this.items}}
+- {{this}}
+{{/each}}
+{{/each}}
+
+## Previous Releases
+
+{{#each previousReleases}}
+### {{this.version}} - {{this.date}}
+{{this.summary}}
+{{/each}}
+```
+
+## Best Practices
+
+### 1. Use Frontmatter for Metadata
+
+```markdown
+---
+title: Clear Title
+description: Brief description
+tags: [api, authentication, oauth]
+difficulty: intermediate
+estimatedTime: 10 minutes
+---
+```
+
+### 2. Keep Handlebars Simple
+
+```markdown
+✅ Good: Hello {{userName}}!
+❌ Bad: {{#if (and (eq userType "premium") (gt credits 100))}}...
+```
+
+### 3. Version Documentation Like Code
+
+```bash
+# Version docs with meaningful messages
+edgit version docs/api-guide v2.0.0 -m "Updated to REST API v2"
+```
+
+### 4. Test with Real Variables
+
+```typescript
+// Test rendering with actual data
+const rendered = await docsLoader.get('guide', {
+  projectName: 'Test Project',
+  version: '1.0.0'
+})
+console.assert(rendered.includes('Test Project'))
+```
+
+### 5. Organize by Audience
+
+```
+docs/
+├── users/           # End-user documentation
+│   ├── getting-started.md
+│   └── faq.md
+├── developers/      # Developer guides
+│   ├── api-reference.md
+│   └── webhooks.md
+└── internal/        # Internal documentation
+    ├── architecture.md
+    └── deployment.md
+```
+
+### 6. Use Partials for Repeated Content
+
+```typescript
+docsLoader.registerPartial('prerequisites', `
+## Prerequisites
+
+- Node.js 18+
+- npm or yarn
+- API key (get one at {{signupUrl}})
+`)
+```
+
+```markdown
+{{> prerequisites signupUrl="https://example.com/signup"}}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Your First Documentation" icon="book" href="/conductor/getting-started/your-first-documentation">
+    Create your first docs
+  </Card>
+  <Card title="Components Overview" icon="layer-group" href="/conductor/core-concepts/components">
+    Learn about all component types
+  </Card>
+  <Card title="Prompts" icon="message" href="/conductor/components/prompts">
+    Similar to docs with Handlebars
+  </Card>
+  <Card title="Edgit" icon="code-branch" href="/edgit/overview">
+    Version control for components
+  </Card>
+</CardGroup>

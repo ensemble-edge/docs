@@ -50,7 +50,7 @@ edgit components add <type> <name> <path> [options]
 ```
 
 **Arguments:**
-- `type` - Component type (prompt, config, query, script, agent)
+- `type` - Component type (prompt, config, query, script, template, docs, agent)
 - `name` - Unique component name
 - `path` - File path relative to repo root
 
@@ -72,6 +72,12 @@ edgit components add query analytics-query components/queries/analytics.sql
 
 # Register script
 edgit components add script transform components/scripts/transform.ts
+
+# Register template
+edgit components add template header components/templates/header.html
+
+# Register docs
+edgit components add docs getting-started components/docs/getting-started.md
 
 # Register agent
 edgit components add agent scraper agents/scraper/ --type=agent
