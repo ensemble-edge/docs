@@ -301,20 +301,57 @@ output:
 
 [Learn about A/B testing ](/conductor/core-concepts/ab-testing)
 
-## Integration with Edgit
+## Beyond Workflows: Build Web Applications
 
-Conductor and [Edgit](/edgit/overview) work together for complete versioning:
+Conductor isn't just for backend workflows. It also includes **Pages** for building server-rendered web applications:
 
-**Edgit versions:**
-- Components (prompts, configs, queries, scripts)
-- Agent implementations
-
-**Git versions:**
-- Ensemble definitions (YAML files)
-- Code in your repository
+**Pages Features:**
+- Static pages with Liquid/HTML templates
+- Dynamic pages with handler functions
+- Auto-discovery from `pages/` directory
+- SEO, caching, and hydration built-in
+- Dynamic route parameters (e.g., `/blog/:slug`)
+- Form handling with validation
 
 **Example:**
+```yaml
+# pages/dashboard/page.yaml
+name: dashboard
+type: Page
+templateEngine: liquid
 
+route:
+  path: /dashboard
+  methods: [GET]
+  auth: cookie
+
+component: |
+  <h1>Welcome, {{user.name}}!</h1>
+  <div class="stats">
+    <p>Total workflows: {{stats.total}}</p>
+    <p>Success rate: {{stats.success_rate}}%</p>
+  </div>
+```
+
+[Learn more about Pages ](/conductor/core-concepts/pages)
+
+## Versioning (Optional)
+
+Conductor supports component versioning through **Edgit** integration:
+
+**Basic approach**: Version control with git (standard)
+
+**Advanced approach**: Edgit integration for component-level versioning
+
+> **Note**: Edgit is optional. You can use Conductor with standard git workflows.
+
+**If using Edgit**, you get:
+- Versioned components (prompts, configs, queries, scripts)
+- Versioned agent implementations
+- Mix optimal versions from different points in history
+- Rollback one component without touching anything else
+
+**Example with Edgit:**
 ```yaml
 ensemble: versioned-workflow
 
@@ -327,12 +364,9 @@ agents:
     component: analysis-prompt@v2.1.0  # Versioned component via Edgit
     config:
       model: claude-3-5-sonnet-20241022
-
-  - name: validator
-    agent: validator@v1.0.0        # Versioned agent via Edgit
 ```
 
-Mix optimal versions from different points in history. Rollback one component without touching anything else.
+[Learn more about Edgit ](/edgit/overview)
 
 ## Platform Integration
 
@@ -377,11 +411,11 @@ gateway_id = "your_gateway_id"
 ## Production-Ready
 
 <CardGroup cols="2">
-  <Card title="276 Tests Passing" icon="check-circle">
-    40%+ test coverage with built-in testing framework
+  <Card title="812 Tests Passing" icon="check-circle">
+    Comprehensive test coverage with Vitest
   </Card>
 
-  <Card title="v1.0.0 Released" icon="rocket">
+  <Card title="v1.8.0 Released" icon="rocket">
     Production-ready and published to npm
   </Card>
 
@@ -393,6 +427,69 @@ gateway_id = "your_gateway_id"
     Structured logs and metrics for every execution
   </Card>
 </CardGroup>
+
+## Testing Your Workflows
+
+Conductor includes Vitest for testing. The template includes working examples:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { Executor, MemberLoader } from '@ensemble-edge/conductor';
+import { stringify } from 'yaml';
+
+describe('My Ensemble', () => {
+  it('should execute successfully', async () => {
+    // Setup with proper ExecutionContext mock
+    const env = {} as Env;
+    const ctx = {
+      waitUntil: (promise: Promise<any>) => promise,
+      passThroughOnException: () => {}
+    } as ExecutionContext;
+
+    const executor = new Executor({ env, ctx });
+    const loader = new MemberLoader({ env, ctx });
+
+    // Register your agents
+    const agent = loader.registerAgent(agentConfig, agentFunction);
+    executor.registerAgent(agent);
+
+    // Execute ensemble
+    const result = await executor.executeFromYAML(
+      stringify(myEnsemble),
+      { input: 'test data' }
+    );
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.value.output).toBeDefined();
+  });
+});
+```
+
+Run tests: `npm test`
+
+> **Note**: Proper ExecutionContext mocking is required. See template examples in `tests/basic.test.ts`.
+
+## Limitations & Considerations
+
+**Platform Constraints**:
+- **Execution time**: 30s limit for free tier, 15min for paid (CPU time limit)
+- **Max payload**: 100MB for requests/responses
+- **Cold starts**: ~50ms (negligible for most use cases)
+
+**Development Notes**:
+- **Rebuilding required** after adding new agents/pages (discovered at build time)
+- **Network binding** needed for local dev: use `--local-protocol http` flag
+- **Some operations require API keys** (OpenAI, Anthropic, etc.)
+
+**What Works**:
+- ✅ Dynamic route parameters (e.g., `/blog/:slug`) - Fixed in v1.8.0!
+- ✅ Static and dynamic pages
+- ✅ All 12 operations
+- ✅ Auto-discovery of pages, agents, ensembles
+- ✅ State management and caching
+
+[See troubleshooting guide ](/conductor/getting-started/your-first-project#troubleshooting)
 
 ## Use Cases
 
@@ -428,29 +525,44 @@ gateway_id = "your_gateway_id"
   </Accordion>
 </AccordionGroup>
 
-## Installation
+## Quick Start (60 Seconds)
+
+Get a working Conductor project instantly:
 
 ```bash
-npm install -g @ensemble-edge/conductor
-conductor --version
+# Create project with examples
+npx @ensemble-edge/conductor@latest init my-conductor-app
+cd my-conductor-app
+
+# Install and run
+npm install
+npm run build
+npx wrangler dev --local-protocol http
 ```
 
-## Quick Start
+Open http://localhost:8787 🎉
 
-```bash
-# Create project
-mkdir my-workflow
-cd my-workflow
-conductor init
+Your project includes:
+- ✅ **10 example pages** - Static, dynamic, forms, and SSR patterns
+- ✅ **Working workflows** - hello-world ensemble ready to run
+- ✅ **Custom agents** - hello agent showing code operations
+- ✅ **Tests** - Vitest setup with passing examples
 
-# Deploy
-conductor deploy
+## Ready to Get Started?
 
-# Test
-curl https://your-worker.workers.dev/ensembles/hello-world
-```
+<CardGroup cols={3}>
+  <Card title="Your First Project" icon="rocket" href="/conductor/getting-started/your-first-project">
+    Start here! Initialize in 60 seconds
+  </Card>
 
-[Full quick start guide ](/introduction/quick-start)
+  <Card title="Understanding Agents" icon="robot" href="/conductor/getting-started/your-first-agent">
+    Learn the building blocks
+  </Card>
+
+  <Card title="Creating Workflows" icon="diagram-project" href="/conductor/getting-started/your-first-ensemble">
+    Build your own ensembles
+  </Card>
+</CardGroup>
 
 ## Architecture Principles
 

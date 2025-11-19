@@ -1,559 +1,709 @@
 ---
 title: "Your First Agent"
-description: "Build a custom reusable agent - versioned, deployable functions that encapsulate logic"
+description: "Build custom reusable agents - the building blocks of your workflows"
 ---
-
-Pre-built agents (scraper, validator, rag, hitl) are great, but sometimes you need custom logic. That's where building your own agents comes in.
 
 ## What's an Agent?
 
 An agent is a reusable unit of work with:
 - **Inputs**: Parameters it accepts
-- **Logic**: What it does (operations you declare)
+- **Operation**: What it does (code, think, http, storage, etc.)
 - **Outputs**: Data it returns
 
-Agents can use any operation (think, code, storage, http, etc.) and can be versioned independently with Edgit.
+Agents are auto-discovered from the `agents/` directory and can be used across multiple ensembles.
 
-## Create Your First Agent
+## Explore the Template Agent
 
-Let's build a `company-enricher` agent that takes a company name and enriches it with data.
-
-### Project Structure
+Your project already includes a working agent! Let's explore `agents/hello/`:
 
 ```
-my-conductor-app/
-  agents/
-    company-enricher/
-      agent.yaml      # Agent definition
-  ensembles/
-    enrich-company.yaml # Ensemble using the agent
+agents/hello/
+├── agent.yaml      # Agent configuration
+└── index.ts        # Agent implementation
 ```
 
-### Define the Agent
-
-Create `agents/company-enricher/agent.yaml`:
+### agent.yaml
 
 ```yaml
-agent: company-enricher
-description: Enriches company data from web sources
+name: hello
+operation: code
+description: Simple greeting function
 
-inputs:
-  company_name:
-    type: string
-    required: true
-  include_news:
-    type: boolean
-    default: false
-
-operations:
-  # Search for company website
-  - name: search
-    operation: http
-    config:
-      url: https://api.duckduckgo.com/?q=${input.company_name}+official+website&format=json
-      method: GET
-    cache:
-      ttl: 86400  # Cache for 24 hours
-
-  # Scrape company website
-  - name: scrape
-    operation: http
-    config:
-      url: ${search.output.body.AbstractURL}
-      method: GET
-
-  # Extract structured data with AI
-  - name: extract
-    operation: think
-    config:
-      provider: cloudflare
-      model: '@cf/meta/llama-3.1-8b-instruct'
-      prompt: |
-        Extract company information from this HTML:
-        ${scrape.output.body}
-
-        Return JSON with:
-        - name: Company name
-        - description: Brief description (1-2 sentences)
-        - industry: Primary industry
-        - founded: Year founded (if available)
-
-  # Optionally fetch news
-  - name: fetch-news
-    operation: http
-    condition: ${input.include_news}
-    config:
-      url: https://api.example.com/news?company=${input.company_name}
-      method: GET
-
-outputs:
-  company_data: ${extract.output}
-  news: ${fetch-news.output.body}
-  source_url: ${search.output.body.AbstractURL}
+schema:
+  input:
+    name: string
+    style: string?
+  output:
+    message: string
 ```
 
-**That's it.** Your agent is defined declaratively. No classes, no boilerplate.
+This declares:
+- **Operation type**: `code` (runs JavaScript/TypeScript)
+- **Input schema**: Accepts `name` (required) and `style` (optional)
+- **Output schema**: Returns a `message` string
 
-## Use Your Agent
-
-Create `ensembles/enrich-company.yaml`:
-
-```yaml
-ensemble: enrich-company
-description: Enrich company data
-
-agents:
-  - name: enricher
-    agent: company-enricher
-    inputs:
-      company_name: ${input.company}
-      include_news: true
-
-output:
-  data: ${enricher.output.company_data}
-  news: ${enricher.output.news}
-  source: ${enricher.output.source_url}
-```
-
-## Execute It
+### index.ts
 
 ```typescript
-import { Conductor } from '@ensemble-edge/conductor';
+export default function hello({ name, style }: { name: string; style?: string }) {
+  const styles = {
+    formal: `Good day, ${name}. It is a pleasure to make your acquaintance.`,
+    casual: `Hey ${name}! What's up?`,
+    enthusiastic: `OMG ${name}! SO EXCITED TO MEET YOU!!!`
+  };
 
-const conductor = new Conductor({ env });
+  const message = style && style in styles
+    ? styles[style as keyof typeof styles]
+    : `Hello, ${name}! Welcome to Conductor.`;
 
-const result = await conductor.execute('enrich-company', {
-  company: 'Anthropic'
-});
-
-console.log(result);
-```
-
-Result:
-```json
-{
-  "data": {
-    "name": "Anthropic",
-    "description": "AI safety company building reliable, interpretable AI systems",
-    "industry": "Artificial Intelligence",
-    "founded": 2021
-  },
-  "news": [...],
-  "source": "https://www.anthropic.com"
+  return { message };
 }
 ```
 
-## Agent Patterns
+Simple TypeScript function that returns an object matching the output schema.
 
-### Pattern 1: Data Processor
+## Understanding Operation Types
 
-Transform and validate data:
+Agents use different operations based on what they need to do:
 
-```yaml
-agent: data-processor
+### operation: code
 
-inputs:
-  raw_data:
-    type: object
-    required: true
-
-operations:
-  # Validate structure
-  - name: validate
-    operation: code
-    config:
-      code: |
-        const data = ${input.raw_data};
-        const isValid = data.id && data.name && data.email;
-        return { valid: isValid, errors: isValid ? [] : ['Missing required fields'] };
-
-  # Transform data
-  - name: transform
-    operation: code
-    condition: ${validate.output.valid}
-    config:
-      code: |
-        const data = ${input.raw_data};
-        return {
-          id: data.id,
-          name: data.name.trim().toLowerCase(),
-          email: data.email.toLowerCase(),
-          created_at: Date.now()
-        };
-
-  # Store in database
-  - name: store
-    operation: storage
-    condition: ${validate.output.valid}
-    config:
-      type: d1
-      query: |
-        INSERT INTO users (id, name, email, created_at)
-        VALUES (?, ?, ?, ?)
-      params:
-        - ${transform.output.id}
-        - ${transform.output.name}
-        - ${transform.output.email}
-        - ${transform.output.created_at}
-
-outputs:
-  success: ${validate.output.valid}
-  data: ${transform.output}
-  errors: ${validate.output.errors}
-```
-
-### Pattern 2: AI Pipeline
-
-Chain AI operations:
+**When to use**: Run custom TypeScript/JavaScript logic
+**Requires**: Function implementation in `index.ts`
+**API keys needed**: ❌ No
 
 ```yaml
-agent: content-analyzer
+name: greeter
+operation: code
+description: Custom greeting logic
 
-inputs:
-  text:
-    type: string
-    required: true
-
-operations:
-  # Step 1: Extract entities
-  - name: extract-entities
-    operation: think
-    config:
-      provider: openai
-      model: gpt-4o-mini
-      prompt: |
-        Extract named entities from: ${input.text}
-        Return JSON: {"people": [], "organizations": [], "locations": []}
-
-  # Step 2: Analyze sentiment
-  - name: analyze-sentiment
-    operation: think
-    config:
-      provider: openai
-      model: gpt-4o-mini
-      prompt: |
-        Analyze sentiment of: ${input.text}
-        Return JSON: {"sentiment": "positive|negative|neutral", "confidence": 0-1}
-
-  # Step 3: Generate summary
-  - name: summarize
-    operation: think
-    config:
-      provider: openai
-      model: gpt-4o-mini
-      prompt: |
-        Summarize in 2 sentences: ${input.text}
-
-outputs:
-  entities: ${extract-entities.output}
-  sentiment: ${analyze-sentiment.output}
-  summary: ${summarize.output}
+schema:
+  input:
+    name: string
+  output:
+    greeting: string
 ```
 
-### Pattern 3: API Orchestrator
+### operation: think
 
-Coordinate multiple API calls:
+**When to use**: Call LLM models for reasoning, analysis, generation
+**Requires**: Provider and model configuration
+**API keys needed**: ✅ Yes (OpenAI, Anthropic) or Cloudflare Workers AI
 
 ```yaml
-agent: user-profile-aggregator
+name: analyzer
+operation: think
+description: Analyze text with AI
 
-inputs:
-  user_id:
-    type: string
-    required: true
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  prompt: |
+    Analyze this text: ${input.text}
+    Provide key insights.
 
-operations:
-  # Fetch user data from service 1
-  - name: fetch-profile
-    operation: http
-    config:
-      url: https://api1.example.com/users/${input.user_id}
-      method: GET
-      headers:
-        Authorization: Bearer ${env.API1_TOKEN}
-
-  # Fetch activity from service 2
-  - name: fetch-activity
-    operation: http
-    config:
-      url: https://api2.example.com/activity?user=${input.user_id}
-      method: GET
-      headers:
-        Authorization: Bearer ${env.API2_TOKEN}
-
-  # Fetch preferences from service 3
-  - name: fetch-preferences
-    operation: http
-    config:
-      url: https://api3.example.com/preferences/${input.user_id}
-      method: GET
-
-  # Merge data
-  - name: merge
-    operation: code
-    config:
-      code: |
-        return {
-          profile: ${fetch-profile.output.body},
-          activity: ${fetch-activity.output.body},
-          preferences: ${fetch-preferences.output.body},
-          merged_at: Date.now()
-        };
-
-outputs:
-  user_data: ${merge.output}
+schema:
+  input:
+    text: string
+  output:
+    analysis: string
 ```
 
-## Advanced Features
+### operation: http
 
-### Caching
-
-Cache expensive operations:
+**When to use**: Make HTTP requests to external APIs
+**Requires**: URL and method configuration
+**API keys needed**: Depends on API
 
 ```yaml
-operations:
-  - name: expensive-ai-call
-    operation: think
-    config:
-      provider: openai
-      model: gpt-4
-      prompt: ${input.query}
-    cache:
-      ttl: 3600  # Cache for 1 hour
-      key: ai-${input.query}  # Custom cache key
+name: fetcher
+operation: http
+description: Fetch data from API
+
+config:
+  url: https://api.example.com/data
+  method: GET
+  headers:
+    Authorization: Bearer ${env.API_KEY}
+
+schema:
+  output:
+    data: object
 ```
 
-### Retry Logic
+### operation: data
 
-Automatic retries on failure:
+**When to use**: Query databases (KV, D1, R2)
+**Requires**: Database binding in wrangler.toml
+**API keys needed**: ❌ No (uses Cloudflare bindings)
 
 ```yaml
-operations:
-  - name: flaky-api
-    operation: http
-    config:
-      url: https://api.example.com/data
-      method: GET
-    retry:
-      maxAttempts: 3
-      backoff: exponential
-      initialDelay: 1000  # 1 second
+name: db-query
+operation: data
+description: Query D1 database
+
+config:
+  type: d1
+  query: SELECT * FROM users WHERE id = ?
+  params:
+    - ${input.user_id}
+
+schema:
+  input:
+    user_id: string
+  output:
+    user: object
 ```
 
-### Error Handling
+[See all operations ](/conductor/operations/overview)
 
-Graceful failure handling:
+## Test the Hello Agent
 
-```yaml
-operations:
-  - name: try-primary
-    operation: http
-    config:
-      url: https://primary-api.com/data
-      method: GET
-
-  - name: fallback
-    operation: http
-    condition: ${try-primary.failed}
-    config:
-      url: https://backup-api.com/data
-      method: GET
-
-outputs:
-  data: ${try-primary.output.body || fallback.output.body}
-  source: ${try-primary.executed ? 'primary' : 'fallback'}
-```
-
-### State Management
-
-Share state between operations:
-
-```yaml
-agent: stateful-processor
-
-state:
-  schema:
-    processed_count: number
-    last_processed: string
-
-operations:
-  - name: process
-    operation: code
-    config:
-      code: |
-        const count = ${state.processed_count || 0};
-        return {
-          new_count: count + 1,
-          timestamp: new Date().toISOString()
-        };
-    state:
-      use: [processed_count]
-      set:
-        processed_count: ${process.output.new_count}
-        last_processed: ${process.output.timestamp}
-
-outputs:
-  count: ${process.output.new_count}
-```
-
-## Versioning Agents
-
-Once your agent works, version it with Edgit:
-
-```bash
-# Register agent
-edgit components add agent company-enricher agents/company-enricher/ --type=agent
-
-# Create version
-edgit tag create company-enricher v1.0.0 --type=agent
-
-# Deploy to production
-edgit deploy set company-enricher v1.0.0 --to prod --type=agent
-```
-
-Use specific versions in ensembles:
-
-```yaml
-ensemble: enrich-company
-
-agents:
-  - name: enricher
-    agent: company-enricher@v1.0.0  # Locked to v1.0.0
-    inputs:
-      company_name: ${input.company}
-```
-
-## Testing Agents
-
-Test agents with Vitest:
+The template includes working tests. Let's look at `tests/basic.test.ts`:
 
 ```typescript
-// agents/company-enricher/agent.test.ts
 import { describe, it, expect } from 'vitest';
-import { TestConductor } from '@ensemble-edge/conductor/testing';
+import { Executor, MemberLoader } from '@ensemble-edge/conductor';
+import { stringify } from 'yaml';
+import helloWorldYAML from '../ensembles/hello-world.yaml';
+import greetConfig from '../agents/hello/agent.yaml';
+import greetFunction from '../agents/hello';
 
-describe('company-enricher agent', () => {
-  it('should enrich company data', async () => {
-    const conductor = await TestConductor.create();
-    await conductor.loadProject('./');
+describe('Hello Agent Test', () => {
+  it('should execute successfully', async () => {
+    // Setup with proper ExecutionContext mock
+    const env = {} as Env;
+    const ctx = {
+      waitUntil: (promise: Promise<any>) => promise,
+      passThroughOnException: () => {}
+    } as ExecutionContext;
 
-    const result = await conductor.executeAgent('company-enricher', {
-      company_name: 'Anthropic',
-      include_news: false
-    });
+    const executor = new Executor({ env, ctx });
+    const loader = new MemberLoader({ env, ctx });
 
-    expect(result).toBeSuccessful();
-    expect(result.output.company_data).toHaveProperty('name');
-    expect(result.output.company_data).toHaveProperty('description');
-    expect(result.output.company_data).toHaveProperty('industry');
-  });
+    // Register hello agent
+    const greetMember = loader.registerAgent(greetConfig, greetFunction);
+    executor.registerAgent(greetMember);
 
-  it('should include news when requested', async () => {
-    const conductor = await TestConductor.create();
-    await conductor.loadProject('./');
+    // Execute the ensemble
+    const result = await executor.executeFromYAML(
+      stringify(helloWorldYAML),
+      { name: 'World' }
+    );
 
-    const result = await conductor.executeAgent('company-enricher', {
-      company_name: 'Anthropic',
-      include_news: true
-    });
-
-    expect(result).toBeSuccessful();
-    expect(result.output.news).toBeDefined();
-  });
-
-  it('should cache search results', async () => {
-    const conductor = await TestConductor.create();
-    await conductor.loadProject('./');
-
-    // First call
-    const result1 = await conductor.executeAgent('company-enricher', {
-      company_name: 'Anthropic'
-    });
-
-    // Second call (should use cache)
-    const result2 = await conductor.executeAgent('company-enricher', {
-      company_name: 'Anthropic'
-    });
-
-    expect(result1.operations.search.cached).toBe(false);
-    expect(result2.operations.search.cached).toBe(true);
+    // Verify result
+    expect(result.success).toBe(true);
+    expect(result.value.output.greeting).toContain('Hello');
   });
 });
 ```
 
-Run tests:
+Run it:
 ```bash
 npm test
 ```
 
-## Agent Composition
+All tests should pass! ✅
 
-Agents can use other agents:
+## Create Your First Custom Agent
+
+Now that you understand how agents work, let's create a new one.
+
+### Step 1: Create Agent Directory
+
+```bash
+mkdir -p agents/greeter
+```
+
+### Step 2: Define the Agent
+
+Create `agents/greeter/agent.yaml`:
 
 ```yaml
-agent: full-company-profile
+name: greeter
+operation: code
+description: Generates personalized greetings with different styles
 
-inputs:
-  company_name:
-    type: string
-    required: true
+schema:
+  input:
+    name: string
+    time_of_day: string?
+    language: string?
+  output:
+    greeting: string
+    timestamp: number
+```
 
-operations:
-  # Use company-enricher agent
-  - name: enrich
-    agent: company-enricher
-    inputs:
-      company_name: ${input.company_name}
-      include_news: true
+### Step 3: Implement the Agent
 
-  # Use another agent for social data
-  - name: social
-    agent: social-scraper
-    inputs:
-      company_name: ${input.company_name}
+Create `agents/greeter/index.ts`:
 
-  # Merge results
-  - name: merge
+```typescript
+export default function greeter({
+  name,
+  time_of_day = 'day',
+  language = 'en'
+}: {
+  name: string;
+  time_of_day?: string;
+  language?: string;
+}) {
+  const greetings: Record<string, Record<string, string>> = {
+    en: {
+      morning: `Good morning, ${name}!`,
+      afternoon: `Good afternoon, ${name}!`,
+      evening: `Good evening, ${name}!`,
+      day: `Hello, ${name}!`
+    },
+    es: {
+      morning: `Buenos días, ${name}!`,
+      afternoon: `Buenas tardes, ${name}!`,
+      evening: `Buenas noches, ${name}!`,
+      day: `Hola, ${name}!`
+    },
+    fr: {
+      morning: `Bonjour, ${name}!`,
+      afternoon: `Bon après-midi, ${name}!`,
+      evening: `Bonsoir, ${name}!`,
+      day: `Bonjour, ${name}!`
+    }
+  };
+
+  const langGreetings = greetings[language] || greetings.en;
+  const greeting = langGreetings[time_of_day] || langGreetings.day;
+
+  return {
+    greeting,
+    timestamp: Date.now()
+  };
+}
+```
+
+### Step 4: Rebuild
+
+Agents are auto-discovered at build time:
+
+```bash
+npm run build
+```
+
+### Step 5: Use Your Agent
+
+Create `ensembles/greeting-workflow.yaml`:
+
+```yaml
+ensemble: greeting-workflow
+description: Generate personalized greetings
+
+agents:
+  - name: greet
     operation: code
     config:
-      code: |
-        return {
-          ...${enrich.output.company_data},
-          social: ${social.output},
-          news: ${enrich.output.news}
-        };
+      handler: greeter  # Reference your new agent
 
-outputs:
-  profile: ${merge.output}
+output:
+  greeting: ${greet.output.greeting}
+  timestamp: ${greet.output.timestamp}
+```
+
+### Step 6: Test It
+
+Create `tests/greeter.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { Executor, MemberLoader } from '@ensemble-edge/conductor';
+import { stringify } from 'yaml';
+import greetingWorkflow from '../ensembles/greeting-workflow.yaml';
+import greeterConfig from '../agents/greeter/agent.yaml';
+import greeterFunction from '../agents/greeter';
+
+describe('Greeter Agent', () => {
+  it('should generate greetings in different languages', async () => {
+    const env = {} as Env;
+    const ctx = {
+      waitUntil: (promise: Promise<any>) => promise,
+      passThroughOnException: () => {}
+    } as ExecutionContext;
+
+    const executor = new Executor({ env, ctx });
+    const loader = new MemberLoader({ env, ctx });
+
+    const greeterMember = loader.registerAgent(greeterConfig, greeterFunction);
+    executor.registerAgent(greeterMember);
+
+    const result = await executor.executeFromYAML(
+      stringify(greetingWorkflow),
+      { name: 'Alice', time_of_day: 'morning', language: 'es' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.value.output.greeting).toBe('Buenos días, Alice!');
+  });
+});
+```
+
+Run: `npm test`
+
+## Agent with AI (operation: think)
+
+Let's create an agent that uses AI for more complex logic.
+
+### Create AI Analyzer Agent
+
+Create `agents/analyzer/agent.yaml`:
+
+```yaml
+name: analyzer
+operation: think
+description: Analyzes text sentiment and extracts key themes
+
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  prompt: |
+    Analyze the following text:
+
+    ${input.text}
+
+    Provide a JSON response with:
+    - sentiment: positive, negative, or neutral
+    - confidence: 0-1 score
+    - themes: array of key themes
+    - summary: one sentence summary
+
+    Return only valid JSON.
+
+schema:
+  input:
+    text: string
+  output:
+    sentiment: string
+    confidence: number
+    themes: array
+    summary: string
+```
+
+**Note**: This requires an Anthropic API key in your environment.
+
+### Use the Analyzer
+
+Create `ensembles/analyze-text.yaml`:
+
+```yaml
+ensemble: analyze-text
+description: Analyze text with AI
+
+agents:
+  - name: analyze
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: |
+        Analyze: ${input.text}
+
+output:
+  analysis: ${analyze.output}
+```
+
+## Auto-Discovery
+
+**Important**: Agents in the `agents/` directory are automatically discovered at build time.
+
+**When you create a new agent**:
+1. Create the directory: `agents/my-agent/`
+2. Add `agent.yaml` and optionally `index.ts`
+3. Rebuild: `npm run build`
+4. Your agent is now available!
+
+**No manual registration needed!**
+
+## Agent Patterns
+
+### Pattern 1: Simple Code Agent
+
+Pure logic, no external dependencies:
+
+```typescript
+// agents/calculator/index.ts
+export default function calculator({
+  operation,
+  a,
+  b
+}: {
+  operation: string;
+  a: number;
+  b: number;
+}) {
+  const ops: Record<string, number> = {
+    add: a + b,
+    subtract: a - b,
+    multiply: a * b,
+    divide: b !== 0 ? a / b : 0
+  };
+
+  return {
+    result: ops[operation] || 0
+  };
+}
+```
+
+### Pattern 2: HTTP Data Fetcher
+
+Fetch from external APIs:
+
+```yaml
+name: weather-fetcher
+operation: http
+description: Fetch weather data
+
+config:
+  url: https://api.weather.com/current?city=${input.city}
+  method: GET
+  headers:
+    Authorization: Bearer ${env.WEATHER_API_KEY}
+  cache:
+    ttl: 1800  # Cache for 30 minutes
+
+schema:
+  input:
+    city: string
+  output:
+    temperature: number
+    conditions: string
+```
+
+### Pattern 3: Database Query
+
+Query Cloudflare D1:
+
+```yaml
+name: user-lookup
+operation: data
+description: Look up user by email
+
+config:
+  type: d1
+  query: |
+    SELECT id, name, email, created_at
+    FROM users
+    WHERE email = ?
+    LIMIT 1
+  params:
+    - ${input.email}
+
+schema:
+  input:
+    email: string
+  output:
+    user: object?
+```
+
+### Pattern 4: AI with Custom Logic
+
+Combine AI with code:
+
+```yaml
+name: smart-responder
+operation: think
+description: Generate contextual responses
+
+config:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  prompt: |
+    User message: ${input.message}
+    User history: ${input.history}
+
+    Generate a helpful response that:
+    1. Acknowledges their message
+    2. References their history
+    3. Provides actionable next steps
+
+    Keep it under 50 words.
+
+schema:
+  input:
+    message: string
+    history: array
+  output:
+    response: string
 ```
 
 ## Best Practices
 
-1. **Single Responsibility** - Each agent should do one thing well
-2. **Clear Inputs/Outputs** - Document what goes in and what comes out
-3. **Cache Aggressively** - Cache expensive operations (AI, HTTP)
-4. **Handle Failures** - Use conditions and fallbacks
-5. **Version Everything** - Use Edgit to version your agents
-6. **Test Thoroughly** - Write tests for all code paths
-7. **Keep It Declarative** - Let Conductor handle orchestration
-8. **Monitor Performance** - Track execution times and costs
+### 1. Keep Agents Focused
+
+Each agent should do ONE thing well:
+- ✅ `user-validator` - Validates user data
+- ❌ `user-handler` - Validates, stores, sends email, logs (too much!)
+
+### 2. Use Descriptive Names
+
+- ✅ `email-sender`, `pdf-extractor`, `sentiment-analyzer`
+- ❌ `helper`, `utils`, `processor`
+
+### 3. Document Inputs/Outputs
+
+Always define schemas:
+
+```yaml
+schema:
+  input:
+    user_id: string  # UUID of the user
+    include_metadata: boolean  # Whether to include extra fields
+  output:
+    user: object  # User record with all fields
+    metadata: object?  # Additional metadata if requested
+```
+
+### 4. Handle Errors Gracefully
+
+```typescript
+export default function myAgent({ input }: { input: string }) {
+  try {
+    // Your logic
+    return { success: true, result: processedData };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+```
+
+### 5. Use Caching for HTTP Agents
+
+```yaml
+config:
+  url: https://api.example.com/data
+  cache:
+    ttl: 3600  # Cache for 1 hour
+```
+
+Reduces API calls and improves performance!
+
+### 6. Test Your Agents
+
+Always write tests for custom agents:
+
+```typescript
+describe('My Agent', () => {
+  it('should handle valid input', async () => {
+    // Test success case
+  });
+
+  it('should handle invalid input', async () => {
+    // Test error case
+  });
+
+  it('should respect timeout', async () => {
+    // Test performance
+  });
+});
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent not found after creation">
+    **Problem**: Created a new agent but it's not available
+
+    **Fix**: Rebuild to trigger auto-discovery:
+    ```bash
+    npm run build
+    ```
+
+    Agents are discovered at build time, not runtime.
+  </Accordion>
+
+  <Accordion title="ExecutionContext errors in tests">
+    **Problem**: `TypeError: this.ctx.waitUntil is not a function`
+
+    **Fix**: Use proper ExecutionContext mock:
+    ```typescript
+    const ctx = {
+      waitUntil: (promise: Promise<any>) => promise,
+      passThroughOnException: () => {}
+    } as ExecutionContext;
+    ```
+  </Accordion>
+
+  <Accordion title="AI operation requires API key">
+    **Problem**: `operation: think` fails with authentication error
+
+    **Fix**: Add API key to wrangler.toml or environment:
+    ```toml
+    [vars]
+    ANTHROPIC_API_KEY = "sk-ant-..."
+    ```
+
+    Or use Cloudflare Workers AI (no key needed):
+    ```yaml
+    config:
+      provider: cloudflare
+      model: '@cf/meta/llama-3.1-8b-instruct'
+    ```
+  </Accordion>
+
+  <Accordion title="Operation type not supported">
+    **Problem**: Want to use an operation that doesn't exist
+
+    **Fix**: Use `operation: code` and implement in TypeScript:
+    ```typescript
+    export default async function myAgent({ input }) {
+      // Your custom logic here
+      const result = await customOperation(input);
+      return { result };
+    }
+    ```
+
+    Code operations can do anything TypeScript can do!
+  </Accordion>
+</AccordionGroup>
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="Your First Ensemble" icon="diagram-project" href="/conductor/getting-started/your-first-ensemble">
-    Orchestrate multiple agents
+    Combine agents into workflows
   </Card>
 
   <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
-    Explore all 12 operations
+    Explore all operation types
   </Card>
 
-  <Card title="Pre-built Agents" icon="box" href="/conductor/agents/overview">
+  <Card title="Pre-built Agents" icon="cube" href="/conductor/agents/overview">
     Use ready-made agents
   </Card>
 
-  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
-    Test and monitor agents
+  <Card title="Testing Guide" icon="check-circle" href="/conductor/building/testing-observability">
+    Write comprehensive tests
   </Card>
 </CardGroup>
+
+## Advanced: Versioning with Edgit (Optional)
+
+If you want component-level versioning, you can use Edgit:
+
+```bash
+# Add agent to Edgit
+edgit components add agent my-agent agents/my-agent/ --type=agent
+
+# Tag a version
+edgit tag create my-agent v1.0.0 --type=agent
+
+# Reference versioned agent
+```
+
+```yaml
+agents:
+  - name: processor
+    agent: my-agent@v1.0.0  # Specific version via Edgit
+```
+
+> **Note**: Edgit is optional. Standard git version control works great!
+
+[Learn more about Edgit ](/edgit/overview)
