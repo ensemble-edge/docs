@@ -1,509 +1,616 @@
 ---
 title: "Your First Project"
-description: "From zero to deployed edge workflow in 5 minutes. No ceremony, no boilerplate."
+description: "From zero to deployed edge workflow in 60 seconds. No ceremony, no boilerplate."
 ---
+
+## Quick Start (60 Seconds)
+
+Get a working Conductor project instantly:
+
+```bash
+# Create project with examples
+npx @ensemble-edge/conductor@latest init my-conductor-app
+cd my-conductor-app
+
+# Install and run
+npm install
+npm run build
+npx wrangler dev --local-protocol http
+```
+
+Open http://localhost:8787 🎉
+
+Your project includes working examples of pages, workflows, and agents!
 
 ## Prerequisites
 
 You need:
 - **Node.js** 18+ ([nodejs.org](https://nodejs.org))
-- **A Cloudflare account** (free tier works fine)
-- **Wrangler CLI** (we'll install it)
+- **A Cloudflare account** (free tier works - only needed for deployment)
 
 Check Node.js:
 ```bash
 node --version  # Should be 18+
 ```
 
-## Install Wrangler
+## Understanding Your Project
 
-```bash
-npm install -g wrangler
-wrangler login
-```
-
-This opens your browser to authorize Wrangler with Cloudflare.
-
-## Create Your Project
-
-```bash
-npm create cloudflare@latest my-conductor-app
-```
-
-When prompted:
-- **Type**: "Hello World" Worker (we'll add Conductor next)
-- **TypeScript**: Yes (recommended)
-- **Git**: Yes
-- **Deploy**: Not yet
-
-## Add Conductor
-
-```bash
-cd my-conductor-app
-npm install @ensemble-edge/conductor
-```
-
-## Project Structure
-
-Your project should look like this:
+The `init` command creates a complete, ready-to-run project:
 
 ```
 my-conductor-app/
- src/
-    index.ts           # Worker entry point
- agents/                # Your custom agents (optional)
- ensembles/             # Your ensemble configs
-    hello.yaml         # We'll create this
- components/            # Versioned components (prompts, configs, etc.)
- wrangler.toml          # Cloudflare config
- package.json
- tsconfig.json
+├── conductor.config.ts    # Main configuration & auth rules
+├── wrangler.toml         # Cloudflare Workers config
+├── src/
+│   └── index.ts          # Entry point (custom endpoints)
+├── pages/                # 📄 Pages (auto-discovered)
+│   ├── examples/
+│   │   ├── home/             # Static page
+│   │   ├── dashboard/        # Page with handler
+│   │   ├── login/            # Form page
+│   │   └── blog-post/        # Dynamic page example
+│   ├── docs-*/           # Documentation pages
+│   └── error-404/        # Custom 404 page
+├── ensembles/            # 🎭 Workflows (auto-discovered)
+│   └── hello-world.yaml
+├── agents/               # 🤖 Agents (auto-discovered)
+│   ├── hello/
+│   │   ├── agent.yaml        # Agent configuration
+│   │   └── index.ts          # Agent implementation
+│   └── docs-*/           # Documentation agent examples
+└── tests/                # ✅ Test files
+    └── basic.test.ts
 ```
 
-## Configure Cloudflare
+## Explore the Examples
 
-Edit `wrangler.toml`:
+Your project includes working examples for all major features.
 
-```toml
-name = "my-conductor-app"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
+### Try the Example Pages
 
-# Enable Workers AI (free tier: 10k requests/day)
-[ai]
-binding = "AI"
+Start the dev server:
+```bash
+npx wrangler dev --local-protocol http
 ```
 
-That's it. No complex setup, no dozens of config files.
+Visit these URLs:
+- http://localhost:8787/ - Homepage
+- http://localhost:8787/examples - Examples index
+- http://localhost:8787/dashboard - Dashboard with data
+- http://localhost:8787/login - Login form
+- http://localhost:8787/blog/getting-started-with-conductor - Dynamic blog post
 
-## Create Your First Ensemble
+### Run the Tests
 
-Create `ensembles/hello.yaml`:
+```bash
+npm test
+```
+
+All tests should pass! The template includes examples of:
+- Ensemble execution
+- Agent testing
+- Error handling
+
+## Your First Page
+
+Let's create a simple page.
+
+**Step 1: Create the page file**
+
+Create `pages/hello/page.yaml`:
 
 ```yaml
-ensemble: hello
+name: hello
+type: Page
+templateEngine: liquid
+
+route:
+  path: /hello
+  methods: [GET]
+  auth: none
+
+component: |
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Hello Page</title>
+    </head>
+    <body>
+      <h1>Hello from Conductor!</h1>
+      <p>This page was auto-discovered.</p>
+      <p>Current time: {{ "now" | date: "%Y-%m-%d %H:%M:%S" }}</p>
+    </body>
+  </html>
+```
+
+**Step 2: Rebuild**
+
+```bash
+npm run build
+```
+
+The dev server will automatically reload.
+
+**Step 3: Visit**
+
+Open http://localhost:8787/hello
+
+### Add a Handler Function
+
+Make your page dynamic by adding data fetching.
+
+Create `pages/hello/handler.ts`:
+
+```typescript
+import type { HandlerContext } from '@ensemble-edge/conductor';
+
+export async function handler(context: HandlerContext) {
+  const { params, query, env } = context;
+
+  return {
+    message: 'Hello from the handler!',
+    timestamp: new Date().toISOString(),
+    userAgent: context.request.headers.get('user-agent')
+  };
+}
+```
+
+Update `pages/hello/page.yaml` to use the data:
+
+```yaml
+name: hello
+type: Page
+templateEngine: liquid
+
+route:
+  path: /hello
+  methods: [GET]
+  auth: none
+
+component: |
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Hello Page</title>
+    </head>
+    <body>
+      <h1>{{ message }}</h1>
+      <p>Timestamp: {{ timestamp }}</p>
+      <p>Your browser: {{ userAgent }}</p>
+    </body>
+  </html>
+```
+
+Rebuild and refresh - your handler data now appears in the page!
+
+## Your First Workflow
+
+The template includes `ensembles/hello-world.yaml`. Let's explore it:
+
+```yaml
+ensemble: hello-world
 description: Simple greeting workflow
 
 agents:
-  - name: greeter
-    operation: think
-    config:
-      provider: cloudflare
-      model: '@cf/meta/llama-3.1-8b-instruct'
-      prompt: |
-        Generate a friendly greeting for ${input.name}.
-        Make it warm and welcoming.
+  - name: hello
+    operation: code
 
 output:
-  greeting: ${greeter.output}
+  greeting: ${hello.output.message}
 ```
 
-**That's your entire workflow.** No classes to extend, no interfaces to implement, just declare what you want.
+This workflow calls the `hello` agent (from `agents/hello/`) and returns its output.
 
-## Wire It Up
+### Create a New Ensemble
 
-Edit `src/index.ts`:
+Create `ensembles/my-workflow.yaml`:
+
+```yaml
+ensemble: my-workflow
+description: Custom greeting with timestamp
+
+agents:
+  # Call existing hello agent
+  - name: greeter
+    operation: code
+    config:
+      handler: hello  # Reference to agents/hello/
+
+output:
+  greeting: ${greeter.output.message}
+  timestamp: ${Date.now()}
+```
+
+### Execute from a Page
+
+Create `pages/workflow/page.yaml`:
+
+```yaml
+name: workflow-demo
+type: Page
+templateEngine: liquid
+
+route:
+  path: /workflow
+  methods: [GET]
+  auth: none
+
+component: |
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Workflow Demo</title>
+    </head>
+    <body>
+      <h1>Workflow Result</h1>
+      <p>{{ greeting }}</p>
+      <p>Timestamp: {{ timestamp }}</p>
+    </body>
+  </html>
+```
+
+Create `pages/workflow/handler.ts`:
 
 ```typescript
-import { Conductor } from '@ensemble-edge/conductor';
+import type { HandlerContext } from '@ensemble-edge/conductor';
+import { Executor, MemberLoader } from '@ensemble-edge/conductor';
+import { stringify } from 'yaml';
+import myWorkflow from '../../ensembles/my-workflow.yaml';
+import greetConfig from '../../agents/hello/agent.yaml';
+import greetFunction from '../../agents/hello';
 
+export async function handler(context: HandlerContext) {
+  const { env, ctx } = context;
+
+  const executor = new Executor({ env, ctx });
+  const loader = new MemberLoader({ env, ctx });
+
+  // Register hello agent
+  const greeter = loader.registerAgent(greetConfig, greetFunction);
+  executor.registerAgent(greeter);
+
+  // Execute workflow
+  const result = await executor.executeFromYAML(
+    stringify(myWorkflow),
+    { name: 'World' }
+  );
+
+  if (!result.success) {
+    return { error: 'Workflow failed' };
+  }
+
+  return result.value.output;
+}
+```
+
+Visit http://localhost:8787/workflow - your ensemble runs on every page load!
+
+## Project Configuration
+
+### wrangler.toml
+
+The `init` command creates a properly configured `wrangler.toml`:
+
+```toml
+name = "my-conductor-project"
+main = "dist/index.mjs"  # Built output, not source!
+compatibility_date = "2025-10-29"
+compatibility_flags = ["nodejs_compat"]
+
+[build]
+command = "npm run build"
+watch_dirs = ["src", "pages", "members", "ensembles"]
+```
+
+**Important**: Conductor uses Vite/Rolldown to build your project. The output is `dist/index.mjs`, not `src/index.ts`.
+
+### conductor.config.ts
+
+This file controls routing, authentication, and framework behavior:
+
+```typescript
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const conductor = new Conductor({ env });
+  auth: {
+    rules: [
+      // Public routes
+      { path: '/examples', auth: 'none' },
+      { path: '/docs/**', auth: 'none' },
 
-    // Parse request
-    const url = new URL(request.url);
-    const name = url.searchParams.get('name') || 'World';
+      // Protected routes
+      { path: '/dashboard', auth: 'cookie' },
+      { path: '/api/**', auth: 'bearer' },
+    ]
+  },
 
-    // Execute ensemble
-    const result = await conductor.execute('hello', { name });
-
-    // Return result
-    return Response.json(result);
+  pages: {
+    templateEngine: 'liquid',
+    cacheControl: 'public, max-age=1800'
   }
 };
 ```
 
-## Test Locally
+See the generated file for more options.
+
+## Deploy to Cloudflare
+
+### Step 1: Login to Cloudflare
 
 ```bash
-npm run dev
+npx wrangler login
 ```
 
-Visit http://localhost:8787?name=Alice
+This opens your browser to authorize Wrangler.
 
-You should see:
-
-```json
-{
-  "greeting": "Hello Alice! Welcome! It's wonderful to have you here..."
-}
-```
-
-**It works.** Your first edge AI workflow is running locally.
-
-## Deploy to Production
+### Step 2: Build
 
 ```bash
-npm run deploy
+npm run build
+```
+
+### Step 3: Deploy
+
+```bash
+npx wrangler deploy
 ```
 
 Output:
 ```
 Published my-conductor-app (0.5 sec)
   https://my-conductor-app.your-subdomain.workers.dev
-Current Deployment ID: abc123...
 ```
+
+Your app is now live at the edge in 300+ cities worldwide!
 
 Test it:
 ```bash
-curl "https://my-conductor-app.your-subdomain.workers.dev?name=World"
-```
-
-**You're live.** Your workflow is running at the edge in 300+ cities worldwide.
-
-- **Cold start**: &lt;50ms
-- **Execution**: ~200ms
-- **Cost**: Free tier covers 100k requests/day
-
-## What Just Happened?
-
-1. **Conductor** parsed your YAML ensemble
-2. **Operation: think** invoked Cloudflare's Llama model
-3. **Result** was returned as JSON
-4. **Deployed globally** to Cloudflare's edge network
-
-No servers. No containers. No Kubernetes. Just a YAML file and 10 lines of TypeScript.
-
-## Add More Operations
-
-Let's make it more interesting. Update `ensembles/hello.yaml`:
-
-```yaml
-ensemble: hello
-description: AI greeting with data storage
-
-agents:
-  # Generate greeting
-  - name: greeter
-    operation: think
-    config:
-      provider: cloudflare
-      model: '@cf/meta/llama-3.1-8b-instruct'
-      prompt: |
-        Generate a unique greeting for ${input.name}.
-        Be creative and memorable.
-
-  # Store greeting count
-  - name: counter
-    operation: storage
-    config:
-      type: kv
-      action: get
-      key: greeting-count
-      default: 0
-
-  # Increment count
-  - name: increment
-    operation: code
-    config:
-      code: |
-        return { count: ${counter.output.value} + 1 };
-
-  # Save new count
-  - name: save-count
-    operation: storage
-    config:
-      type: kv
-      action: put
-      key: greeting-count
-      value: ${increment.output.count}
-
-output:
-  greeting: ${greeter.output}
-  count: ${increment.output.count}
-  message: "You are visitor #${increment.output.count}"
-```
-
-Add KV namespace to `wrangler.toml`:
-
-```toml
-[[kv_namespaces]]
-binding = "CACHE"
-id = "your-kv-id"  # Create with: wrangler kv:namespace create CACHE
-```
-
-Create the KV namespace:
-```bash
-wrangler kv:namespace create CACHE
-# Copy the 'id' from output to wrangler.toml
-```
-
-Deploy:
-```bash
-npm run deploy
-```
-
-Test:
-```bash
-curl "https://my-conductor-app.your-subdomain.workers.dev?name=Alice"
-```
-
-Result:
-```json
-{
-  "greeting": "Greetings, Alice! What a delight to meet you...",
-  "count": 1,
-  "message": "You are visitor #1"
-}
-```
-
-Each request increments the counter. You just added:
-- AI text generation (operation: think)
-- Data storage (operation: storage with KV)
-- Data transformation (operation: code)
-
-All declaratively. No SQL migrations, no ORM setup, no cache configuration.
-
-## Project Structure (Full)
-
-Here's what a real project looks like:
-
-```
-my-conductor-app/
- src/
-    index.ts                  # Worker entry point
- ensembles/
-    hello.yaml                # Simple greeting
-    analytics.yaml            # Data processing
-    newsletter.yaml           # Email campaign
- agents/                       # Custom agents (optional)
-    scraper/
-       agent.yaml
-    validator/
-        agent.yaml
- components/
-    prompts/
-       greeting.md           # Versioned prompts
-       analysis.md
-    configs/
-        api.json              # Versioned configs
- tests/
-    hello.test.ts             # Ensemble tests
-    analytics.test.ts
- wrangler.toml                 # Cloudflare config
- .edgit/
-    components.json           # Edgit registry
- package.json
- tsconfig.json
-```
-
-## Common Patterns
-
-### Pattern 1: API Wrapper
-
-Wrap external APIs with caching:
-
-```yaml
-ensemble: api-wrapper
-
-agents:
-  - name: fetch-data
-    operation: http
-    config:
-      url: https://api.example.com/data
-      method: GET
-    cache:
-      ttl: 3600  # Cache for 1 hour
-
-output:
-  data: ${fetch-data.output.body}
-```
-
-### Pattern 2: Multi-Step Processing
-
-Chain operations together:
-
-```yaml
-ensemble: process-document
-
-agents:
-  # Fetch document
-  - name: fetch
-    operation: http
-    config:
-      url: ${input.url}
-
-  # Extract text from PDF
-  - name: extract
-    operation: pdf
-    config:
-      action: extract
-      content: ${fetch.output.body}
-
-  # Analyze with AI
-  - name: analyze
-    operation: think
-    config:
-      provider: openai
-      model: gpt-4o-mini
-      prompt: |
-        Analyze this document: ${extract.output.text}
-        Provide key insights.
-
-  # Store results
-  - name: store
-    operation: storage
-    config:
-      type: d1
-      query: |
-        INSERT INTO documents (url, analysis, timestamp)
-        VALUES (?, ?, ?)
-      params:
-        - ${input.url}
-        - ${analyze.output}
-        - ${Date.now()}
-
-output:
-  analysis: ${analyze.output}
-```
-
-### Pattern 3: Conditional Flow
-
-Execute agents conditionally:
-
-```yaml
-ensemble: smart-routing
-
-agents:
-  # Check cache first
-  - name: check-cache
-    operation: storage
-    config:
-      type: kv
-      action: get
-      key: result-${input.query}
-
-  # Only run AI if cache miss
-  - name: generate
-    operation: think
-    condition: ${check-cache.output.value === null}
-    config:
-      provider: cloudflare
-      model: '@cf/meta/llama-3.1-8b-instruct'
-      prompt: ${input.query}
-
-  # Save to cache if generated
-  - name: save-cache
-    operation: storage
-    condition: ${generate.executed}
-    config:
-      type: kv
-      action: put
-      key: result-${input.query}
-      value: ${generate.output}
-
-output:
-  result: ${check-cache.output.value || generate.output}
-  cached: ${!generate.executed}
+curl https://my-conductor-app.your-subdomain.workers.dev/hello
 ```
 
 ## Development Workflow
 
 ```bash
-# Start dev server
-npm run dev
+# Start dev server (with network binding)
+npx wrangler dev --local-protocol http
 
 # Run tests
 npm test
 
-# Deploy to staging
-wrangler deploy --env staging
+# Build for production
+npm run build
 
-# Deploy to production
-wrangler deploy --env production
+# Deploy
+npx wrangler deploy
 
-# View logs
-wrangler tail
+# View live logs
+npx wrangler tail
 
-# Check metrics
-wrangler deployments list
+# Check deployments
+npx wrangler deployments list
 ```
-
-## Next Steps
-
-<CardGroup cols={2}>
-  <Card title="Your First Agent" icon="robot" href="/conductor/getting-started/your-first-agent">
-    Build custom reusable agents
-  </Card>
-
-  <Card title="Your First Ensemble" icon="diagram-project" href="/conductor/getting-started/your-first-ensemble">
-    Deep dive into ensemble patterns
-  </Card>
-
-  <Card title="Configuring Cloudflare" icon="cloud" href="/conductor/getting-started/configuring-cloudflare">
-    Set up D1, KV, R2, and more
-  </Card>
-
-  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
-    Explore all 12 operations
-  </Card>
-</CardGroup>
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Wrangler login fails">
-    Problem: Can't authorize with Cloudflare
+  <Accordion title="Tests failing with 'waitUntil is not a function'">
+    **Problem**: Template tests fail with `TypeError: this.ctx.waitUntil is not a function`
 
-    Fix:
+    **Fix**: The ExecutionContext mock in `tests/basic.test.ts` is already fixed in v1.8.0. If you see this error, update the mock:
+
+    ```typescript
+    // Correct mock (should already be in template)
+    const ctx = {
+      waitUntil: (promise: Promise<any>) => promise,
+      passThroughOnException: () => {}
+    } as ExecutionContext;
+    ```
+  </Accordion>
+
+  <Accordion title="Wrangler hangs or requests timeout">
+    **Problem**: `wrangler dev` starts but all requests hang indefinitely
+
+    **Fix**: Use the `--local-protocol http` flag:
+
     ```bash
-    # Try manual token
-    wrangler login --browser=false
-    # Follow instructions to paste token
+    npx wrangler dev --local-protocol http
     ```
+
+    This properly binds network access for the Workers runtime.
   </Accordion>
 
-  <Accordion title="AI binding not working">
-    Problem: `env.AI is undefined`
+  <Accordion title="New pages/agents not showing up">
+    **Problem**: Created a new page or agent but it returns 404
 
-    Fix: Add to `wrangler.toml`:
-    ```toml
-    [ai]
-    binding = "AI"
-    ```
-    Restart dev server after changing config.
-  </Accordion>
+    **Fix**: Trigger a rebuild. Pages and agents are discovered at build time:
 
-  <Accordion title="Ensemble not found">
-    Problem: `Ensemble 'hello' not found`
-
-    Fix: Ensure YAML file is in `ensembles/` directory and named correctly. Conductor auto-discovers all `.yaml` files in `ensembles/`.
-  </Accordion>
-
-  <Accordion title="KV namespace errors">
-    Problem: `KV namespace 'CACHE' not found`
-
-    Fix:
     ```bash
-    # Create namespace
-    wrangler kv:namespace create CACHE
-
-    # Add ID to wrangler.toml
-    [[kv_namespaces]]
-    binding = "CACHE"
-    id = "abc123..."  # From create command output
+    npm run build
     ```
+
+    Or with wrangler running, the file watcher should auto-rebuild.
+  </Accordion>
+
+  <Accordion title="Dynamic routes return 404">
+    **Problem**: Routes with parameters like `/blog/:slug` are not working
+
+    **Status**: Fixed in v1.8.0! Dynamic route parameters now work correctly.
+
+    Make sure your `page.yaml` has the route at root level:
+
+    ```yaml
+    route:
+      path: /blog/:slug  # Correct
+      methods: [GET]
+    ```
+
+    Not nested in config:
+    ```yaml
+    config:
+      route:  # Wrong!
+        path: /blog/:slug
+    ```
+  </Accordion>
+
+  <Accordion title="Build errors after updating">
+    **Problem**: Build fails after updating wrangler.toml or package.json
+
+    **Fix**: Clean rebuild:
+
+    ```bash
+    rm -rf dist node_modules
+    npm install
+    npm run build
+    ```
+  </Accordion>
+
+  <Accordion title="Module 'virtual:conductor-pages' not found">
+    **Problem**: Build error about virtual module
+
+    **Fix**: This is a Vite virtual module created at build time. Make sure:
+    1. `pages/` directory exists
+    2. Vite config is correct (should be in template)
+    3. Clean rebuild: `rm -rf dist && npm run build`
   </Accordion>
 </AccordionGroup>
 
-## Tips
+## What's Included in the Template
 
-1. **Start simple** - One agent, one operation, then add complexity
-2. **Use KV liberally** - It's fast (&lt;10ms) and generous (free tier: 100k reads/day)
-3. **Test locally first** - `wrangler dev` is your friend
-4. **Check logs** - `wrangler tail` shows real-time logs
-5. **Mind the limits** - Free tier: 100k requests/day, 10k AI requests/day
-6. **Version components** - Use Edgit to version prompts and configs
-7. **Cache aggressively** - AI operations are slow, caching is fast
-8. **Monitor costs** - Check Cloudflare dashboard regularly
+The `init` command creates:
+
+### ✅ Working Examples
+- **10 example pages** showing static, dynamic, forms, and SSR patterns
+- **1 hello-world ensemble** demonstrating workflows
+- **1 hello agent** showing custom code operations
+- **Multiple doc agents** for various operation types
+
+### ✅ Development Tools
+- **Vitest** for testing with working examples
+- **TypeScript** configured correctly
+- **Vite** for fast builds with HMR
+- **ESLint & Prettier** for code quality
+
+### ✅ Production Ready
+- **Authentication** configured in conductor.config.ts
+- **Caching** rules for optimal performance
+- **Error handling** with custom 404 page
+- **Wrangler config** ready for deployment
+
+### ✅ Documentation
+- **README.md** with project overview
+- **Inline comments** explaining key concepts
+- **Example code** for common patterns
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Understanding Pages" icon="file" href="/conductor/core-concepts/pages">
+    Learn how pages work and build web applications
+  </Card>
+
+  <Card title="Your First Agent" icon="robot" href="/conductor/getting-started/your-first-agent">
+    Create custom reusable agents
+  </Card>
+
+  <Card title="Your First Ensemble" icon="diagram-project" href="/conductor/getting-started/your-first-ensemble">
+    Build complex workflows
+  </Card>
+
+  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
+    Explore all available operations
+  </Card>
+</CardGroup>
+
+## Alternative: Manual Setup (Advanced)
+
+If you need to integrate Conductor into an existing Cloudflare Workers project:
+
+<Accordion title="Show manual setup instructions">
+
+### Step 1: Create Worker
+
+```bash
+npm create cloudflare@latest my-conductor-app
+```
+Select: "Hello World" Worker, TypeScript: Yes
+
+### Step 2: Install Conductor
+
+```bash
+cd my-conductor-app
+npm install @ensemble-edge/conductor
+```
+
+### Step 3: Update wrangler.toml
+
+```toml
+name = "my-conductor-app"
+main = "dist/index.mjs"  # Important: build output!
+compatibility_date = "2025-10-29"
+compatibility_flags = ["nodejs_compat"]
+
+[build]
+command = "npm run build"
+watch_dirs = ["src", "pages", "ensembles"]
+```
+
+### Step 4: Add Vite Config
+
+Create `vite.config.ts`:
+
+```typescript
+import { defineConfig } from 'vite';
+import { cloudflareWorker } from '@ensemble-edge/conductor/vite';
+
+export default defineConfig({
+  plugins: [
+    cloudflareWorker({
+      pagesDir: './pages',
+      ensemblesDir: './ensembles',
+      agentsDir: './agents',
+    }),
+  ],
+  build: {
+    outDir: 'dist',
+    lib: {
+      entry: './src/index.ts',
+      formats: ['es'],
+      fileName: 'index',
+    },
+    rollupOptions: {
+      external: ['node:async_hooks'],
+    },
+  },
+});
+```
+
+### Step 5: Create Directories
+
+```bash
+mkdir -p pages ensembles agents tests
+```
+
+### Step 6: Update package.json
+
+```json
+{
+  "scripts": {
+    "build": "vite build",
+    "dev": "wrangler dev --local-protocol http",
+    "deploy": "npm run build && wrangler deploy",
+    "test": "vitest run"
+  }
+}
+```
+
+**Note**: Manual setup is error-prone and requires more configuration. The `init` command is strongly recommended.
+
+</Accordion>
+
+## Tips & Best Practices
+
+1. **Always use --local-protocol http** with `wrangler dev` to avoid network binding issues
+2. **Rebuild after adding files** - Pages and agents are discovered at build time
+3. **Start with examples** - Modify the included hello examples before creating new ones
+4. **Test locally first** - `npm test` runs your test suite instantly
+5. **Check logs** - `npx wrangler tail` shows real-time production logs
+6. **Use git** - The template includes .gitignore configured correctly
+7. **Read the generated README.md** - It includes project-specific guidance
