@@ -30,7 +30,7 @@ output:
 ```
 
 This ensemble:
-1. Calls the `hello` agent (from `agents/hello/`)
+1. Calls the `hello` agent (from `agents/examples/hello/`)
 2. Returns its output as `greeting`
 
 ### Run It
@@ -41,7 +41,7 @@ The template includes a test in `tests/basic.test.ts`:
 import { Executor, MemberLoader } from '@ensemble-edge/conductor';
 import { stringify } from 'yaml';
 import helloWorldYAML from '../ensembles/hello-world.yaml';
-import greetConfig from '../agents/hello/agent.yaml';
+import greetConfig from '../agents/examples/hello/agent.yaml';
 import greetFunction from '../agents/hello';
 
 const executor = new Executor({ env, ctx });
@@ -231,7 +231,7 @@ import { describe, it, expect } from 'vitest';
 import { Executor, MemberLoader } from '@ensemble-edge/conductor';
 import { stringify } from 'yaml';
 import greetingWorkflow from '../ensembles/greeting-workflow.yaml';
-import helloConfig from '../agents/hello/agent.yaml';
+import helloConfig from '../agents/examples/hello/agent.yaml';
 import helloFunction from '../agents/hello';
 
 describe('Greeting Workflow', () => {

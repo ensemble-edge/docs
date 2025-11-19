@@ -208,7 +208,7 @@ output:
   greeting: ${hello.output.message}
 ```
 
-This workflow calls the `hello` agent (from `agents/hello/`) and returns its output.
+This workflow calls the `hello` agent (from `agents/examples/hello/`) and returns its output.
 
 ### Create a New Ensemble
 
@@ -223,7 +223,7 @@ agents:
   - name: greeter
     operation: code
     config:
-      handler: hello  # Reference to agents/hello/
+      handler: hello  # Reference to agents/examples/hello/
 
 output:
   greeting: ${greeter.output.message}
@@ -265,8 +265,8 @@ import type { HandlerContext } from '@ensemble-edge/conductor';
 import { Executor, MemberLoader } from '@ensemble-edge/conductor';
 import { stringify } from 'yaml';
 import myWorkflow from '../../ensembles/my-workflow.yaml';
-import greetConfig from '../../agents/hello/agent.yaml';
-import greetFunction from '../../agents/hello';
+import greetConfig from '../../agents/examples/hello/agent.yaml';
+import greetFunction from '../../agents/examples/hello';
 
 export async function handler(context: HandlerContext) {
   const { env, ctx } = context;

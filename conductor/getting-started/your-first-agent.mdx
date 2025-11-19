@@ -14,10 +14,10 @@ Agents are auto-discovered from the `agents/` directory and can be used across m
 
 ## Explore the Template Agent
 
-Your project already includes a working agent! Let's explore `agents/hello/`:
+Your project already includes a working agent! Let's explore `agents/examples/hello/`:
 
 ```
-agents/hello/
+agents/examples/hello/
 ├── agent.yaml      # Agent configuration
 └── index.ts        # Agent implementation
 ```
@@ -263,7 +263,7 @@ import { describe, it, expect } from 'vitest';
 import { Executor, MemberLoader } from '@ensemble-edge/conductor';
 import { stringify } from 'yaml';
 import helloWorldYAML from '../ensembles/hello-world.yaml';
-import greetConfig from '../agents/hello/agent.yaml';
+import greetConfig from '../agents/examples/hello/agent.yaml';
 import greetFunction from '../agents/hello';
 
 describe('Hello Agent Test', () => {
