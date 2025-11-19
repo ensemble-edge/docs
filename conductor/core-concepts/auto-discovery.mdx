@@ -1,0 +1,486 @@
+---
+title: "Auto-Discovery"
+description: "Automatic discovery and registration of agents and ensembles"
+---
+
+## Overview
+
+Auto-discovery is Conductor's **zero-config** approach to loading agents and ensembles. Instead of manually importing and registering each agent, Conductor automatically discovers them from your project directory at build time.
+
+### Before Auto-Discovery
+
+```typescript
+// ❌ Manual registration (old approach)
+import greetConfig from './agents/greet/agent.yaml'
+import greetHandler from './agents/greet/index.ts'
+import analyzeConfig from './agents/analyze/agent.yaml'
+import analyzeHandler from './agents/analyze/index.ts'
+// ... import 50 more agents ...
+
+const loader = new MemberLoader({ env, ctx })
+loader.registerAgent(greetConfig, greetHandler)
+loader.registerAgent(analyzeConfig, analyzeHandler)
+// ... register 50 more agents ...
+```
+
+### After Auto-Discovery
+
+```typescript
+// ✅ Auto-discovery (new approach)
+import { createAutoDiscoveryAPI } from '@ensemble-edge/conductor/api'
+import { agents } from 'virtual:conductor-agents'
+import { ensembles } from 'virtual:conductor-ensembles'
+
+export default createAutoDiscoveryAPI({
+  agents,
+  ensembles,
+  autoDiscover: true,
+})
+```
+
+That's it! All agents and ensembles are automatically discovered and registered.
+
+---
+
+## How It Works
+
+Auto-discovery uses **Vite plugins** that scan your project directory at build time and generate **virtual modules** containing all your agents and ensembles.
+
+<Steps>
+
+### Step 1: Vite Plugin Scans Project
+
+During the build process, Vite plugins scan your project:
+
+- `vite-plugin-agent-discovery` → Scans `agents/**/*.yaml`
+- `vite-plugin-ensemble-discovery` → Scans `ensembles/**/*.yaml`
+
+### Step 2: Virtual Modules Generated
+
+The plugins generate virtual modules that bundle:
+
+```typescript
+// virtual:conductor-agents (generated at build time)
+export const agents = [
+  {
+    name: 'greet',
+    config: '...yaml content...',
+    handler: () => import('./agents/greet/index.ts'),
+  },
+  {
+    name: 'analyze',
+    config: '...yaml content...',
+    handler: () => import('./agents/analyze/index.ts'),
+  },
+  // ... all discovered agents
+]
+```
+
+### Step 3: Runtime Auto-Discovery
+
+At runtime, `MemberLoader.autoDiscover()` processes the virtual modules:
+
+1. Parses YAML configs
+2. Loads handler functions (if present)
+3. Creates agent instances
+4. Registers them for execution
+
+</Steps>
+
+---
+
+## Quick Start
+
+### Installation
+
+Auto-discovery is built into Conductor templates. If you're starting a new project:
+
+```bash
+npx @ensemble-edge/edgit init my-project
+cd my-project
+```
+
+The template includes auto-discovery by default.
+
+### Manual Setup
+
+If you have an existing project, add these plugins to `vite.config.ts`:
+
+```typescript
+import { agentDiscoveryPlugin } from './scripts/vite-plugin-agent-discovery'
+import { ensembleDiscoveryPlugin } from './scripts/vite-plugin-ensemble-discovery'
+
+export default defineConfig({
+  plugins: [
+    agentDiscoveryPlugin(), // Discovers agents/**/*.yaml
+    ensembleDiscoveryPlugin(), // Discovers ensembles/**/*.yaml
+  ],
+})
+```
+
+### Using Auto-Discovery
+
+Create your entry point (`src/index.ts`):
+
+```typescript
+import { createAutoDiscoveryAPI } from '@ensemble-edge/conductor/api'
+import { ExecutionState, HITLState } from '@ensemble-edge/conductor/cloudflare'
+import { agents } from 'virtual:conductor-agents'
+import { ensembles } from 'virtual:conductor-ensembles'
+
+export default createAutoDiscoveryAPI({
+  // Virtual modules from build-time discovery
+  agents,
+  ensembles,
+
+  // Enable auto-discovery (default: true)
+  autoDiscover: true,
+
+  // Authentication
+  auth: {
+    allowAnonymous: true, // Disable in production
+  },
+
+  // Logging
+  logging: true,
+})
+
+// Export Durable Objects
+export { ExecutionState, HITLState }
+```
+
+---
+
+## File Structure
+
+Auto-discovery expects this structure:
+
+```
+my-project/
+├── agents/               # Auto-discovered
+│   ├── greet/
+│   │   ├── agent.yaml    # ✅ Discovered
+│   │   └── index.ts      # ✅ Handler (optional)
+│   ├── analyze/
+│   │   └── agent.yaml    # ✅ Discovered (no handler)
+│   └── generate-docs/    # ❌ Excluded by default
+│       └── docs.yaml
+├── ensembles/            # Auto-discovered
+│   ├── blog-workflow.yaml  # ✅ Discovered
+│   └── user-onboarding.yaml # ✅ Discovered
+├── pages/                # Auto-discovered (separate plugin)
+├── docs/                 # Auto-discovered (separate plugin)
+└── src/
+    └── index.ts          # Entry point
+```
+
+### What Gets Discovered
+
+<Accordion title="Agents">
+
+**Pattern:** `agents/**/*.yaml`
+
+**Excluded:** `agents/generate-docs/**` (by default)
+
+**Handler Detection:** If `agents/{name}/index.ts` exists, it's auto-loaded as the handler
+
+**Example:**
+
+```
+agents/
+├── greet/
+│   ├── agent.yaml      # Config
+│   └── index.ts        # Handler (optional)
+└── analyze/
+    └── agent.yaml      # Config only
+```
+
+</Accordion>
+
+<Accordion title="Ensembles">
+
+**Pattern:** `ensembles/**/*.yaml`
+
+**No exclusions**
+
+**Example:**
+
+```
+ensembles/
+├── blog-workflow.yaml
+└── workflows/
+    └── user-onboarding.yaml
+```
+
+</Accordion>
+
+---
+
+## API Reference
+
+### `createAutoDiscoveryAPI(config)`
+
+Creates a Conductor API with auto-discovery.
+
+<ParamField path="config" type="AutoDiscoveryAPIConfig">
+  Configuration options
+</ParamField>
+
+<ParamField path="config.autoDiscover" type="boolean" default={true}>
+  Enable auto-discovery of agents and ensembles
+</ParamField>
+
+<ParamField path="config.agents" type="AgentDefinition[]">
+  Virtual agents module from `virtual:conductor-agents`
+</ParamField>
+
+<ParamField path="config.ensembles" type="EnsembleDefinition[]">
+  Virtual ensembles module from `virtual:conductor-ensembles`
+</ParamField>
+
+<ParamField path="config.auth" type="AuthConfig">
+  Authentication configuration
+</ParamField>
+
+<ParamField path="config.logging" type="boolean" default={true}>
+  Enable request logging
+</ParamField>
+
+<ParamField path="config.cors" type="CORSConfig">
+  CORS configuration
+</ParamField>
+
+**Returns:** `ExportedHandler<Env>`
+
+### `getMemberLoader()`
+
+Get the initialized `MemberLoader` instance.
+
+```typescript
+import { getMemberLoader } from '@ensemble-edge/conductor/api'
+
+const loader = getMemberLoader()
+if (loader) {
+  console.log(`Loaded agents: ${loader.getMemberNames().join(', ')}`)
+}
+```
+
+**Returns:** `MemberLoader | null`
+
+### `getEnsembleLoader()`
+
+Get the initialized `EnsembleLoader` instance.
+
+```typescript
+import { getEnsembleLoader } from '@ensemble-edge/conductor/api'
+
+const loader = getEnsembleLoader()
+if (loader) {
+  console.log(`Loaded ensembles: ${loader.getEnsembleNames().join(', ')}`)
+}
+```
+
+**Returns:** `EnsembleLoader | null`
+
+---
+
+## Advanced Usage
+
+### Custom Exclusions
+
+Exclude specific directories from agent discovery:
+
+```typescript
+// vite.config.ts
+export default defineConfig({
+  plugins: [
+    agentDiscoveryPlugin({
+      agentsDir: 'agents',
+      excludeDirs: ['generate-docs', 'internal', 'experimental'],
+    }),
+  ],
+})
+```
+
+### Custom File Extensions
+
+Support `.yml` instead of `.yaml`:
+
+```typescript
+export default defineConfig({
+  plugins: [
+    agentDiscoveryPlugin({ fileExtension: '.yml' }),
+    ensembleDiscoveryPlugin({ fileExtension: '.yml' }),
+  ],
+})
+```
+
+### Manual Loader Access
+
+Use the loaders directly for advanced use cases:
+
+```typescript
+import { getMemberLoader, getEnsembleLoader } from '@ensemble-edge/conductor/api'
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const memberLoader = getMemberLoader()
+    const ensembleLoader = getEnsembleLoader()
+
+    if (!memberLoader || !ensembleLoader) {
+      return new Response('Loaders not initialized', { status: 503 })
+    }
+
+    // Custom logic using loaders
+    const agents = memberLoader.getAllMembers()
+    const ensembles = ensembleLoader.getAllEnsembles()
+
+    return Response.json({
+      agents: agents.length,
+      ensembles: ensembles.length,
+    })
+  },
+}
+```
+
+---
+
+## Troubleshooting
+
+### Agents Not Found
+
+**Problem:** Auto-discovery doesn't find your agents
+
+**Solution:**
+
+1. Check file structure matches `agents/**/*.yaml`
+2. Ensure agents aren't in excluded directories
+3. Check Vite plugin is registered in `vite.config.ts`
+4. Rebuild: `npm run build`
+
+### TypeScript Errors
+
+**Problem:** `Cannot find module 'virtual:conductor-agents'`
+
+**Solution:**
+
+Add type declarations:
+
+```typescript
+// src/virtual-modules.d.ts
+declare module 'virtual:conductor-agents' {
+  export interface AgentDefinition {
+    name: string
+    config: string
+    handler?: () => Promise<any>
+  }
+
+  export const agents: AgentDefinition[]
+  export const agentsMap: Map<string, AgentDefinition>
+}
+
+declare module 'virtual:conductor-ensembles' {
+  export interface EnsembleDefinition {
+    name: string
+    config: string
+  }
+
+  export const ensembles: EnsembleDefinition[]
+  export const ensemblesMap: Map<string, EnsembleDefinition>
+}
+```
+
+### Build Errors
+
+**Problem:** Build fails with "Directory not found"
+
+**Solution:**
+
+Create empty directories if needed:
+
+```bash
+mkdir -p agents ensembles
+```
+
+The Vite plugins handle missing directories gracefully but some bundlers may require them to exist.
+
+---
+
+## Migration Guide
+
+### From Manual Registration
+
+<Steps>
+
+### Step 1: Remove Manual Imports
+
+Delete all manual agent/ensemble imports from your entry point.
+
+### Step 2: Add Virtual Module Imports
+
+```typescript
+import { agents } from 'virtual:conductor-agents'
+import { ensembles } from 'virtual:conductor-ensembles'
+```
+
+### Step 3: Replace with `createAutoDiscoveryAPI`
+
+```typescript
+export default createAutoDiscoveryAPI({
+  agents,
+  ensembles,
+  autoDiscover: true,
+  auth: { allowAnonymous: true },
+})
+```
+
+### Step 4: Rebuild and Test
+
+```bash
+npm run build
+npx wrangler dev
+```
+
+</Steps>
+
+---
+
+## Benefits
+
+<CardGroup cols={2}>
+  <Card title="Zero Config" icon="magic">
+    No manual imports or registration required
+  </Card>
+
+  <Card title="Fast Development" icon="bolt">
+    Add new agents by creating files—no code changes
+  </Card>
+
+  <Card title="Type Safe" icon="shield">
+    Full TypeScript support with virtual module types
+  </Card>
+
+  <Card title="Production Ready" icon="rocket">
+    Build-time discovery ensures zero runtime overhead
+  </Card>
+</CardGroup>
+
+---
+
+## Next Steps
+
+<Card title="Your First Agent" icon="play" href="/conductor/getting-started/your-first-agent">
+  Create your first auto-discovered agent
+</Card>
+
+<Card
+  title="Your First Ensemble"
+  icon="layer-group"
+  href="/conductor/getting-started/your-first-ensemble"
+>
+  Create your first auto-discovered ensemble
+</Card>
+
+<Card title="Deployment" icon="cloud" href="/conductor/deployment/cloudflare-workers">
+  Deploy your auto-discovery project to production
+</Card>

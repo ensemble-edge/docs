@@ -36,6 +36,109 @@ curl https://my-conductor-app.your-subdomain.workers.dev?name=World
 
 **You're live.** Your ensemble is running in 300+ cities worldwide with &lt;50ms cold starts.
 
+## Auto-Discovery in Production (v1.12+)
+
+Auto-discovery works identically in production - no configuration needed!
+
+### What Gets Deployed
+
+When you run `npm run build`, the bundle includes:
+- ✅ All agents from `agents/**/*.yaml`
+- ✅ All ensembles from `ensembles/**/*.yaml`
+- ✅ All pages from `pages/**/*.yaml`
+- ✅ All docs from `docs/**/*.md`
+- ✅ Virtual modules pre-compiled for fast cold starts
+
+### Verification Before Deploy
+
+**Step 1**: Build locally
+
+```bash
+npm run build
+```
+
+**Step 2**: Test with wrangler dev
+
+```bash
+npx wrangler dev
+```
+
+**Step 3**: Verify all resources are discovered
+
+```bash
+# List all agents
+curl http://localhost:8787/api/v1/agents
+
+# Returns:
+{
+  "agents": [
+    { "name": "hello", "operation": "code" },
+    { "name": "greeter", "operation": "code" }
+  ]
+}
+
+# Test execution
+curl -X POST http://localhost:8787/api/v1/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ensemble": "hello-world",
+    "input": { "name": "Production" }
+  }'
+```
+
+### Production URLs
+
+After deployment, your auto-discovered resources are available at:
+
+```bash
+# Execute ensembles
+https://your-app.workers.dev/api/v1/execute
+
+# List agents
+https://your-app.workers.dev/api/v1/agents
+
+# List ensembles (coming soon)
+https://your-app.workers.dev/api/v1/ensembles
+
+# Health check
+https://your-app.workers.dev/health
+```
+
+### Troubleshooting
+
+<Accordion title="Agent not found in production">
+**Problem**: Agent works locally but not in production
+
+**Fix**: Rebuild and redeploy
+
+```bash
+npm run build
+npm run deploy
+```
+
+Agents are discovered at build time. If you added a new agent, you must rebuild.
+</Accordion>
+
+<Accordion title="Cold start performance">
+**Problem**: Worried about auto-discovery impacting cold starts
+
+**Answer**: Auto-discovery happens at **build time**, not runtime!
+
+- Virtual modules are pre-compiled into your bundle
+- No file system scanning at runtime
+- Cold starts remain &lt;50ms
+- Zero performance impact
+</Accordion>
+
+<Accordion title="How many agents can I deploy?">
+**Answer**: Cloudflare Workers have a 1MB bundle limit
+
+- Each agent config: ~1-5 KB
+- Agent handlers: varies by complexity
+- Typical projects: 50-100 agents easily fit
+- Use code splitting for larger projects
+</Accordion>
+
 ## Deployment Checklist
 
 ### 1. Environment Secrets

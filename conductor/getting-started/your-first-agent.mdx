@@ -10,7 +10,7 @@ An agent is a reusable unit of work with:
 - **Operation**: What it does (code, think, http, storage, etc.)
 - **Outputs**: Data it returns
 
-Agents are auto-discovered from the `agents/` directory and can be used across multiple ensembles.
+Agents are automatically discovered from the `agents/` directory at build time (v1.12+) and can be used across multiple ensembles.
 
 ## Explore the Template Agent
 
@@ -508,17 +508,109 @@ output:
   analysis: ${analyze.output}
 ```
 
-## Auto-Discovery
+## Auto-Discovery (v1.12+)
 
-**Important**: Agents in the `agents/` directory are automatically discovered at build time.
+**Zero-Config Agent Loading**: Agents in the `agents/` directory are automatically discovered at build time and registered with your application.
 
-**When you create a new agent**:
+### How It Works
+
+1. **Build-Time Discovery**: Vite plugins scan `agents/**/*.yaml` during build
+2. **Virtual Modules**: Agent configs and handlers are bundled into `virtual:conductor-agents`
+3. **Runtime Registration**: `MemberLoader.autoDiscover()` loads all discovered agents automatically
+
+### Creating a New Agent
+
+**Just create the files** - no imports or registration needed:
+
 1. Create the directory: `agents/my-agent/`
-2. Add `agent.yaml` and optionally `index.ts`
-3. Rebuild: `npm run build`
-4. Your agent is now available!
+2. Add `agent.yaml` (required)
+3. Add `index.ts` (optional, for `operation: code`)
+4. Rebuild: `npm run build`
+5. **Done!** Your agent is now available at `/api/v1/execute`
 
-**No manual registration needed!**
+### Using Auto-Discovered Agents
+
+With the auto-discovery API (recommended):
+
+```typescript
+// src/index.ts
+import { createAutoDiscoveryAPI } from '@ensemble-edge/conductor/api'
+import { agents } from 'virtual:conductor-agents'
+import { ensembles } from 'virtual:conductor-ensembles'
+
+export default createAutoDiscoveryAPI({
+  agents,  // All agents auto-discovered
+  ensembles,  // All ensembles auto-discovered
+  autoDiscover: true,
+})
+```
+
+That's it! **No manual imports. No registration code. Just create YAML files.**
+
+### Verification
+
+List all discovered agents:
+
+```bash
+# After build
+curl http://localhost:8787/api/v1/agents
+
+# Returns:
+{
+  "agents": [
+    { "name": "hello", "operation": "code" },
+    { "name": "greeter", "operation": "code" },
+    { "name": "analyzer", "operation": "think" }
+  ]
+}
+```
+
+### Testing with Manual Registration
+
+**Note**: In unit tests, you can still use manual registration for clarity:
+
+```typescript
+import { MemberLoader } from '@ensemble-edge/conductor'
+import greetConfig from '../agents/greeter/agent.yaml'
+import greetFunction from '../agents/greeter'
+
+const loader = new MemberLoader({ env, ctx })
+loader.registerAgent(greetConfig, greetFunction)
+```
+
+This is fine for tests! Manual registration is supported alongside auto-discovery.
+
+### Migration from v1.11
+
+If you have existing manual registration code in your entry point:
+
+**Before (v1.11)**:
+```typescript
+import greetConfig from './agents/greet/agent.yaml'
+import greetFunction from './agents/greet/index.ts'
+// ... 50 more imports ...
+
+const loader = new MemberLoader({ env, ctx })
+loader.registerAgent(greetConfig, greetFunction)
+// ... 50 more registrations ...
+```
+
+**After (v1.12)**:
+```typescript
+import { createAutoDiscoveryAPI } from '@ensemble-edge/conductor/api'
+import { agents } from 'virtual:conductor-agents'
+import { ensembles } from 'virtual:conductor-ensembles'
+
+export default createAutoDiscoveryAPI({
+  agents,
+  ensembles,
+  autoDiscover: true,
+})
+```
+
+**Saves 400+ lines of boilerplate!**
+
+See the [Auto-Discovery guide](/conductor/core-concepts/auto-discovery) for complete details.
 
 ## Agent Patterns
 

@@ -262,6 +262,150 @@ describe('Greeting Workflow', () => {
 
 Run: `npm test`
 
+## Auto-Discovery (v1.12+)
+
+**Zero-Config Ensemble Loading**: Ensembles in the `ensembles/` directory are automatically discovered at build time.
+
+### How It Works
+
+Just create a YAML file in `ensembles/` - no imports or registration needed!
+
+**Step 1**: Create `ensembles/my-workflow.yaml`
+
+```yaml
+ensemble: my-workflow
+description: My automated workflow
+
+agents:
+  - name: step1
+    operation: code
+  - name: step2
+    operation: think
+
+output:
+  result: ${step2.output}
+```
+
+**Step 2**: Rebuild
+
+```bash
+npm run build
+```
+
+**Step 3**: Execute via API
+
+```bash
+curl -X POST http://localhost:8787/api/v1/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ensemble": "my-workflow",
+    "input": { "data": "test" }
+  }'
+```
+
+**That's it!** No imports, no registration, just create the YAML file.
+
+### Using Auto-Discovery API
+
+The recommended way to use ensembles is with `createAutoDiscoveryAPI()`:
+
+```typescript
+// src/index.ts
+import { createAutoDiscoveryAPI } from '@ensemble-edge/conductor/api'
+import { agents } from 'virtual:conductor-agents'
+import { ensembles } from 'virtual:conductor-ensembles'
+
+export default createAutoDiscoveryAPI({
+  agents,  // Auto-discovered from agents/
+  ensembles,  // Auto-discovered from ensembles/
+  autoDiscover: true,
+})
+```
+
+This provides:
+- `POST /api/v1/execute` - Execute any ensemble or agent
+- `GET /api/v1/ensembles` - List all ensembles (coming soon)
+- `GET /api/v1/agents` - List all agents
+- Automatic webhook and cron trigger handling
+
+### Execute Request Format
+
+Execute an ensemble via the unified API:
+
+```bash
+POST /api/v1/execute
+Content-Type: application/json
+
+{
+  "ensemble": "greeting-workflow",
+  "input": {
+    "name": "Alice",
+    "style": "formal"
+  }
+}
+```
+
+Execute an agent via the same API:
+
+```bash
+POST /api/v1/execute
+Content-Type: application/json
+
+{
+  "agent": "hello",
+  "input": {
+    "name": "Bob"
+  }
+}
+```
+
+### Discovery Rules
+
+**Auto-Discovered**:
+- ✅ All `*.yaml` files in `ensembles/`
+- ✅ Nested directories: `ensembles/workflows/user-onboarding.yaml`
+- ✅ Cron triggers from ensemble configs
+
+**Not Discovered**:
+- ❌ README.md files
+- ❌ Files outside `ensembles/` directory
+
+### Verification
+
+List all discovered ensembles:
+
+```bash
+curl http://localhost:8787/api/v1/ensembles
+
+# Returns:
+{
+  "ensembles": [
+    { "name": "hello-world", "description": "Simple greeting" },
+    { "name": "greeting-workflow", "description": "Generate and log greeting" }
+  ]
+}
+```
+
+### Testing with Auto-Discovery
+
+In tests, you can still use manual registration for fine-grained control:
+
+```typescript
+import { Executor, MemberLoader } from '@ensemble-edge/conductor'
+import { stringify } from 'yaml'
+import myWorkflow from '../ensembles/my-workflow.yaml'
+
+const executor = new Executor({ env, ctx })
+const result = await executor.executeFromYAML(
+  stringify(myWorkflow),
+  { input: 'data' }
+)
+```
+
+This is fine! Manual execution is supported alongside auto-discovery.
+
+See the [Auto-Discovery guide](/conductor/core-concepts/auto-discovery) for complete details.
+
 ## Flow Control
 
 ### Sequential Execution (Default)

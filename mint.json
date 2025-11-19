@@ -144,6 +144,7 @@
         "conductor/core-concepts/ensembles",
         "conductor/core-concepts/triggers",
         "conductor/core-concepts/components",
+        "conductor/core-concepts/auto-discovery",
         "conductor/core-concepts/flow-control",
         "conductor/core-concepts/state-management",
         "conductor/core-concepts/ab-testing"
