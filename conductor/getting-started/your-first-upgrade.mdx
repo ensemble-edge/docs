@@ -24,6 +24,14 @@ npx wrangler dev --local-protocol http
 npm run deploy
 ```
 
+<Note>
+**Starting the dev server**:
+- **Dev Container**: `npx wrangler dev --local-protocol http --ip 0.0.0.0`
+- **Local**: `npx wrangler dev --local-protocol http`
+
+The `--ip 0.0.0.0` flag is needed in containers to bind to all network interfaces.
+</Note>
+
 That's it! Most upgrades are seamless.
 
 ## Testing Your Upgrade
@@ -42,7 +50,7 @@ npm test
 - [ ] `npm install` completes without errors
 - [ ] `npm test` shows all tests passing
 - [ ] `npm run build` succeeds
-- [ ] Dev server starts: `npx wrangler dev --local-protocol http`
+- [ ] Dev server starts (see note above for dev container vs local)
 - [ ] Homepage loads: `curl http://localhost:8787/`
 - [ ] Static pages work (test 2-3 pages)
 - [ ] Dynamic pages work (if using)

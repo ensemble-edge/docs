@@ -69,9 +69,18 @@ Your project includes working examples for all major features.
 ### Try the Example Pages
 
 Start the dev server:
+
+<Note>
+**Dev Container Users**: Add `--ip 0.0.0.0` to bind to all interfaces:
+```bash
+npx wrangler dev --local-protocol http --ip 0.0.0.0
+```
+
+**Local Development**: Use the standard command:
 ```bash
 npx wrangler dev --local-protocol http
 ```
+</Note>
 
 Visit these URLs:
 - http://localhost:8787/ - Homepage
