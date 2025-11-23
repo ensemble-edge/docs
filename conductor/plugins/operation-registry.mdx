@@ -1,0 +1,383 @@
+---
+title: 'Operation Registry'
+description: 'Global registry for custom operations that work everywhere'
+---
+
+# Operation Registry
+
+The Operation Registry is the core of Conductor's plugin system. It's a global singleton that stores all operations (built-in and custom) and makes them available across all contexts.
+
+## Key Concepts
+
+### Universal Operations
+
+Once an operation is registered, it works **everywhere**:
+- ✅ Ensembles
+- ✅ Pages
+- ✅ Forms
+- ✅ APIs
+- ✅ Webhooks
+
+No context-specific code needed!
+
+### Singleton Pattern
+
+The registry is a singleton - there's only one instance per Worker:
+
+```typescript
+import { getOperationRegistry } from '@ensemble-edge/conductor'
+
+const registry = getOperationRegistry()
+// Always returns the same instance
+```
+
+## Built-in Operations
+
+Conductor includes three built-in operations:
+
+### `fetch-data`
+
+Fetch data from various sources:
+
+```yaml
+operations:
+  - operation: fetch-data
+    config:
+      source: payload    # payload, d1, kv, r2, api
+      collection: users
+      query:
+        active: true
+```
+
+### `transform-data`
+
+Transform data using expressions:
+
+```yaml
+operations:
+  - operation: transform-data
+    config:
+      input: ${previous.output}
+      transform: "$.user.email"
+```
+
+### `custom-code`
+
+Execute custom JavaScript:
+
+```yaml
+operations:
+  - operation: custom-code
+    config:
+      code: "return { result: input.value * 2 }"
+      input: ${previous.output}
+```
+
+## Registering Operations
+
+### Basic Registration
+
+```typescript
+import { getOperationRegistry, type OperationHandler } from '@ensemble-edge/conductor'
+
+const registry = getOperationRegistry()
+
+const handler: OperationHandler = {
+  async execute(operation, context) {
+    const { config } = operation
+    // Perform operation logic
+    return { result: 'success' }
+  }
+}
+
+registry.register('custom:op', handler)
+```
+
+### With Metadata
+
+```typescript
+registry.register('custom:op', handler, {
+  name: 'custom:op',
+  description: 'Custom operation description',
+  version: '1.0.0',
+  author: '@conductor/custom',
+  contexts: ['page', 'form'],  // or ['all']
+  tags: ['custom', 'data'],
+  inputs: {
+    foo: 'string',
+    bar: 'number'
+  },
+  outputs: {
+    result: 'any'
+  }
+})
+```
+
+## Operation Context
+
+Operations receive a context object:
+
+```typescript
+interface OperationContext {
+  request?: Request                  // HTTP request (if available)
+  env: ConductorEnv                 // Environment bindings
+  ctx: ExecutionContext             // Cloudflare Workers context
+  params?: Record<string, string>   // URL/route parameters
+  query?: Record<string, string>    // Query string parameters
+  headers?: Record<string, string>  // Request headers
+  data?: Record<string, any>        // Input data
+  contextType: 'ensemble' | 'page' | 'form' | 'api' | 'webhook'
+}
+```
+
+**Example:**
+
+```typescript
+const handler: OperationHandler = {
+  async execute(operation, context) {
+    // Access environment bindings
+    const db = context.env.DB
+
+    // Access request data
+    const userId = context.params?.userId
+
+    // Check context type
+    if (context.contextType === 'page') {
+      // Page-specific logic
+    }
+
+    return { success: true }
+  }
+}
+```
+
+## Executing Operations
+
+### Direct Execution
+
+```typescript
+const result = await registry.execute({
+  operation: 'custom:op',
+  config: {
+    foo: 'bar',
+    baz: 123
+  }
+}, context)
+```
+
+### With Custom Handler
+
+Override the registered handler for a specific invocation:
+
+```typescript
+const result = await registry.execute({
+  operation: 'any:op',
+  config: {},
+  handler: async (context) => {
+    return { custom: true }
+  }
+}, context)
+```
+
+## Discovery API
+
+### List All Operations
+
+```typescript
+const all = registry.list()
+// ['fetch-data', 'transform-data', 'custom-code', 'plasmic:render', ...]
+```
+
+### List by Context
+
+```typescript
+const pageOps = registry.listByContext('page')
+// Only operations that work in page context
+```
+
+### List by Tag
+
+```typescript
+const uiOps = registry.listByTag('ui')
+// Only operations tagged with 'ui'
+```
+
+### Check if Operation Exists
+
+```typescript
+if (registry.has('plasmic:render')) {
+  // Operation is registered
+}
+```
+
+### Get Metadata
+
+```typescript
+const meta = registry.getMetadata('plasmic:render')
+console.log(meta.description)  // "Render Plasmic component"
+console.log(meta.version)      // "1.0.0"
+console.log(meta.contexts)     // ['page', 'form']
+console.log(meta.tags)         // ['ui', 'visual', 'render']
+```
+
+## Context-Aware Operations
+
+Operations can check their execution context:
+
+```typescript
+const handler: OperationHandler = {
+  async execute(operation, context) {
+    switch (context.contextType) {
+      case 'page':
+        return await handlePageContext(operation, context)
+      case 'api':
+        return await handleApiContext(operation, context)
+      case 'ensemble':
+        return await handleEnsembleContext(operation, context)
+      default:
+        throw new Error(`Unsupported context: ${context.contextType}`)
+    }
+  }
+}
+
+registry.register('context:aware', handler, {
+  name: 'context:aware',
+  description: 'Context-aware operation',
+  contexts: ['page', 'api', 'ensemble']  // Specify supported contexts
+})
+```
+
+## Metadata Schema
+
+Complete metadata interface:
+
+```typescript
+interface OperationMetadata {
+  name: string                    // Required: operation identifier
+  description: string             // Required: human-readable description
+  version?: string                // Semver version
+  author?: string                 // Plugin/package name
+  contexts?: Array<               // Supported contexts
+    'ensemble' | 'page' | 'form' | 'api' | 'webhook' | 'all'
+  >
+  inputs?: Record<string, any>    // Input schema (for docs/validation)
+  outputs?: Record<string, any>   // Output schema (for docs/validation)
+  tags?: string[]                 // Tags for categorization
+}
+```
+
+## Testing Operations
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { getOperationRegistry } from '@ensemble-edge/conductor'
+
+describe('Custom Operation', () => {
+  let registry
+
+  beforeEach(() => {
+    registry = getOperationRegistry()
+    registry.reset() // Reset to clean state
+  })
+
+  it('should register and execute', async () => {
+    const handler = {
+      async execute(operation, context) {
+        return { result: 'test' }
+      }
+    }
+
+    registry.register('test:op', handler)
+
+    const result = await registry.execute({
+      operation: 'test:op',
+      config: {}
+    }, mockContext)
+
+    expect(result.result).toBe('test')
+  })
+})
+```
+
+## Best Practices
+
+**Naming Convention**: Use `namespace:operation` format
+```typescript
+// Good
+'plasmic:render'
+'unkey:validate'
+'stripe:charge'
+
+// Avoid
+'render'
+'validate'
+'charge'
+```
+
+**Metadata is Documentation**: Include comprehensive metadata
+```typescript
+registry.register('op', handler, {
+  name: 'op',
+  description: 'Clear, concise description',
+  version: '1.0.0',
+  author: '@conductor/plugin',
+  contexts: ['page'],  // Be explicit
+  tags: ['ui', 'render'],  // Aid discovery
+})
+```
+
+**Error Handling**: Throw meaningful errors
+```typescript
+const handler: OperationHandler = {
+  async execute(operation, context) {
+    if (!operation.config.required) {
+      throw new Error('[custom:op] Missing required config: required')
+    }
+    // ... operation logic
+  }
+}
+```
+
+**Type Safety**: Use TypeScript
+```typescript
+interface CustomOpConfig {
+  required: string
+  optional?: number
+}
+
+const handler: OperationHandler = {
+  async execute(operation, context) {
+    const config = operation.config as CustomOpConfig
+    // Typed access to config
+  }
+}
+```
+
+## Management API
+
+### Unregister Operation
+
+```typescript
+registry.unregister('custom:op')
+```
+
+### Clear All Operations
+
+```typescript
+registry.clear()
+// Warning: Removes built-in operations too!
+```
+
+### Reset to Initial State
+
+```typescript
+registry.reset()
+// Clears all and re-registers built-ins
+```
+
+## Next Steps
+
+- [Creating a Functional Plugin](/conductor/plugins/functional-plugins)
+- [Creating a Lifecycle Plugin](/conductor/plugins/lifecycle-plugins)
+- [Plugin Examples](/conductor/plugins/examples)
+- [Plugin Best Practices](/conductor/plugins/best-practices)

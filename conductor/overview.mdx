@@ -303,33 +303,43 @@ output:
 
 ## Beyond Workflows: Build Web Applications
 
-Conductor isn't just for backend workflows. It also includes **Pages** for building server-rendered web applications:
+Conductor isn't just for backend workflows. It also includes **Pages** (Hono-based routing) for building server-rendered web applications:
 
 **Pages Features:**
-- Static pages with Liquid/HTML templates
-- Dynamic pages with handler functions
-- Auto-discovery from `pages/` directory
-- SEO, caching, and hydration built-in
-- Dynamic route parameters (e.g., `/blog/:slug`)
-- Form handling with validation
+- **Hono routing** - Battle-tested, fast HTTP router with middleware support
+- **Conductor operations** - Use any operation in `beforeRender` (Payload CMS, Attio, HTTP, Think, etc.)
+- **Hono middleware** - Full Hono middleware ecosystem (CORS, compression, JWT, etc.)
+- **Template engines** - Handlebars, Liquid, or Simple (same as Email/SMS)
+- **Content negotiation** - HTML or JSON based on Accept header
+- **Auto-discovery** - Pages loaded from `pages/` directory
+- **Dynamic routes** - URL parameters like `/blog/:slug`
 
-**Example:**
+**Example with Operations:**
 ```yaml
-# pages/dashboard/page.yaml
-name: dashboard
-type: Page
-templateEngine: liquid
+# pages/blog-post.yaml
+name: blog-post
+operation: page
+templateEngine: handlebars
 
 route:
-  path: /dashboard
+  path: /blog/:slug
   methods: [GET]
-  auth: cookie
+  rateLimit:
+    requests: 100
+    window: 60
+
+beforeRender:
+  # Use any Conductor operation
+  - name: fetch-post
+    operation: payload:findById
+    config:
+      collection: posts
+      id: "${params.slug}"
 
 component: |
-  <h1>Welcome, {{user.name}}!</h1>
-  <div class="stats">
-    <p>Total workflows: {{stats.total}}</p>
-    <p>Success rate: {{stats.success_rate}}%</p>
+  <h1>{{fetch-post.title}}</h1>
+  <div class="content">
+    {{fetch-post.content}}
   </div>
 ```
 

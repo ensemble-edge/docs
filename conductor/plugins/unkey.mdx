@@ -1,0 +1,149 @@
+---
+title: 'Unkey Plugin'
+description: 'API key authentication and management with Unkey'
+---
+
+# @conductor/unkey
+
+Unkey authentication plugin for Conductor. Provides API key validation, creation, and management using [Unkey](https://unkey.dev).
+
+## Installation
+
+```bash
+npm install @conductor/unkey
+```
+
+## Configuration
+
+```typescript
+import { createUnkeyPlugin } from '@conductor/unkey'
+
+export default {
+  plugins: [
+    createUnkeyPlugin({
+      rootKey: env.UNKEY_ROOT_KEY,
+      apiId: env.UNKEY_API_ID,
+      cache: true,
+      cacheTtl: 3600
+    })
+  ]
+}
+```
+
+### Environment Variables
+
+**Required:**
+- `UNKEY_ROOT_KEY` - Unkey root key for management operations
+
+**Optional:**
+- `UNKEY_API_ID` - Default Unkey API ID (can be overridden per operation)
+
+## Operations
+
+### unkey:validate
+
+Validate an API key with Unkey.
+
+**Config:**
+- `apiKey` (string, required) - API key to validate
+- `apiId` (string, optional) - Unkey API ID
+
+**Returns:**
+- `valid` (boolean) - Whether the key is valid
+- `keyId` (string | null) - Key ID if valid
+- `ownerId` (string | null) - Owner ID if valid
+- `meta` (object | null) - Key metadata
+- `remaining` (number | null) - Remaining requests
+- `error` (string | null) - Error message if invalid
+
+**Example:**
+```yaml
+operations:
+  - operation: unkey:validate
+    config:
+      apiKey: ${input.apiKey}
+      apiId: ${env.UNKEY_API_ID}
+```
+
+### unkey:create
+
+Create a new API key.
+
+**Config:**
+- `apiId` (string, optional) - Unkey API ID
+- `prefix` (string, optional) - Key prefix
+- `byteLength` (number, optional) - Bytes of randomness (default: 16)
+- `ownerId` (string, optional) - Owner ID
+- `meta` (object, optional) - Key metadata
+- `expires` (number, optional) - Expiration timestamp (ms)
+- `remaining` (number, optional) - Remaining requests
+- `refill` (object, optional) - Refill configuration
+- `ratelimit` (object, optional) - Rate limit configuration
+
+**Returns:**
+- `key` (string) - The generated API key
+- `keyId` (string) - The key ID
+
+**Example:**
+```yaml
+operations:
+  - operation: unkey:create
+    config:
+      prefix: user_
+      ownerId: ${input.userId}
+      meta:
+        email: ${input.email}
+      remaining: 1000
+      ratelimit:
+        type: fast
+        limit: 100
+        duration: 60000
+```
+
+### unkey:revoke
+
+Revoke/delete an API key.
+
+**Config:**
+- `keyId` (string, required) - Key ID to revoke
+
+**Returns:**
+- `success` (boolean) - Whether revocation succeeded
+- `keyId` (string) - The revoked key ID
+
+**Example:**
+```yaml
+operations:
+  - operation: unkey:revoke
+    config:
+      keyId: ${input.keyId}
+```
+
+## Complete Example
+
+```yaml
+name: api-key-management
+flow:
+  # Validate incoming API key
+  - name: validate
+    operation: unkey:validate
+    config:
+      apiKey: ${input.apiKey}
+
+  # Create new API key for user
+  - name: create-key
+    operation: unkey:create
+    config:
+      prefix: user_
+      ownerId: ${state.validate.ownerId}
+      remaining: 10000
+      ratelimit:
+        type: fast
+        limit: 100
+        duration: 60000
+```
+
+## Links
+
+- [Unkey Documentation](https://docs.unkey.dev)
+- [GitHub Repository](https://github.com/ensemble-edge/conductor)

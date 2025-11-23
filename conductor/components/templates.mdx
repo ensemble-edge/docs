@@ -181,10 +181,10 @@ Lightweight variable substitution:
 
 ```html
 <!-- templates/emails/notification.html -->
-<p>Hello ${name},</p>
-<p>You have ${count} new notifications:</p>
+<p>Hello {{name}},</p>
+<p>You have {{count}} new notifications:</p>
 <ul>
-  ${notifications}
+  {{notifications}}
 </ul>
 ```
 
@@ -199,9 +199,9 @@ Email templates with responsive design:
     <mj-section>
       <mj-column>
         <mj-text font-size="20px" color="#626262">
-          Welcome ${name}!
+          Welcome {{name}}!
         </mj-text>
-        <mj-button href="${confirmUrl}">
+        <mj-button href="{{confirmUrl}}">
           Confirm Your Email
         </mj-button>
       </mj-column>
@@ -242,9 +242,9 @@ outputs:
   html: ${render.output}
 ```
 
-### 2. Template Expression Format
+### 2. Partial Template Format
 
-Use `${components.template_name@version}` to embed template references:
+Use `{{> template://path@version}}` to embed template partials:
 
 ```yaml
 ensemble: email-campaign
@@ -255,12 +255,12 @@ agents:
     config:
       template:
         inline: |
-          ${components.email-header@v1}
+          {{> template://components/email-header@v1}}
 
           <p>Hello {{name}},</p>
           <p>{{message}}</p>
 
-          ${components.email-footer@v1}
+          {{> template://components/email-footer@v1}}
       engine: handlebars
       data:
         name: ${input.name}
@@ -311,7 +311,7 @@ outputs:
   html: ${render.output}
 ```
 
-**Option B: Raw HTML (no template engine):**
+**Option B: Raw HTML with interpolation:**
 
 ```yaml
 ensemble: static-page
@@ -320,17 +320,18 @@ agents:
   - name: render
     operation: html
     config:
-      html: |
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Welcome</title>
-        </head>
-        <body>
-          <h1>Hello ${input.name}</h1>
-          <p>Welcome to our site!</p>
-        </body>
-        </html>
+      template:
+        inline: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Welcome</title>
+          </head>
+          <body>
+            <h1>Hello {{input.name}}</h1>
+            <p>Welcome to our site!</p>
+          </body>
+          </html>
 
 inputs:
   name:

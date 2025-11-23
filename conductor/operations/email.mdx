@@ -15,7 +15,7 @@ operations:
       to: ${input.email}
       subject: Welcome to Our Platform!
       html: |
-        <h1>Welcome ${input.name}!</h1>
+        <h1>Welcome {{input.name}}!</h1>
         <p>We're excited to have you on board.</p>
 ```
 
@@ -125,7 +125,7 @@ operations:
       from: alerts@example.com
       to: ${input.email}
       subject: Alert Notification
-      html: <p>Alert: ${input.message}</p>
+      html: <p>Alert: {{input.message}}</p>
 ```
 
 **Supported Services**:
@@ -166,10 +166,10 @@ operations:
             <h1>Order Confirmed!</h1>
           </div>
           <div class="content">
-            <p>Hi ${input.customer_name},</p>
-            <p>Your order #${input.order_id} has been confirmed.</p>
-            <p>Total: $${input.total}</p>
-            <a href="${input.order_url}" class="button">View Order</a>
+            <p>Hi {{input.customer_name}},</p>
+            <p>Your order #{{input.order_id}} has been confirmed.</p>
+            <p>Total: ${{input.total}}</p>
+            <a href="{{input.order_url}}" class="button">View Order</a>
           </div>
         </body>
         </html>
@@ -189,9 +189,9 @@ operations:
       to: ${input.email}
       subject: ${input.notification_type} - Action Required
       html: |
-        <h1>Hello ${input.name}!</h1>
-        <p>${input.message}</p>
-        <p>Generated at ${new Date().toLocaleString()}</p>
+        <h1>Hello {{input.name}}!</h1>
+        <p>{{input.message}}</p>
+        <p>Generated at {{new Date().toLocaleString()}}</p>
 ```
 
 ### Liquid Templates (Advanced)
@@ -478,13 +478,13 @@ operations:
         <!DOCTYPE html>
         <html>
         <body>
-          <h1>Thank you, ${input.customer_name}!</h1>
-          <p>Your order #${input.order_id} has been confirmed.</p>
+          <h1>Thank you, {{input.customer_name}}!</h1>
+          <p>Your order #{{input.order_id}} has been confirmed.</p>
           <h2>Order Details:</h2>
           <ul>
-            ${input.items.map(item => `<li>${item.name} x ${item.quantity} - $${item.price}</li>`).join('')}
+            {{input.items.map(item => `<li>${item.name} x ${item.quantity} - $${item.price}</li>`).join('')}}
           </ul>
-          <p><strong>Total: $${input.total}</strong></p>
+          <p><strong>Total: ${{input.total}}</strong></p>
         </body>
         </html>
 
@@ -532,9 +532,9 @@ operations:
       to: ${input.email}
       subject: Welcome to Our Platform!
       html: |
-        <h1>Welcome ${input.name}!</h1>
+        <h1>Welcome {{input.name}}!</h1>
         <p>Click below to activate your account:</p>
-        <a href="https://example.com/activate?token=${generate-token.output.token}">
+        <a href="https://example.com/activate?token={{generate-token.output.token}}">
           Activate Account
         </a>
         <p>This link expires in 24 hours.</p>
@@ -586,7 +586,7 @@ operations:
       html: |
         <h1>Reset Your Password</h1>
         <p>Click below to reset your password:</p>
-        <a href="https://example.com/reset?token=${generate-token.output.token}">
+        <a href="https://example.com/reset?token={{generate-token.output.token}}">
           Reset Password
         </a>
         <p>This link expires in 1 hour.</p>
@@ -626,24 +626,24 @@ operations:
           </style>
         </head>
         <body>
-          <h1>Invoice #${input.invoice_number}</h1>
-          <p>Bill To: ${input.customer_name}</p>
+          <h1>Invoice #{{input.invoice_number}}</h1>
+          <p>Bill To: {{input.customer_name}}</p>
           <table>
             <thead>
               <tr><th>Item</th><th>Quantity</th><th>Price</th><th>Total</th></tr>
             </thead>
             <tbody>
-              ${input.items.map(item => `
+              {{input.items.map(item => `
                 <tr>
                   <td>${item.name}</td>
                   <td>${item.quantity}</td>
                   <td>$${item.price}</td>
                   <td>$${item.quantity * item.price}</td>
                 </tr>
-              `).join('')}
+              `).join('')}}
             </tbody>
           </table>
-          <p class="total">Total: $${input.total}</p>
+          <p class="total">Total: ${{input.total}}</p>
         </body>
         </html>
       format: A4
@@ -657,10 +657,10 @@ operations:
       to: ${input.customer_email}
       subject: Invoice #${input.invoice_number}
       html: |
-        <h2>Hi ${input.customer_name},</h2>
+        <h2>Hi {{input.customer_name}},</h2>
         <p>Thank you for your business! Your invoice is attached.</p>
-        <p><strong>Invoice #:</strong> ${input.invoice_number}</p>
-        <p><strong>Amount:</strong> $${input.total}</p>
+        <p><strong>Invoice #:</strong> {{input.invoice_number}}</p>
+        <p><strong>Amount:</strong> ${{input.total}}</p>
       attachments:
         - filename: invoice-${input.invoice_number}.pdf
           content: ${generate-pdf.output}
@@ -714,11 +714,11 @@ operations:
       subject: Data Export - ${input.export_type}
       html: |
         <h2>Data Export Report</h2>
-        <p>Your requested ${input.export_type} export is attached.</p>
+        <p>Your requested {{input.export_type}} export is attached.</p>
         <ul>
           <li><strong>Format:</strong> CSV</li>
-          <li><strong>Records:</strong> ${export.output.count}</li>
-          <li><strong>Generated:</strong> ${new Date().toISOString()}</li>
+          <li><strong>Records:</strong> {{export.output.count}}</li>
+          <li><strong>Generated:</strong> {{new Date().toISOString()}}</li>
         </ul>
       attachments:
         - filename: ${encode.output.filename}
@@ -785,7 +785,7 @@ operations:
       from: alerts@example.com
       to: ${input.email}
       subject: Important Alert
-      html: <p>${input.message}</p>
+      html: <p>{{input.message}}</p>
     retry:
       maxAttempts: 3
       backoff: exponential           # 1s, 2s, 4s delays
@@ -803,7 +803,7 @@ operations:
       from: alerts@example.com
       to: ${input.email}
       subject: Alert
-      html: <p>${input.message}</p>
+      html: <p>{{input.message}}</p>
 
   # Fallback to SMTP if primary fails
   - name: send-fallback
@@ -820,7 +820,7 @@ operations:
       from: backup@example.com
       to: ${input.email}
       subject: Alert
-      html: <p>${input.message}</p>
+      html: <p>{{input.message}}</p>
 
 outputs:
   sent: ${send-primary.success || send-fallback.success}

@@ -48,12 +48,13 @@ operations:
   - name: render
     operation: html
     config:
-      html: |
-        <html>
-          <body>
-            <h1>Hello ${input.name}</h1>
-          </body>
-        </html>
+      template:
+        inline: |
+          <html>
+            <body>
+              <h1>Hello {{input.name}}</h1>
+            </body>
+          </html>
 ```
 
 ## Next Steps

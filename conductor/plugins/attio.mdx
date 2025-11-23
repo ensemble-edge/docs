@@ -1,0 +1,220 @@
+---
+title: 'Attio CRM Plugin'
+description: 'Manage records and relationships in Attio CRM'
+---
+
+# @conductor/attio
+
+Attio CRM plugin for Conductor. Provides operations for managing records, lists, and notes in Attio.
+
+## Installation
+
+```bash
+npm install @conductor/attio
+```
+
+## Configuration
+
+```typescript
+import { createAttioPlugin } from '@conductor/attio'
+
+export default {
+  plugins: [
+    createAttioPlugin({
+      accessToken: env.ATTIO_ACCESS_TOKEN,
+      workspaceId: env.ATTIO_WORKSPACE_ID
+    })
+  ]
+}
+```
+
+### Environment Variables
+
+**Required:**
+- `ATTIO_ACCESS_TOKEN` - Attio API access token
+
+**Optional:**
+- `ATTIO_WORKSPACE_ID` - Workspace ID
+
+## Operations
+
+### attio:queryRecords
+
+Query records from an Attio object.
+
+**Config:**
+- `object` (string, required) - Object type (e.g., 'people', 'companies')
+- `filter` (object, optional) - Filter conditions
+- `limit` (number, optional) - Results limit
+- `offset` (number, optional) - Pagination offset
+- `sorts` (array, optional) - Sort configuration
+
+**Returns:**
+- `data` (array) - Records
+- `next_offset` (number) - Pagination offset
+
+**Example:**
+```yaml
+operations:
+  - operation: attio:queryRecords
+    config:
+      object: people
+      filter:
+        status: active
+      limit: 50
+```
+
+### attio:getRecord
+
+Get a single record by ID.
+
+**Config:**
+- `object` (string, required) - Object type
+- `recordId` (string, required) - Record ID
+
+**Example:**
+```yaml
+operations:
+  - operation: attio:getRecord
+    config:
+      object: people
+      recordId: ${input.personId}
+```
+
+### attio:createRecord
+
+Create a new record.
+
+**Config:**
+- `object` (string, required) - Object type
+- `data` (object, required) - Record data
+
+**Example:**
+```yaml
+operations:
+  - operation: attio:createRecord
+    config:
+      object: people
+      data:
+        name: ${input.name}
+        email: ${input.email}
+        company: ${input.companyId}
+```
+
+### attio:updateRecord
+
+Update an existing record.
+
+**Config:**
+- `object` (string, required) - Object type
+- `recordId` (string, required) - Record ID
+- `data` (object, required) - Record data
+
+**Example:**
+```yaml
+operations:
+  - operation: attio:updateRecord
+    config:
+      object: people
+      recordId: ${input.personId}
+      data:
+        status: active
+        last_contacted: ${Date.now()}
+```
+
+### attio:deleteRecord
+
+Delete a record.
+
+**Config:**
+- `object` (string, required) - Object type
+- `recordId` (string, required) - Record ID
+
+**Example:**
+```yaml
+operations:
+  - operation: attio:deleteRecord
+    config:
+      object: people
+      recordId: ${input.personId}
+```
+
+### attio:createNote
+
+Create a note on a record.
+
+**Config:**
+- `parentObject` (string, required) - Parent object type
+- `parentRecordId` (string, required) - Parent record ID
+- `title` (string, optional) - Note title
+- `content` (string, required) - Note content
+- `format` (string, optional) - Format: 'plaintext', 'html', 'markdown'
+
+**Example:**
+```yaml
+operations:
+  - operation: attio:createNote
+    config:
+      parentObject: people
+      parentRecordId: ${input.personId}
+      title: Follow-up call
+      content: Discussed pricing and next steps
+      format: plaintext
+```
+
+### attio:listRecords
+
+Get records from a list.
+
+**Config:**
+- `list` (string, required) - List ID or slug
+- `limit` (number, optional) - Results limit
+- `offset` (number, optional) - Pagination offset
+
+**Example:**
+```yaml
+operations:
+  - operation: attio:listRecords
+    config:
+      list: hot-leads
+      limit: 25
+```
+
+## Complete Example
+
+```yaml
+name: crm-workflow
+flow:
+  # Query active people
+  - name: find-people
+    operation: attio:queryRecords
+    config:
+      object: people
+      filter:
+        status: active
+      limit: 50
+
+  # Create new person
+  - name: create-person
+    operation: attio:createRecord
+    config:
+      object: people
+      data:
+        name: ${input.name}
+        email: ${input.email}
+        company: ${input.companyId}
+
+  # Add note to person
+  - name: add-note
+    operation: attio:createNote
+    config:
+      parentObject: people
+      parentRecordId: ${state.create-person.data.id}
+      title: Initial contact
+      content: First conversation about partnership
+```
+
+## Links
+
+- [Attio API Documentation](https://docs.attio.com)
+- [GitHub Repository](https://github.com/ensemble-edge/conductor)

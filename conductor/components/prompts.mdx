@@ -135,9 +135,9 @@ outputs:
   metrics: ${extract-metrics.output}
 ```
 
-### 2. Template Expression Format
+### 2. Inline Prompt with Variables
 
-Use `${components.prompt_name@version}` to embed prompt references in prompts:
+For simple operations or during development, use inline prompts with template variables:
 
 ```yaml
 ensemble: query-responder
@@ -148,13 +148,15 @@ agents:
     config:
       provider: anthropic
       model: claude-opus-4
-      # Combine component with dynamic content
-      prompt: |
-        ${components.system_prompt@v1}
-
-        User question: ${input.question}
-        Context: ${input.context}
       temperature: 0.7
+      # Inline prompt with variable interpolation
+      prompt: |
+        You are a helpful assistant. Answer the user's question using the provided context.
+
+        User question: {{input.question}}
+        Context: {{input.context}}
+
+        Provide a clear and concise answer.
 
 inputs:
   question:
@@ -166,9 +168,9 @@ outputs:
   response: ${respond.output}
 ```
 
-### 3. Inline Prompt
+### 3. Inline Prompt (No Variables)
 
-For simple operations or during development, use inline prompts directly:
+For static prompts without variables:
 
 ```yaml
 ensemble: content-analyzer
@@ -187,7 +189,7 @@ agents:
         - Sentiment (positive/negative/neutral)
         - Word count
 
-        Text: ${input.content}
+        Text: {{input.content}}
 
 inputs:
   content:
@@ -356,7 +358,7 @@ Examples:
 - "Terrible experience" → negative
 - "It's okay" → neutral
 
-Text to analyze: ${input.text}
+Text to analyze: {{input.text}}
 ```
 
 ### 6. Organize by Purpose
@@ -450,7 +452,7 @@ Extract all contact information from the provided text. Include:
 
 Return as structured JSON with an array of contacts.
 
-Text: ${input.text}
+Text: {{input.text}}
 ```
 
 ### Content Summarization
@@ -460,7 +462,7 @@ Text: ${input.text}
 Summarize the provided content in 2-3 sentences, highlighting the key points.
 Focus on the most important information for someone unfamiliar with the topic.
 
-Content: ${input.content}
+Content: {{input.content}}
 ```
 
 ## Versioning Strategy

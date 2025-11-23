@@ -1,0 +1,303 @@
+---
+title: 'Plugin System Overview'
+description: 'Extend Conductor with custom operations, integrations, and functionality'
+---
+
+# Plugin System Overview
+
+Conductor's plugin system enables you to extend the framework with custom operations, third-party integrations, and specialized functionality without modifying the core codebase.
+
+## What Are Plugins?
+
+Plugins are packages that extend Conductor's capabilities by:
+- **Adding custom operations** (e.g., `plasmic:render`, `unkey:validate`)
+- **Integrating external services** (Resend, Twilio, Plasmic, Payload CMS)
+- **Providing specialized functionality** (authentication, data fetching, rendering)
+- **Working universally** across all contexts (ensembles, pages, forms, APIs, webhooks)
+
+## Plugin Ecosystem
+
+### Core Package
+**`@ensemble-edge/conductor`** - The core framework (native functionality)
+- All AI providers (Anthropic, OpenAI, Cloudflare AI)
+- All agent patterns (Think, Email, SMS, PDF, HTML, Data, API)
+- Core authentication (Bearer, API Key, Cookie)
+- Built-in operations (`fetch-data`, `transform-data`, `custom-code`)
+
+### Plugin Packages
+**`@conductor/*`** - Optional plugin packages for specific integrations
+
+**Planned Plugins:**
+- `@conductor/unkey` - Unkey authentication and API key management
+- `@conductor/resend` - Resend email service
+- `@conductor/twilio` - Twilio SMS service
+- `@conductor/plasmic` - Plasmic visual builder integration
+- `@conductor/payload` - Payload CMS integration
+- `@conductor/stripe` - Stripe payments
+
+## Two Plugin Patterns
+
+Conductor supports two plugin patterns to balance simplicity and power:
+
+### 1. Functional Plugins (Simple)
+
+For lightweight plugins that only need to transform configuration:
+
+```typescript
+import { buildPlugin } from '@ensemble-edge/conductor'
+
+export const simplePlugin = buildPlugin((options) => (config) => {
+  // Transform config, register operations, etc.
+  return {
+    ...config,
+    operations: [
+      ...config.operations,
+      {
+        name: 'simple:operation',
+        handler: simpleHandler,
+        metadata: {
+          name: 'simple:operation',
+          description: 'A simple operation',
+          contexts: ['all'],
+        }
+      }
+    ]
+  }
+})
+```
+
+**Use Cases:**
+- Adding operations to the registry
+- Modifying configuration
+- Simple hooks without async setup
+- Lightweight integrations
+
+### 2. Lifecycle Plugins (Complex)
+
+For plugins that need async initialization, external connections, or complex setup:
+
+```typescript
+import type { LifecyclePlugin, PluginContext } from '@ensemble-edge/conductor'
+
+export const complexPlugin: LifecyclePlugin = {
+  name: 'complex',
+  version: '1.0.0',
+  description: 'A complex plugin with lifecycle',
+
+  async initialize(context: PluginContext): Promise<void> {
+    // Async initialization
+    await connectToExternalService()
+
+    // Register operations
+    const operations = this.operations()
+    for (const op of operations) {
+      context.operationRegistry.register(op.name, op.handler, op.metadata)
+    }
+
+    context.logger.info('Complex plugin initialized')
+  },
+
+  operations() {
+    return [
+      {
+        name: 'complex:operation',
+        handler: complexHandler,
+        metadata: {
+          name: 'complex:operation',
+          description: 'A complex operation',
+          contexts: ['all'],
+        }
+      }
+    ]
+  },
+
+  async shutdown(): Promise<void> {
+    // Cleanup resources
+    await disconnectFromExternalService()
+  }
+}
+```
+
+**Use Cases:**
+- Database connections
+- External API initialization
+- Complex state management
+- Plugins with cleanup requirements
+
+## Global Operation Registry
+
+All plugins register their operations with the global `OperationRegistry`:
+
+```typescript
+import { getOperationRegistry } from '@ensemble-edge/conductor'
+
+const registry = getOperationRegistry()
+
+// Register a custom operation
+registry.register('custom:op', handler, {
+  name: 'custom:op',
+  description: 'Custom operation',
+  version: '1.0.0',
+  author: '@conductor/custom',
+  contexts: ['page', 'form'],
+  tags: ['custom', 'example']
+})
+
+// Operations work everywhere
+await registry.execute({
+  operation: 'custom:op',
+  config: { foo: 'bar' }
+}, context)
+```
+
+### Universal Operations
+
+Once registered, operations work in **all contexts**:
+
+```yaml
+# In ensembles
+agents:
+  - name: custom
+    operation: custom:op
+    config:
+      foo: bar
+
+# In pages (via beforeRender)
+name: my-page
+operation: page
+beforeRender:
+  - name: custom-data
+    operation: custom:op
+    config:
+      foo: bar
+
+# In forms, APIs, webhooks - everywhere!
+```
+
+## Plugin Context
+
+Plugins receive a `PluginContext` during initialization:
+
+```typescript
+interface PluginContext {
+  operationRegistry: OperationRegistry  // Register operations
+  env: ConductorEnv                     // Environment bindings
+  ctx: ExecutionContext                 // Cloudflare Workers context
+  config: Record<string, any>           // Plugin configuration
+  logger: PluginLogger                  // Plugin-specific logger
+}
+```
+
+## Operation Discovery
+
+Operations can be discovered and filtered:
+
+```typescript
+// List all operations
+const all = registry.list()
+
+// List operations by context
+const pageOps = registry.listByContext('page')
+
+// List operations by tag
+const uiOps = registry.listByTag('ui')
+
+// Get operation metadata
+const meta = registry.getMetadata('plasmic:render')
+console.log(meta.description, meta.version, meta.contexts)
+```
+
+## Example: Plasmic Plugin
+
+Here's how a Plasmic plugin might work:
+
+```typescript
+// @conductor/plasmic package
+import type { LifecyclePlugin } from '@ensemble-edge/conductor'
+
+export const plasmicPlugin: LifecyclePlugin = {
+  name: 'plasmic',
+  version: '1.0.0',
+  description: 'Render Plasmic components',
+
+  async initialize(context) {
+    // Initialize Plasmic connection
+    await initializePlasmicClient(context.config.apiKey)
+
+    // Register operations
+    context.operationRegistry.register('plasmic:render', {
+      async execute(operation, opContext) {
+        const { componentId, props } = operation.config
+        return await renderPlasmicComponent(componentId, props)
+      }
+    }, {
+      name: 'plasmic:render',
+      description: 'Render Plasmic component',
+      version: '1.0.0',
+      author: '@conductor/plasmic',
+      contexts: ['page', 'form'],
+      tags: ['ui', 'visual', 'render']
+    })
+
+    context.logger.info('Plasmic plugin initialized')
+  }
+}
+```
+
+**Usage in Pages:**
+
+```yaml
+# pages/home.yaml
+name: home
+operation: page
+
+beforeRender:
+  - name: render-hero
+    operation: plasmic:render
+    config:
+      componentId: hero-section
+      props:
+        title: ${input.title}
+        subtitle: ${input.subtitle}
+
+component: |
+  <div>{{ render-hero.output }}</div>
+```
+
+## Creating Your Own Plugin
+
+See the following guides:
+- [Creating a Functional Plugin](/conductor/plugins/functional-plugins)
+- [Creating a Lifecycle Plugin](/conductor/plugins/lifecycle-plugins)
+- [Plugin Best Practices](/conductor/plugins/best-practices)
+- [Publishing Plugins](/conductor/plugins/publishing)
+
+## Official Plugins
+
+Browse the official plugin ecosystem:
+- [Unkey Plugin](/conductor/plugins/unkey) - API key authentication
+- [Resend Plugin](/conductor/plugins/resend) - Email sending
+- [Twilio Plugin](/conductor/plugins/twilio) - SMS messaging
+- [Plasmic Plugin](/conductor/plugins/plasmic) - Visual components
+- [Payload Plugin](/conductor/plugins/payload) - CMS integration
+
+## Benefits
+
+**Universal Operations**: Register once, use everywhere (ensembles, pages, forms, APIs, webhooks)
+
+**Type Safe**: Full TypeScript support with type guards and helpers
+
+**Discoverable**: Operations include metadata for documentation and discovery
+
+**Two Patterns**: Simple functional plugins or complex lifecycle plugins
+
+**Edge Native**: Plugins work on Cloudflare Workers edge network
+
+**Independent Versioning**: Each plugin has its own version and release cycle
+
+## Next Steps
+
+- [Quick Start: Creating Your First Plugin](/conductor/plugins/quick-start)
+- [Understanding the Operation Registry](/conductor/plugins/operation-registry)
+- [Plugin Development Guide](/conductor/plugins/development)
+- [Example Plugins](/conductor/plugins/examples)

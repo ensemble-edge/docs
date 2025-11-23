@@ -1,0 +1,296 @@
+---
+title: 'Cloudflare Plugin'
+description: 'Manage Cloudflare services (R2, KV, D1, DNS, and more)'
+---
+
+# @conductor/cloudflare
+
+Cloudflare API plugin for Conductor. Provides operations for R2 Storage, KV, D1 Database, DNS, and Cloudflare API.
+
+## Installation
+
+```bash
+npm install @conductor/cloudflare
+```
+
+## Configuration
+
+```typescript
+import { createCloudflarePlugin } from '@conductor/cloudflare'
+
+export default {
+  plugins: [
+    createCloudflarePlugin({
+      apiToken: env.CLOUDFLARE_API_TOKEN,
+      accountId: env.CLOUDFLARE_ACCOUNT_ID,
+      zoneId: env.CLOUDFLARE_ZONE_ID
+    })
+  ]
+}
+```
+
+### Environment Variables
+
+**Optional:**
+- `CLOUDFLARE_API_TOKEN` - Cloudflare API token (required for API operations)
+- `CLOUDFLARE_ACCOUNT_ID` - Cloudflare Account ID
+- `CLOUDFLARE_ZONE_ID` - Cloudflare Zone ID (for DNS operations)
+
+## R2 Storage Operations
+
+### cloudflare:r2:put
+
+Upload object to Cloudflare R2.
+
+**Config:**
+- `bucket` (string, required) - R2 bucket binding name
+- `key` (string, required) - Object key
+- `value` (string | ReadableStream | ArrayBuffer, required) - Object value
+- `contentType` (string, optional) - Content type
+- `metadata` (object, optional) - Custom metadata
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:r2:put
+    config:
+      bucket: MY_BUCKET
+      key: uploads/file.txt
+      value: ${input.content}
+      contentType: text/plain
+```
+
+### cloudflare:r2:get
+
+Get object from Cloudflare R2.
+
+**Config:**
+- `bucket` (string, required) - R2 bucket binding name
+- `key` (string, required) - Object key
+
+**Returns:**
+- `found` (boolean)
+- `key` (string)
+- `size` (number)
+- `body` (string) - Object content
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:r2:get
+    config:
+      bucket: MY_BUCKET
+      key: uploads/file.txt
+```
+
+### cloudflare:r2:delete
+
+Delete object from R2.
+
+**Config:**
+- `bucket` (string, required) - R2 bucket binding name
+- `key` (string, required) - Object key
+
+### cloudflare:r2:list
+
+List objects in R2 bucket.
+
+**Config:**
+- `bucket` (string, required) - R2 bucket binding name
+- `prefix` (string, optional) - Prefix filter
+- `limit` (number, optional) - Results limit
+- `cursor` (string, optional) - Pagination cursor
+
+## KV Storage Operations
+
+### cloudflare:kv:put
+
+Write key-value pair to Cloudflare KV.
+
+**Config:**
+- `namespace` (string, required) - KV namespace binding name
+- `key` (string, required) - Key
+- `value` (string, required) - Value
+- `expirationTtl` (number, optional) - Expiration TTL in seconds
+- `metadata` (object, optional) - Metadata
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:kv:put
+    config:
+      namespace: MY_KV
+      key: user:${input.userId}
+      value: ${JSON.stringify(input.userData)}
+      expirationTtl: 3600
+```
+
+### cloudflare:kv:get
+
+Read key-value pair from KV.
+
+**Config:**
+- `namespace` (string, required) - KV namespace binding name
+- `key` (string, required) - Key
+- `type` (string, optional) - Return type: 'text', 'json', 'arrayBuffer', 'stream'
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:kv:get
+    config:
+      namespace: MY_KV
+      key: user:${input.userId}
+      type: json
+```
+
+### cloudflare:kv:delete
+
+Delete key-value pair from KV.
+
+**Config:**
+- `namespace` (string, required) - KV namespace binding name
+- `key` (string, required) - Key
+
+### cloudflare:kv:list
+
+List keys in KV namespace.
+
+**Config:**
+- `namespace` (string, required) - KV namespace binding name
+- `prefix` (string, optional) - Prefix filter
+- `limit` (number, optional) - Results limit
+- `cursor` (string, optional) - Pagination cursor
+
+## D1 Database Operations
+
+### cloudflare:d1:query
+
+Execute SQL query on Cloudflare D1.
+
+**Config:**
+- `database` (string, required) - D1 database binding name
+- `query` (string, required) - SQL query
+- `params` (array, optional) - Query parameters
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:d1:query
+    config:
+      database: MY_DB
+      query: SELECT * FROM users WHERE id = ?
+      params: [${input.userId}]
+```
+
+### cloudflare:d1:batch
+
+Execute batch SQL queries.
+
+**Config:**
+- `database` (string, required) - D1 database binding name
+- `statements` (array, required) - Array of { query, params }
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:d1:batch
+    config:
+      database: MY_DB
+      statements:
+        - query: INSERT INTO logs (event, user_id) VALUES (?, ?)
+          params: [login, ${input.userId}]
+        - query: UPDATE users SET last_login = ? WHERE id = ?
+          params: [${Date.now()}, ${input.userId}]
+```
+
+## Cloudflare API Operations
+
+### cloudflare:api:request
+
+Make generic Cloudflare API request.
+
+**Config:**
+- `endpoint` (string, required) - API endpoint path
+- `method` (string, required) - HTTP method: 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'
+- `body` (object, optional) - Request body
+- `params` (object, optional) - Query parameters
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:api:request
+    config:
+      endpoint: /zones/${env.CLOUDFLARE_ZONE_ID}/purge_cache
+      method: POST
+      body:
+        purge_everything: true
+```
+
+### cloudflare:dns:create
+
+Create DNS record in Cloudflare.
+
+**Config:**
+- `type` (string, required) - Record type: 'A', 'AAAA', 'CNAME', 'TXT', 'MX', 'SRV'
+- `name` (string, required) - Record name
+- `content` (string, required) - Record content
+- `ttl` (number, optional) - TTL (1 = automatic)
+- `proxied` (boolean, optional) - Proxied through Cloudflare
+- `priority` (number, optional) - Priority (for MX/SRV)
+- `comment` (string, optional) - Comment
+
+**Example:**
+```yaml
+operations:
+  - operation: cloudflare:dns:create
+    config:
+      type: A
+      name: api.example.com
+      content: 192.0.2.1
+      proxied: true
+      comment: API server
+```
+
+## Complete Example
+
+```yaml
+name: file-storage-workflow
+flow:
+  # Upload file to R2
+  - name: upload-file
+    operation: cloudflare:r2:put
+    config:
+      bucket: MY_BUCKET
+      key: uploads/${input.filename}
+      value: ${input.fileContent}
+      contentType: ${input.contentType}
+
+  # Store metadata in KV
+  - name: store-metadata
+    operation: cloudflare:kv:put
+    config:
+      namespace: MY_KV
+      key: file:${input.filename}
+      value: ${JSON.stringify({
+        size: input.fileSize,
+        uploadedAt: Date.now(),
+        userId: input.userId
+      })}
+
+  # Log to D1
+  - name: log-upload
+    operation: cloudflare:d1:query
+    config:
+      database: MY_DB
+      query: INSERT INTO uploads (filename, user_id, size) VALUES (?, ?, ?)
+      params: [${input.filename}, ${input.userId}, ${input.fileSize}]
+```
+
+## Links
+
+- [Cloudflare Developers Documentation](https://developers.cloudflare.com)
+- [R2 Documentation](https://developers.cloudflare.com/r2)
+- [KV Documentation](https://developers.cloudflare.com/kv)
+- [D1 Documentation](https://developers.cloudflare.com/d1)
+- [GitHub Repository](https://github.com/ensemble-edge/conductor)

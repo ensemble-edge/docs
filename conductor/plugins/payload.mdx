@@ -1,0 +1,196 @@
+---
+title: 'Payload CMS Plugin'
+description: 'Query and manage Payload CMS collections'
+---
+
+# @conductor/payload
+
+Payload CMS plugin for Conductor. Provides operations for querying and mutating Payload collections.
+
+## Installation
+
+```bash
+npm install @conductor/payload
+```
+
+## Configuration
+
+```typescript
+import { createPayloadPlugin } from '@conductor/payload'
+
+export default {
+  plugins: [
+    createPayloadPlugin({
+      apiUrl: env.PAYLOAD_API_URL,
+      apiKey: env.PAYLOAD_API_KEY,
+      cache: true
+    })
+  ]
+}
+```
+
+### Environment Variables
+
+**Required:**
+- `PAYLOAD_API_URL` - Payload CMS API URL
+
+**Optional:**
+- `PAYLOAD_API_KEY` - Payload API Key for authentication
+
+## Operations
+
+### payload:find
+
+Query documents from a Payload collection.
+
+**Config:**
+- `collection` (string, required) - Collection slug
+- `where` (object, optional) - Query conditions
+- `depth` (number, optional) - Population depth
+- `limit` (number, optional) - Results limit
+- `page` (number, optional) - Page number
+- `sort` (string, optional) - Sort field
+- `select` (array, optional) - Fields to select
+
+**Returns:**
+- `docs` (array) - Documents
+- `totalDocs` (number) - Total document count
+- `limit` (number)
+- `page` (number)
+- `totalPages` (number)
+- `hasNextPage` (boolean)
+- `hasPrevPage` (boolean)
+
+**Example:**
+```yaml
+operations:
+  - operation: payload:find
+    config:
+      collection: posts
+      where:
+        status: published
+      limit: 10
+      sort: -createdAt
+```
+
+### payload:findById
+
+Get a single document by ID.
+
+**Config:**
+- `collection` (string, required) - Collection slug
+- `id` (string, required) - Document ID
+- `depth` (number, optional) - Population depth
+
+**Example:**
+```yaml
+operations:
+  - operation: payload:findById
+    config:
+      collection: posts
+      id: ${input.postId}
+      depth: 2
+```
+
+### payload:create
+
+Create a new document.
+
+**Config:**
+- `collection` (string, required) - Collection slug
+- `data` (object, required) - Document data
+- `depth` (number, optional) - Population depth
+- `draft` (boolean, optional) - Create as draft
+
+**Example:**
+```yaml
+operations:
+  - operation: payload:create
+    config:
+      collection: posts
+      data:
+        title: ${input.title}
+        content: ${input.content}
+        author: ${input.authorId}
+```
+
+### payload:update
+
+Update an existing document.
+
+**Config:**
+- `collection` (string, required) - Collection slug
+- `id` (string, required) - Document ID
+- `data` (object, required) - Document data
+- `depth` (number, optional) - Population depth
+- `draft` (boolean, optional) - Save as draft
+
+**Example:**
+```yaml
+operations:
+  - operation: payload:update
+    config:
+      collection: posts
+      id: ${input.postId}
+      data:
+        title: ${input.title}
+        status: published
+```
+
+### payload:delete
+
+Delete a document.
+
+**Config:**
+- `collection` (string, required) - Collection slug
+- `id` (string, required) - Document ID
+
+**Example:**
+```yaml
+operations:
+  - operation: payload:delete
+    config:
+      collection: posts
+      id: ${input.postId}
+```
+
+## Complete Example
+
+```yaml
+name: blog-management
+flow:
+  # Find published posts
+  - name: find-posts
+    operation: payload:find
+    config:
+      collection: posts
+      where:
+        status: published
+      limit: 20
+      sort: -publishedAt
+
+  # Create new post
+  - name: create-post
+    operation: payload:create
+    config:
+      collection: posts
+      data:
+        title: ${input.title}
+        content: ${input.content}
+        author: ${input.userId}
+        status: draft
+
+  # Update post
+  - name: update-post
+    operation: payload:update
+    config:
+      collection: posts
+      id: ${state.create-post.doc.id}
+      data:
+        status: published
+```
+
+## Links
+
+- [Payload CMS Documentation](https://payloadcms.com/docs)
+- [GitHub Repository](https://github.com/ensemble-edge/conductor)

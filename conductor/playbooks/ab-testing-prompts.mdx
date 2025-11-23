@@ -472,7 +472,9 @@ ORDER BY avg_quality_score DESC
 Check if results are significant:
 
 ```typescript
-import { tTest } from '@ensemble-edge/conductor/utils';
+// Use your preferred statistical testing library
+// Example with a hypothetical stats library:
+import { tTest } from 'simple-statistics'; // or any stats library
 
 // Get results for both variants
 const variantA = await getResults('v1.0.0');
