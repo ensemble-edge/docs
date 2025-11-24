@@ -33,10 +33,12 @@ agents:
 
   # Track metrics
   - name: log-metrics
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO model_comparison
         (user_id, model, cost_cents, latency_ms, quality_score, timestamp)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -95,10 +97,12 @@ agents:
       prompt: ${component.analysis-prompt@v2.0.0}
 
   - name: log-variant
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO prompt_test (user_id, version, timestamp)
         VALUES (?, ?, ?)
       params:
@@ -157,10 +161,12 @@ agents:
       data: ${input.data}
 
   - name: track-performance
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO agent_performance
         (user_id, version, success, duration_ms, timestamp)
         VALUES (?, ?, ?, ?, ?)
@@ -206,10 +212,12 @@ agents:
 
   # Track which workflow executed
   - name: log-workflow
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO workflow_comparison
         (user_id, workflow, steps, duration_ms, timestamp)
         VALUES (?, ?, ?, ?, ?)
@@ -271,10 +279,12 @@ agents:
       prompt: ${component.prompt@v2.0.0}
 
   - name: log-multivariate
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO multivariate_test
         (user_id, model, prompt, timestamp)
         VALUES (?, ?, ?, ?)

@@ -256,11 +256,12 @@ output:
 agents:
   # Database storage
   - name: store
-    operation: storage
+    operation: data
     config:
-      type: d1
-      database: ANALYTICS
-      query: |
+      backend: d1
+      binding: ANALYTICS
+      operation: execute
+      sql: |
         INSERT INTO companies (domain, analysis, created_at)
         VALUES (?, ?, ?)
       params:

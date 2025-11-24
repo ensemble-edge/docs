@@ -87,10 +87,12 @@ agents:
 
   - name: store
     condition: ${validate.output.valid}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO users (email, name) VALUES (?, ?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO users (email, name) VALUES (?, ?)
       params:
         - ${input.user_data.email}
         - ${input.user_data.name}
@@ -144,10 +146,12 @@ agents:
 
   - name: publish
     condition: ${approval.output.approved}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO published (content) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO published (content) VALUES (?)
       params: [${generate.output}]
 
 output:

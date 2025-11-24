@@ -93,16 +93,18 @@ agents:
   - name: get-cache
     operation: storage
     config:
-      type: kv
+      backend: kv
       action: get
+      binding: CACHE
       key: result-${input.query}
 
   # Write to KV
   - name: set-cache
     operation: storage
     config:
-      type: kv
+      backend: kv
       action: put
+      binding: CACHE
       key: result-${input.query}
       value: ${generate.output}
       expirationTtl: 3600  # 1 hour
@@ -228,10 +230,12 @@ wrangler d1 migrations apply production-db --remote
 ```yaml
 agents:
   - name: get-user
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT id, email, name FROM users
         WHERE email = ?
       params:
@@ -242,10 +246,12 @@ agents:
 ```yaml
 agents:
   - name: create-user
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO users (id, email, name, created_at)
         VALUES (?, ?, ?, ?)
       params:
@@ -259,10 +265,12 @@ agents:
 ```yaml
 agents:
   - name: update-user
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         UPDATE users SET name = ?
         WHERE id = ?
       params:
@@ -274,13 +282,15 @@ agents:
 ```yaml
 agents:
   - name: batch-insert
-    operation: storage
+    operation: data
     config:
-      type: d1
-      batch:
-        - query: INSERT INTO users (id, email) VALUES (?, ?)
+      backend: d1
+      binding: DB
+      operation: batch
+      statements:
+        - sql: INSERT INTO users (id, email) VALUES (?, ?)
           params: ['1', 'user1@example.com']
-        - query: INSERT INTO users (id, email) VALUES (?, ?)
+        - sql: INSERT INTO users (id, email) VALUES (?, ?)
           params: ['2', 'user2@example.com']
 ```
 
@@ -335,11 +345,13 @@ agents:
   - name: upload-file
     operation: storage
     config:
-      type: r2
+      backend: r2
       action: put
+      binding: STORAGE
       key: documents/${input.filename}
       value: ${input.content}
-      contentType: application/pdf
+      httpMetadata:
+        contentType: application/pdf
 ```
 
 **Download**:
@@ -348,8 +360,9 @@ agents:
   - name: download-file
     operation: storage
     config:
-      type: r2
+      backend: r2
       action: get
+      binding: STORAGE
       key: documents/${input.filename}
 ```
 
@@ -359,8 +372,9 @@ agents:
   - name: delete-file
     operation: storage
     config:
-      type: r2
+      backend: r2
       action: delete
+      binding: STORAGE
       key: documents/${input.filename}
 ```
 
@@ -370,8 +384,9 @@ agents:
   - name: list-files
     operation: storage
     config:
-      type: r2
+      backend: r2
       action: list
+      binding: STORAGE
       prefix: documents/
       limit: 1000
 ```
@@ -448,10 +463,11 @@ agents:
 
   # Insert into Vectorize
   - name: insert-vector
-    operation: storage
+    operation: data
     config:
-      type: vectorize
-      action: insert
+      backend: vectorize
+      binding: VECTORIZE
+      operation: insert
       id: ${input.document_id}
       vector: ${embed.output.data[0]}
       metadata:
@@ -472,10 +488,11 @@ agents:
 
   # Search similar vectors
   - name: search
-    operation: storage
+    operation: data
     config:
-      type: vectorize
-      action: query
+      backend: vectorize
+      binding: VECTORIZE
+      operation: query
       vector: ${embed-query.output.data[0]}
       topK: 5
       filter:
@@ -486,10 +503,11 @@ agents:
 ```yaml
 agents:
   - name: delete-vector
-    operation: storage
+    operation: data
     config:
-      type: vectorize
-      action: delete
+      backend: vectorize
+      binding: VECTORIZE
+      operation: delete
       ids:
         - ${input.document_id}
 ```
@@ -589,11 +607,10 @@ dead_letter_queue = "conductor-tasks-dlq"
 ```yaml
 agents:
   - name: queue-task
-    operation: storage
+    operation: queue
     config:
-      type: queue
       action: send
-      queue: TASK_QUEUE
+      binding: TASK_QUEUE
       body:
         task_type: process-document
         document_id: ${input.document_id}

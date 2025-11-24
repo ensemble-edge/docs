@@ -32,10 +32,12 @@ agents:
   # Load
   - name: load
     condition: ${validate.output.valid}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO target_table ...
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO target_table ...
       params: ${validate.output.data}
 ```
 
@@ -47,10 +49,12 @@ ensemble: db-to-db-etl
 agents:
   # Extract from source
   - name: extract
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT *
         FROM source_table
         WHERE updated_at > ?
@@ -92,10 +96,12 @@ agents:
   # Handle validation errors
   - name: log-errors
     condition: ${!validate.output.valid}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO etl_errors (batch_id, errors, timestamp) VALUES (?, ?, ?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO etl_errors (batch_id, errors, timestamp) VALUES (?, ?, ?)
       params:
         - ${input.batch_id}
         - ${JSON.stringify(validate.output.errors)}
@@ -104,10 +110,12 @@ agents:
   # Load valid records
   - name: load
     condition: ${validate.output.valid}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT OR REPLACE INTO target_table (id, name, email, created, metadata)
         VALUES (?, ?, ?, ?, ?)
       params: ${validate.output.data.map(r => [
@@ -222,10 +230,12 @@ agents:
 
   # Log pipeline execution
   - name: log
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO etl_log (
           pipeline, users_loaded, orders_loaded, products_loaded, timestamp
         ) VALUES (?, ?, ?, ?, ?)
@@ -319,10 +329,12 @@ agents:
   # Load valid records
   - name: load-valid
     condition: ${split-records.output.valid.length > 0}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO users (name, email, age) VALUES (?, ?, ?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO users (name, email, age) VALUES (?, ?, ?)
       params: ${split-records.output.valid.map(r => [r.name, r.email, r.age])}
 
   # Store invalid records
@@ -374,10 +386,12 @@ agents:
 
   # Extract new/updated records
   - name: extract
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT *
         FROM source_table
         WHERE id > ? OR updated_at > ?
@@ -405,10 +419,12 @@ agents:
   # Load
   - name: load
     condition: ${transform.executed}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT OR REPLACE INTO target_table ...
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT OR REPLACE INTO target_table ...
       params: ${transform.output}
 
   # Update checkpoint
@@ -466,10 +482,12 @@ agents:
 
   # Write to multiple destinations (parallel)
   - name: write-analytics-db
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO events ...
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO events ...
       params: ${transform.output}
 
   - name: write-data-lake
@@ -508,10 +526,12 @@ agents:
 
   - name: log-error
     condition: ${transform.failed}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO etl_errors ...
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO etl_errors ...
 ```
 
 **3. Idempotency**

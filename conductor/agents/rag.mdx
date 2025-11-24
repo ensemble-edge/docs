@@ -179,10 +179,12 @@ agents:
 
   # Keyword search (D1)
   - name: keyword-search
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT * FROM documents
         WHERE content LIKE ?
         LIMIT 10

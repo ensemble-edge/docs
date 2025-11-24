@@ -156,10 +156,12 @@ agents:
 ```yaml
 agents:
   - name: query
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: SELECT * FROM users WHERE active = 1
+      backend: d1
+      binding: DB
+      operation: query
+      sql: SELECT * FROM users WHERE active = 1
 
   - name: transform
     agent: transformer
@@ -398,10 +400,12 @@ ensemble: etl
 
 agents:
   - name: extract
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: SELECT * FROM raw_data WHERE processed = 0
+      backend: d1
+      binding: DB
+      operation: query
+      sql: SELECT * FROM raw_data WHERE processed = 0
 
   - name: transform
     agent: transformer
@@ -418,10 +422,12 @@ agents:
         categorize: (type) => type === 'A' ? 'revenue' : 'expense'
 
   - name: load
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO processed_data (id, date, amount, category) VALUES (?, ?, ?, ?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO processed_data (id, date, amount, category) VALUES (?, ?, ?, ?)
       params: ${transform.output}
 ```
 

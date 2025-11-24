@@ -122,7 +122,11 @@ Operations are the execution primitives. Think of them as the "verb" of what an 
   </Card>
 
   <Card title="storage" icon="database">
-    Database operations - KV, D1, R2, Vectorize
+    Storage operations - KV and R2
+  </Card>
+
+  <Card title="data" icon="database">
+    Database operations - D1, Vectorize, Hyperdrive
   </Card>
 
   <Card title="http" icon="globe">
@@ -227,10 +231,12 @@ agents:
     condition: ${analyze.success}
 
   - name: store
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: "INSERT INTO analyses (domain, result) VALUES (?, ?)"
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: "INSERT INTO analyses (domain, result) VALUES (?, ?)"
       params:
         - ${input.domain}
         - ${analyze.output}

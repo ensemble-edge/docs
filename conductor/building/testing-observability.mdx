@@ -301,10 +301,12 @@ agents:
 
   # Log metrics
   - name: log-metrics
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO metrics
         (ensemble, agent, duration_ms, success, timestamp)
         VALUES (?, ?, ?, ?, ?)
@@ -410,10 +412,12 @@ agents:
   # Log errors
   - name: log-error
     condition: ${process.failed}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO errors
         (ensemble, agent, error_message, input_data, timestamp)
         VALUES (?, ?, ?, ?, ?)

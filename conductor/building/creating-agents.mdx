@@ -275,10 +275,12 @@ operations:
 
   - name: log-error
     condition: ${risky-operation.failed}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO error_log (agent, operation, error, timestamp)
         VALUES (?, ?, ?, ?)
       params:

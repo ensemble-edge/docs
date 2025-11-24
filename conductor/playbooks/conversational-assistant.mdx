@@ -241,10 +241,12 @@ agents:
 
   # Load conversation history
   - name: load-history
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT role, content, timestamp
         FROM conversation_history
         WHERE user_id = ?
@@ -276,10 +278,12 @@ agents:
 
   # Save interaction
   - name: save-interaction
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO conversation_history (user_id, role, content, timestamp)
         VALUES (?, ?, ?, ?), (?, ?, ?, ?)
       params:

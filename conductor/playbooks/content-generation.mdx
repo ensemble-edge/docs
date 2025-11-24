@@ -549,10 +549,12 @@ config:
 **5. Version Content**
 ```yaml
 - name: store
-  operation: storage
+  operation: data
   config:
-    type: d1
-    query: INSERT INTO content_versions (content, version, timestamp) VALUES (?, ?, ?)
+    backend: d1
+    binding: DB
+    operation: execute
+    sql: INSERT INTO content_versions (content, version, timestamp) VALUES (?, ?, ?)
 ```
 
 ## Next Steps

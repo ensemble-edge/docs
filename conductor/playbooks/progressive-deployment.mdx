@@ -106,10 +106,12 @@ agents:
 
   # Track which version was used
   - name: log-version
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO deployment_logs (user_id, version, timestamp)
         VALUES (?, ?, ?)
       params:
@@ -530,10 +532,12 @@ agents:
           body: ${input.shippingAddress}
 
       - name: check-inventory
-        operation: storage
+        operation: data
         config:
-          type: d1
-          query: |
+          backend: d1
+          binding: DB
+          operation: query
+          sql: |
             SELECT item_id, quantity
             FROM inventory
             WHERE item_id IN (${input.cart.items.map(i => i.id).join(',')})
@@ -590,10 +594,12 @@ agents:
           message: Your order ${process-payment.output.id} is confirmed!
 
       - name: update-analytics
-        operation: storage
+        operation: data
         config:
-          type: d1
-          query: |
+          backend: d1
+          binding: DB
+          operation: execute
+          sql: |
             INSERT INTO orders (id, user_id, amount, created_at)
             VALUES (?, ?, ?, ?)
           params:
@@ -793,10 +799,12 @@ agents:
 
   # Log metrics
   - name: log-metrics
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO metrics (
           user_id, version, latency, success, timestamp
         ) VALUES (?, ?, ?, ?, ?)

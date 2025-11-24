@@ -50,10 +50,12 @@ agents:
 
   # Log results for analysis
   - name: log-results
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO ab_test_results
         (user_id, variant, execution_time, quality_score, timestamp)
         VALUES (?, ?, ?, ?, ?)
@@ -199,10 +201,12 @@ agents:
       temperature: ${assign-temperature.output.temperature}
 
   - name: log-temperature-test
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO temperature_tests
         (temperature, quality_score, creativity_score, coherence_score)
         VALUES (?, ?, ?, ?)

@@ -79,10 +79,12 @@ agents:
 
   # Log webhook receipt
   - name: log-webhook
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO webhook_logs (
           event_type, valid, processed, timestamp
         ) VALUES (?, ?, ?, ?)
@@ -122,10 +124,12 @@ flow:
 agents:
   # Query yesterday's metrics
   - name: get-metrics
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT
           COUNT(*) as orders,
           SUM(total) as revenue,
@@ -244,10 +248,12 @@ agents:
 
   # Create user profile
   - name: create-profile
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO profiles (
           user_id, onboarding_status, created_at
         ) VALUES (?, 'pending', ?)
@@ -346,12 +352,14 @@ agents:
   # Check inventory availability in parallel
   - parallel:
       - name: check-inventory
-        operation: storage
+        operation: data
         loop:
           items: ${input.items}
         config:
-          type: d1
-          query: |
+          backend: d1
+          binding: DB
+          operation: query
+          sql: |
             SELECT quantity FROM inventory
             WHERE product_id = ? AND quantity >= ?
           params:
@@ -361,12 +369,14 @@ agents:
   # Reserve inventory
   - name: reserve-inventory
     condition: ${check-inventory.outputs.every(r => r.length > 0)}
-    operation: storage
+    operation: data
     loop:
       items: ${input.items}
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         UPDATE inventory
         SET quantity = quantity - ?,
             reserved = reserved + ?
@@ -399,12 +409,14 @@ agents:
   # Handle payment failure - release inventory
   - name: release-inventory-on-failure
     condition: ${!process-payment.success && state.inventoryReserved}
-    operation: storage
+    operation: data
     loop:
       items: ${input.items}
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         UPDATE inventory
         SET quantity = quantity + ?,
             reserved = reserved - ?
@@ -417,10 +429,12 @@ agents:
   # Create order record
   - name: create-order
     condition: ${state.paymentProcessed}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         INSERT INTO orders (
           customer_id, total, status, payment_intent_id, created_at
         ) VALUES (?, ?, 'processing', ?, ?)
@@ -434,12 +448,14 @@ agents:
   # Create order items
   - name: create-order-items
     condition: ${create-order.success}
-    operation: storage
+    operation: data
     loop:
       items: ${input.items}
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO order_items (
           order_id, product_id, quantity, price
         ) VALUES (?, ?, ?, ?)
@@ -452,12 +468,14 @@ agents:
   # Finalize inventory - remove from reserved
   - name: finalize-inventory
     condition: ${create-order.success}
-    operation: storage
+    operation: data
     loop:
       items: ${input.items}
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         UPDATE inventory
         SET reserved = reserved - ?
         WHERE product_id = ?
@@ -536,10 +554,12 @@ description: Monitor inventory and alert on low stock
 agents:
   # Check low stock items
   - name: check-low-stock
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT product_id, product_name, quantity, reorder_level
         FROM inventory
         WHERE quantity <= reorder_level
@@ -555,12 +575,14 @@ agents:
   # Get product details
   - name: enrich-products
     condition: ${has-low-stock.executed}
-    operation: storage
+    operation: data
     loop:
       items: ${check-low-stock.output}
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT * FROM products WHERE id = ?
       params: [${loop.item.product_id}]
 
@@ -619,10 +641,12 @@ description: Cancel order with refund and inventory restoration
 agents:
   # Get order details
   - name: get-order
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT * FROM orders
         WHERE id = ? AND status != 'cancelled'
       params: [${input.orderId}]
@@ -652,10 +676,12 @@ agents:
   # Get order items
   - name: get-order-items
     condition: ${refund-payment.success}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT product_id, quantity FROM order_items
         WHERE order_id = ?
       params: [${input.orderId}]
@@ -663,12 +689,14 @@ agents:
   # Restore inventory
   - name: restore-inventory
     condition: ${get-order-items.success}
-    operation: storage
+    operation: data
     loop:
       items: ${get-order-items.output}
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         UPDATE inventory
         SET quantity = quantity + ?
         WHERE product_id = ?
@@ -679,10 +707,12 @@ agents:
   # Update order status
   - name: update-order-status
     condition: ${refund-payment.success}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         UPDATE orders
         SET status = 'cancelled', updated_at = ?
         WHERE id = ?
@@ -719,10 +749,12 @@ description: Track user actions and respond in real-time
 agents:
   # Log activity
   - name: log-activity
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO user_activities (
           user_id, action, metadata, timestamp
         ) VALUES (?, ?, ?, ?)
@@ -734,10 +766,12 @@ agents:
 
   # Check for patterns
   - name: check-patterns
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT COUNT(*) as count, action
         FROM user_activities
         WHERE user_id = ? AND timestamp > ?
@@ -837,10 +871,12 @@ agents:
 agents:
   # Check if already processed
   - name: check-processed
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT COUNT(*) as count FROM processed_events
         WHERE event_id = ?
       params: [${input.eventId}]
@@ -855,10 +891,12 @@ agents:
   # Mark as processed
   - name: mark-processed
     condition: ${process-event.success}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO processed_events (event_id, timestamp)
         VALUES (?, ?)
       params:
@@ -886,10 +924,12 @@ agents:
 // Log all events
 agents:
   - name: log-event
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO event_logs (
           event_type, source, status, latency, timestamp
         ) VALUES (?, ?, ?, ?, ?)

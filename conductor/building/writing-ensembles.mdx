@@ -87,10 +87,12 @@ agents:
       data: ${fetch.output}
 
   - name: store
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO data (json) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO data (json) VALUES (?)
       params: [${transform.output}]
 
 output:

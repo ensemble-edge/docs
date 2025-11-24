@@ -181,6 +181,7 @@
         "conductor/operations/think",
         "conductor/operations/code",
         "conductor/operations/storage",
+        "conductor/operations/data",
         "conductor/operations/http",
         "conductor/operations/tools",
         "conductor/operations/email",

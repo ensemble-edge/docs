@@ -1,0 +1,424 @@
+---
+title: "data Operation"
+description: "Database queries and transactions: D1 (SQLite), Vectorize (vectors), and external databases"
+---
+
+Execute SQL queries and database operations with automatic binding resolution.
+
+<Note>
+  For simple key-value or object storage, see the [storage operation](/conductor/operations/storage).
+</Note>
+
+## Configuration
+
+```yaml
+config:
+  backend: string    # d1, vectorize, hyperdrive, [plugin-name]
+  operation: string  # query, execute, transaction, batch
+  [backend-specific options]
+```
+
+## D1 (SQL Database)
+
+Serverless SQLite database for relational data with full SQL support.
+
+### Query Operation
+
+```yaml
+operations:
+  - name: get-user
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: query
+      sql: SELECT * FROM users WHERE id = ?
+      params: [${input.user_id}]
+```
+
+**Output**:
+```typescript
+{
+  results: any[]        // Query results
+  success: boolean
+  meta: {
+    duration: number    // Query duration (ms)
+    rows_read: number
+    rows_written: number
+  }
+}
+```
+
+### Parameterized Queries
+
+Always use parameterized queries to prevent SQL injection:
+
+```yaml
+operations:
+  - name: search-users
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
+        SELECT * FROM users
+        WHERE email LIKE ? AND status = ?
+        ORDER BY created_at DESC
+        LIMIT ?
+      params:
+        - %@example.com
+        - active
+        - 10
+```
+
+### INSERT with RETURNING
+
+```yaml
+operations:
+  - name: create-user
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
+        INSERT INTO users (name, email, status)
+        VALUES (?, ?, ?)
+        RETURNING id
+      params:
+        - ${input.name}
+        - ${input.email}
+        - active
+```
+
+### UPDATE Operation
+
+```yaml
+operations:
+  - name: update-user
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
+        UPDATE users
+        SET name = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      params:
+        - ${input.name}
+        - ${input.email}
+        - ${input.id}
+```
+
+### DELETE Operation
+
+```yaml
+operations:
+  - name: delete-user
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: DELETE FROM users WHERE id = ?
+      params: [${input.id}]
+```
+
+### Transactions
+
+Execute multiple statements atomically:
+
+```yaml
+operations:
+  - name: transfer-funds
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: transaction
+      statements:
+        - sql: UPDATE accounts SET balance = balance - ? WHERE id = ?
+          params: [${input.amount}, ${input.from_account}]
+        - sql: UPDATE accounts SET balance = balance + ? WHERE id = ?
+          params: [${input.amount}, ${input.to_account}]
+        - sql: INSERT INTO transactions (from_id, to_id, amount) VALUES (?, ?, ?)
+          params: [${input.from_account}, ${input.to_account}, ${input.amount}]
+```
+
+### Batch Operations
+
+Execute multiple queries (non-atomic):
+
+```yaml
+operations:
+  - name: bulk-insert
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: batch
+      statements:
+        - sql: INSERT INTO users (name) VALUES (?)
+          params: ["Alice"]
+        - sql: INSERT INTO users (name) VALUES (?)
+          params: ["Bob"]
+        - sql: INSERT INTO users (name) VALUES (?)
+          params: ["Charlie"]
+```
+
+## Vectorize (Vector Database)
+
+Vector search for semantic similarity, embeddings, and AI applications.
+
+### Insert Vectors
+
+```yaml
+operations:
+  - name: store-embedding
+    operation: data
+    config:
+      backend: vectorize
+      binding: VECTORIZE
+      operation: insert
+      vectors:
+        - id: doc-${input.id}
+          values: ${previous.generate-embedding.vector}
+          metadata:
+            text: ${input.text}
+            category: ${input.category}
+```
+
+### Query by Vector
+
+```yaml
+operations:
+  - name: search-similar
+    operation: data
+    config:
+      backend: vectorize
+      binding: VECTORIZE
+      operation: query
+      vector: ${previous.query-embedding.vector}
+      topK: 10
+      filter:
+        category: ${input.category}
+```
+
+**Output**:
+```typescript
+{
+  matches: Array<{
+    id: string
+    score: number        // Similarity score
+    metadata: object
+  }>
+}
+```
+
+### Metadata Filtering
+
+```yaml
+operations:
+  - name: filtered-search
+    operation: data
+    config:
+      backend: vectorize
+      binding: VECTORIZE
+      operation: query
+      vector: ${input.queryVector}
+      topK: 5
+      filter:
+        category: "documentation"
+        lang: "en"
+        date: { $gte: "2024-01-01" }
+```
+
+## External Databases via Plugins
+
+### Hyperdrive (Postgres, MySQL)
+
+Connect to external databases with connection pooling:
+
+```yaml
+operations:
+  - name: query-postgres
+    operation: data
+    config:
+      backend: hyperdrive
+      binding: HYPERDRIVE
+      operation: query
+      sql: SELECT * FROM users WHERE email = $1
+      params: [${input.email}]
+```
+
+**Wrangler configuration**:
+```toml
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "your-hyperdrive-id"
+```
+
+### Supabase Plugin
+
+```yaml
+operations:
+  - name: query-supabase
+    operation: data
+    config:
+      backend: supabase
+      url: ${env.SUPABASE_URL}
+      key: ${env.SUPABASE_KEY}
+      operation: query
+      table: users
+      filter:
+        email: ${input.email}
+```
+
+### Neon Plugin
+
+```yaml
+operations:
+  - name: query-neon
+    operation: data
+    config:
+      backend: neon
+      connectionString: ${env.NEON_CONNECTION_STRING}
+      operation: query
+      sql: SELECT * FROM users WHERE id = $1
+      params: [${input.userId}]
+```
+
+### PlanetScale Plugin
+
+```yaml
+operations:
+  - name: query-planetscale
+    operation: data
+    config:
+      backend: planetscale
+      host: ${env.PLANETSCALE_HOST}
+      username: ${env.PLANETSCALE_USERNAME}
+      password: ${env.PLANETSCALE_PASSWORD}
+      operation: query
+      sql: SELECT * FROM orders WHERE user_id = ?
+      params: [${input.userId}]
+```
+
+## Best Practices
+
+### SQL Injection Prevention
+
+❌ **Never** concatenate user input:
+```yaml
+# DANGEROUS - DO NOT DO THIS
+sql: SELECT * FROM users WHERE email = '${input.email}'
+```
+
+✅ **Always** use parameterized queries:
+```yaml
+# SAFE - DO THIS
+sql: SELECT * FROM users WHERE email = ?
+params: [${input.email}]
+```
+
+### Connection Pooling
+
+For external databases, use Hyperdrive for automatic connection pooling:
+
+```yaml
+# Without Hyperdrive: New connection each request (slow)
+backend: postgres
+connectionString: ${env.DATABASE_URL}
+
+# With Hyperdrive: Connection pooling (fast)
+backend: hyperdrive
+binding: HYPERDRIVE
+```
+
+### Transaction Handling
+
+Use transactions for operations that must succeed or fail together:
+
+```yaml
+operations:
+  # ✅ Atomic: Both succeed or both fail
+  - name: atomic-update
+    operation: data
+    config:
+      backend: d1
+      operation: transaction
+      statements:
+        - sql: UPDATE accounts SET balance = balance - ? WHERE id = ?
+        - sql: UPDATE accounts SET balance = balance + ? WHERE id = ?
+
+  # ❌ Non-atomic: First might succeed, second might fail
+  - name: update-from
+    operation: data
+    config:
+      backend: d1
+      operation: execute
+      sql: UPDATE accounts SET balance = balance - ? WHERE id = ?
+
+  - name: update-to
+    operation: data
+    config:
+      backend: d1
+      operation: execute
+      sql: UPDATE accounts SET balance = balance + ? WHERE id = ?
+```
+
+### Error Handling
+
+```yaml
+operations:
+  - name: query-user
+    operation: data
+    config:
+      backend: d1
+      operation: query
+      sql: SELECT * FROM users WHERE id = ?
+      params: [${input.userId}]
+    onError:
+      - name: log-error
+        operation: think
+        config:
+          prompt: |
+            Database query failed: ${error.message}
+            Log this error and notify the team.
+```
+
+## Choosing the Right Backend
+
+| Backend | Use Case | Latency | Durability | Cost |
+|---------|----------|---------|------------|------|
+| **D1** | Serverless SQLite | Low (edge) | High | Low |
+| **Vectorize** | Vector search, AI | Low (edge) | High | Medium |
+| **Hyperdrive** | External Postgres/MySQL | Medium (pooled) | Depends | Medium |
+| **Supabase** | Managed Postgres + Auth | Medium | High | Medium |
+| **Neon** | Serverless Postgres | Low-Medium | High | Medium |
+| **PlanetScale** | Serverless MySQL | Low-Medium | High | Medium |
+
+## When to Use data vs storage
+
+Use **data** when you need:
+- ✅ SQL queries
+- ✅ Relational data
+- ✅ Transactions
+- ✅ Complex queries with JOINs
+- ✅ Vector search
+
+Use **storage** when you need:
+- ❌ Simple key-value lookups
+- ❌ Object/file storage
+- ❌ Temporary caching
+- ❌ Global edge caching
+
+See [storage operation](/conductor/operations/storage) for key-value and object storage.
+
+## Related Operations
+
+- [storage](/conductor/operations/storage) - Key-value and object storage
+- [http](/conductor/operations/http) - HTTP requests
+- [think](/conductor/operations/think) - AI reasoning

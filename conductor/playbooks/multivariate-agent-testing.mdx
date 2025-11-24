@@ -69,10 +69,12 @@ agents:
 
   # Log results
   - name: log-variant
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO multivariate_results (
           user_id, variant, model, prompt, latency, timestamp
         ) VALUES (?, ?, ?, ?, ?, ?)
@@ -225,10 +227,12 @@ agents:
 
   # Track which version was used
   - name: log-version
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO agent_versions (
           user_id, version, latency, success, timestamp
         ) VALUES (?, ?, ?, ?, ?)
@@ -550,10 +554,12 @@ agents:
 
   # Store results for analysis
   - name: log-results
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO support_analysis_results (
           ticket_id, variant, latency, cost_estimate, timestamp
         ) VALUES (?, ?, ?, ?, ?)

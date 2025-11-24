@@ -25,9 +25,15 @@ Execute logic and transform data.
 
 Access and manipulate data stores.
 
-<Card title="storage" icon="database" href="/conductor/operations/storage">
-  KV, D1, R2, Vectorize access
-</Card>
+<CardGroup cols={2}>
+  <Card title="storage" icon="box" href="/conductor/operations/storage">
+    KV, R2, Cache - Simple storage
+  </Card>
+
+  <Card title="data" icon="database" href="/conductor/operations/data">
+    D1, Vectorize, Hyperdrive - Databases
+  </Card>
+</CardGroup>
 
 ### Communication Operations
 
@@ -95,7 +101,8 @@ Extend functionality with external tools.
 |-----------|----------|---------|
 | **think** | AI reasoning, text generation | Analyze sentiment, generate content |
 | **code** | Data transformation, business logic | Calculate totals, format data |
-| **storage** | Data persistence, caching | Store in D1, cache in KV |
+| **storage** | Simple storage, caching | Cache in KV, store files in R2 |
+| **data** | Database queries, structured data | Query D1, vector search in Vectorize |
 | **http** | API calls, web requests | Fetch external data |
 | **email** | Send notifications | Order confirmations, alerts |
 | **sms** | Send text messages | 2FA codes, alerts |
@@ -248,10 +255,12 @@ operations:
 
   - name: log-error
     condition: ${risky-op.failed}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO errors (error, timestamp) VALUES (?, ?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO errors (error, timestamp) VALUES (?, ?)
       params:
         - ${risky-op.error}
         - ${Date.now()}
@@ -276,9 +285,9 @@ operations:
 - Use `think` for AI reasoning, natural language
 - Use `code` for deterministic logic, calculations
 
-**storage (KV) vs storage (D1)**:
-- Use KV for caching, simple key-value
-- Use D1 for structured data, complex queries
+**storage vs data**:
+- Use `storage` (KV) for caching, simple key-value
+- Use `data` (D1) for structured data, complex queries
 
 **http vs tools**:
 - Use `http` for direct API calls
@@ -299,8 +308,12 @@ operations:
     AI reasoning operation
   </Card>
 
-  <Card title="storage" icon="database" href="/conductor/operations/storage">
-    Data storage operation
+  <Card title="storage" icon="box" href="/conductor/operations/storage">
+    Simple storage operation
+  </Card>
+
+  <Card title="data" icon="database" href="/conductor/operations/data">
+    Database operation
   </Card>
 
   <Card title="http" icon="globe" href="/conductor/operations/http">

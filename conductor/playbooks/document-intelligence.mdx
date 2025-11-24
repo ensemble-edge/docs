@@ -60,10 +60,12 @@ agents:
   # Store in database
   - name: store
     condition: ${validate.output.valid}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO invoices ...
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO invoices ...
       params: ${validate.output.data}
 ```
 
@@ -108,10 +110,12 @@ agents:
 
   # Check vendor
   - name: check-vendor
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: SELECT * FROM approved_vendors WHERE name = ?
+      backend: d1
+      binding: DB
+      operation: query
+      sql: SELECT * FROM approved_vendors WHERE name = ?
       params: [${JSON.parse(extract.output).vendor}]
 
   # Require approval for new vendors
@@ -133,10 +137,12 @@ agents:
   # Store invoice
   - name: store
     condition: ${auto-approve.executed || approve-vendor.output.approved}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO invoices ...
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO invoices ...
 ```
 
 ## Resume Screening
@@ -193,10 +199,12 @@ agents:
   # Shortlist high scores
   - name: shortlist
     condition: ${JSON.parse(score.output).overall_score >= 70}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO shortlisted_candidates (name, email, score, data, job_id)
         VALUES (?, ?, ?, ?, ?)
       params:
@@ -334,10 +342,12 @@ agents:
   # Process complete forms
   - name: process
     condition: ${check-complete.output.complete}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO form_submissions ...
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO form_submissions ...
 ```
 
 ## Best Practices
@@ -375,9 +385,12 @@ prompt: |
 **5. Audit Trail**
 ```yaml
 - name: log
-  operation: storage
+  operation: data
   config:
-    query: INSERT INTO processing_log ...
+    backend: d1
+    binding: DB
+    operation: execute
+    sql: INSERT INTO processing_log ...
 ```
 
 ## Next Steps

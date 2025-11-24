@@ -66,10 +66,12 @@ agents:
 
   # 3. Store metadata in D1
   - name: store-metadata
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO document_chunks (id, document_id, text, metadata, created_at)
         VALUES (?, ?, ?, ?, ?)
       params: ${chunk.output.chunks.map(c => [
@@ -172,10 +174,12 @@ agents:
 
   # Keyword search
   - name: keyword-search
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
         SELECT id, document_id, text, metadata
         FROM document_chunks
         WHERE text LIKE ? OR text LIKE ?
@@ -395,10 +399,12 @@ agents:
     operation: think
 
   - name: log-interaction
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO rag_interactions (
           question, answer, num_sources, avg_relevance, timestamp
         ) VALUES (?, ?, ?, ?, ?)

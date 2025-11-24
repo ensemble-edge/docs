@@ -152,8 +152,10 @@ operation: data
 description: Query D1 database
 
 config:
-  type: d1
-  query: SELECT * FROM users WHERE id = ?
+  backend: d1
+  binding: DB
+  operation: query
+  sql: SELECT * FROM users WHERE id = ?
   params:
     - ${input.user_id}
 
@@ -677,8 +679,10 @@ operation: data
 description: Look up user by email
 
 config:
-  type: d1
-  query: |
+  backend: d1
+  binding: DB
+  operation: query
+  sql: |
     SELECT id, name, email, created_at
     FROM users
     WHERE email = ?

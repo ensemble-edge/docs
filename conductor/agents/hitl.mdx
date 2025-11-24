@@ -380,10 +380,12 @@ agents:
 
   - name: log-rejection
     condition: ${approve.output.rejected}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO rejections (data, reason, timestamp) VALUES (?, ?, ?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO rejections (data, reason, timestamp) VALUES (?, ?, ?)
       params:
         - ${approve.input.data}
         - ${approve.output.reason}

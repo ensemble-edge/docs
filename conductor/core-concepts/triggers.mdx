@@ -163,12 +163,12 @@ flow:
 
 agents:
   - name: search
-    operation: storage
+    operation: data
     config:
-      type: vectorize
-      action: query
-      index: DOCS_INDEX
-      query: ${input.query}
+      backend: vectorize
+      binding: DOCS_INDEX
+      operation: query
+      vector: ${input.query}
       topK: 5
 
 outputs:

@@ -24,10 +24,12 @@ agents:
       code: return { processed: ${fetch.output} };
 
   - name: store
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO data (json) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO data (json) VALUES (?)
       params: [${process.output}]
 ```
 
@@ -103,10 +105,12 @@ agents:
 
   - name: log-error
     condition: ${!validate.output.valid}  # Only run if invalid
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO errors (data) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO errors (data) VALUES (?)
       params: [${validate.output.errors}]
 ```
 
@@ -280,10 +284,12 @@ agents:
 ```yaml
 agents:
   - name: fetch-batch
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: SELECT * FROM queue WHERE processed = false LIMIT ?
+      backend: d1
+      binding: DB
+      operation: query
+      sql: SELECT * FROM queue WHERE processed = false LIMIT ?
       params: [${input.batch_size || 100}]
 
   - name: process-batch
@@ -301,10 +307,12 @@ agents:
 
   - name: mark-processed
     condition: ${process-batch.executed}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         UPDATE queue SET processed = true
         WHERE id IN (${process-batch.output.results.map(r => r.id).join(',')})
 
@@ -455,10 +463,12 @@ agents:
 
   - name: store
     condition: ${validate-business-rules.output.valid}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO data (json) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO data (json) VALUES (?)
       params: [${transform.output}]
 
 output:

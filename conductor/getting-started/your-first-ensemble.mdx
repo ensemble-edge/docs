@@ -427,8 +427,10 @@ agents:
   - name: store-data
     operation: data
     config:
-      type: d1
-      query: INSERT INTO results (data) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO results (data) VALUES (?)
       params:
         - ${process-data.output.result}
 ```
@@ -612,8 +614,10 @@ adWords = badWords.some(w => text.includes(w));
   - name: log-decision
     operation: data
     config:
-      type: d1
-      query: |
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: |
         INSERT INTO moderation_logs (text, decision, reason, timestamp)
         VALUES (?, ?, ?, ?)
       params:

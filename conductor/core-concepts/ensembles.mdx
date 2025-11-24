@@ -122,10 +122,12 @@ agents:
       prompt: Analyze: ${step1.output}
 
   - name: step3
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO results (data) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO results (data) VALUES (?)
       params: [${step2.output}]
 ```
 
@@ -300,10 +302,12 @@ agents:
 
   - name: store
     condition: ${validate.output.valid}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO results (data) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO results (data) VALUES (?)
       params: [${process-data.output}]
 
 output:
@@ -328,18 +332,21 @@ agents:
       input: ${input.question}
 
   - name: search
-    operation: storage
+    operation: data
     config:
-      type: vectorize
-      action: query
+      backend: vectorize
+      binding: VECTORIZE
+      operation: query
       vector: ${embed-query.output}
       topK: 5
 
   - name: fetch-docs
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: SELECT content FROM docs WHERE id IN (?)
+      backend: d1
+      binding: DB
+      operation: query
+      sql: SELECT content FROM docs WHERE id IN (?)
       params: [${search.output.ids}]
 
   - name: generate-answer
@@ -426,10 +433,12 @@ agents:
 
   - name: publish
     condition: ${request-approval.output.approved}
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO published (content) VALUES (?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO published (content) VALUES (?)
       params: [${generate-content.output}]
 
 output:
@@ -466,10 +475,12 @@ agents:
 
   # Log result
   - name: log-variant
-    operation: storage
+    operation: data
     config:
-      type: d1
-      query: INSERT INTO ab_tests (user_id, variant) VALUES (?, ?)
+      backend: d1
+      binding: DB
+      operation: execute
+      sql: INSERT INTO ab_tests (user_id, variant) VALUES (?, ?)
       params:
         - ${input.user_id}
         - ${analyze-a.executed ? 'A' : 'B'}

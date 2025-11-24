@@ -162,10 +162,12 @@ Access and manipulate data stores.
 
 # D1
 - name: query-db
-  operation: storage
+  operation: data
   config:
-    type: d1
-    query: SELECT * FROM users WHERE id = ?
+    backend: d1
+    binding: DB
+    operation: query
+    sql: SELECT * FROM users WHERE id = ?
     params: [${input.user_id}]
 
 # R2
@@ -178,10 +180,11 @@ Access and manipulate data stores.
 
 # Vectorize
 - name: search-vectors
-  operation: storage
+  operation: data
   config:
-    type: vectorize
-    action: query
+    backend: vectorize
+    binding: VECTORIZE
+    operation: query
     vector: ${embed.output}
     topK: 5
 ```
