@@ -32,13 +32,13 @@ Thank you for your interest in contributing to Ensemble Edge! This monorepo cont
    ```bash
    # For edgit
    cd edgit
-   npm install
-   npm run build
+   pnpm install
+   pnpm run build
 
    # For conductor
    cd ../conductor
-   npm install
-   npm run build
+   pnpm install
+   pnpm run build
    ```
 
 4. **Create a feature branch**
@@ -53,8 +53,8 @@ Thank you for your interest in contributing to Ensemble Edge! This monorepo cont
 
 6. **Build and test**
    ```bash
-   npm run build
-   npm test
+   pnpm run build
+   pnpm test
    ```
 
 7. **Commit using conventional commits**
@@ -101,11 +101,11 @@ ensemble/
 #### Edgit
 ```bash
 cd edgit
-npm install
-npm run build
+pnpm install
+pnpm run build
 
 # Link for local testing
-npm link
+pnpm link --global
 
 # Test
 edgit --version
@@ -114,16 +114,16 @@ edgit --version
 #### Conductor
 ```bash
 cd conductor
-npm install
-npm run build
-npm test
+pnpm install
+pnpm run build
+pnpm test
 ```
 
 #### Docs
 ```bash
 cd docs
-npm install
-npm run dev  # Start local docs server
+pnpm install
+pnpm run dev  # Start local docs server
 ```
 
 ## Code Standards

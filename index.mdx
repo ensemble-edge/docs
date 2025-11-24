@@ -51,7 +51,7 @@ edgit deploy set company-agent v3.0.0 --to prod      # Latest stable
 edgit deploy set validation-query v2.5.0 --to prod   # Best performance
 
 # Instant rollback
-edgit deploy set extraction-prompt v0.1.0 --to prod  # < 50ms globally
+edgit deploy set extraction-prompt v0.1.0 --to prod  # &lt;50ms globally
 ```
 
 **No merge conflicts. No monorepo hell. No JSON state files.**
@@ -178,7 +178,7 @@ Then orchestrates them at the edge where they execute fast and scale infinitely.
 <CardGroup cols={2}>
   <Card title="Install Edgit" icon="download" href="/edgit/installation">
     ```bash
-    npm install -g @ensemble-edge/edgit
+    pnpm add -g @ensemble-edge/edgit
     cd your-repo
     edgit init
     ```
@@ -193,7 +193,7 @@ Then orchestrates them at the edge where they execute fast and scale infinitely.
 
   <Card title="Install Conductor" icon="network-wired" href="/conductor/overview">
     ```bash
-    npm install @ensemble-edge/conductor
+    pnpm add @ensemble-edge/conductor
     conductor init
     ```
   </Card>

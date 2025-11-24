@@ -13,8 +13,8 @@ npx @ensemble-edge/conductor@latest init my-conductor-app
 cd my-conductor-app
 
 # Install and run
-npm install
-npm run build
+pnpm install
+pnpm run build
 npx wrangler dev --local-protocol http
 ```
 
@@ -92,7 +92,7 @@ Visit these URLs:
 ### Run the Tests
 
 ```bash
-npm test
+pnpm test
 ```
 
 All tests should pass! The template includes examples of:
@@ -135,7 +135,7 @@ component: |
 **Step 2: Rebuild**
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 The dev server will automatically reload.
@@ -307,7 +307,7 @@ compatibility_date = "2025-10-29"
 compatibility_flags = ["nodejs_compat"]
 
 [build]
-command = "npm run build"
+command = "pnpm run build"
 watch_dirs = ["src", "pages", "members", "ensembles"]
 ```
 
@@ -353,7 +353,7 @@ This opens your browser to authorize Wrangler.
 ### Step 2: Build
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 ### Step 3: Deploy
@@ -382,10 +382,10 @@ curl https://my-conductor-app.your-subdomain.workers.dev/hello
 npx wrangler dev --local-protocol http
 
 # Run tests
-npm test
+pnpm test
 
 # Build for production
-npm run build
+pnpm run build
 
 # Deploy
 npx wrangler deploy
@@ -432,7 +432,7 @@ npx wrangler deployments list
     **Fix**: Trigger a rebuild. Pages and agents are discovered at build time:
 
     ```bash
-    npm run build
+    pnpm run build
     ```
 
     Or with wrangler running, the file watcher should auto-rebuild.
@@ -466,8 +466,8 @@ npx wrangler deployments list
 
     ```bash
     rm -rf dist node_modules
-    npm install
-    npm run build
+    pnpm install
+    pnpm run build
     ```
   </Accordion>
 
@@ -477,7 +477,7 @@ npx wrangler deployments list
     **Fix**: This is a Vite virtual module created at build time. Make sure:
     1. `pages/` directory exists
     2. Vite config is correct (should be in template)
-    3. Clean rebuild: `rm -rf dist && npm run build`
+    3. Clean rebuild: `rm -rf dist && pnpm run build`
   </Accordion>
 </AccordionGroup>
 
@@ -545,7 +545,7 @@ Select: "Hello World" Worker, TypeScript: Yes
 
 ```bash
 cd my-conductor-app
-npm install @ensemble-edge/conductor
+pnpm add @ensemble-edge/conductor
 ```
 
 ### Step 3: Update wrangler.toml
@@ -557,7 +557,7 @@ compatibility_date = "2025-10-29"
 compatibility_flags = ["nodejs_compat"]
 
 [build]
-command = "npm run build"
+command = "pnpm run build"
 watch_dirs = ["src", "pages", "ensembles"]
 ```
 
@@ -604,7 +604,7 @@ mkdir -p pages ensembles agents tests
   "scripts": {
     "build": "vite build",
     "dev": "wrangler dev --local-protocol http",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "pnpm run build && wrangler deploy",
     "test": "vitest run"
   }
 }
@@ -619,7 +619,7 @@ mkdir -p pages ensembles agents tests
 1. **Always use --local-protocol http** with `wrangler dev` to avoid network binding issues
 2. **Rebuild after adding files** - Pages and agents are discovered at build time
 3. **Start with examples** - Modify the included hello examples before creating new ones
-4. **Test locally first** - `npm test` runs your test suite instantly
+4. **Test locally first** - `pnpm test` runs your test suite instantly
 5. **Check logs** - `npx wrangler tail` shows real-time production logs
 6. **Use git** - The template includes .gitignore configured correctly
 7. **Read the generated README.md** - It includes project-specific guidance

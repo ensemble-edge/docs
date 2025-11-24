@@ -9,13 +9,13 @@ You've built your ensemble. Now let's put it in production where it matters.
 
 Before deploying:
 -  Wrangler installed and authenticated (`wrangler login`)
--  Working ensemble running locally (`npm run dev`)
+-  Working ensemble running locally (`pnpm run dev`)
 -  `wrangler.toml` configured
 
 ## Deploy to Production
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 That's it. Your ensemble is live globally.
@@ -54,7 +54,7 @@ When you run `npm run build`, the bundle includes:
 **Step 1**: Build locally
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 **Step 2**: Test with wrangler dev
@@ -112,8 +112,8 @@ https://your-app.workers.dev/health
 **Fix**: Rebuild and redeploy
 
 ```bash
-npm run build
-npm run deploy
+pnpm run build
+pnpm run deploy
 ```
 
 Agents are discovered at build time. If you added a new agent, you must rebuild.
@@ -338,10 +338,10 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        run: npm test
+        run: pnpm test
 
       - name: Deploy to Staging
         if: github.event_name == 'pull_request'
@@ -380,14 +380,14 @@ test:
   stage: test
   image: node:${NODE_VERSION}
   script:
-    - npm ci
-    - npm test
+    - pnpm install --frozen-lockfile
+    - pnpm test
 
 deploy_staging:
   stage: deploy
   image: node:${NODE_VERSION}
   script:
-    - npm install -g wrangler
+    - pnpm add -g wrangler
     - wrangler deploy --env staging
   only:
     - merge_requests
@@ -398,7 +398,7 @@ deploy_production:
   stage: deploy
   image: node:${NODE_VERSION}
   script:
-    - npm install -g wrangler
+    - pnpm add -g wrangler
     - wrangler deploy --env production
   only:
     - main
@@ -510,7 +510,7 @@ In `wrangler.toml`:
 
 ```toml
 [build]
-command = "npm run build"
+command = "pnpm run build"
 
 [build.upload]
 format = "modules"
