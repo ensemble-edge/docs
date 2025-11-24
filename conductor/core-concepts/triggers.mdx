@@ -5,13 +5,14 @@ description: "Invoke ensembles via webhooks, MCP tools, email, queues, and cron 
 
 ## Overview
 
-Triggers define how ensembles are invoked. Conductor supports five trigger types, all configured using the unified `trigger:` array in your ensemble YAML:
+Triggers define how ensembles are invoked. Conductor supports six trigger types, all configured using the unified `trigger:` array in your ensemble YAML:
 
-1. **Webhook** - HTTP endpoints for external integrations
-2. **MCP** - Model Context Protocol tool exposure
-3. **Email** - Email routing and processing
-4. **Queue** - Cloudflare Queues message processing
-5. **Cron** - Scheduled execution with cron expressions
+1. **HTTP** - Full web routing with path params, CORS, rate limiting, HTML/JSON responses
+2. **Webhook** - Simple HTTP endpoints for external integrations
+3. **MCP** - Model Context Protocol tool exposure
+4. **Email** - Email routing and processing
+5. **Queue** - Cloudflare Queues message processing
+6. **Cron** - Scheduled execution with cron expressions
 
 All triggers use the same configuration pattern:
 
@@ -22,6 +23,216 @@ trigger:
   - type: <trigger-type>
     # trigger-specific configuration
 ```
+
+## HTTP Triggers
+
+Full web routing with path parameters, CORS, rate limiting, authentication, and HTML or JSON responses. Use HTTP triggers for building APIs, web pages, and complex web applications.
+
+### Basic JSON API
+
+```yaml
+name: users-api
+trigger:
+  - type: http
+    path: /api/users/:id
+    methods: [GET]
+    public: true
+    responses:
+      json: {enabled: true}
+
+flow:
+  - agent: fetch-user
+    input: {userId: ${input.params.id}}
+
+agents:
+  - name: fetch-user
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT * FROM users WHERE id = ?"
+      params: [${input.userId}]
+
+outputs:
+  user: ${fetch-user.output[0]}
+```
+
+Access: `GET /api/users/123` → Returns JSON
+
+### Server-Rendered HTML Page
+
+```yaml
+name: blog-post
+trigger:
+  - type: http
+    path: /blog/:slug
+    methods: [GET]
+    public: true
+    responses:
+      html: {enabled: true}
+    templateEngine: liquid
+
+flow:
+  - agent: fetch-post
+    input: {slug: ${input.params.slug}}
+
+  - operation: html
+    config:
+      template: |
+        <!DOCTYPE html>
+        <html>
+        <head><title>{{ fetch-post.title }}</title></head>
+        <body>
+          <article>
+            <h1>{{ fetch-post.title }}</h1>
+            <div>{{ fetch-post.content }}</div>
+          </article>
+        </body>
+        </html>
+      data: ${fetch-post}
+
+agents:
+  - name: fetch-post
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT * FROM posts WHERE slug = ?"
+      params: [${input.slug}]
+
+outputs:
+  html: ${html.output}
+```
+
+Access: `GET /blog/my-post` → Returns HTML page
+
+### HTTP with Authentication & Rate Limiting
+
+```yaml
+trigger:
+  - type: http
+    path: /api/chat
+    methods: [POST]
+    auth:
+      type: bearer
+      secret: ${env.API_KEY}
+    rateLimit:
+      requests: 10
+      window: 60  # 10 requests per minute
+    cors:
+      origin: "https://myapp.com"
+      credentials: true
+    responses:
+      json: {enabled: true}
+```
+
+### HTTP vs Webhook
+
+| Feature | HTTP | Webhook |
+|---------|------|---------|
+| **Path params** | ✅ `/users/:id` | ❌ No |
+| **Multiple methods** | ✅ GET, POST, etc. | ✅ Yes |
+| **Rate limiting** | ✅ Yes | ❌ No |
+| **CORS** | ✅ Yes | ❌ No |
+| **HTML rendering** | ✅ Yes | ❌ No |
+| **Use case** | Web apps, APIs | Simple webhooks |
+
+**Rule of thumb**: Use `http` for web routing and pages. Use `webhook` for receiving webhooks from external services.
+
+### Complex Website Structure
+
+For full-blown websites with sitemaps, robots.txt, dynamic pages, etc., organize ensembles by route:
+
+```
+ensembles/
+├── pages/
+│   ├── home.yaml              # GET /
+│   ├── about.yaml             # GET /about
+│   ├── blog-list.yaml         # GET /blog
+│   ├── blog-post.yaml         # GET /blog/:slug
+│   ├── user-dashboard.yaml    # GET /dashboard/:userId
+│   └── contact-form.yaml      # GET /contact, POST /contact
+├── api/
+│   ├── users.yaml             # GET /api/users/:id
+│   ├── posts.yaml             # GET /api/posts, POST /api/posts
+│   └── search.yaml            # GET /api/search
+├── static/
+│   ├── robots.yaml            # GET /robots.txt
+│   ├── sitemap.yaml           # GET /sitemap.xml
+│   └── health.yaml            # GET /health
+└── auth/
+    ├── login.yaml             # POST /auth/login
+    └── logout.yaml            # POST /auth/logout
+```
+
+Each file is an ensemble with `trigger: {type: http}`:
+
+**Example: `ensembles/static/robots.yaml`**
+```yaml
+name: robots-txt
+trigger:
+  - type: http
+    path: /robots.txt
+    methods: [GET]
+    public: true
+
+flow:
+  - operation: code
+    handler: |
+      return {
+        output: `User-agent: *
+Allow: /
+Sitemap: https://yoursite.com/sitemap.xml`
+      }
+
+outputs:
+  content: ${code.output}
+```
+
+**Example: `ensembles/static/sitemap.yaml`**
+```yaml
+name: sitemap-xml
+trigger:
+  - type: http
+    path: /sitemap.xml
+    methods: [GET]
+    public: true
+
+flow:
+  - agent: fetch-all-posts
+    operation: data
+    config:
+      backend: d1
+      query: "SELECT slug, updated_at FROM posts WHERE status = 'published'"
+
+  - operation: code
+    handler: |
+      const urls = input.fetchAllPosts.map(post =>
+        `<url>
+          <loc>https://yoursite.com/blog/${post.slug}</loc>
+          <lastmod>${post.updated_at}</lastmod>
+        </url>`
+      ).join('\n')
+
+      return {
+        output: `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  ${urls}
+</urlset>`
+      }
+
+outputs:
+  xml: ${code.output}
+```
+
+This approach gives you:
+- ✅ Full control over every route
+- ✅ Each route is testable independently
+- ✅ Easy to add auth, rate limiting per route
+- ✅ Auto-discovery finds all ensembles
+- ✅ SEO-friendly (sitemaps, robots.txt)
+- ✅ Dynamic content from database
+- ✅ AI-powered pages via think agents
 
 ## Webhook Triggers
 
@@ -573,6 +784,28 @@ trigger:
    ```
 
 ## Configuration Reference
+
+### HTTP Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"http"` | Yes | Trigger type |
+| `path` | `string` | No | URL path with params (default: `/{ensemble-name}`) |
+| `methods` | `string[]` | No | HTTP methods (default: `["GET"]`) |
+| `auth` | `object` | Conditional | Authentication config (required unless `public: true`) |
+| `public` | `boolean` | No | Allow unauthenticated access (default: `false`) |
+| `rateLimit` | `object` | No | Rate limiting configuration |
+| `rateLimit.requests` | `number` | Yes | Max requests per window |
+| `rateLimit.window` | `number` | Yes | Time window in seconds |
+| `rateLimit.key` | `"ip"\|"user"` | No | Rate limit by IP or user (default: `"ip"`) |
+| `cors` | `object` | No | CORS configuration |
+| `cors.origin` | `string\|string[]` | No | Allowed origins |
+| `cors.credentials` | `boolean` | No | Allow credentials |
+| `responses` | `object` | No | Response type configuration |
+| `responses.html` | `object` | No | HTML response config |
+| `responses.json` | `object` | No | JSON response config |
+| `templateEngine` | `"liquid"\|"handlebars"\|"simple"` | No | Template engine for HTML (default: `"liquid"`) |
+| `middleware` | `function[]` | No | Custom Hono middleware |
 
 ### Webhook Trigger
 

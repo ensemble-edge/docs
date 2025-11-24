@@ -131,6 +131,7 @@
         "conductor/getting-started/your-first-upgrade",
         "conductor/getting-started/your-first-agent",
         "conductor/getting-started/your-first-ensemble",
+        "conductor/getting-started/your-first-website",
         "conductor/getting-started/your-first-documentation",
         "conductor/getting-started/your-first-deployment",
         "conductor/getting-started/configuring-cloudflare"
@@ -156,6 +157,7 @@
         "conductor/building/creating-agents",
         "conductor/building/using-prebuilt-agents",
         "conductor/building/writing-ensembles",
+        "conductor/building/http-middleware",
         "conductor/building/ab-testing-patterns",
         "conductor/building/tools-mcp-integration",
         "conductor/building/workers-ai-ml",
@@ -189,7 +191,6 @@
         "conductor/operations/form",
         "conductor/operations/html",
         "conductor/operations/pdf",
-        "conductor/operations/page",
         "conductor/operations/queue",
         "conductor/operations/docs"
       ]

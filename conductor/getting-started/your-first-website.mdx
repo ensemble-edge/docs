@@ -1,0 +1,719 @@
+---
+title: "Your First Website"
+description: "Build a website with HTTP triggers - from simple pages to dynamic content"
+---
+
+## What's a Website in Ensemble?
+
+In Ensemble, websites are built from **ensembles with HTTP triggers**:
+- Each route = one ensemble file
+- Pages render HTML using templates
+- APIs return JSON data
+- Static files (robots.txt, sitemap.xml) are ensembles too
+
+No framework boilerplate. Just YAML configuration + HTML templates.
+
+## Quick Example: Hello World Page
+
+Create `ensembles/pages/hello.yaml`:
+
+```yaml
+name: hello-page
+trigger:
+  - type: http
+    path: /hello
+    methods: [GET]
+    public: true
+    responses:
+      html: {enabled: true}
+
+flow:
+  - operation: html
+    config:
+      template: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Hello World</title>
+        </head>
+        <body>
+          <h1>Hello, World!</h1>
+          <p>Welcome to Ensemble.</p>
+        </body>
+        </html>
+
+outputs:
+  html: ${html.output}
+```
+
+Run: `pnpm run build && pnpm run dev`
+
+Visit: `http://localhost:8787/hello`
+
+That's it! You just created a web page.
+
+## Website Structure
+
+Organize your site by feature:
+
+```
+ensembles/
+├── pages/              # HTML pages
+│   ├── home.yaml       # GET /
+│   ├── about.yaml      # GET /about
+│   └── blog-post.yaml  # GET /blog/:slug
+├── api/                # JSON endpoints
+│   ├── users.yaml      # GET /api/users/:id
+│   └── search.yaml     # GET /api/search
+└── static/             # Generated files
+    ├── robots.yaml     # GET /robots.txt
+    └── sitemap.yaml    # GET /sitemap.xml
+```
+
+**Key principle**: One file per route. Each file is an ensemble with `trigger: {type: http}`.
+
+## Example 1: Homepage with Dynamic Content
+
+Let's fetch blog posts from a database and display them.
+
+Create `ensembles/pages/home.yaml`:
+
+```yaml
+name: homepage
+trigger:
+  - type: http
+    path: /
+    methods: [GET]
+    public: true
+    responses:
+      html: {enabled: true}
+    templateEngine: liquid
+
+flow:
+  # Fetch latest posts from database
+  - agent: fetch-posts
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: |
+        SELECT title, slug, excerpt, published_at
+        FROM posts
+        WHERE published = 1
+        ORDER BY published_at DESC
+        LIMIT 3
+
+  # Render HTML
+  - operation: html
+    config:
+      template: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>My Blog</title>
+          <style>
+            body { font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px; }
+            .post { margin: 30px 0; padding: 20px; border: 1px solid #ddd; }
+            .post h2 { margin: 0 0 10px 0; }
+            .post a { text-decoration: none; color: #0066cc; }
+          </style>
+        </head>
+        <body>
+          <h1>Welcome to My Blog</h1>
+
+          <div class="posts">
+            {% for post in fetch-posts %}
+              <div class="post">
+                <h2><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+                <p>{{ post.excerpt }}</p>
+                <small>{{ post.published_at }}</small>
+              </div>
+            {% endfor %}
+          </div>
+        </body>
+        </html>
+      data:
+        fetch-posts: ${fetch-posts}
+
+outputs:
+  html: ${html.output}
+```
+
+Visit: `http://localhost:8787/`
+
+## Example 2: Dynamic Blog Post Page
+
+Create `ensembles/pages/blog-post.yaml`:
+
+```yaml
+name: blog-post
+trigger:
+  - type: http
+    path: /blog/:slug
+    methods: [GET]
+    public: true
+    responses:
+      html: {enabled: true}
+    templateEngine: liquid
+
+flow:
+  # Fetch post by slug
+  - agent: fetch-post
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: |
+        SELECT title, content, published_at, author
+        FROM posts
+        WHERE slug = ? AND published = 1
+      params: [${input.params.slug}]
+
+  # Render HTML
+  - operation: html
+    config:
+      template: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>{{ fetch-post[0].title }}</title>
+        </head>
+        <body>
+          <article>
+            <h1>{{ fetch-post[0].title }}</h1>
+            <p><em>By {{ fetch-post[0].author }} on {{ fetch-post[0].published_at }}</em></p>
+            <div>{{ fetch-post[0].content }}</div>
+          </article>
+          <a href="/">← Back to home</a>
+        </body>
+        </html>
+      data:
+        fetch-post: ${fetch-post}
+
+outputs:
+  html: ${html.output}
+```
+
+Visit: `http://localhost:8787/blog/my-first-post`
+
+**★ Insight ─────────────────────────────────────**
+The `:slug` in the path becomes available as `${input.params.slug}`. This is how you build dynamic routes with path parameters.
+─────────────────────────────────────────────────
+
+## Example 3: Contact Form (GET + POST)
+
+Handle both displaying a form (GET) and processing submissions (POST) in one ensemble.
+
+Create `ensembles/pages/contact.yaml`:
+
+```yaml
+name: contact-form
+trigger:
+  - type: http
+    path: /contact
+    methods: [GET, POST]
+    public: true
+    rateLimit:
+      requests: 3
+      window: 60  # 3 submissions per minute
+    responses:
+      html: {enabled: true}
+
+flow:
+  # Only validate on POST
+  - agent: validate
+    condition: ${metadata.method === 'POST'}
+    operation: code
+    config:
+      handler: |
+        const errors = []
+        if (!input.email || !input.email.includes('@')) {
+          errors.push('Valid email required')
+        }
+        if (!input.message || input.message.length < 10) {
+          errors.push('Message must be at least 10 characters')
+        }
+        return {
+          valid: errors.length === 0,
+          errors
+        }
+
+  # Send email if valid
+  - agent: send-email
+    condition: ${validate.valid}
+    operation: email
+    config:
+      provider: sendgrid
+      to: [support@example.com]
+      subject: "Contact form: ${input.name}"
+      body: ${input.message}
+      from: ${input.email}
+
+  # Render HTML (different for GET vs POST)
+  - operation: html
+    config:
+      template: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Contact Us</title>
+          <style>
+            body { font-family: system-ui; max-width: 600px; margin: 50px auto; }
+            input, textarea { width: 100%; padding: 10px; margin: 10px 0; }
+            button { padding: 10px 20px; background: #0066cc; color: white; border: none; }
+            .error { color: red; }
+            .success { color: green; padding: 20px; border: 2px solid green; }
+          </style>
+        </head>
+        <body>
+          <h1>Contact Us</h1>
+
+          {% if metadata.method == 'GET' %}
+            <form method="POST">
+              <input name="name" placeholder="Your name" required>
+              <input name="email" type="email" placeholder="Your email" required>
+              <textarea name="message" placeholder="Your message" rows="5" required></textarea>
+              <button type="submit">Send Message</button>
+            </form>
+          {% elsif validate.valid %}
+            <div class="success">
+              <h2>Thank you!</h2>
+              <p>We received your message and will respond soon.</p>
+              <a href="/">← Back to home</a>
+            </div>
+          {% else %}
+            <div class="error">
+              <h2>Please fix these errors:</h2>
+              <ul>
+                {% for error in validate.errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+              <a href="/contact">← Try again</a>
+            </div>
+          {% endif %}
+        </body>
+        </html>
+
+outputs:
+  html: ${html.output}
+```
+
+**★ Insight ─────────────────────────────────────**
+One ensemble handles both GET (show form) and POST (submit). Use `${metadata.method}` to check which HTTP method was used. Add rate limiting to prevent spam!
+─────────────────────────────────────────────────
+
+## Example 4: JSON API Endpoint
+
+Not everything needs to be HTML. Create `ensembles/api/users.yaml`:
+
+```yaml
+name: users-api
+trigger:
+  - type: http
+    path: /api/users/:id
+    methods: [GET]
+    auth:
+      type: bearer
+      secret: ${env.API_KEY}
+    responses:
+      json: {enabled: true}
+
+flow:
+  - agent: fetch-user
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT id, name, email, created_at FROM users WHERE id = ?"
+      params: [${input.params.id}]
+
+outputs:
+  user: ${fetch-user[0]}
+  found: ${fetch-user.length > 0}
+```
+
+Test:
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  http://localhost:8787/api/users/123
+```
+
+Returns:
+```json
+{
+  "user": {
+    "id": 123,
+    "name": "Alice",
+    "email": "alice@example.com",
+    "created_at": "2024-01-15"
+  },
+  "found": true
+}
+```
+
+## Example 5: Static Files (robots.txt, sitemap.xml)
+
+Even "static" files are ensembles - but they can be dynamic!
+
+### robots.txt
+
+Create `ensembles/static/robots.yaml`:
+
+```yaml
+name: robots-txt
+trigger:
+  - type: http
+    path: /robots.txt
+    methods: [GET]
+    public: true
+
+flow:
+  - operation: code
+    config:
+      handler: |
+        return {
+          output: `User-agent: *
+Allow: /
+Disallow: /admin/
+
+Sitemap: https://yourdomain.com/sitemap.xml`
+        }
+
+outputs:
+  content: ${code.output}
+```
+
+### sitemap.xml (Dynamic from Database)
+
+Create `ensembles/static/sitemap.yaml`:
+
+```yaml
+name: sitemap-xml
+trigger:
+  - type: http
+    path: /sitemap.xml
+    methods: [GET]
+    public: true
+    cache:
+      enabled: true
+      ttl: 3600  # Cache for 1 hour
+
+flow:
+  # Fetch all published posts
+  - agent: fetch-posts
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT slug, updated_at FROM posts WHERE published = 1"
+
+  # Generate XML
+  - operation: code
+    config:
+      handler: |
+        const posts = input.fetchPosts || []
+
+        const urls = posts.map(post =>
+          `  <url>
+            <loc>https://yourdomain.com/blog/${post.slug}</loc>
+            <lastmod>${post.updated_at}</lastmod>
+          </url>`
+        ).join('\n')
+
+        return {
+          output: `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://yourdomain.com/</loc>
+    <priority>1.0</priority>
+  </url>
+${urls}
+</urlset>`
+        }
+
+outputs:
+  xml: ${code.output}
+```
+
+**★ Insight ─────────────────────────────────────**
+Your sitemap is generated dynamically from the database! As you add blog posts, they automatically appear in the sitemap. Add caching to avoid querying the database on every request.
+─────────────────────────────────────────────────
+
+## Template Engines
+
+Ensemble supports three template engines:
+
+### 1. Liquid (Default - Recommended)
+
+```yaml
+templateEngine: liquid
+
+template: |
+  <h1>{{ title }}</h1>
+  {% for item in items %}
+    <p>{{ item.name }}</p>
+  {% endfor %}
+  {% if user.admin %}
+    <a href="/admin">Admin Panel</a>
+  {% endif %}
+```
+
+### 2. Handlebars
+
+```yaml
+templateEngine: handlebars
+
+template: |
+  <h1>{{title}}</h1>
+  {{#each items}}
+    <p>{{name}}</p>
+  {{/each}}
+  {{#if user.admin}}
+    <a href="/admin">Admin Panel</a>
+  {{/if}}
+```
+
+### 3. Simple (String Interpolation)
+
+```yaml
+templateEngine: simple
+
+template: |
+  <h1>{{title}}</h1>
+  <p>{{description}}</p>
+```
+
+## Authentication
+
+Protect routes with authentication:
+
+```yaml
+trigger:
+  - type: http
+    path: /admin/dashboard
+    methods: [GET]
+    auth:
+      type: bearer
+      secret: ${env.ADMIN_TOKEN}
+    responses:
+      html: {enabled: true}
+```
+
+Or make routes public:
+
+```yaml
+trigger:
+  - type: http
+    path: /
+    methods: [GET]
+    public: true  # No auth required
+```
+
+**Default behavior**: Routes require auth unless you set `public: true`.
+
+## CORS for APIs
+
+Enable cross-origin requests:
+
+```yaml
+trigger:
+  - type: http
+    path: /api/data
+    methods: [GET, POST]
+    public: true
+    cors:
+      origin: ["https://myapp.com", "https://staging.myapp.com"]
+      credentials: true
+      allowHeaders: ["Content-Type", "Authorization"]
+```
+
+## Best Practices
+
+### 1. Organize by Feature
+
+**✅ Good**:
+```
+ensembles/
+├── pages/blog/
+│   ├── list.yaml
+│   └── post.yaml
+├── pages/user/
+│   ├── profile.yaml
+│   └── settings.yaml
+└── api/
+    └── search.yaml
+```
+
+**❌ Bad**:
+```
+ensembles/
+├── all-pages.yaml      # Too big!
+└── all-apis.yaml       # Too big!
+```
+
+### 2. Use Path Parameters
+
+**✅ Good**:
+```yaml
+path: /blog/:slug
+path: /users/:userId/posts/:postId
+```
+
+**❌ Bad**:
+```yaml
+path: /blog
+# Then manually parse query params
+```
+
+### 3. Add Rate Limiting to Forms
+
+```yaml
+trigger:
+  - type: http
+    path: /contact
+    methods: [POST]
+    rateLimit:
+      requests: 3
+      window: 60  # 3 per minute
+```
+
+### 4. Cache Expensive Operations
+
+```yaml
+trigger:
+  - type: http
+    path: /sitemap.xml
+    cache:
+      enabled: true
+      ttl: 3600  # 1 hour
+```
+
+### 5. Validate Input
+
+```yaml
+flow:
+  - agent: validate
+    operation: code
+    config:
+      handler: |
+        const errors = []
+        if (!input.email?.includes('@')) errors.push('Invalid email')
+        if (!input.message?.trim()) errors.push('Message required')
+        return { valid: errors.length === 0, errors }
+```
+
+## Testing Your Website
+
+Create `tests/pages.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest'
+import { Executor } from '@ensemble-edge/conductor'
+import { stringify } from 'yaml'
+import homePage from '../ensembles/pages/home.yaml'
+
+describe('Homepage', () => {
+  it('should render HTML', async () => {
+    const env = { DB: mockDB } as Env
+    const ctx = {} as ExecutionContext
+
+    const executor = new Executor({ env, ctx })
+    const result = await executor.executeFromYAML(
+      stringify(homePage),
+      {}
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.value.output.html).toContain('<h1>')
+  })
+})
+```
+
+Run: `pnpm test`
+
+## Deployment
+
+Deploy to Cloudflare Workers:
+
+```bash
+# Build
+pnpm run build
+
+# Deploy
+pnpm run deploy
+```
+
+Your website is now live on Cloudflare's global edge network!
+
+## What You Built
+
+In this guide, you created:
+- ✅ Homepage with dynamic database content
+- ✅ Blog post pages with URL parameters
+- ✅ Contact form with validation and email
+- ✅ JSON API with authentication
+- ✅ Dynamic sitemap.xml from database
+- ✅ Static robots.txt file
+
+All using simple YAML configuration and HTML templates. No framework boilerplate!
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="HTTP Triggers" icon="globe" href="/conductor/triggers/http">
+    Deep dive into HTTP triggers
+  </Card>
+
+  <Card title="HTML Operation" icon="file-code" href="/conductor/operations/html">
+    Advanced HTML rendering
+  </Card>
+
+  <Card title="Data Operation" icon="database" href="/conductor/operations/data">
+    Database operations
+  </Card>
+
+  <Card title="Email Operation" icon="envelope" href="/conductor/operations/email">
+    Send emails
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Page not found (404)">
+    **Problem**: Visiting `/hello` returns 404
+
+    **Fixes**:
+    1. Rebuild: `pnpm run build` (ensembles are discovered at build time)
+    2. Check path in ensemble matches URL: `path: /hello`
+    3. Ensure ensemble is in `ensembles/` directory
+  </Accordion>
+
+  <Accordion title="Template variables not rendering">
+    **Problem**: Page shows `{{ post.title }}` literally
+
+    **Fixes**:
+    1. Set template engine: `templateEngine: liquid`
+    2. Check data is passed: `data: { post: ${fetch-post} }`
+    3. Verify variable names match template
+  </Accordion>
+
+  <Accordion title="Form submission not working">
+    **Problem**: POST request fails or does nothing
+
+    **Fixes**:
+    1. Add POST to methods: `methods: [GET, POST]`
+    2. Check condition uses correct metadata: `${metadata.method === 'POST'}`
+    3. Verify form action matches path: `<form method="POST" action="/contact">`
+  </Accordion>
+
+  <Accordion title="Database query returns empty">
+    **Problem**: `${fetch-posts}` is empty array
+
+    **Fixes**:
+    1. Check binding matches wrangler.toml: `binding: DB`
+    2. Verify database has data: `wrangler d1 execute DB --command "SELECT * FROM posts"`
+    3. Run migrations: `wrangler d1 migrations apply DB`
+  </Accordion>
+</AccordionGroup>

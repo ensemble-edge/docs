@@ -1,0 +1,512 @@
+---
+title: "HTTP Middleware"
+description: "Add cross-cutting concerns to HTTP triggers with Hono middleware. Built-in handlers for logging, compression, security, and custom middleware integration."
+---
+
+## Overview
+
+The HTTP trigger supports **Hono middleware** for adding cross-cutting concerns like logging, compression, security headers, and custom logic to your API endpoints.
+
+Middleware can be used in:
+- **YAML ensembles** - Reference by string name
+- **TypeScript ensembles** - Pass functions directly
+
+```yaml
+# YAML: Use built-in middleware by name
+trigger:
+  - type: http
+    path: /api/data
+    middleware:
+      - logger
+      - compress
+      - secure-headers
+```
+
+```typescript
+// TypeScript: Pass functions directly
+import { logger } from 'hono/logger'
+import { compress } from 'hono/compress'
+
+const ensemble = {
+  trigger: [{
+    type: 'http',
+    path: '/api/data',
+    middleware: [logger(), compress()]
+  }]
+}
+```
+
+## Built-in Middleware
+
+Conductor ships with 6 Hono middleware handlers ready to use:
+
+| Name | Package | Description |
+|------|---------|-------------|
+| `logger` | `hono/logger` | Logs HTTP requests/responses to console |
+| `compress` | `hono/compress` | Gzip/Brotli response compression |
+| `timing` | `hono/timing` | Adds `Server-Timing` header for performance metrics |
+| `secure-headers` | `hono/secure-headers` | Security headers (X-Frame-Options, CSP, etc) |
+| `pretty-json` | `hono/pretty-json` | Pretty-prints JSON responses (dev only) |
+| `etag` | `hono/etag` | Generates ETags for cache validation |
+
+### Quick Example
+
+```yaml
+name: api-with-middleware
+description: Production API with security and performance
+
+trigger:
+  - type: http
+    path: /api/users
+    methods: [GET, POST]
+    public: true
+
+    middleware:
+      - logger          # Log all requests
+      - secure-headers  # Add security headers
+      - compress        # Compress responses
+      - etag            # Add cache validation
+
+agents:
+  - name: handle-request
+    operation: code
+    config:
+      code: |
+        export default async function(input) {
+          return { users: [...] }
+        }
+
+output: $handle-request
+```
+
+## Middleware Execution Order
+
+Middleware executes in this specific order:
+
+1. **CORS** (if configured in trigger)
+2. **Rate Limiting** (if configured in trigger)
+3. **Cache** (if configured in trigger)
+4. **Custom Middleware** (your `middleware` array)
+5. **Auth** (if configured in trigger)
+6. **Main Handler** (ensemble execution)
+
+```yaml
+trigger:
+  - type: http
+    path: /api/secure
+
+    # 1. CORS runs first
+    cors:
+      origin: "https://example.com"
+
+    # 2. Rate limiting runs second
+    rateLimit:
+      requests: 100
+      window: 60
+
+    # 3. Cache runs third
+    cache:
+      enabled: true
+      ttl: 300
+
+    # 4. Custom middleware runs fourth
+    middleware:
+      - logger
+      - secure-headers
+
+    # 5. Auth runs fifth
+    auth:
+      type: bearer
+      secret: ${env.API_SECRET}
+
+    # 6. Main handler executes last
+```
+
+## Custom Middleware
+
+Register your own middleware in your worker's initialization.
+
+### Basic Registration
+
+```typescript
+// src/index.ts
+import { getHttpMiddlewareRegistry } from '@ensemble-edge/conductor'
+import { createAutoDiscoveryAPI } from '@ensemble-edge/conductor/api'
+
+const registry = getHttpMiddlewareRegistry()
+
+// Register custom authentication middleware
+registry.register('custom-auth', async (c, next) => {
+  const token = c.req.header('x-api-token')
+  if (!token || token !== 'secret') {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  await next()
+}, {
+  description: 'Custom API token authentication',
+  package: 'my-app'
+})
+
+export default createAutoDiscoveryAPI({
+  agents,
+  ensembles,
+})
+```
+
+### Using Custom Middleware
+
+```yaml
+# ensembles/protected-api.yaml
+name: protected-api
+
+trigger:
+  - type: http
+    path: /api/protected
+    middleware:
+      - custom-auth  # Your custom middleware
+      - logger
+```
+
+### Advanced Custom Middleware
+
+```typescript
+import type { MiddlewareHandler } from 'hono'
+import { getHttpMiddlewareRegistry } from '@ensemble-edge/conductor'
+
+const registry = getHttpMiddlewareRegistry()
+
+// Request ID middleware
+const requestIdMiddleware: MiddlewareHandler = async (c, next) => {
+  const requestId = c.req.header('x-request-id') || crypto.randomUUID()
+  c.set('requestId', requestId)
+  c.header('x-request-id', requestId)
+  await next()
+}
+
+// Rate limiting middleware factory
+const createRateLimitMiddleware = (limit: number): MiddlewareHandler => {
+  const requests = new Map<string, number[]>()
+
+  return async (c, next) => {
+    const ip = c.req.header('cf-connecting-ip') || 'unknown'
+    const now = Date.now()
+    const windowMs = 60000 // 1 minute
+
+    const existing = requests.get(ip) || []
+    const recent = existing.filter(time => time > now - windowMs)
+
+    if (recent.length >= limit) {
+      return c.json({ error: 'Rate limit exceeded' }, 429)
+    }
+
+    recent.push(now)
+    requests.set(ip, recent)
+    await next()
+  }
+}
+
+// Register both
+registry.register('request-id', requestIdMiddleware, {
+  description: 'Adds unique request ID to each request',
+})
+
+registry.register('rate-limit-strict', createRateLimitMiddleware(10), {
+  description: 'Rate limit: 10 requests per minute',
+  configurable: true,
+})
+```
+
+## Common Patterns
+
+### Production API
+
+Full production setup with security and performance:
+
+```yaml
+trigger:
+  - type: http
+    path: /api/v1/data
+    methods: [GET, POST, PUT, DELETE]
+
+    middleware:
+      - logger          # Request logging
+      - secure-headers  # Security
+      - compress        # Compression
+      - timing          # Performance metrics
+
+    auth:
+      type: bearer
+      secret: ${env.API_KEY}
+
+    rateLimit:
+      requests: 1000
+      window: 60
+      key: user
+
+    cors:
+      origin: "*"
+      methods: [GET, POST, PUT, DELETE]
+      allowHeaders: [Authorization, Content-Type]
+```
+
+### Development API
+
+Focused on visibility and debugging:
+
+```yaml
+trigger:
+  - type: http
+    path: /dev/api
+    public: true
+
+    middleware:
+      - logger        # See all requests
+      - pretty-json   # Readable JSON
+      - timing        # Performance metrics
+```
+
+### Public Content Site
+
+Optimized for caching and performance:
+
+```yaml
+trigger:
+  - type: http
+    path: /blog/:slug
+    methods: [GET]
+    public: true
+
+    middleware:
+      - secure-headers  # Security
+      - compress        # Fast loading
+      - etag            # Cache validation
+
+    cache:
+      enabled: true
+      ttl: 3600
+      vary: [Accept-Encoding, Accept-Language]
+
+    responses:
+      html:
+        enabled: true
+```
+
+## Mixed TypeScript + YAML
+
+You can mix both approaches in the same project:
+
+```typescript
+// src/ensembles/ts-api.ts
+import { logger } from 'hono/logger'
+
+export const tsEnsemble = {
+  name: 'ts-api',
+  trigger: [{
+    type: 'http',
+    middleware: [logger()] // Direct function
+  }],
+  agents: [/* ... */]
+}
+```
+
+```yaml
+# ensembles/yaml-api.yaml
+name: yaml-api
+trigger:
+  - type: http
+    middleware:
+      - logger  # String reference to same middleware
+```
+
+## Project Organization
+
+### Option 1: Simple Projects
+
+Register middleware in your worker entry point:
+
+```
+my-worker/
+├── src/
+│   └── index.ts          # Register middleware here
+├── ensembles/
+│   └── api.yaml          # Use middleware by name
+└── conductor.config.ts
+```
+
+```typescript
+// src/index.ts
+import { getHttpMiddlewareRegistry } from '@ensemble-edge/conductor'
+
+const registry = getHttpMiddlewareRegistry()
+
+registry.register('custom-auth', async (c, next) => {
+  // ... middleware logic
+})
+
+export default createAutoDiscoveryAPI({
+  agents,
+  ensembles,
+})
+```
+
+### Option 2: Organized Projects
+
+Create dedicated middleware directory:
+
+```
+my-worker/
+├── src/
+│   ├── index.ts
+│   └── middleware/
+│       ├── index.ts      # Export all middleware
+│       ├── auth.ts
+│       ├── logging.ts
+│       └── rate-limit.ts
+├── ensembles/
+└── conductor.config.ts
+```
+
+```typescript
+// src/middleware/auth.ts
+import type { MiddlewareHandler } from 'hono'
+
+export const customAuth: MiddlewareHandler = async (c, next) => {
+  // ... auth logic
+}
+
+// src/middleware/index.ts
+export { customAuth } from './auth.js'
+export { requestLogger } from './logging.js'
+export { rateLimiter } from './rate-limit.js'
+
+// src/index.ts
+import { getHttpMiddlewareRegistry } from '@ensemble-edge/conductor'
+import * as middleware from './middleware/index.js'
+
+const registry = getHttpMiddlewareRegistry()
+registry.register('custom-auth', middleware.customAuth)
+registry.register('request-logger', middleware.requestLogger)
+registry.register('rate-limiter', middleware.rateLimiter)
+```
+
+### Option 3: Reusable Plugins
+
+Package middleware in Conductor plugins:
+
+```typescript
+// packages/my-middleware-plugin/src/index.ts
+import type { ConductorPlugin } from '@ensemble-edge/conductor'
+
+export const myMiddlewarePlugin: ConductorPlugin = {
+  name: 'my-middleware',
+  version: '1.0.0',
+
+  async initialize(context) {
+    const registry = context.getHttpMiddlewareRegistry()
+
+    registry.register('custom-auth', async (c, next) => {
+      // ... auth logic
+    })
+
+    registry.register('custom-logger', async (c, next) => {
+      // ... logging logic
+    })
+  }
+}
+```
+
+## Debugging Middleware
+
+List all registered middleware:
+
+```typescript
+import { getHttpMiddlewareRegistry } from '@ensemble-edge/conductor'
+
+const registry = getHttpMiddlewareRegistry()
+
+// List all middleware names
+console.log('Available middleware:', registry.list())
+// Output: ['logger', 'compress', 'timing', 'secure-headers', 'pretty-json', 'etag', 'custom-auth']
+
+// Get metadata for all middleware
+const metadata = registry.getAllMetadata()
+console.log(metadata)
+// Output: [
+//   { name: 'logger', description: 'HTTP request/response logger', package: 'hono/logger' },
+//   { name: 'compress', description: 'Response compression (gzip, brotli)', package: 'hono/compress' },
+//   ...
+// ]
+```
+
+## API Reference
+
+### `HttpMiddlewareRegistry`
+
+```typescript
+class HttpMiddlewareRegistry {
+  // Register middleware
+  register(
+    name: string,
+    handler: MiddlewareHandler,
+    metadata?: {
+      description?: string
+      package?: string
+      configurable?: boolean
+    }
+  ): void
+
+  // Get middleware by name
+  get(name: string): MiddlewareHandler | undefined
+
+  // Check if registered
+  has(name: string): boolean
+
+  // List all names
+  list(): string[]
+
+  // Get all metadata
+  getAllMetadata(): HttpMiddlewareMetadata[]
+
+  // Resolve mixed array (used internally)
+  resolve(middlewareArray: (string | MiddlewareHandler)[]): MiddlewareHandler[]
+}
+```
+
+### `getHttpMiddlewareRegistry()`
+
+Get the global singleton registry instance:
+
+```typescript
+import { getHttpMiddlewareRegistry } from '@ensemble-edge/conductor'
+
+const registry = getHttpMiddlewareRegistry()
+```
+
+## Best Practices
+
+1. **Order Matters** - Place security middleware (`secure-headers`) early, compression (`compress`) late
+2. **YAML for Production** - Use named middleware in YAML for better visibility and consistency
+3. **TypeScript for Prototyping** - Use direct functions for one-off custom logic
+4. **Register Once** - Register custom middleware during app initialization, not per-request
+5. **Performance** - Only use middleware you need - each adds latency
+6. **Testing** - Test middleware in isolation before adding to production ensembles
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="HTTP Trigger" icon="globe" href="/conductor/triggers/http">
+    Full HTTP trigger reference
+  </Card>
+
+  <Card title="Writing Ensembles" icon="sitemap" href="/conductor/building/writing-ensembles">
+    Ensemble patterns
+  </Card>
+
+  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
+    Monitor your APIs
+  </Card>
+
+  <Card title="Hono Middleware" icon="link" href="https://hono.dev/middleware/builtin/logger">
+    Official Hono docs
+  </Card>
+</CardGroup>

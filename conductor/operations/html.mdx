@@ -1,60 +1,175 @@
 ---
 title: "html Operation"
-description: "Render HTML with templates and data"
+description: "Render HTML templates with data (used in ensembles with http trigger)"
 ---
 
-## Basic Usage
+The `html` operation renders HTML templates using template engines. It's typically used in ensemble flows when an HTTP trigger needs to return server-rendered HTML.
+
+**Note**: The `html` operation is for rendering only. HTTP routing, authentication, CORS, and middleware are configured in the `trigger:` section using `type: http`.
+
+## HTTP Middleware
+
+When using the `html` operation with HTTP triggers, you can add Hono middleware for cross-cutting concerns like logging, compression, and security headers:
 
 ```yaml
-operations:
-  - name: render
+name: blog-post
+trigger:
+  - type: http
+    path: /blog/:slug
+    methods: [GET]
+    public: true
+
+    # Add middleware for performance and security
+    middleware:
+      - logger          # Log requests
+      - compress        # Gzip compression
+      - secure-headers  # Security headers
+      - etag            # Cache validation
+
+    responses:
+      html: {enabled: true}
+
+agents:
+  - name: render-page
     operation: html
     config:
-      template: dashboard
-      data:
-        user: ${fetch-user.output}
-        stats: ${fetch-stats.output}
+      template: |
+        <article>
+          <h1>{{ title }}</h1>
+          <div>{{ content }}</div>
+        </article>
+```
+
+Middleware executes before the HTML rendering, allowing you to add:
+- Request/response logging (`logger`)
+- Response compression for faster page loads (`compress`)
+- Security headers (`secure-headers`)
+- Cache validation with ETags (`etag`)
+- Custom authentication and rate limiting
+
+See the [HTTP Middleware Guide](/conductor/building/http-middleware) for complete documentation on using middleware with HTML responses.
+
+## Usage in Ensembles with HTTP Trigger
+
+```yaml
+name: blog-post
+trigger:
+  - type: http
+    path: /blog/:slug
+    methods: [GET]
+    public: true
+    responses:
+      html: {enabled: true}
+    templateEngine: liquid
+
+flow:
+  # Fetch data
+  - agent: fetch-post
+    input: {slug: ${input.params.slug}}
+
+  # Render HTML
+  - operation: html
+    config:
+      template: |
+        <article>
+          <h1>{{ fetch-post.title }}</h1>
+          <div>{{ fetch-post.content }}</div>
+        </article>
+      data: ${fetch-post}
 ```
 
 ## Configuration
 
 ```yaml
+operation: html
 config:
-  template: string    # Template name
-  data: object       # Template data
-  html: string       # Or raw HTML
+  template: string    # HTML template with variables
+  data: object       # Data to render in template
+  engine: string     # Template engine (liquid, handlebars, simple)
 ```
 
-## Examples
+## Template Engines
 
-### With Template
+### Liquid (Default)
+```yaml
+operation: html
+config:
+  template: |
+    <h1>{{ title }}</h1>
+    {% for item in items %}
+      <p>{{ item.name }}</p>
+    {% endfor %}
+  data: ${previous-step.output}
+```
+
+### Handlebars
+```yaml
+operation: html
+config:
+  template: |
+    <h1>{{title}}</h1>
+    {{#each items}}
+      <p>{{name}}</p>
+    {{/each}}
+  data: ${previous-step.output}
+  engine: handlebars
+```
+
+### Simple (String Interpolation)
+```yaml
+operation: html
+config:
+  template: |
+    <h1>{{title}}</h1>
+    <p>{{description}}</p>
+  data: ${previous-step.output}
+  engine: simple
+```
+
+## Complete Example
 
 ```yaml
-operations:
-  - name: render
-    operation: html
+name: user-dashboard
+trigger:
+  - type: http
+    path: /dashboard/:userId
+    methods: [GET]
+    auth:
+      type: bearer
+      secret: ${env.API_KEY}
+    responses:
+      html: {enabled: true}
+    templateEngine: liquid
+
+flow:
+  # Step 1: Fetch user data
+  - agent: get-user
+    input: {userId: ${input.params.userId}}
+
+  # Step 2: Fetch user stats
+  - agent: get-user-stats
+    input: {userId: ${input.params.userId}}
+
+  # Step 3: Render HTML dashboard
+  - operation: html
     config:
-      template: report
+      template: |
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Dashboard - {{ get-user.name }}</title>
+        </head>
+        <body>
+          <h1>Welcome, {{ get-user.name }}</h1>
+          <div class="stats">
+            <p>Total Orders: {{ get-user-stats.orders }}</p>
+            <p>Revenue: ${{ get-user-stats.revenue }}</p>
+          </div>
+        </body>
+        </html>
       data:
-        title: Monthly Report
-        revenue: ${calculate.output.revenue}
-        expenses: ${calculate.output.expenses}
-```
-
-### Raw HTML
-
-```yaml
-operations:
-  - name: render
-    operation: html
-    config:
-      template:
-        inline: |
-          <html>
-            <body>
-              <h1>Hello {{input.name}}</h1>
-            </body>
-          </html>
+        get-user: ${get-user}
+        get-user-stats: ${get-user-stats}
 ```
 
 ## Next Steps
@@ -63,7 +178,7 @@ operations:
   <Card title="pdf" icon="file-pdf" href="/conductor/operations/pdf">
     Generate PDFs
   </Card>
-  <Card title="page" icon="browser" href="/conductor/operations/page">
-    Full-stack pages
+  <Card title="HTTP Trigger" icon="globe" href="/conductor/triggers/http">
+    HTTP trigger for web routing
   </Card>
 </CardGroup>
