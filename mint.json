@@ -195,6 +195,17 @@
       ]
     },
     {
+      "group": "Plugins",
+      "pages": [
+        "conductor/plugins/overview",
+        "conductor/plugins/operation-registry",
+        "conductor/plugins/cloudflare",
+        "conductor/plugins/unkey",
+        "conductor/plugins/payload",
+        "conductor/plugins/attio"
+      ]
+    },
+    {
       "group": "Pre-built Agents Reference",
       "pages": [
         "conductor/agents/overview",
