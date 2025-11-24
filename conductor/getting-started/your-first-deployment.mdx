@@ -9,13 +9,13 @@ You've built your ensemble. Now let's put it in production where it matters.
 
 Before deploying:
 -  Wrangler installed and authenticated (`wrangler login`)
--  Working ensemble running locally (`pnpm run dev`)
+-  Working ensemble running locally (`ppnpm run dev`)
 -  `wrangler.toml` configured
 
 ## Deploy to Production
 
 ```bash
-pnpm run deploy
+ppnpm run deploy
 ```
 
 That's it. Your ensemble is live globally.
@@ -42,7 +42,7 @@ Auto-discovery works identically in production - no configuration needed!
 
 ### What Gets Deployed
 
-When you run `npm run build`, the bundle includes:
+When you run `pnpm run build`, the bundle includes:
 - ✅ All agents from `agents/**/*.yaml`
 - ✅ All ensembles from `ensembles/**/*.yaml`
 - ✅ All pages from `pages/**/*.yaml`
@@ -54,7 +54,7 @@ When you run `npm run build`, the bundle includes:
 **Step 1**: Build locally
 
 ```bash
-pnpm run build
+ppnpm run build
 ```
 
 **Step 2**: Test with wrangler dev
@@ -112,8 +112,8 @@ https://your-app.workers.dev/health
 **Fix**: Rebuild and redeploy
 
 ```bash
-pnpm run build
-pnpm run deploy
+ppnpm run build
+ppnpm run deploy
 ```
 
 Agents are discovered at build time. If you added a new agent, you must rebuild.
@@ -231,7 +231,7 @@ CREATE INDEX idx_documents_created ON documents(created_at);
 ### 4. Deploy Again
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 Now your worker has access to all resources.
@@ -297,10 +297,10 @@ id = "prod-cache-id"
 
 ```bash
 # Deploy to staging
-npm run deploy -- --env staging
+pnpm run deploy -- --env staging
 
 # Deploy to production
-npm run deploy -- --env production
+pnpm run deploy -- --env production
 ```
 
 ### Environment-Specific Secrets
@@ -510,7 +510,7 @@ In `wrangler.toml`:
 
 ```toml
 [build]
-command = "pnpm run build"
+command = "ppnpm run build"
 
 [build.upload]
 format = "modules"

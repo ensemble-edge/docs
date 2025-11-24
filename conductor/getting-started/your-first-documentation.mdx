@@ -60,7 +60,7 @@ These are **production-ready tools**, not examples to delete!
 Start your dev server:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Visit the documentation endpoint:
@@ -154,7 +154,7 @@ style:
 
 ```bash
 # Start dev server
-npm run dev
+pnpm run dev
 
 # Visit your configured docs
 curl http://localhost:8787/docs-public
@@ -347,7 +347,7 @@ curl -X POST http://localhost:8787/docs-search \
 #!/bin/bash
 
 echo "Updating documentation..."
-npm run generate-docs
+pnpm run generate-docs
 
 # Add updated docs to commit
 git add docs/
@@ -378,13 +378,13 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Generate documentation
-        run: npm run generate-docs
+        run: pnpm run generate-docs
 
       - name: Deploy docs
-        run: npm run deploy-docs
+        run: ppnpm run deploy-docs
 ```
 </Tab>
 
@@ -424,17 +424,17 @@ Add to `package.json`:
 
 ```bash
 # Generate production docs
-npm run generate-docs
+pnpm run generate-docs
 
 # Build project
-npm run build
+pnpm run build
 ```
 
 ### Deploy with Wrangler
 
 ```bash
 # Deploy to Cloudflare Workers
-npm run deploy
+pnpm run deploy
 
 # Your docs will be available at:
 # https://your-app.workers.dev/docs-public
@@ -528,7 +528,7 @@ include:
 **Solutions:**
 1. Check agent is registered:
    ```bash
-   npm run dev
+   pnpm run dev
    # Look for "docs-simple" in agent list
    ```
 
@@ -541,7 +541,7 @@ include:
 
 4. Review logs for errors:
    ```bash
-   npm run dev | grep docs
+   pnpm run dev | grep docs
    ```
 </Accordion>
 

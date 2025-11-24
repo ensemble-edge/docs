@@ -72,8 +72,8 @@ Edit `docs.json` to update site navigation structure.
 
 ### Local Development
 ```bash
-npm install
-npm run dev  # Starts Mintlify dev server
+pnpm install
+pnpm run dev  # Starts Mintlify dev server
 ```
 
 ## Documentation Standards

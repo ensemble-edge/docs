@@ -21,7 +21,7 @@ Comprehensive documentation covering:
 
 1. Install dependencies:
 ```bash
-npm install
+pnpm install
 ```
 
 2. Install Mintlify CLI globally (if not already installed):
@@ -31,7 +31,7 @@ npm i -g mintlify
 
 3. Start the development server:
 ```bash
-npm run dev
+pnpm run dev
 # or
 mintlify dev
 ```

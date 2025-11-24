@@ -13,15 +13,15 @@ description: "Step-by-step guide to upgrading Conductor to the latest version"
 
 ```bash
 # 1. Update your dependency
-npm install @ensemble-edge/conductor@latest
+pnpm install @ensemble-edge/conductor@latest
 
 # 2. Test everything works
-npm test
-npm run build
+pnpm test
+pnpm run build
 npx wrangler dev --local-protocol http
 
 # 3. Deploy when ready
-npm run deploy
+pnpm run deploy
 ```
 
 <Note>
@@ -40,16 +40,16 @@ That's it! Most upgrades are seamless.
 
 ```bash
 # Run the test suite
-npm test
+pnpm test
 
 # Expected: All tests should pass
 ```
 
 ### Manual Testing Checklist
 
-- [ ] `npm install` completes without errors
-- [ ] `npm test` shows all tests passing
-- [ ] `npm run build` succeeds
+- [ ] `pnpm install` completes without errors
+- [ ] `pnpm test` shows all tests passing
+- [ ] `pnpm run build` succeeds
 - [ ] Dev server starts (see note above for dev container vs local)
 - [ ] Homepage loads: `curl http://localhost:8787/`
 - [ ] Static pages work (test 2-3 pages)
@@ -63,10 +63,10 @@ Compare build times before and after:
 
 ```bash
 # Before upgrade
-time npm run build
+time pnpm run build
 
 # After upgrade
-time npm run build
+time pnpm run build
 
 # Should be similar or faster
 ```
@@ -74,18 +74,18 @@ time npm run build
 ## Troubleshooting Common Issues
 
 <AccordionGroup>
-  <Accordion title="npm install fails">
+  <Accordion title="pnpm install fails">
     **Symptoms**:
     ```
-    npm error Cannot read properties of undefined
+    pnpm error Cannot read properties of undefined
     ```
 
     **Solution**:
     ```bash
     # Clean install
-    rm -rf node_modules package-lock.json
-    npm cache clean --force
-    npm install
+    rm -rf node_modules pnpm-lock.yaml
+    pnpm store prune
+    pnpm install
     ```
   </Accordion>
 
@@ -109,7 +109,7 @@ time npm run build
   <Accordion title="Routes not working after upgrade">
     **Solution**: Rebuild and restart dev server
     ```bash
-    npm run build
+    pnpm run build
     npx wrangler dev --local-protocol http
     ```
   </Accordion>
@@ -123,10 +123,10 @@ time npm run build
     **Solution**: Check your route configuration and ensure you're using the latest version:
     ```bash
     # Check your Conductor version
-    npm list @ensemble-edge/conductor
+    pnpm list @ensemble-edge/conductor
 
     # Upgrade to latest
-    npm install @ensemble-edge/conductor@latest
+    pnpm install @ensemble-edge/conductor@latest
     ```
   </Accordion>
 
@@ -162,7 +162,7 @@ time npm run build
   <Accordion title="TypeScript errors">
     **Solution**: Update type definitions
     ```bash
-    npm install --save-dev @cloudflare/workers-types@latest
+    pnpm install --save-dev @cloudflare/workers-types@latest
     ```
   </Accordion>
 </AccordionGroup>
@@ -174,8 +174,8 @@ time npm run build
 **Best for**: Most projects, minor version upgrades
 
 ```bash
-npm install @ensemble-edge/conductor@latest
-npm test && npm run build
+pnpm install @ensemble-edge/conductor@latest
+pnpm test && pnpm run build
 ```
 
 **Pros**: Fast, simple, usually works
@@ -209,11 +209,11 @@ git clone your-repo temp-test
 
 # Upgrade in the clone
 cd temp-test
-npm install @ensemble-edge/conductor@latest
+pnpm install @ensemble-edge/conductor@latest
 
 # Test thoroughly
-npm test
-npm run build
+pnpm test
+pnpm run build
 npx wrangler dev --local-protocol http
 
 # Deploy to preview environment
@@ -235,17 +235,17 @@ If you need to rollback after an upgrade:
 git log package.json
 
 # 2. Reinstall the old version
-npm install @ensemble-edge/conductor@<previous-version>
+pnpm install @ensemble-edge/conductor@<previous-version>
 
-# 3. Restore package-lock.json from git
-git checkout HEAD~1 package-lock.json
+# 3. Restore pnpm-lock.yaml from git
+git checkout HEAD~1 pnpm-lock.yaml
 
 # 4. Clean reinstall
 rm -rf node_modules
-npm install
+pnpm install
 
 # 5. Test
-npm test && npm run build
+pnpm test && pnpm run build
 ```
 
 ## New Feature Discovery
@@ -292,7 +292,7 @@ Look for:
 
 ```bash
 # Run tests with coverage
-npm run test:coverage
+pnpm run test:coverage
 
 # Goal: Maintain or improve coverage after upgrade
 ```
@@ -301,7 +301,7 @@ npm run test:coverage
 
 ```bash
 # Check bundle size
-npm run build
+pnpm run build
 # Review dist/index.mjs size
 
 # Optimize if needed
@@ -323,12 +323,12 @@ Update your project's README with:
 
 ```bash
 # Check for Conductor updates regularly
-npm outdated
+pnpm outdated
 
 # Update Conductor and related packages
-npm update @ensemble-edge/conductor
-npm update @cloudflare/workers-types
-npm update wrangler
+pnpm update @ensemble-edge/conductor
+pnpm update @cloudflare/workers-types
+pnpm update wrangler
 ```
 
 ### Pin Versions in Production
@@ -350,8 +350,8 @@ Use exact versions in production, flexible versions in development:
 
 ```bash
 # Always test before production deployment
-npm test
-npm run build
+pnpm test
+pnpm run build
 npx wrangler dev --local-protocol http
 
 # Test in preview environment first
@@ -388,9 +388,9 @@ If you find issues after upgrading:
 
 ```bash
 # Gather diagnostic info
-npm list @ensemble-edge/conductor
+pnpm list @ensemble-edge/conductor
 node --version
-npm --version
+pnpm --version
 
 # Include in bug report:
 # - Conductor version
@@ -407,20 +407,20 @@ npm --version
 
 ```bash
 # For most users
-npm install @ensemble-edge/conductor@latest && npm test && npm run build
+pnpm install @ensemble-edge/conductor@latest && pnpm test && pnpm run build
 ```
 
 ### If Issues Occur
 
 ```bash
 # Clean install
-rm -rf node_modules package-lock.json && npm install
+rm -rf node_modules pnpm-lock.yaml && pnpm install
 ```
 
 ### After Upgrade
 
-- ✅ Run tests: `npm test`
-- ✅ Build: `npm run build`
+- ✅ Run tests: `pnpm test`
+- ✅ Build: `pnpm run build`
 - ✅ Test locally: `npx wrangler dev --local-protocol http`
 - ✅ Test in preview: `npx wrangler deploy --env preview`
 - ✅ Deploy to production: `npx wrangler deploy`

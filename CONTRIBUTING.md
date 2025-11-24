@@ -294,7 +294,7 @@ BREAKING CHANGE: Tag format changed from components-name-version to components/n
 - [ ] All functions have JSDoc comments
 - [ ] Tests added/updated (when test infrastructure exists)
 - [ ] Documentation updated (README, CLAUDE.md, etc.)
-- [ ] Build succeeds (`npm run build`)
+- [ ] Build succeeds (`pnpm run build`)
 - [ ] No TypeScript errors (`npx tsc --noEmit`)
 - [ ] Commit messages follow conventional commits
 - [ ] Branch is up-to-date with main
