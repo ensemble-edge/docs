@@ -125,26 +125,26 @@ Operation = atomic execution primitive (think, code, http, storage, etc.)
 ## Expression Syntax
 
 ### Variable Access
-${input.field}                    # Ensemble/agent input
-${agent-name.output}              # Agent output
-${agent-name.output.nested.field} # Nested access
-${state.field}                    # State variable
-${env.VARIABLE}                   # Environment variable
-${component.name@v1.0.0}          # Component reference
+\${input.field}                    # Ensemble/agent input
+\${agent-name.output}              # Agent output
+\${agent-name.output.nested.field} # Nested access
+\${state.field}                    # State variable
+\${env.VARIABLE}                   # Environment variable
+\${component.name@v1.0.0}          # Component reference
 
 ### Execution Status
-${agent.executed}                 # Boolean: ran
-${agent.failed}                   # Boolean: errored
-${agent.success}                  # Boolean: succeeded
-${agent.cached}                   # Boolean: from cache
-${agent.duration}                 # Number: ms
+\${agent.executed}                 # Boolean: ran
+\${agent.failed}                   # Boolean: errored
+\${agent.success}                  # Boolean: succeeded
+\${agent.cached}                   # Boolean: from cache
+\${agent.duration}                 # Number: ms
 
 ### Conditions
-condition: ${input.value > 10}
-condition: ${agent.failed}
-condition: ${!agent.executed}
-condition: ${input.type === 'premium'}
-condition: ${input.age >= 18 && input.verified}
+condition: \${input.value > 10}
+condition: \${agent.failed}
+condition: \${!agent.executed}
+condition: \${input.type === 'premium'}
+condition: \${input.age >= 18 && input.verified}
 
 ## YAML Ensemble Schema
 
@@ -175,21 +175,21 @@ output:                            # Optional
 agents:
   - name: fetch
     operation: http
-    config: { url: "${input.url}" }
+    config: { url: "\${input.url}" }
   - name: process
     operation: code
     config: { script: scripts/process }
-    input: { data: ${fetch.output} }
+    input: { data: \${fetch.output} }
 
 ### Cache-or-Generate
 agents:
   - name: check-cache
     operation: storage
-    config: { type: kv, action: get, key: "result-${input.query}" }
+    config: { type: kv, action: get, key: "result-\${input.query}" }
   - name: generate
-    condition: ${check-cache.output.value === null}
+    condition: \${check-cache.output.value === null}
     operation: think
-    config: { provider: openai, model: gpt-4o, prompt: "${input.query}" }
+    config: { provider: openai, model: gpt-4o, prompt: "\${input.query}" }
 
 ### Fallback Chain
 agents:
@@ -198,7 +198,7 @@ agents:
     config: { url: "https://primary-api.com" }
     retry: { maxAttempts: 2 }
   - name: try-backup
-    condition: ${try-primary.failed}
+    condition: \${try-primary.failed}
     operation: http
     config: { url: "https://backup-api.com" }
 
@@ -231,8 +231,8 @@ conductor agent:run <name> <input>
 | Don't | Do |
 |-------|-----|
 | Inline JS in YAML | Use script: scripts/path |
-| Hardcode secrets | Use ${env.SECRET} |
-| Skip error handling | Use tryStep() or condition: ${x.failed} |
+| Hardcode secrets | Use \${env.SECRET} |
+| Skip error handling | Use tryStep() or condition: \${x.failed} |
 | Create mega-ensembles | Compose via agents |
 | Forget cache | Add cache: { ttl: 3600 } to expensive ops |
 
