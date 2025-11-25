@@ -135,12 +135,25 @@ agents:
   - name: combine
     operation: code
     config:
-      code: |
-        return {
-          users: ${fetch-users.output.body},
-          posts: ${fetch-posts.output.body},
-          comments: ${fetch-comments.output.body}
-        };
+      script: scripts/combine-api-results
+    input:
+      users: ${fetch-users.output.body}
+      posts: ${fetch-posts.output.body}
+      comments: ${fetch-comments.output.body}
+
+```typescript
+// scripts/combine-api-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineApiResults(context: AgentExecutionContext) {
+  const { users, posts, comments } = context.input
+
+  return {
+    users,
+    posts,
+    comments
+  }
+}
 ```
 
 ### Primary + Fallback
@@ -163,8 +176,19 @@ agents:
   - name: result
     operation: code
     config:
-      code: |
-        return ${fetch-primary.output} || ${fetch-secondary.output};
+      script: scripts/select-fetch-result
+    input:
+      primary_output: ${fetch-primary.output}
+      secondary_output: ${fetch-secondary.output}
+
+```typescript
+// scripts/select-fetch-result.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function selectFetchResult(context: AgentExecutionContext) {
+  const { primary_output, secondary_output } = context.input
+  return primary_output || secondary_output
+}
 ```
 
 ### Paginated Requests
@@ -191,14 +215,27 @@ agents:
   - name: combine
     operation: code
     config:
-      code: |
-        return {
-          items: [
-            ...${fetch-page-1.output.body.items},
-            ...${fetch-page-2.output.body.items || []},
-            ...${fetch-page-3.output.body.items || []}
-          ]
-        };
+      script: scripts/combine-paginated-results
+    input:
+      page1_items: ${fetch-page-1.output.body.items}
+      page2_items: ${fetch-page-2.output.body.items || []}
+      page3_items: ${fetch-page-3.output.body.items || []}
+
+```typescript
+// scripts/combine-paginated-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combinePaginatedResults(context: AgentExecutionContext) {
+  const { page1_items, page2_items, page3_items } = context.input
+
+  return {
+    items: [
+      ...page1_items,
+      ...page2_items,
+      ...page3_items
+    ]
+  }
+}
 ```
 
 ### Authenticated Requests
@@ -281,18 +318,27 @@ agents:
     condition: ${fetch.failed}
     operation: code
     config:
-      code: |
-        const error = ${fetch.error};
+      script: scripts/handle-fetch-error
+    input:
+      error: ${fetch.error}
 
-        if (error.status === 404) {
-          return { notFound: true };
-        } else if (error.status >= 500) {
-          return { serverError: true, retryable: true };
-        } else if (error.timeout) {
-          return { timeout: true, retryable: true };
-        } else {
-          return { error: error.message };
-        }
+```typescript
+// scripts/handle-fetch-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleFetchError(context: AgentExecutionContext) {
+  const { error } = context.input
+
+  if (error.status === 404) {
+    return { notFound: true }
+  } else if (error.status >= 500) {
+    return { serverError: true, retryable: true }
+  } else if (error.timeout) {
+    return { timeout: true, retryable: true }
+  } else {
+    return { error: error.message }
+  }
+}
 ```
 
 ## Best Practices
@@ -402,14 +448,27 @@ agents:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          combined: {
-            source1: ${fetch-source-1.output.body},
-            source2: ${fetch-source-2.output.body},
-            source3: ${fetch-source-3.output.body}
-          }
-        };
+      script: scripts/merge-api-sources
+    input:
+      source1: ${fetch-source-1.output.body}
+      source2: ${fetch-source-2.output.body}
+      source3: ${fetch-source-3.output.body}
+
+```typescript
+// scripts/merge-api-sources.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeApiSources(context: AgentExecutionContext) {
+  const { source1, source2, source3 } = context.input
+
+  return {
+    combined: {
+      source1,
+      source2,
+      source3
+    }
+  }
+}
 ```
 
 ### GraphQL Query

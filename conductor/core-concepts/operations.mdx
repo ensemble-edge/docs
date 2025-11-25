@@ -81,8 +81,19 @@ operations:
   - name: process
     operation: code
     config:
-      code: |
-        return { result: ${generate-text.output}.toUpperCase() };
+      script: scripts/uppercase-text
+    input:
+      text: ${generate-text.output}
+```
+
+```typescript
+// scripts/uppercase-text.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function uppercaseText(context: AgentExecutionContext) {
+  const { text } = context.input
+  return { result: text.toUpperCase() }
+}
 ```
 
 ### Execution
@@ -113,11 +124,23 @@ operations:
   - name: step3
     operation: code
     config:
-      code: |
-        return {
-          analysis: ${step2.output},
-          raw_data: ${step1.output.body}
-        };
+      script: scripts/combine-results
+    input:
+      analysis: ${step2.output}
+      rawData: ${step1.output.body}
+```
+
+```typescript
+// scripts/combine-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineResults(context: AgentExecutionContext) {
+  const { analysis, rawData } = context.input
+  return {
+    analysis,
+    raw_data: rawData
+  }
+}
 ```
 
 ## Operation Categories
@@ -141,9 +164,19 @@ Execute logic and transform data.
 - name: transform
   operation: code
   config:
-    code: |
-      const data = ${input.data};
-      return { transformed: data.map(x => x * 2) };
+    script: scripts/transform-data
+  input:
+    data: ${input.data}
+```
+
+```typescript
+// scripts/transform-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function transformData(context: AgentExecutionContext) {
+  const { data } = context.input
+  return { transformed: data.map((x: number) => x * 2) }
+}
 ```
 
 ### 2. Data Operations
@@ -388,12 +421,25 @@ operations:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          a: ${fetch-a.output.body},
-          b: ${fetch-b.output.body},
-          c: ${fetch-c.output.body}
-        };
+      script: scripts/merge-api-responses
+    input:
+      fetchA: ${fetch-a.output.body}
+      fetchB: ${fetch-b.output.body}
+      fetchC: ${fetch-c.output.body}
+```
+
+```typescript
+// scripts/merge-api-responses.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeApiResponses(context: AgentExecutionContext) {
+  const { fetchA, fetchB, fetchC } = context.input
+  return {
+    a: fetchA,
+    b: fetchB,
+    c: fetchC
+  }
+}
 ```
 
 ## Operation Reference
@@ -472,11 +518,23 @@ operations:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          a: ${step1.output},
-          b: ${step2.output}
-        };
+      script: scripts/merge-step-outputs
+    input:
+      stepA: ${step1.output}
+      stepB: ${step2.output}
+```
+
+```typescript
+// scripts/merge-step-outputs.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeStepOutputs(context: AgentExecutionContext) {
+  const { stepA, stepB } = context.input
+  return {
+    a: stepA,
+    b: stepB
+  }
+}
 ```
 
 ### 2. Conditional Execution

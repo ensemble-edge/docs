@@ -5,7 +5,7 @@ description: "Git-native versioning for AI components. Version every component i
 
 ## What Edgit Does
 
-Edgit extends Git with component-aware versioning. It tracks components (prompts, configs, queries, scripts, schemas) and agents in a registry, uses Git tags for semantic versioning, and provides deployment tracking.
+Edgit extends Git with component-aware versioning. It tracks components (prompts, configs, queries, scripts, schemas), agents, and ensembles in a registry, uses Git tags for semantic versioning, and provides deployment tracking.
 
 **Everything lives in Git.** No proprietary storage. No vendor database. You own the source of truth.
 
@@ -28,11 +28,13 @@ edgit tag create extraction-prompt v1.0.0
 edgit tag create company-agent v2.1.0
 edgit tag create validation-query v0.5.0
 edgit tag create invoice-schema v1.0.0
+edgit tag create data-pipeline v1.0.0     # TypeScript ensemble
 
 # Deploy optimal combination
 edgit deploy set extraction-prompt v0.1.0 --to prod  # Ancient but perfect
 edgit deploy set company-agent v3.0.0 --to prod      # Latest stable
 edgit deploy set invoice-schema v1.0.0 --to prod     # Structured outputs
+edgit deploy set data-pipeline v1.0.0 --to prod      # Ensemble workflow
 
 # Rollback one component instantly
 edgit deploy set extraction-prompt v0.1.0 --to prod  # &lt;50ms globally
@@ -92,6 +94,47 @@ agents:
     component: prompt@v1.0.0   # With specific prompt version
 ```
 
+### Ensemble Versioning
+
+**Ensembles** are workflow definitions that orchestrate agents. They can be written in YAML or TypeScript:
+
+```bash
+# Version TypeScript ensembles
+edgit tag create data-pipeline v1.0.0 --type=ensemble
+
+# Version YAML ensembles
+edgit tag create scraping-workflow v2.0.0 --type=ensemble
+
+# Deploy specific versions
+edgit deploy set data-pipeline v1.0.0 --to prod
+```
+
+TypeScript ensembles provide full type safety:
+
+```typescript
+// ensembles/data-pipeline.ts
+import { createEnsemble, step, parallel } from '@anthropic/conductor'
+
+export default createEnsemble('data-pipeline')
+  .addStep(
+    parallel('analyze')
+      .steps(
+        step('sentiment').operation('think').config({ prompt: '...' }),
+        step('entities').operation('think').config({ prompt: '...' })
+      )
+  )
+  .build()
+```
+
+Ensemble Git tags use their own namespace:
+
+```bash
+# Ensemble tags
+ensembles/data-pipeline/v1.0.0
+ensembles/data-pipeline/prod
+ensembles/scraping-workflow/v2.0.0
+```
+
 ### Deployment Tracking
 
 Know exactly what's deployed where:
@@ -117,7 +160,7 @@ edgit history my-prompt
 
 ### Git Tag Namespace
 
-Components and agents use separate Git tag namespaces:
+Components, agents, and ensembles use separate Git tag namespaces:
 
 ```bash
 # Component tags
@@ -127,6 +170,10 @@ components/extraction-prompt/prod
 # Agent tags
 agents/scraper/v1.5.0
 agents/scraper/prod
+
+# Ensemble tags
+ensembles/data-pipeline/v1.0.0
+ensembles/data-pipeline/prod
 ```
 
 This keeps versioning clean and prevents naming collisions.
@@ -140,11 +187,21 @@ Find and register components automatically:
 edgit discover scan --type prompt
 # Found 12 prompt files
 
+# Scan for TypeScript ensembles
+edgit discover scan --type ensemble
+# Found 5 ensemble files
+
 # Detect component type
 edgit discover detect src/my-function.ts
 # Type: script
 # Confidence: 95%
 # Suggested name: my-function
+
+# Detect TypeScript ensemble
+edgit discover detect ensembles/data-pipeline.ts
+# Type: ensemble
+# Confidence: 95%
+# Suggested name: data-pipeline
 
 # List untracked components
 edgit components list --untracked
@@ -187,11 +244,13 @@ edgit merge main
 
 ## The Versioning Multiverse
 
-With independent versioning of components AND agents, you unlock infinite combinations:
+With independent versioning of components, agents, AND ensembles, you unlock infinite combinations:
 
+<Tabs>
+  <Tab title="YAML">
 ```yaml
 # Test matrix:
-# 2 agent versions  3 prompt versions  2 configs = 12 variants
+# 2 agent versions × 3 prompt versions × 2 configs = 12 variants
 
 ensemble: multiverse-test
 
@@ -210,6 +269,33 @@ agents:
 
   # ... 10 more combinations for A/B testing
 ```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+// ensembles/multiverse-test.ts
+import { createEnsemble, step, parallel } from '@anthropic/conductor'
+
+export default createEnsemble('multiverse-test')
+  .addStep(
+    parallel('variants')
+      .steps(
+        // Variant 1: Stable everything
+        step('stable')
+          .agent('analyzer@v1.0.0')
+          .component('prompt@v1.0.0')
+          .config({ configRef: 'config@v1.0.0' }),
+
+        // Variant 2: New agent, old prompt
+        step('new-agent-old-prompt')
+          .agent('analyzer@v2.0.0')
+          .component('prompt@v1.0.0')
+          .config({ configRef: 'config@v1.0.0' })
+      )
+  )
+  .build()
+```
+  </Tab>
+</Tabs>
 
 ### Time Travel
 

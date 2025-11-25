@@ -209,14 +209,26 @@ agents:
   - name: logger
     operation: code
     config:
-      code: |
-        const greeting = "${greeter.output.message}";
-        console.log("Generated greeting:", greeting);
-        return {
-          logged: true,
-          timestamp: Date.now()
-        };
+      script: scripts/log-greeting
+    input:
+      greeting: ${greeter.output.message}
+```
 
+```typescript
+// scripts/log-greeting.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function logGreeting(context: AgentExecutionContext) {
+  const { greeting } = context.input
+  console.log("Generated greeting:", greeting)
+  return {
+    logged: true,
+    timestamp: Date.now()
+  }
+}
+```
+
+```yaml
 output:
   greeting: ${greeter.output.message}
   logged_at: ${logger.output.timestamp}
@@ -468,13 +480,26 @@ agents:
   - name: aggregate
     operation: code
     config:
-      code: |
-        return {
-          safe: !${check-spam.output.spam} &&
-                !${check-hate.output.hate} &&
-                !${check-explicit.output.explicit}
-        };
+      script: scripts/aggregate-moderation-checks
+    input:
+      isSpam: ${check-spam.output.spam}
+      isHate: ${check-hate.output.hate}
+      isExplicit: ${check-explicit.output.explicit}
+```
 
+```typescript
+// scripts/aggregate-moderation-checks.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function aggregateModerationChecks(context: AgentExecutionContext) {
+  const { isSpam, isHate, isExplicit } = context.input
+  return {
+    safe: !isSpam && !isHate && !isExplicit
+  }
+}
+```
+
+```yaml
 output:
   safe: ${aggregate.output.safe}
 ```
@@ -495,9 +520,19 @@ agents:
   - name: quick-check
     operation: code
     config:
-      code: |
-        return { needs_review: Math.random() < 0.2 };
+      script: scripts/quick-review-check
+```
 
+```typescript
+// scripts/quick-review-check.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function quickReviewCheck(context: AgentExecutionContext) {
+  return { needs_review: Math.random() < 0.2 }
+}
+```
+
+```yaml
   # Only runs 20% of the time
   - name: expensive-ai-check
     operation: think
@@ -512,9 +547,19 @@ agents:
     operation: code
     condition: ${!expensive-ai-check.executed}
     config:
-      code: |
-        return { result: "default-value" };
+      script: scripts/use-default-value
+```
 
+```typescript
+// scripts/use-default-value.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function useDefaultValue(context: AgentExecutionContext) {
+  return { result: "default-value" }
+}
+```
+
+```yaml
 output:
   result: ${expensive-ai-check.output || use-default.output.result}
   ai_used: ${expensive-ai-check.executed}
@@ -534,14 +579,26 @@ agents:
       items: ${input.users}
       as: user
     config:
-      code: |
-        const user = ${user};
-        return {
-          id: user.id,
-          processed: true,
-          timestamp: Date.now()
-        };
+      script: scripts/process-user
+    input:
+      user: ${user}
+```
 
+```typescript
+// scripts/process-user.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processUser(context: AgentExecutionContext) {
+  const { user } = context.input
+  return {
+    id: user.id,
+    processed: true,
+    timestamp: Date.now()
+  }
+}
+```
+
+```yaml
 output:
   processed: ${process-batch.output}  # Array of results
 ```
@@ -579,18 +636,29 @@ agents:
   - name: quick-filter
     operation: code
     config:
-      code: |
-        const text = "${input.text}".toLowerCase();
-        const badWords = ["spam", "scam", "viagra"];
-        const hasB
+      script: scripts/quick-filter-text
+    input:
+      text: ${input.text}
+```
 
-adWords = badWords.some(w => text.includes(w));
+```typescript
+// scripts/quick-filter-text.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        return {
-          blocked: hasBadWords,
-          reason: hasBadWords ? "Contains blocked keywords" : null
-        };
+export default function quickFilterText(context: AgentExecutionContext) {
+  const { text } = context.input
+  const lowerText = text.toLowerCase()
+  const badWords = ["spam", "scam", "viagra"]
+  const hasBadWords = badWords.some(w => lowerText.includes(w))
 
+  return {
+    blocked: hasBadWords,
+    reason: hasBadWords ? "Contains blocked keywords" : null
+  }
+}
+```
+
+```yaml
   # Only run expensive AI if quick filter passes
   - name: ai-check
     operation: think
@@ -728,10 +796,23 @@ agents:
     operation: code
     condition: ${risky-operation.failed}
     config:
-      code: |
-        console.error("Operation failed:", "${risky-operation.error}");
-        return { fallback: true };
+      script: scripts/handle-failure
+    input:
+      error: ${risky-operation.error}
+```
 
+```typescript
+// scripts/handle-failure.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleFailure(context: AgentExecutionContext) {
+  const { error } = context.input
+  console.error("Operation failed:", error)
+  return { fallback: true }
+}
+```
+
+```yaml
 output:
   result: ${risky-operation.output || fallback-handler.output}
   used_fallback: ${fallback-handler.executed}
@@ -851,19 +932,156 @@ describe('My Ensemble', () => {
   </Accordion>
 </AccordionGroup>
 
+## TypeScript Ensembles
+
+Prefer TypeScript over YAML? You can create ensembles programmatically with full type safety, IDE autocomplete, and compile-time validation.
+
+### Basic TypeScript Ensemble
+
+```typescript
+// ensembles/greeting-workflow.ts
+import { createEnsemble, step } from '@anthropic/conductor'
+
+const greetingWorkflow = createEnsemble('greeting-workflow')
+  .setDescription('Generate personalized greetings')
+  .addStep(
+    step('greeter')
+      .agent('greeter')
+      .input({
+        name: '${input.name}',
+        style: '${input.style}'
+      })
+  )
+  .addStep(
+    step('format')
+      .operation('code')
+      .config({ script: 'scripts/format-greeting' })
+      .input({ greeting: '${greeter.output}' })
+  )
+  .build()
+
+export default greetingWorkflow
+```
+
+### TypeScript vs YAML Comparison
+
+<Tabs>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step, parallel } from '@anthropic/conductor'
+
+const multiSourceFetch = createEnsemble('multi-source-fetch')
+  .addStep(
+    parallel('fetch-all')
+      .steps(
+        step('api-a').agent('fetcher').input({ url: '${input.urlA}' }),
+        step('api-b').agent('fetcher').input({ url: '${input.urlB}' }),
+        step('api-c').agent('fetcher').input({ url: '${input.urlC}' })
+      )
+  )
+  .addStep(
+    step('merge')
+      .operation('code')
+      .config({ script: 'scripts/merge-data' })
+      .input({
+        a: '${api-a.output}',
+        b: '${api-b.output}',
+        c: '${api-c.output}'
+      })
+  )
+  .build()
+
+export default multiSourceFetch
+```
+  </Tab>
+  <Tab title="YAML">
+```yaml
+ensemble: multi-source-fetch
+
+agents:
+  - name: api-a
+    agent: fetcher
+    inputs:
+      url: ${input.urlA}
+
+  - name: api-b
+    agent: fetcher
+    inputs:
+      url: ${input.urlB}
+
+  - name: api-c
+    agent: fetcher
+    inputs:
+      url: ${input.urlC}
+
+  - name: merge
+    operation: code
+    config:
+      script: scripts/merge-data
+    input:
+      a: ${api-a.output}
+      b: ${api-b.output}
+      c: ${api-c.output}
+```
+  </Tab>
+</Tabs>
+
+### Benefits of TypeScript Ensembles
+
+| Feature | YAML | TypeScript |
+|---------|------|------------|
+| Type safety | Runtime only | Compile-time |
+| IDE autocomplete | Limited | Full support |
+| Refactoring | Manual | Automated |
+| Conditional logic | Expression strings | Native code |
+| Reusable components | Copy/paste | Import/export |
+
+### When to Use Each
+
+**Use YAML when:**
+- Quick prototyping
+- Simple linear workflows
+- Non-developers editing workflows
+- Maximum readability
+
+**Use TypeScript when:**
+- Complex conditional logic
+- Reusable step patterns
+- Type safety is important
+- IDE support needed
+- Dynamic workflow generation
+
+### Validating TypeScript Ensembles
+
+TypeScript ensembles are validated the same way as YAML:
+
+```bash
+# Validate a TypeScript ensemble
+conductor validate ensembles/greeting-workflow.ts
+
+# Validate all ensembles (YAML and TypeScript)
+conductor validate ensembles/ -r
+```
+
+<Note>
+For complete TypeScript API documentation, see the [TypeScript API Reference](/conductor/reference/ts-schema).
+</Note>
+
+---
+
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    Complete TypeScript reference
+  </Card>
+
   <Card title="Flow Control" icon="diagram-project" href="/conductor/core-concepts/flow-control">
     Master advanced flow patterns
   </Card>
 
   <Card title="State Management" icon="database" href="/conductor/core-concepts/state">
     Share data across agents
-  </Card>
-
-  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
-    Explore all operations
   </Card>
 
   <Card title="Playbooks" icon="lightbulb" href="/conductor/playbooks/rag-pipeline">

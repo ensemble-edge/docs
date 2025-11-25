@@ -1,0 +1,862 @@
+---
+title: "TypeScript API Reference"
+description: "Complete TypeScript API for building ensembles programmatically with full type safety"
+---
+
+# TypeScript API Reference
+
+**Build type-safe ensembles with full IDE support, autocomplete, and compile-time validation.**
+
+## Why TypeScript?
+
+TypeScript ensembles offer several advantages over YAML:
+
+- **Type Safety**: Catch configuration errors at compile time
+- **IDE Support**: Full autocomplete, inline documentation, and refactoring
+- **Dynamic Logic**: Build steps conditionally using code
+- **Reusability**: Share and compose steps across multiple ensembles
+- **Testing**: Easier unit testing of ensemble configurations
+
+## Quick Start
+
+```typescript
+import { createEnsemble, step } from '@anthropic/conductor'
+
+const myWorkflow = createEnsemble('my-workflow')
+  .setDescription('A simple greeting workflow')
+  .addStep(
+    step('greeter')
+      .agent('greeter')
+      .input({ name: '${input.name}' })
+  )
+  .build()
+
+export default myWorkflow
+```
+
+---
+
+## createEnsemble
+
+Create a new ensemble with the fluent builder API.
+
+```typescript
+import { createEnsemble } from '@anthropic/conductor'
+
+const ensemble = createEnsemble('ensemble-name')
+```
+
+### Methods
+
+#### `.setDescription(description: string)`
+
+Set a description for the ensemble.
+
+```typescript
+createEnsemble('my-workflow')
+  .setDescription('Processes customer orders and sends confirmations')
+```
+
+#### `.setInput<T>()`
+
+Define the input type for the ensemble (TypeScript generics for type safety).
+
+```typescript
+interface WorkflowInput {
+  customerId: string
+  orderItems: string[]
+}
+
+createEnsemble('order-processor')
+  .setInput<WorkflowInput>()
+```
+
+#### `.setOutput<T>()`
+
+Define the output type for the ensemble.
+
+```typescript
+interface WorkflowOutput {
+  orderId: string
+  status: 'completed' | 'failed'
+  total: number
+}
+
+createEnsemble('order-processor')
+  .setOutput<WorkflowOutput>()
+```
+
+#### `.addStep(step: Step)`
+
+Add a step to the ensemble. Steps execute sequentially by default, but steps without dependencies run in parallel.
+
+```typescript
+createEnsemble('my-workflow')
+  .addStep(step('fetch').agent('fetcher').input({ url: '${input.url}' }))
+  .addStep(step('process').agent('processor').input({ data: '${fetch.output}' }))
+```
+
+#### `.addSteps(...steps: Step[])`
+
+Add multiple steps at once.
+
+```typescript
+createEnsemble('my-workflow')
+  .addSteps(
+    step('step1').agent('agent1'),
+    step('step2').agent('agent2'),
+    step('step3').agent('agent3')
+  )
+```
+
+#### `.build()`
+
+Finalize and return the ensemble configuration.
+
+```typescript
+const ensemble = createEnsemble('my-workflow')
+  .addStep(step('greeter').agent('greeter'))
+  .build()
+
+export default ensemble
+```
+
+---
+
+## step
+
+Create an individual step within an ensemble.
+
+```typescript
+import { step } from '@anthropic/conductor'
+
+step('step-name')
+  .agent('agent-name')
+  .input({ key: 'value' })
+```
+
+### Methods
+
+#### `.agent(name: string)`
+
+Reference an agent by name.
+
+```typescript
+step('enrich')
+  .agent('company-enricher')
+```
+
+#### `.operation(type: string)`
+
+Use an inline operation instead of an agent.
+
+```typescript
+step('analyze')
+  .operation('think')
+  .config({
+    provider: 'openai',
+    model: 'gpt-4o',
+    prompt: 'Analyze: ${input.text}'
+  })
+```
+
+#### `.input(inputs: Record<string, any>)`
+
+Provide inputs to the step. Supports expression syntax like `${input.field}` and `${previousStep.output}`.
+
+```typescript
+step('process')
+  .agent('processor')
+  .input({
+    data: '${fetch.output}',
+    userId: '${input.userId}',
+    timestamp: '${Date.now()}'
+  })
+```
+
+#### `.config(config: Record<string, any>)`
+
+Provide configuration for an operation.
+
+```typescript
+step('generate')
+  .operation('think')
+  .config({
+    provider: 'anthropic',
+    model: 'claude-3-5-sonnet-20241022',
+    temperature: 0.7,
+    maxTokens: 1000,
+    prompt: '${input.prompt}'
+  })
+```
+
+#### `.condition(expression: string)`
+
+Conditionally execute the step.
+
+```typescript
+step('send-premium-email')
+  .agent('email-sender')
+  .condition('${input.isPremiumUser === true}')
+```
+
+#### `.retry(options: RetryOptions)`
+
+Configure retry behavior for the step.
+
+```typescript
+step('api-call')
+  .agent('fetcher')
+  .retry({
+    maxAttempts: 3,
+    backoff: 'exponential',
+    initialDelay: 1000,
+    maxDelay: 30000
+  })
+```
+
+#### `.cache(options: CacheOptions)`
+
+Configure caching for the step.
+
+```typescript
+step('expensive-analysis')
+  .agent('analyzer')
+  .cache({
+    ttl: 3600,
+    key: 'analysis-${input.documentId}'
+  })
+```
+
+#### `.timeout(ms: number)`
+
+Set a timeout for the step.
+
+```typescript
+step('slow-operation')
+  .agent('processor')
+  .timeout(30000)
+```
+
+---
+
+## Flow Control Primitives
+
+TypeScript ensembles support advanced flow control patterns through specialized primitives.
+
+### parallel
+
+Execute multiple steps concurrently.
+
+```typescript
+import { createEnsemble, step, parallel } from '@anthropic/conductor'
+
+createEnsemble('multi-fetch')
+  .addStep(
+    parallel('fetch-all')
+      .steps(
+        step('fetch-a').agent('fetcher').input({ url: 'https://api-a.com' }),
+        step('fetch-b').agent('fetcher').input({ url: 'https://api-b.com' }),
+        step('fetch-c').agent('fetcher').input({ url: 'https://api-c.com' })
+      )
+  )
+  .addStep(
+    step('merge')
+      .operation('code')
+      .config({ script: 'scripts/merge-results' })
+      .input({
+        a: '${fetch-a.output}',
+        b: '${fetch-b.output}',
+        c: '${fetch-c.output}'
+      })
+  )
+```
+
+### branch
+
+Conditional branching based on a condition.
+
+```typescript
+import { createEnsemble, step, branch } from '@anthropic/conductor'
+
+createEnsemble('conditional-workflow')
+  .addStep(
+    step('classify')
+      .operation('think')
+      .config({ prompt: 'Classify priority: ${input.text}' })
+  )
+  .addStep(
+    branch('route-by-priority')
+      .condition('${classify.output === "urgent"}')
+      .then(
+        step('urgent-handler').agent('urgent-processor')
+      )
+      .else(
+        step('normal-handler').agent('normal-processor')
+      )
+  )
+```
+
+### foreach
+
+Iterate over an array, executing a step for each item.
+
+```typescript
+import { createEnsemble, step, foreach } from '@anthropic/conductor'
+
+createEnsemble('batch-processor')
+  .addStep(
+    foreach('process-items')
+      .items('${input.items}')
+      .as('item')
+      .step(
+        step('process')
+          .agent('item-processor')
+          .input({ item: '${item}' })
+      )
+  )
+```
+
+#### Options
+
+```typescript
+foreach('process-items')
+  .items('${input.items}')
+  .as('item')
+  .index('idx')                    // Optional: variable name for index
+  .concurrency(5)                  // Optional: max parallel executions
+  .step(...)
+```
+
+### tryStep
+
+Error handling with try/catch semantics.
+
+```typescript
+import { createEnsemble, step, tryStep } from '@anthropic/conductor'
+
+createEnsemble('resilient-workflow')
+  .addStep(
+    tryStep('safe-fetch')
+      .try(
+        step('fetch').agent('fetcher').input({ url: '${input.url}' })
+      )
+      .catch(
+        step('fallback').agent('cache-reader').input({ key: '${input.cacheKey}' })
+      )
+  )
+```
+
+### switchStep
+
+Multi-way branching based on a value.
+
+```typescript
+import { createEnsemble, step, switchStep } from '@anthropic/conductor'
+
+createEnsemble('router')
+  .addStep(
+    switchStep('route-by-type')
+      .value('${input.type}')
+      .case('email', step('email-handler').agent('email-processor'))
+      .case('sms', step('sms-handler').agent('sms-processor'))
+      .case('push', step('push-handler').agent('push-processor'))
+      .default(step('default-handler').agent('generic-processor'))
+  )
+```
+
+### whileStep
+
+Loop while a condition is true.
+
+```typescript
+import { createEnsemble, step, whileStep } from '@anthropic/conductor'
+
+createEnsemble('polling-workflow')
+  .addStep(
+    whileStep('poll-until-ready')
+      .condition('${!status.ready}')
+      .maxIterations(10)
+      .step(
+        step('check-status')
+          .agent('status-checker')
+          .input({ jobId: '${input.jobId}' })
+      )
+  )
+```
+
+### mapReduce
+
+Process items in parallel (map) then aggregate results (reduce).
+
+```typescript
+import { createEnsemble, step, mapReduce } from '@anthropic/conductor'
+
+createEnsemble('analyze-documents')
+  .addStep(
+    mapReduce('analyze-all')
+      .items('${input.documents}')
+      .map(
+        step('analyze')
+          .agent('document-analyzer')
+          .input({ doc: '${item}' })
+      )
+      .reduce(
+        step('aggregate')
+          .agent('result-aggregator')
+          .input({ results: '${mapResults}' })
+      )
+  )
+```
+
+---
+
+## Version Primitives (Edgit Integration)
+
+Version primitives enable referencing components managed by [Edgit](/edgit/overview) with precise version pinning. This is essential for production workflows requiring reproducible deployments.
+
+### componentRef
+
+Create a versioned reference to any component type.
+
+```typescript
+import { componentRef } from '@anthropic/conductor'
+
+// Exact version
+const analyzer = componentRef('agent', 'analyzers/sentiment', '1.0.0')
+
+// Compatible version constraint (semver ^)
+const processor = componentRef('agent', 'processors/text', '^2.0.0', {
+  fallback: '1.9.0',
+  resolution: 'compatible'
+})
+
+// Latest version
+const tool = componentRef('tool', 'search/web', 'latest')
+```
+
+#### Options
+
+```typescript
+interface ComponentRefOptions {
+  fallback?: string         // Fallback version if primary unavailable
+  required?: boolean        // Fail if not found (default: true)
+  resolution?: 'exact' | 'compatible' | 'latest-matching'
+}
+```
+
+### versionedAgent
+
+Create a versioned agent reference for use in ensemble steps.
+
+```typescript
+import { versionedAgent, createEnsemble } from '@anthropic/conductor'
+
+// Simple versioned agent
+const analyzer = versionedAgent('analyzers/sentiment', '1.0.0')
+
+// With config override
+const customAnalyzer = versionedAgent('analyzers/sentiment', '^1.0.0', {
+  config: {
+    model: 'claude-sonnet-4',
+    temperature: 0.5
+  },
+  input: {
+    text: '${input.content}'
+  }
+})
+
+// Use in ensemble
+const pipeline = createEnsemble({
+  name: 'analysis-pipeline',
+  steps: [
+    versionedAgent('preprocessor', '2.1.0').toFlowStep(),
+    versionedAgent('analyzer', '^1.0.0').toFlowStep(),
+    versionedAgent('formatter', '1.0.0').toFlowStep()
+  ]
+})
+```
+
+#### Batch Creation
+
+```typescript
+import { versionedAgents, createEnsemble } from '@anthropic/conductor'
+
+// Define multiple versioned agents at once
+const agents = versionedAgents({
+  preprocessor: '2.1.0',
+  analyzer: '^1.0.0',
+  formatter: '~1.2.0',
+  // With options
+  scorer: {
+    version: '^3.0.0',
+    options: {
+      config: { threshold: 0.8 }
+    }
+  }
+})
+
+// Use in ensemble
+const pipeline = createEnsemble({
+  name: 'scoring-pipeline',
+  steps: [
+    agents.preprocessor.toFlowStep(),
+    agents.analyzer.toFlowStep(),
+    agents.scorer.toFlowStep()
+  ]
+})
+```
+
+### versionedEnsemble
+
+Reference and compose versioned sub-ensembles.
+
+```typescript
+import { versionedEnsemble, createEnsemble, step } from '@anthropic/conductor'
+
+// Reference a versioned sub-ensemble
+const analysisPipeline = versionedEnsemble('pipelines/analysis', '^2.0.0', {
+  input: { data: '${preprocess.output}' },
+  inheritState: true
+})
+
+// Compose in a parent ensemble
+const mainPipeline = createEnsemble({
+  name: 'main-pipeline',
+  steps: [
+    step('preprocess'),
+    // Invoke the versioned sub-ensemble
+    { ...analysisPipeline.toInvocation() },
+    step('postprocess')
+  ]
+})
+```
+
+### deploymentRef
+
+Reference components by deployment environment rather than explicit version.
+
+```typescript
+import { deploymentRef, componentRef, versionedAgent } from '@anthropic/conductor'
+
+// Reference production deployment
+const prodAnalyzer = deploymentRef(
+  componentRef('agent', 'analyzers/sentiment', 'latest'),
+  'production'
+)
+
+// Reference staging with production fallback
+const stagingPipeline = deploymentRef(
+  versionedAgent('analyzers/sentiment', 'latest'),
+  'staging',
+  { fallback: 'production' }
+)
+
+// Dynamic environment
+const dynamicRef = deploymentRef(
+  versionedAgent('processor', 'latest'),
+  process.env.DEPLOYMENT_ENV || 'development'
+)
+```
+
+### Version Constraints
+
+Support for semver-style version constraints:
+
+| Constraint | Meaning | Example |
+|-----------|---------|---------|
+| `1.2.3` | Exact version | Only v1.2.3 |
+| `^1.2.0` | Compatible (same major) | v1.2.0, v1.3.0, v1.9.9 |
+| `~1.2.0` | Patch-compatible (same minor) | v1.2.0, v1.2.1, v1.2.9 |
+| `>=1.0.0` | Minimum version | v1.0.0 and above |
+| `<=2.0.0` | Maximum version | v2.0.0 and below |
+| `latest` | Latest available | Most recent version |
+| `stable` | Latest stable | Most recent non-prerelease |
+
+### Utility Functions
+
+```typescript
+import { parseVersion, satisfiesVersion } from '@anthropic/conductor'
+
+// Parse version strings
+parseVersion('1.2.3')      // { major: 1, minor: 2, patch: 3 }
+parseVersion('^1.2.0')     // { constraint: '^', major: 1, minor: 2, patch: 0 }
+parseVersion('latest')     // { tag: 'latest' }
+
+// Check version compatibility
+satisfiesVersion('1.2.3', '^1.0.0')   // true
+satisfiesVersion('2.0.0', '^1.0.0')   // false
+satisfiesVersion('1.2.5', '~1.2.0')   // true
+```
+
+### Integration with Edgit
+
+Version primitives integrate directly with [Edgit's Git tag namespaces](/edgit/guides/versioning-components-agents):
+
+```typescript
+const analyzer = versionedAgent('sentiment-analyzer', '1.0.0')
+
+// Convert to Edgit Git tag format
+console.log(analyzer.toGitTag())
+// Output: agents/sentiment-analyzer/1.0.0
+
+const pipeline = versionedEnsemble('data-pipeline', '2.0.0')
+console.log(pipeline.toGitTag())
+// Output: ensembles/data-pipeline/2.0.0
+```
+
+---
+
+## Complete Example
+
+Here's a complete TypeScript ensemble that demonstrates multiple features:
+
+```typescript
+// ensembles/customer-intelligence.ts
+import {
+  createEnsemble,
+  step,
+  parallel,
+  branch,
+  tryStep
+} from '@anthropic/conductor'
+
+interface CustomerInput {
+  customerId: string
+  includeHistory: boolean
+}
+
+interface CustomerOutput {
+  profile: Record<string, unknown>
+  sentiment: string
+  recommendations: string[]
+}
+
+const customerIntelligence = createEnsemble('customer-intelligence')
+  .setDescription('Gather and analyze customer data from multiple sources')
+  .setInput<CustomerInput>()
+  .setOutput<CustomerOutput>()
+
+  // Parallel data fetching
+  .addStep(
+    parallel('fetch-data')
+      .steps(
+        step('fetch-profile')
+          .agent('crm-connector')
+          .input({ customerId: '${input.customerId}' }),
+        step('fetch-transactions')
+          .agent('transaction-fetcher')
+          .input({ customerId: '${input.customerId}' }),
+        step('fetch-support-tickets')
+          .agent('support-connector')
+          .input({ customerId: '${input.customerId}' })
+      )
+  )
+
+  // Conditional history fetch
+  .addStep(
+    branch('check-history')
+      .condition('${input.includeHistory}')
+      .then(
+        step('fetch-history')
+          .agent('history-fetcher')
+          .input({ customerId: '${input.customerId}' })
+      )
+  )
+
+  // AI analysis with fallback
+  .addStep(
+    tryStep('analyze')
+      .try(
+        step('ai-analysis')
+          .operation('think')
+          .config({
+            provider: 'anthropic',
+            model: 'claude-3-5-sonnet-20241022',
+            prompt: `
+              Analyze this customer:
+              Profile: \${fetch-profile.output}
+              Transactions: \${fetch-transactions.output}
+              Support: \${fetch-support-tickets.output}
+
+              Provide: sentiment, key insights, recommendations
+            `
+          })
+      )
+      .catch(
+        step('basic-analysis')
+          .operation('think')
+          .config({
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            prompt: 'Provide basic analysis for customer: ${fetch-profile.output}'
+          })
+      )
+  )
+
+  .build()
+
+export default customerIntelligence
+```
+
+---
+
+## Expression Syntax
+
+TypeScript ensembles support the same expression syntax as YAML:
+
+### Variable Access
+
+```typescript
+'${input.fieldName}'              // Input variable
+'${env.API_KEY}'                  // Environment variable
+'${state.counter}'                // State variable
+'${stepName.output}'              // Step output
+'${stepName.output.nested.field}' // Nested output
+```
+
+### Conditionals
+
+```typescript
+'${input.value > 10}'
+'${stepName.success}'
+'${stepName.failed}'
+'${!stepName.executed}'
+'${input.type === "premium"}'
+'${input.age >= 18 && input.verified}'
+```
+
+### Functions
+
+```typescript
+'${Date.now()}'
+'${JSON.stringify(object)}'
+'${array.length}'
+'${array.map(item => item.id)}'
+'${string.toUpperCase()}'
+```
+
+---
+
+## Type Definitions
+
+### RetryOptions
+
+```typescript
+interface RetryOptions {
+  maxAttempts?: number           // Default: 3
+  backoff?: 'exponential' | 'linear'  // Default: 'exponential'
+  initialDelay?: number          // Default: 1000 (ms)
+  maxDelay?: number              // Default: 30000 (ms)
+  retryOn?: number[]             // HTTP status codes to retry
+}
+```
+
+### CacheOptions
+
+```typescript
+interface CacheOptions {
+  ttl: number                    // Time to live in seconds
+  key: string                    // Cache key (supports expressions)
+}
+```
+
+### Step
+
+```typescript
+interface Step {
+  name: string
+  agent?: string
+  operation?: string
+  input?: Record<string, unknown>
+  config?: Record<string, unknown>
+  condition?: string
+  retry?: RetryOptions
+  cache?: CacheOptions
+  timeout?: number
+}
+```
+
+---
+
+## Migration from YAML
+
+Converting a YAML ensemble to TypeScript:
+
+<Tabs>
+  <Tab title="YAML">
+```yaml
+ensemble: greet-user
+
+agents:
+  - name: greeter
+    agent: greeter
+    inputs:
+      name: ${input.name}
+      style: ${input.style}
+
+  - name: formatter
+    operation: code
+    config:
+      script: scripts/format-greeting
+    input:
+      greeting: ${greeter.output}
+
+output:
+  message: ${formatter.output}
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step } from '@anthropic/conductor'
+
+const greetUser = createEnsemble('greet-user')
+  .addStep(
+    step('greeter')
+      .agent('greeter')
+      .input({
+        name: '${input.name}',
+        style: '${input.style}'
+      })
+  )
+  .addStep(
+    step('formatter')
+      .operation('code')
+      .config({ script: 'scripts/format-greeting' })
+      .input({ greeting: '${greeter.output}' })
+  )
+  .build()
+
+export default greetUser
+```
+  </Tab>
+</Tabs>
+
+---
+
+## Best Practices
+
+1. **Export as default** - Always export your ensemble as the default export
+2. **Use TypeScript generics** - Define input/output types for better type safety
+3. **Organize by domain** - Keep related ensembles in the same directory
+4. **Reuse steps** - Extract common patterns into shared step factories
+5. **Validate early** - Use `conductor validate` to check TypeScript ensembles
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Your First Ensemble" icon="rocket" href="/conductor/getting-started/your-first-ensemble">
+    Build your first ensemble
+  </Card>
+  <Card title="YAML Schema" icon="file-code" href="/conductor/reference/yaml-schema">
+    YAML configuration reference
+  </Card>
+  <Card title="CLI Commands" icon="terminal" href="/conductor/reference/cli-commands">
+    Command line reference
+  </Card>
+  <Card title="Flow Control" icon="code-branch" href="/conductor/core-concepts/flow-control">
+    Advanced flow patterns
+  </Card>
+</CardGroup>

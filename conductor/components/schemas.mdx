@@ -484,20 +484,31 @@ agents:
   - name: validate
     operation: code
     config:
-      code: |
-        const contact = input.extract_output
-
-        // Additional validation
-        if (!contact.email && !contact.phone) {
-          throw new Error('Contact must have email or phone')
-        }
-
-        return { valid: true, contact }
+      script: scripts/validate-contact
+    input:
+      contact: ${extract.output}
 
 outputs:
   contact: ${validate.output.contact}
 ```
 
+```typescript
+// scripts/validate-contact.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateContact(context: AgentExecutionContext) {
+  const { contact } = context.input
+
+  // Additional validation
+  if (!contact.email && !contact.phone) {
+    throw new Error('Contact must have email or phone')
+  }
+
+  return { valid: true, contact }
+}
+```
+
+```yaml
 ### Multi-Schema Workflow
 
 ```yaml

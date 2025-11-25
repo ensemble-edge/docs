@@ -85,13 +85,27 @@ agents:
   - name: combine
     operation: code
     config:
-      code: |
-        return {
-          city: ${input.city},
-          weather: ${weather.output.body},
-          news: ${news.output.body.articles}.slice(0, 5),
-          events: ${events.output.body.events}.slice(0, 10)
-        };
+      script: scripts/combine-city-data
+    input:
+      city: ${input.city}
+      weather: ${weather.output.body}
+      news_articles: ${news.output.body.articles}
+      events: ${events.output.body.events}
+
+```typescript
+// scripts/combine-city-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineCityData(context: AgentExecutionContext) {
+  const { city, weather, news_articles, events } = context.input
+
+  return {
+    city,
+    weather,
+    news: news_articles.slice(0, 5),
+    events: events.slice(0, 10)
+  }
+}
 ```
 
 ## Webhook Handling
@@ -104,26 +118,49 @@ agents:
   - name: validate
     operation: code
     config:
-      code: |
-        const crypto = require('crypto');
-        const signature = crypto
-          .createHmac('sha256', ${env.WEBHOOK_SECRET})
-          .update(JSON.stringify(${input.body}))
-          .digest('hex');
-
-        return {
-          valid: signature === ${input.headers['x-signature']}
-        };
+      script: scripts/validate-webhook-signature
+    input:
+      body: ${input.body}
+      signature: ${input.headers['x-signature']}
+      secret: ${env.WEBHOOK_SECRET}
 
   # Process if valid
   - name: process
     condition: ${validate.output.valid}
     operation: code
     config:
-      code: |
-        // Process webhook data
-        return { processed: true };
+      script: scripts/process-webhook-data
 
+```typescript
+// scripts/validate-webhook-signature.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+import * as crypto from 'crypto'
+
+export default function validateWebhookSignature(context: AgentExecutionContext) {
+  const { body, signature, secret } = context.input
+
+  const computedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(body))
+    .digest('hex')
+
+  return {
+    valid: computedSignature === signature
+  }
+}
+```
+
+```typescript
+// scripts/process-webhook-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processWebhookData(context: AgentExecutionContext) {
+  // Process webhook data
+  return { processed: true }
+}
+```
+
+```yaml
   # Forward to internal API
   - name: forward
     condition: ${process.executed}
@@ -173,11 +210,25 @@ agents:
     condition: ${check-limit.output && check-limit.output.count >= 100}
     operation: code
     config:
-      code: |
-        return {
-          error: 'Rate limit exceeded',
-          retry_after: ${check-limit.output.reset_at}
-        };
+      script: scripts/reject-rate-limited
+    input:
+      reset_at: ${check-limit.output.reset_at}
+```
+
+```typescript
+// scripts/reject-rate-limited.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function rejectRateLimited(context: AgentExecutionContext) {
+  const { reset_at } = context.input
+  return {
+    error: 'Rate limit exceeded',
+    retry_after: reset_at
+  }
+}
+```
+
+```yaml
 ```
 
 ## Circuit Breaker
@@ -221,11 +272,18 @@ agents:
     condition: ${check-circuit.output?.state === 'open'}
     operation: code
     config:
-      code: |
-        return {
-          error: 'Service unavailable',
-          fallback: true
-        };
+      script: scripts/circuit-breaker-fallback
+
+```typescript
+// scripts/circuit-breaker-fallback.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function circuitBreakerFallback(context: AgentExecutionContext) {
+  return {
+    error: 'Service unavailable',
+    fallback: true
+  }
+}
 ```
 
 ## Next Steps

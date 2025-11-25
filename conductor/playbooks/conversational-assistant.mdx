@@ -21,7 +21,7 @@ agents:
       set:
         history: ${[...state.history, { role: 'user', content: input.message }]}
     config:
-      code: return { updated: true };
+      script: scripts/return-updated-status
 
   # Generate response
   - name: respond
@@ -39,10 +39,19 @@ agents:
       set:
         history: ${[...state.history, { role: 'assistant', content: respond.output }]}
     config:
-      code: return { updated: true };
+      script: scripts/return-updated-status
 
 output:
   response: ${respond.output}
+```
+
+```typescript
+// scripts/return-updated-status.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnUpdatedStatus(context: AgentExecutionContext) {
+  return { updated: true }
+}
 ```
 
 ## RAG-Enhanced Assistant
@@ -95,7 +104,7 @@ agents:
           { role: 'assistant', content: respond.output, sources: search.output.results }
         ].slice(-20)}  # Keep last 20 messages
     config:
-      code: return { updated: true };
+      script: scripts/return-updated-status
 ```
 
 ## Tool-Using Assistant
@@ -134,11 +143,25 @@ agents:
     condition: ${JSON.parse(plan.output).tools.includes('calculator')}
     operation: code
     config:
-      code: |
-        // Extract math expression and evaluate
-        const expr = ${input.message}.match(/calculate\s+(.+)/i)?.[1];
-        return { result: eval(expr) };
+      script: scripts/evaluate-calculation
+    input:
+      message: ${input.message}
+```
 
+```typescript
+// scripts/evaluate-calculation.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function evaluateCalculation(context: AgentExecutionContext) {
+  const { message } = context.input
+
+  // Extract math expression and evaluate
+  const expr = message.match(/calculate\s+(.+)/i)?.[1]
+  return { result: eval(expr) }
+}
+```
+
+```yaml
   # Generate final response
   - name: respond
     operation: think
@@ -218,11 +241,27 @@ agents:
   - name: select-response
     operation: code
     config:
-      code: |
-        return {
-          response: ${general-agent.output || technical-agent.output || sales-agent.output || billing-agent.output},
-          agent: ${JSON.parse(classify.output).category}
-        };
+      script: scripts/select-agent-response
+    input:
+      generalOutput: ${general-agent.output}
+      technicalOutput: ${technical-agent.output}
+      salesOutput: ${sales-agent.output}
+      billingOutput: ${billing-agent.output}
+      category: ${JSON.parse(classify.output).category}
+```
+
+```typescript
+// scripts/select-agent-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function selectAgentResponse(context: AgentExecutionContext) {
+  const { generalOutput, technicalOutput, salesOutput, billingOutput, category } = context.input
+
+  return {
+    response: generalOutput || technicalOutput || salesOutput || billingOutput,
+    agent: category
+  }
+}
 ```
 
 ## Personalized Assistant
@@ -340,7 +379,9 @@ agents:
     condition: ${JSON.parse(check-confidence.output).confidence > 0.7}
     operation: code
     config:
-      code: return { response: ${ai-response.output}, source: 'ai' };
+      script: scripts/use-ai-response
+    input:
+      response: ${ai-response.output}
 
   # Hand off to human if not confident
   - name: handoff
@@ -364,12 +405,46 @@ agents:
   - name: final-response
     operation: code
     config:
-      code: |
-        return {
-          response: ${use-ai.executed ? use-ai.output.response : handoff.output.data.response},
-          source: ${use-ai.executed ? 'ai' : 'human'},
-          confidence: ${JSON.parse(check-confidence.output).confidence}
-        };
+      script: scripts/select-final-response
+    input:
+      useAiExecuted: ${use-ai.executed}
+      aiResponse: ${use-ai.output.response}
+      humanResponse: ${handoff.output.data.response}
+      confidence: ${JSON.parse(check-confidence.output).confidence}
+```
+
+```typescript
+// scripts/use-ai-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function useAiResponse(context: AgentExecutionContext) {
+  const { response } = context.input
+  return { response, source: 'ai' }
+}
+```
+
+```typescript
+// scripts/select-final-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function selectFinalResponse(context: AgentExecutionContext) {
+  const { useAiExecuted, aiResponse, humanResponse, confidence } = context.input
+
+  return {
+    response: useAiExecuted ? aiResponse : humanResponse,
+    source: useAiExecuted ? 'ai' : 'human',
+    confidence
+  }
+}
+```
+
+```typescript
+// scripts/return-fallback-message.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnFallbackMessage(context: AgentExecutionContext) {
+  return { response: "I'm having trouble right now. Please try again." }
+}
 ```
 
 ## Best Practices
@@ -415,7 +490,7 @@ config:
   condition: ${respond.failed}
   operation: code
   config:
-    code: return { response: "I'm having trouble right now. Please try again." };
+    script: scripts/return-fallback-message
 ```
 
 ## Next Steps

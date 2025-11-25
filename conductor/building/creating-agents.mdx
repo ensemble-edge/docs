@@ -225,11 +225,22 @@ operations:
   - name: check-retry-count
     operation: code
     config:
-      code: |
-        return {
-          should_retry: ${try-operation.retry_count} < 3,
-          count: ${try-operation.retry_count}
-        };
+      script: scripts/check-retry
+    input:
+      retryCount: ${try-operation.retry_count}
+```
+
+```typescript
+// scripts/check-retry.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function checkRetry(context: AgentExecutionContext) {
+  const { retryCount } = context.input
+  return {
+    should_retry: retryCount < 3,
+    count: retryCount
+  }
+}
 ```
 
 ## Error Handling
@@ -480,12 +491,21 @@ operations:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          a: ${fetch-a.output},
-          b: ${fetch-b.output},
-          c: ${fetch-c.output}
-        };
+      script: scripts/merge-api-results
+    input:
+      a: ${fetch-a.output}
+      b: ${fetch-b.output}
+      c: ${fetch-c.output}
+```
+
+```typescript
+// scripts/merge-api-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function mergeApiResults(context: AgentExecutionContext) {
+  const { a, b, c } = context.input
+  return { a, b, c }
+}
 ```
 
 ### Minimize Dependencies
@@ -519,7 +539,20 @@ operations:
   - name: combine
     operation: code
     config:
-      code: return { ...${step1.output}, ...${step2.output} };
+      script: scripts/combine-outputs
+    input:
+      step1: ${step1.output}
+      step2: ${step2.output}
+```
+
+```typescript
+// scripts/combine-outputs.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function combineOutputs(context: AgentExecutionContext) {
+  const { step1, step2 } = context.input
+  return { ...step1, ...step2 }
+}
 ```
 
 ### Early Termination
@@ -530,7 +563,9 @@ operations:
   - name: quick-check
     operation: code
     config:
-      code: return { valid: ${input.data}.length > 0 };
+      script: scripts/quick-validate
+    input:
+      data: ${input.data}
 
   # Only run expensive ops if valid
   - name: expensive-analysis
@@ -541,6 +576,98 @@ operations:
       model: gpt-4o
       prompt: ${input.data}
 ```
+
+```typescript
+// scripts/quick-validate.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function quickValidate(context: AgentExecutionContext) {
+  const { data } = context.input
+  return { valid: data && data.length > 0 }
+}
+```
+
+## Using Agents in TypeScript Ensembles
+
+Once you've created YAML agents with TypeScript handlers, use them in TypeScript ensembles:
+
+```typescript
+// ensembles/enrichment-pipeline.ts
+import { createEnsemble, step, parallel, tryStep } from '@anthropic/conductor'
+
+const enrichmentPipeline = createEnsemble('enrichment-pipeline')
+  .setDescription('Enrich company data with fallbacks')
+
+  // Use your custom agent
+  .addStep(
+    tryStep('enrich-safe')
+      .try(
+        step('enrich')
+          .agent('company-enricher')  // Your YAML agent
+          .input({
+            company_name: '${input.company}',
+            include_news: true
+          })
+          .cache({ ttl: 86400, key: 'enrich-${input.company}' })
+          .retry({ maxAttempts: 3, backoff: 'exponential' })
+      )
+      .catch(
+        step('fallback-enrich')
+          .agent('basic-enricher')
+          .input({ company_name: '${input.company}' })
+      )
+  )
+
+  // Parallel data fetching
+  .addStep(
+    parallel('fetch-social')
+      .steps(
+        step('linkedin').agent('scraper').input({ url: '${input.linkedinUrl}' }),
+        step('twitter').agent('scraper').input({ url: '${input.twitterUrl}' })
+      )
+  )
+
+  // AI analysis
+  .addStep(
+    step('analyze')
+      .operation('think')
+      .config({
+        provider: 'anthropic',
+        model: 'claude-3-5-sonnet-20241022',
+        prompt: `
+          Analyze company data:
+          Enriched: \${enrich.output}
+          LinkedIn: \${linkedin.output}
+          Twitter: \${twitter.output}
+        `
+      })
+  )
+
+  .build()
+
+export default enrichmentPipeline
+```
+
+### Validating Your Setup
+
+Validate both agents and ensembles:
+
+```bash
+# Validate all agents
+conductor validate agents/ -r
+
+# Validate all ensembles (YAML and TypeScript)
+conductor validate ensembles/ -r
+
+# Validate everything
+conductor validate . -r
+```
+
+<Note>
+For complete TypeScript API documentation, see the [TypeScript API Reference](/conductor/reference/ts-schema).
+</Note>
+
+---
 
 ## Best Practices
 
@@ -556,8 +683,8 @@ operations:
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Using Pre-built Agents" icon="box" href="/conductor/building/using-prebuilt-agents">
-    Leverage ready-made agents
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    Complete TypeScript reference
   </Card>
 
   <Card title="Writing Ensembles" icon="diagram-project" href="/conductor/building/writing-ensembles">

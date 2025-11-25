@@ -169,9 +169,7 @@ operations:
   - name: generate-otp
     operation: code
     config:
-      code: |
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        return { code, expiresAt: Date.now() + 300000 }; // 5 minutes
+      script: scripts/generate-otp-code
 
   # Send OTP
   - name: send-otp
@@ -195,6 +193,20 @@ operations:
       ttl: 300                         # 5 minutes
 ```
 
+```typescript
+// scripts/generate-otp-code.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function generateOtpCode(context: AgentExecutionContext) {
+  const code = Math.floor(100000 + Math.random() * 900000).toString()
+  return {
+    code,
+    expiresAt: Date.now() + 300000  // 5 minutes
+  }
+}
+```
+
+```yaml
 ### Two-Factor Authentication
 
 ```yaml
@@ -216,8 +228,7 @@ operations:
   - name: generate-code
     operation: code
     config:
-      code: |
-        return { code: Math.floor(100000 + Math.random() * 900000).toString() };
+      script: scripts/generate-2fa-code
 
   # Send 2FA SMS
   - name: send-2fa
@@ -245,7 +256,20 @@ operations:
       params:
         - ${input.userId}
         - ${generate-code.output.code}
+```
 
+```typescript
+// scripts/generate-2fa-code.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function generate2faCode(context: AgentExecutionContext) {
+  return {
+    code: Math.floor(100000 + Math.random() * 900000).toString()
+  }
+}
+```
+
+```yaml
 outputs:
   success: true
   code: ${generate-code.output.code}
@@ -491,15 +515,9 @@ operations:
   - name: validate
     operation: code
     config:
-      code: |
-        const phone = ${input.phone};
-        const e164Regex = /^\+[1-9]\d{1,14}$/;
-
-        if (!e164Regex.test(phone)) {
-          throw new Error('Invalid phone number format. Use E.164: +1234567890');
-        }
-
-        return { valid: true };
+      script: scripts/validate-phone-e164-sms
+    input:
+      phone: ${input.phone}
 
   # Send if valid
   - name: send
@@ -514,6 +532,23 @@ operations:
       body: ${input.message}
 ```
 
+```typescript
+// scripts/validate-phone-e164-sms.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validatePhoneE164Sms(context: AgentExecutionContext) {
+  const { phone } = context.input
+  const e164Regex = /^\+[1-9]\d{1,14}$/
+
+  if (!e164Regex.test(phone)) {
+    throw new Error('Invalid phone number format. Use E.164: +1234567890')
+  }
+
+  return { valid: true }
+}
+```
+
+```yaml
 ### Handle Batch Errors
 
 ```yaml
@@ -645,11 +680,9 @@ operations:
   - name: validate
     operation: code
     config:
-      code: |
-        if (!/^\+[1-9]\d{1,14}$/.test(${input.phone})) {
-          throw new Error('Invalid phone');
-        }
-        return { valid: true };
+      script: scripts/validate-phone-simple
+    input:
+      phone: ${input.phone}
 
   - name: send
     operation: sms
@@ -662,6 +695,22 @@ operations:
       to: ${input.phone}  # Could be invalid
 ```
 
+```typescript
+// scripts/validate-phone-simple.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validatePhoneSimple(context: AgentExecutionContext) {
+  const { phone } = context.input
+
+  if (!/^\+[1-9]\d{1,14}$/.test(phone)) {
+    throw new Error('Invalid phone')
+  }
+
+  return { valid: true }
+}
+```
+
+```yaml
 **4. Rate Limit Batch Sends**
 
 ```yaml
@@ -761,13 +810,7 @@ operations:
   - name: check-time
     operation: code
     config:
-      code: |
-        const hour = new Date().getHours();
-        // Don't send between 9 PM and 8 AM
-        if (hour >= 21 || hour < 8) {
-          throw new Error('Outside business hours');
-        }
-        return { canSend: true };
+      script: scripts/check-business-hours
 
   - name: send
     condition: ${check-time.output.canSend}
@@ -779,6 +822,23 @@ operations:
     operation: sms
 ```
 
+```typescript
+// scripts/check-business-hours.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function checkBusinessHours(context: AgentExecutionContext) {
+  const hour = new Date().getHours()
+
+  // Don't send between 9 PM and 8 AM
+  if (hour >= 21 || hour < 8) {
+    throw new Error('Outside business hours')
+  }
+
+  return { canSend: true }
+}
+```
+
+```yaml
 ## Common Pitfalls
 
 ### Pitfall: Wrong Phone Format

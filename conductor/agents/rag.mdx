@@ -119,17 +119,29 @@ agents:
   - name: format-response
     operation: code
     config:
-      code: |
-        return {
-          answer: ${answer.output},
-          sources: ${search.output.results}.map(r => ({
-            text: r.text.substring(0, 200),
-            metadata: r.metadata
-          }))
-        };
+      script: scripts/format-response
+    input:
+      answer: ${answer.output}
+      results: ${search.output.results}
 
 output:
   response: ${format-response.output}
+```
+
+```typescript
+// scripts/format-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function formatResponse(context: AgentExecutionContext) {
+  const { answer, results } = context.input
+  return {
+    answer: answer,
+    sources: results.map((r: any) => ({
+      text: r.text.substring(0, 200),
+      metadata: r.metadata
+    }))
+  }
+}
 ```
 
 ## Advanced Patterns
@@ -143,17 +155,10 @@ agents:
   - name: chunk
     operation: code
     config:
-      code: |
-        // Split document into chunks
-        const text = ${input.document};
-        const chunkSize = 1000;
-        const chunks = [];
-
-        for (let i = 0; i < text.length; i += chunkSize) {
-          chunks.push(text.substring(i, i + chunkSize));
-        }
-
-        return { chunks };
+      script: scripts/chunk-document
+    input:
+      document: ${input.document}
+      chunkSize: 1000
 
   - name: embed-chunks
     agent: rag
@@ -163,6 +168,22 @@ agents:
       metadata:
         document_id: ${input.document_id}
         chunk_index: ${chunk.output.chunks.index}
+```
+
+```typescript
+// scripts/chunk-document.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function chunkDocument(context: AgentExecutionContext) {
+  const { document, chunkSize } = context.input
+  const chunks = []
+
+  for (let i = 0; i < document.length; i += chunkSize) {
+    chunks.push(document.substring(i, i + chunkSize))
+  }
+
+  return { chunks }
+}
 ```
 
 ### Hybrid Search
@@ -253,17 +274,26 @@ agents:
   - name: combine
     operation: code
     config:
-      code: |
-        const all = [
-          ...${search-1.output.results},
-          ...${search-2.output.results},
-          ...${search-3.output.results}
-        ];
+      script: scripts/combine-search-results
+    input:
+      results1: ${search-1.output.results}
+      results2: ${search-2.output.results}
+      results3: ${search-3.output.results}
+```
 
-        // Deduplicate by ID
-        const unique = [...new Map(all.map(r => [r.id, r])).values()];
+```typescript
+// scripts/combine-search-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        return { results: unique.slice(0, 10) };
+export default function combineSearchResults(context: AgentExecutionContext) {
+  const { results1, results2, results3 } = context.input
+  const all = [...results1, ...results2, ...results3]
+
+  // Deduplicate by ID
+  const unique = [...new Map(all.map((r: any) => [r.id, r])).values()]
+
+  return { results: unique.slice(0, 10) }
+}
 ```
 
 ## Output Schema
@@ -409,14 +439,25 @@ agents:
   - name: format
     operation: code
     config:
-      code: |
-        return {
-          recommendations: ${search-similar.output.results}.map(r => ({
-            title: r.metadata.title,
-            url: r.metadata.url,
-            relevance: r.score
-          }))
-        };
+      script: scripts/format-recommendations
+    input:
+      results: ${search-similar.output.results}
+```
+
+```typescript
+// scripts/format-recommendations.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function formatRecommendations(context: AgentExecutionContext) {
+  const { results } = context.input
+  return {
+    recommendations: results.map((r: any) => ({
+      title: r.metadata.title,
+      url: r.metadata.url,
+      relevance: r.score
+    }))
+  }
+}
 ```
 
 ## Performance Tips

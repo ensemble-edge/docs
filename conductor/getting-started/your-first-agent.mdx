@@ -887,6 +887,128 @@ describe('My Agent', () => {
   </Accordion>
 </AccordionGroup>
 
+## TypeScript Agent Handlers
+
+Every agent with `operation: code` needs a TypeScript handler. Here's everything you need to know about writing effective handlers.
+
+### Handler Structure
+
+```
+agents/my-agent/
+├── agent.yaml      # Agent configuration (declares operation: code)
+└── index.ts        # TypeScript handler implementation
+```
+
+### The AgentExecutionContext
+
+All handlers receive the same context object:
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface AgentExecutionContext {
+  input: Record<string, unknown>  // Input parameters
+  env: ConductorEnv               // Cloudflare bindings (KV, D1, AI, etc.)
+  ctx: ExecutionContext           // Cloudflare execution context
+}
+```
+
+### Handler Patterns
+
+**Simple Synchronous Handler:**
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function greet({ input }: AgentExecutionContext) {
+  const { name } = input as { name: string }
+  return { message: `Hello, ${name}!` }
+}
+```
+
+**Async Handler with External APIs:**
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function fetchData({ input, env }: AgentExecutionContext) {
+  const { url } = input as { url: string }
+
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${env.API_KEY}` }
+  })
+
+  const data = await response.json()
+  return { data, status: response.status }
+}
+```
+
+**Handler with Cloudflare Bindings:**
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function cacheData({ input, env }: AgentExecutionContext) {
+  const { key, value } = input as { key: string; value: string }
+
+  // Use KV binding
+  await env.CACHE.put(key, value, { expirationTtl: 3600 })
+
+  // Use D1 database
+  const result = await env.DB.prepare(
+    'INSERT INTO cache_log (key, timestamp) VALUES (?, ?)'
+  ).bind(key, Date.now()).run()
+
+  return { cached: true, dbResult: result }
+}
+```
+
+### Using Agents in TypeScript Ensembles
+
+Once you have YAML agents with TypeScript handlers, you can reference them in TypeScript ensembles:
+
+```typescript
+// ensembles/data-pipeline.ts
+import { createEnsemble, step } from '@anthropic/conductor'
+
+const dataPipeline = createEnsemble('data-pipeline')
+  .addStep(
+    step('fetch')
+      .agent('fetcher')  // References agents/fetcher/agent.yaml
+      .input({ url: '${input.sourceUrl}' })
+  )
+  .addStep(
+    step('process')
+      .agent('data-processor')  // References agents/data-processor/agent.yaml
+      .input({ data: '${fetch.output.data}' })
+  )
+  .addStep(
+    step('store')
+      .agent('cache-writer')
+      .input({
+        key: '${input.cacheKey}',
+        value: '${process.output.result}'
+      })
+  )
+  .build()
+
+export default dataPipeline
+```
+
+### Validating Agents
+
+Validate your agent configurations:
+
+```bash
+# Validate a single agent
+conductor validate agents/my-agent/agent.yaml
+
+# Validate all agents recursively
+conductor validate agents/ -r
+```
+
+---
+
 ## Next Steps
 
 <CardGroup cols={2}>
@@ -894,8 +1016,8 @@ describe('My Agent', () => {
     Combine agents into workflows
   </Card>
 
-  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
-    Explore all operation types
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    Complete TypeScript reference
   </Card>
 
   <Card title="Pre-built Agents" icon="cube" href="/conductor/agents/overview">

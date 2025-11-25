@@ -31,29 +31,44 @@ agents:
   - name: chunk
     operation: code
     config:
-      code: |
-        const chunkSize = 1000;
-        const overlap = 200;
-        const chunks = [];
+      script: scripts/chunk-documents
+    input:
+      documents: ${input.documents}
+      source: ${input.source}
+```
 
-        for (const doc of ${input.documents}) {
-          const text = doc.content;
+```typescript
+// scripts/chunk-documents.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-          for (let i = 0; i < text.length; i += chunkSize - overlap) {
-            chunks.push({
-              text: text.substring(i, i + chunkSize),
-              metadata: {
-                document_id: doc.id,
-                title: doc.title,
-                source: ${input.source},
-                chunk_index: chunks.length,
-                created_at: new Date().toISOString()
-              }
-            });
-          }
+export default function chunkDocuments(context: AgentExecutionContext) {
+  const { documents, source } = context.input
+  const chunkSize = 1000
+  const overlap = 200
+  const chunks = []
+
+  for (const doc of documents) {
+    const text = doc.content
+
+    for (let i = 0; i < text.length; i += chunkSize - overlap) {
+      chunks.push({
+        text: text.substring(i, i + chunkSize),
+        metadata: {
+          document_id: doc.id,
+          title: doc.title,
+          source: source,
+          chunk_index: chunks.length,
+          created_at: new Date().toISOString()
         }
+      })
+    }
+  }
 
-        return { chunks };
+  return { chunks }
+}
+```
+
+```yaml
 
   # 2. Embed chunks (parallel)
   - name: embed
@@ -89,6 +104,8 @@ output:
 
 ### 2. Question Answering Ensemble
 
+<Tabs>
+  <Tab title="YAML">
 ```yaml
 ensemble: rag-qa
 
@@ -136,25 +153,107 @@ agents:
   - name: format
     operation: code
     config:
-      code: |
-        return {
-          answer: ${answer.output},
-          sources: ${search.output.results}.map((r, i) => ({
-            citation: i + 1,
-            text: r.text.substring(0, 200) + '...',
-            title: r.metadata.title,
-            document_id: r.metadata.document_id,
-            relevance: r.score
-          })),
-          metadata: {
-            question: ${input.question},
-            num_sources: ${search.output.results.length},
-            timestamp: new Date().toISOString()
-          }
-        };
+      script: scripts/format-rag-response
+    input:
+      answer: ${answer.output}
+      search_results: ${search.output.results}
+      question: ${input.question}
 
 output:
   response: ${format.output}
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step } from '@anthropic/conductor'
+
+interface RAGInput {
+  question: string
+  topK?: number
+  filters?: Record<string, unknown>
+}
+
+const ragQA = createEnsemble('rag-qa')
+  .setInput<RAGInput>()
+
+  // 1. Search relevant chunks
+  .addStep(
+    step('search')
+      .agent('rag')
+      .config({
+        action: 'search',
+        query: '${input.question}',
+        topK: '${input.topK || 5}',
+        namespace: 'documents',
+        filter: '${input.filters}',
+        includeMetadata: true
+      })
+  )
+
+  // 2. Generate answer
+  .addStep(
+    step('answer')
+      .operation('think')
+      .config({
+        provider: 'openai',
+        model: 'gpt-4o',
+        temperature: 0.3,
+        prompt: `
+          You are a helpful assistant. Answer the question using ONLY the provided context.
+          If the answer is not in the context, say "I don't have enough information."
+
+          Context:
+          \${search.output.results.map((r, i) => \`[\${i+1}] \${r.text}\`).join('\\n\\n')}
+
+          Question: \${input.question}
+
+          Provide a clear, accurate answer with citations like [1], [2] etc.
+        `
+      })
+  )
+
+  // 3. Format response with sources
+  .addStep(
+    step('format')
+      .operation('code')
+      .config({ script: 'scripts/format-rag-response' })
+      .input({
+        answer: '${answer.output}',
+        search_results: '${search.output.results}',
+        question: '${input.question}'
+      })
+  )
+
+  .build()
+
+export default ragQA
+```
+  </Tab>
+</Tabs>
+
+```typescript
+// scripts/format-rag-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function formatRagResponse(context: AgentExecutionContext) {
+  const { answer, search_results, question } = context.input
+
+  return {
+    answer: answer,
+    sources: search_results.map((r: any, i: number) => ({
+      citation: i + 1,
+      text: r.text.substring(0, 200) + '...',
+      title: r.metadata.title,
+      document_id: r.metadata.document_id,
+      relevance: r.score
+    })),
+    metadata: {
+      question: question,
+      num_sources: search_results.length,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
 ```
 
 ### 3. Hybrid Search Enhancement
@@ -208,17 +307,32 @@ agents:
   - name: select-top
     operation: code
     config:
-      code: |
-        const allResults = [
-          ...${vector-search.output.results},
-          ...${keyword-search.output}
-        ];
+      script: scripts/select-top-results
+    input:
+      vector_results: ${vector-search.output.results}
+      keyword_results: ${keyword-search.output}
+      top_indices: ${rerank.output}
 
-        const topIndices = JSON.parse(${rerank.output});
-        return {
-          results: topIndices.map(i => allResults[i])
-        };
+```typescript
+// scripts/select-top-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
+export default function selectTopResults(context: AgentExecutionContext) {
+  const { vector_results, keyword_results, top_indices } = context.input
+
+  const allResults = [
+    ...vector_results,
+    ...keyword_results
+  ]
+
+  const topIndices = JSON.parse(top_indices)
+  return {
+    results: topIndices.map((i: number) => allResults[i])
+  }
+}
+```
+
+```yaml
   # Generate answer
   - name: answer
     operation: think
@@ -274,22 +388,35 @@ agents:
   - name: combine
     operation: code
     config:
-      code: |
-        const all = [
-          ...${search-1.output.results},
-          ...${search-2.output.results},
-          ...${search-3.output.results}
-        ];
+      script: scripts/combine-search-results
+    input:
+      results_1: ${search-1.output.results}
+      results_2: ${search-2.output.results}
+      results_3: ${search-3.output.results}
 
-        // Deduplicate by document ID + chunk index
-        const unique = [...new Map(
-          all.map(r => [r.metadata.document_id + '-' + r.metadata.chunk_index, r])
-        ).values()];
+```typescript
+// scripts/combine-search-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        // Sort by relevance score
-        return {
-          results: unique.sort((a, b) => b.score - a.score).slice(0, 5)
-        };
+export default function combineSearchResults(context: AgentExecutionContext) {
+  const { results_1, results_2, results_3 } = context.input
+
+  const all = [
+    ...results_1,
+    ...results_2,
+    ...results_3
+  ]
+
+  // Deduplicate by document ID + chunk index
+  const unique = [...new Map(
+    all.map((r: any) => [r.metadata.document_id + '-' + r.metadata.chunk_index, r])
+  ).values()]
+
+  // Sort by relevance score
+  return {
+    results: unique.sort((a: any, b: any) => b.score - a.score).slice(0, 5)
+  }
+}
 ```
 
 ### Conversational RAG
@@ -350,7 +477,16 @@ agents:
           { role: 'assistant', content: answer.output }
         ]}
     config:
-      code: return { updated: true };
+      script: scripts/return-updated-status
+```
+
+```typescript
+// scripts/return-updated-status.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnUpdatedStatus(context: AgentExecutionContext) {
+  return { updated: true }
+}
 ```
 
 ## Production Considerations

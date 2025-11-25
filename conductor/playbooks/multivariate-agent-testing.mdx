@@ -392,13 +392,31 @@ agents:
     condition: ${input.user_id % 3 === 0}
     operation: code
     config:
-      code: |
-        // Execute agents sequentially
-        const agent1 = await executeAgent('agent-1', input);
-        const agent2 = await executeAgent('agent-2', agent1.output);
-        const agent3 = await executeAgent('agent-3', agent2.output);
-        return agent3.output;
+      script: scripts/execute-agents-sequentially
+    input:
+      agents: ['agent-1', 'agent-2', 'agent-3']
+      initialInput: ${input}
+```
 
+```typescript
+// scripts/execute-agents-sequentially.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function executeAgentsSequentially(context: AgentExecutionContext) {
+  const { agents, initialInput } = context.input
+
+  // Execute agents sequentially
+  let currentInput = initialInput
+  for (const agentName of agents) {
+    const result = await executeAgent(agentName, currentInput)
+    currentInput = result.output
+  }
+
+  return currentInput
+}
+```
+
+```yaml
   # Pattern B: Parallel (33%)
   - parallel:
       - name: pattern-parallel-1
@@ -601,17 +619,30 @@ agents:
   - name: select-variant
     operation: code
     config:
-      code: |
-        const allocations = ${get-allocations.output};
-        const rand = ${input.user_id % 100};
+      script: scripts/select-variant
+    input:
+      allocations: ${get-allocations.output}
+      userId: ${input.user_id}
+```
 
-        let cumulative = 0;
-        for (const [variant, pct] of Object.entries(allocations)) {
-          cumulative += pct;
-          if (rand < cumulative) return variant;
-        }
-        return 'aa';
+```typescript
+// scripts/select-variant.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
+export default function selectVariant(context: AgentExecutionContext) {
+  const { allocations, userId } = context.input
+  const rand = userId % 100
+
+  let cumulative = 0
+  for (const [variant, pct] of Object.entries(allocations)) {
+    cumulative += pct
+    if (rand < cumulative) return variant
+  }
+  return 'aa'
+}
+```
+
+```yaml
   # Execute selected variant
   - name: variant-aa
     condition: ${select-variant.output === 'aa'}

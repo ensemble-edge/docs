@@ -178,12 +178,23 @@ agents:
   - name: filter
     operation: code
     config:
-      code: |
-        const top = ${classify.output.predictions[0]};
-        if (top.label.includes('inappropriate')) {
-          throw new Error('Content violation');
-        }
-        return { approved: true };
+      script: scripts/content-moderation-filter
+    input:
+      predictions: ${classify.output.predictions}
+```
+
+```typescript
+// scripts/content-moderation-filter.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function contentModerationFilter(context: AgentExecutionContext) {
+  const { predictions } = context.input as { predictions: Array<{ label: string }> }
+  const top = predictions[0]
+  if (top.label.includes('inappropriate')) {
+    throw new Error('Content violation')
+  }
+  return { approved: true }
+}
 ```
 
 **Auto-Tagging:**
@@ -199,11 +210,20 @@ agents:
   - name: generate-tags
     operation: code
     config:
-      code: |
-        const tags = ${classify.output.predictions}
-          .slice(0, 5)
-          .map(p => p.label);
-        return { tags };
+      script: scripts/generate-image-tags
+    input:
+      predictions: ${classify.output.predictions}
+```
+
+```typescript
+// scripts/generate-image-tags.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function generateImageTags(context: AgentExecutionContext) {
+  const { predictions } = context.input as { predictions: Array<{ label: string }> }
+  const tags = predictions.slice(0, 5).map(p => p.label)
+  return { tags }
+}
 ```
 
 ## Object Detection
@@ -259,11 +279,25 @@ agents:
   - name: count-inventory
     operation: code
     config:
-      code: |
-        const boxes = ${detect.output.objects}.filter(o =>
-          o.label === 'box' && o.score > 0.8
-        );
-        return { count: boxes.length };
+      script: scripts/count-inventory
+    input:
+      objects: ${detect.output.objects}
+```
+
+```typescript
+// scripts/count-inventory.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface DetectedObject {
+  label: string
+  score: number
+}
+
+export default function countInventory(context: AgentExecutionContext) {
+  const { objects } = context.input as { objects: DetectedObject[] }
+  const boxes = objects.filter(o => o.label === 'box' && o.score > 0.8)
+  return { count: boxes.length }
+}
 ```
 
 **Scene Understanding:**
@@ -279,14 +313,30 @@ agents:
   - name: analyze-scene
     operation: code
     config:
-      code: |
-        const objects = ${detect.output.objects};
-        const summary = {
-          people: objects.filter(o => o.label === 'person').length,
-          vehicles: objects.filter(o => ['car', 'truck', 'bus'].includes(o.label)).length,
-          confidence: objects.reduce((sum, o) => sum + o.score, 0) / objects.length
-        };
-        return summary;
+      script: scripts/analyze-scene
+    input:
+      objects: ${detect.output.objects}
+```
+
+```typescript
+// scripts/analyze-scene.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface DetectedObject {
+  label: string
+  score: number
+}
+
+export default function analyzeScene(context: AgentExecutionContext) {
+  const { objects } = context.input as { objects: DetectedObject[] }
+  return {
+    people: objects.filter(o => o.label === 'person').length,
+    vehicles: objects.filter(o => ['car', 'truck', 'bus'].includes(o.label)).length,
+    confidence: objects.length > 0
+      ? objects.reduce((sum, o) => sum + o.score, 0) / objects.length
+      : 0
+  }
+}
 ```
 
 ## Image-to-Text
@@ -432,12 +482,23 @@ agents:
   - name: validate
     operation: code
     config:
-      code: |
-        const data = JSON.parse(${process-invoice.output});
-        if (!data.invoice_number || !data.total) {
-          throw new Error('Missing required fields');
-        }
-        return data;
+      script: scripts/validate-invoice-data
+    input:
+      rawOutput: ${process-invoice.output}
+```
+
+```typescript
+// scripts/validate-invoice-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateInvoiceData(context: AgentExecutionContext) {
+  const { rawOutput } = context.input as { rawOutput: string }
+  const data = JSON.parse(rawOutput)
+  if (!data.invoice_number || !data.total) {
+    throw new Error('Missing required fields')
+  }
+  return data
+}
 ```
 
 **Chart Analysis:**
@@ -673,11 +734,19 @@ agents:
     condition: ${!detect.success}
     operation: code
     config:
-      code: |
-        return {
-          error: 'Object detection failed',
-          fallback: true
-        };
+      script: scripts/handle-detection-failure
+```
+
+```typescript
+// scripts/handle-detection-failure.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleDetectionFailure(_context: AgentExecutionContext) {
+  return {
+    error: 'Object detection failed',
+    fallback: true
+  }
+}
 ```
 
 ### Performance Tips

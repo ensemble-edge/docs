@@ -556,14 +556,43 @@ operations:
   - name: consensus
     operation: code
     config:
-      code: |
-        // Pick most common answer
-        const answers = [
-          '${answer-1.output}',
-          '${answer-2.output}',
-          '${answer-3.output}'
-        ];
-        return { answer: mostCommon(answers) };
+      script: scripts/pick-consensus-answer
+    input:
+      answer1: ${answer-1.output}
+      answer2: ${answer-2.output}
+      answer3: ${answer-3.output}
+```
+
+```typescript
+// scripts/pick-consensus-answer.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function pickConsensusAnswer(context: AgentExecutionContext) {
+  const { answer1, answer2, answer3 } = context.input
+
+  const answers = [answer1, answer2, answer3]
+
+  // Count occurrences
+  const counts = new Map<string, number>()
+  answers.forEach(answer => {
+    counts.set(answer, (counts.get(answer) || 0) + 1)
+  })
+
+  // Find most common
+  let mostCommon = answers[0]
+  let maxCount = 0
+  counts.forEach((count, answer) => {
+    if (count > maxCount) {
+      maxCount = count
+      mostCommon = answer
+    }
+  })
+
+  return { answer: mostCommon }
+}
+```
+
+```yaml
 ```
 
 ### Multi-Turn Conversations
@@ -792,9 +821,23 @@ operations:
   - name: use-data
     operation: code
     config:
-      code: |
-        const data = JSON.parse('${extract-json.output}');
-        return { userName: data.name };
+      script: scripts/parse-json-output
+    input:
+      json_output: ${extract-json.output}
+```
+
+```typescript
+// scripts/parse-json-output.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function parseJsonOutput(context: AgentExecutionContext) {
+  const { json_output } = context.input
+  const data = JSON.parse(json_output)
+  return { userName: data.name }
+}
+```
+
+```yaml
 ```
 
 ## Testing

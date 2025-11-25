@@ -71,8 +71,19 @@ agents:
   - name: transform
     operation: code
     config:
-      code: |
-        return { processed: ${enricher.output} };
+      script: scripts/process-enricher-output
+    input:
+      enricherOutput: ${enricher.output}
+```
+
+```typescript
+// scripts/process-enricher-output.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processEnricherOutput(context: AgentExecutionContext) {
+  const { enricherOutput } = context.input
+  return { processed: enricherOutput }
+}
 ```
 
 ### Input/Output Mapping
@@ -157,12 +168,25 @@ agents:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          a: ${fetch-a.output},
-          b: ${fetch-b.output},
-          c: ${fetch-c.output}
-        };
+      script: scripts/merge-fetch-results
+    input:
+      fetchA: ${fetch-a.output}
+      fetchB: ${fetch-b.output}
+      fetchC: ${fetch-c.output}
+```
+
+```typescript
+// scripts/merge-fetch-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeFetchResults(context: AgentExecutionContext) {
+  const { fetchA, fetchB, fetchC } = context.input
+  return {
+    a: fetchA,
+    b: fetchB,
+    c: fetchC
+  }
+}
 ```
 
 ### Conditional Execution
@@ -218,12 +242,26 @@ agents:
   - name: process
     operation: code
     config:
-      code: |
-        const items = ${state.processed_items || []};
-        return {
-          items: [...items, ${input.item}],
-          count: items.length + 1
-        };
+      script: scripts/process-with-state
+    input:
+      processedItems: ${state.processed_items || []}
+      item: ${input.item}
+```
+
+```typescript
+// scripts/process-with-state.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processWithState(context: AgentExecutionContext) {
+  const { processedItems, item } = context.input
+  return {
+    items: [...processedItems, item],
+    count: processedItems.length + 1
+  }
+}
+```
+
+```yaml
     state:
       use: [processed_items]
       set:
@@ -490,6 +528,120 @@ output:
   variant: ${analyze-a.executed ? 'A' : 'B'}
 ```
 
+## TypeScript Ensembles
+
+For developers who prefer TypeScript, you can create ensembles programmatically with full type safety:
+
+### Basic Example
+
+<Tabs>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step } from '@anthropic/conductor'
+
+const companyIntelligence = createEnsemble('company-intelligence')
+  .setDescription('Gather and analyze company data')
+  .addStep(
+    step('enricher')
+      .agent('company-enricher')
+      .input({
+        company_name: '${input.company}',
+        include_news: true
+      })
+  )
+  .addStep(
+    step('scrape-linkedin')
+      .agent('scraper')
+      .input({ url: 'https://linkedin.com/company/${input.company}' })
+  )
+  .addStep(
+    step('analyze')
+      .operation('think')
+      .config({
+        provider: 'openai',
+        model: 'gpt-4o',
+        prompt: `
+          Analyze this company:
+          Data: \${enricher.output.company_data}
+          LinkedIn: \${scrape-linkedin.output}
+          News: \${enricher.output.news}
+        `
+      })
+  )
+  .build()
+
+export default companyIntelligence
+```
+  </Tab>
+  <Tab title="YAML">
+```yaml
+ensemble: company-intelligence
+description: Gather and analyze company data
+
+agents:
+  - name: enricher
+    agent: company-enricher
+    inputs:
+      company_name: ${input.company}
+      include_news: true
+
+  - name: scrape-linkedin
+    agent: scraper
+    inputs:
+      url: https://linkedin.com/company/${input.company}
+
+  - name: analyze
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Analyze this company:
+        Data: ${enricher.output.company_data}
+        LinkedIn: ${scrape-linkedin.output}
+        News: ${enricher.output.news}
+```
+  </Tab>
+</Tabs>
+
+### Flow Control in TypeScript
+
+TypeScript ensembles support advanced flow control primitives:
+
+```typescript
+import { createEnsemble, step, parallel, branch, tryStep } from '@anthropic/conductor'
+
+const resilientWorkflow = createEnsemble('resilient-workflow')
+  // Parallel fetching
+  .addStep(
+    parallel('fetch-sources')
+      .steps(
+        step('api-a').agent('fetcher').input({ url: '${input.urlA}' }),
+        step('api-b').agent('fetcher').input({ url: '${input.urlB}' })
+      )
+  )
+  // Conditional routing
+  .addStep(
+    branch('check-priority')
+      .condition('${input.priority === "high"}')
+      .then(step('fast-process').agent('fast-processor'))
+      .else(step('standard-process').agent('standard-processor'))
+  )
+  // Error handling
+  .addStep(
+    tryStep('safe-store')
+      .try(step('store').agent('db-writer'))
+      .catch(step('fallback').agent('cache-writer'))
+  )
+  .build()
+```
+
+<Note>
+For complete TypeScript API documentation, see the [TypeScript API Reference](/conductor/reference/ts-schema).
+</Note>
+
+---
+
 ## Best Practices
 
 1. **Start Simple** - One agent, then add complexity
@@ -504,16 +656,16 @@ output:
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    Complete TypeScript reference
+  </Card>
+
   <Card title="Flow Control" icon="code-branch" href="/conductor/core-concepts/flow-control">
     Advanced flow patterns
   </Card>
 
   <Card title="State Management" icon="database" href="/conductor/core-concepts/state-management">
     Deep dive into state
-  </Card>
-
-  <Card title="A/B Testing" icon="flask" href="/conductor/core-concepts/ab-testing">
-    Test multiple variants
   </Card>
 
   <Card title="Playbooks" icon="books" href="/conductor/playbooks/rag-pipeline">

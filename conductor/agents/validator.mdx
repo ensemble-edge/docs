@@ -164,11 +164,22 @@ agents:
     condition: ${!validate.output.valid}
     operation: code
     config:
-      code: |
-        return {
-          status: 400,
-          errors: ${validate.output.errors}
-        };
+      script: scripts/handle-validation-errors
+    input:
+      errors: ${validate.output.errors}
+
+```typescript
+// scripts/handle-validation-errors.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleValidationErrors(context: AgentExecutionContext) {
+  const { errors } = context.input
+
+  return {
+    status: 400,
+    errors
+  }
+}
 ```
 
 ### Coercion
@@ -217,12 +228,23 @@ agents:
   - name: validate-business-rules
     operation: code
     config:
-      code: |
-        const user = ${validate-structure.output.data};
-        if (user.age < 18) {
-          throw new Error('Must be 18+');
-        }
-        return { valid: true };
+      script: scripts/validate-business-rules
+    input:
+      user: ${validate-structure.output.data}
+
+```typescript
+// scripts/validate-business-rules.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateBusinessRules(context: AgentExecutionContext) {
+  const { user } = context.input
+
+  if (user.age < 18) {
+    throw new Error('Must be 18+')
+  }
+
+  return { valid: true }
+}
 ```
 
 ### Conditional Validation
@@ -274,19 +296,32 @@ agents:
   - name: validate-batch
     operation: code
     config:
-      code: |
-        const results = await Promise.all(
-          ${input.items}.map(item =>
-            conductor.executeAgent('validator', {
-              data: item,
-              schema: ${component.item-schema@v1.0.0}
-            })
-          )
-        );
-        return {
-          valid: results.every(r => r.valid),
-          errors: results.filter(r => !r.valid)
-        };
+      script: scripts/validate-batch-items
+    input:
+      items: ${input.items}
+      schema: ${component.item-schema@v1.0.0}
+
+```typescript
+// scripts/validate-batch-items.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function validateBatchItems(context: AgentExecutionContext) {
+  const { items, schema } = context.input
+
+  const results = await Promise.all(
+    items.map((item: any) =>
+      context.conductor.executeAgent('validator', {
+        data: item,
+        schema: schema
+      })
+    )
+  )
+
+  return {
+    valid: results.every((r: any) => r.valid),
+    errors: results.filter((r: any) => !r.valid)
+  }
+}
 ```
 
 ## Output Schema
@@ -371,12 +406,24 @@ agents:
     condition: ${!validate.output.valid}
     operation: code
     config:
-      code: |
-        return {
-          message: 'Validation failed',
-          errors: ${validate.output.errors},
-          input: ${input}
-        };
+      script: scripts/format-validation-errors
+    input:
+      errors: ${validate.output.errors}
+      original_input: ${input}
+
+```typescript
+// scripts/format-validation-errors.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function formatValidationErrors(context: AgentExecutionContext) {
+  const { errors, original_input } = context.input
+
+  return {
+    message: 'Validation failed',
+    errors,
+    input: original_input
+  }
+}
 ```
 
 ## Common Schemas

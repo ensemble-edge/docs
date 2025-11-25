@@ -134,34 +134,9 @@ agents:
   - name: process-messages
     operation: code
     config:
-      code: |
-        const messages = ${input.messages};
-        const results = [];
-
-        for (const msg of messages) {
-          try {
-            // Process message
-            const result = await processTask(msg.body);
-            results.push({
-              id: msg.id,
-              success: true,
-              result
-            });
-          } catch (error) {
-            results.push({
-              id: msg.id,
-              success: false,
-              error: error.message
-            });
-          }
-        }
-
-        return {
-          processed: results.length,
-          succeeded: results.filter(r => r.success).length,
-          failed: results.filter(r => !r.success).length,
-          results
-        };
+      script: scripts/process-queue-messages
+    input:
+      messages: ${input.messages}
 
 outputs:
   processed: ${process-messages.output.processed}
@@ -169,6 +144,42 @@ outputs:
   failed: ${process-messages.output.failed}
 ```
 
+```typescript
+// scripts/process-queue-messages.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processQueueMessages(context: AgentExecutionContext) {
+  const { messages } = context.input
+  const results = []
+
+  for (const msg of messages) {
+    try {
+      // Process message
+      const result = await processTask(msg.body)
+      results.push({
+        id: msg.id,
+        success: true,
+        result
+      })
+    } catch (error) {
+      results.push({
+        id: msg.id,
+        success: false,
+        error: error.message
+      })
+    }
+  }
+
+  return {
+    processed: results.length,
+    succeeded: results.filter(r => r.success).length,
+    failed: results.filter(r => !r.success).length,
+    results
+  }
+}
+```
+
+```yaml
 ### Message Batch Structure
 
 Queue consumers receive messages in this format:
@@ -274,26 +285,38 @@ agents:
   - name: process-with-retry
     operation: code
     config:
-      code: |
-        const messages = ${input.messages};
-        const toRetry = [];
-
-        for (const msg of messages) {
-          try {
-            await processMessage(msg.body);
-          } catch (error) {
-            if (msg.attempts < 3) {
-              // Retry this message
-              toRetry.push(msg.id);
-            } else {
-              // Send to DLQ
-              await sendToDLQ(msg, error);
-            }
-          }
-        }
-
-        return { retryIds: toRetry };
+      script: scripts/process-with-retry
+    input:
+      messages: ${input.messages}
 ```
+
+```typescript
+// scripts/process-with-retry.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processWithRetry(context: AgentExecutionContext) {
+  const { messages } = context.input
+  const toRetry = []
+
+  for (const msg of messages) {
+    try {
+      await processMessage(msg.body)
+    } catch (error) {
+      if (msg.attempts < 3) {
+        // Retry this message
+        toRetry.push(msg.id)
+      } else {
+        // Send to DLQ
+        await sendToDLQ(msg, error)
+      }
+    }
+  }
+
+  return { retryIds: toRetry }
+}
+```
+
+```yaml
 
 ## Dead Letter Queue (DLQ)
 
@@ -385,13 +408,9 @@ agents:
   - name: route-request
     operation: code
     config:
-      code: |
-        // Detect invocation source
-        if (${input.messages}) {
-          return { source: 'queue' };
-        } else {
-          return { source: 'webhook' };
-        }
+      script: scripts/route-request
+    input:
+      messages: ${input.messages}
 
   - name: enqueue-image
     operation: queue
@@ -406,30 +425,9 @@ agents:
   - name: process-images
     operation: code
     config:
-      code: |
-        const messages = ${input.messages};
-        const results = [];
-
-        for (const msg of messages) {
-          const { imageUrl, operations } = msg.body;
-
-          // Download image
-          const image = await fetch(imageUrl);
-          const buffer = await image.arrayBuffer();
-
-          // Process image (resize, compress, etc.)
-          const processed = await processImage(buffer, operations);
-
-          // Upload to R2
-          await env.IMAGES.put(`processed/${msg.id}.jpg`, processed);
-
-          results.push({
-            id: msg.id,
-            url: `https://cdn.example.com/processed/${msg.id}.jpg`
-          });
-        }
-
-        return { results };
+      script: scripts/process-queue-images
+    input:
+      messages: ${input.messages}
 
 outputs:
   # Webhook response
@@ -438,6 +436,54 @@ outputs:
   processed: ${process-images.output.results}
 ```
 
+```typescript
+// scripts/route-request.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function routeRequest(context: AgentExecutionContext) {
+  const { messages } = context.input
+
+  // Detect invocation source
+  if (messages) {
+    return { source: 'queue' }
+  } else {
+    return { source: 'webhook' }
+  }
+}
+```
+
+```typescript
+// scripts/process-queue-images.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processQueueImages(context: AgentExecutionContext) {
+  const { messages } = context.input
+  const results = []
+
+  for (const msg of messages) {
+    const { imageUrl, operations } = msg.body
+
+    // Download image
+    const image = await fetch(imageUrl)
+    const buffer = await image.arrayBuffer()
+
+    // Process image (resize, compress, etc.)
+    const processed = await processImage(buffer, operations)
+
+    // Upload to R2
+    await env.IMAGES.put(`processed/${msg.id}.jpg`, processed)
+
+    results.push({
+      id: msg.id,
+      url: `https://cdn.example.com/processed/${msg.id}.jpg`
+    })
+  }
+
+  return { results }
+}
+```
+
+```yaml
 ### Background Task Queue
 
 ```yaml
@@ -463,27 +509,9 @@ agents:
   - name: classify-tasks
     operation: code
     config:
-      code: |
-        const messages = ${input.messages};
-        const emailTasks = [];
-        const apiTasks = [];
-        const dataTasks = [];
-
-        for (const msg of messages) {
-          switch (msg.body.type) {
-            case 'email':
-              emailTasks.push(msg);
-              break;
-            case 'api':
-              apiTasks.push(msg);
-              break;
-            case 'data':
-              dataTasks.push(msg);
-              break;
-          }
-        }
-
-        return { emailTasks, apiTasks, dataTasks };
+      script: scripts/classify-queue-tasks
+    input:
+      messages: ${input.messages}
 
   - name: process-email-tasks
     operation: email
@@ -510,6 +538,35 @@ outputs:
   processed: ${input.messages.length}
 ```
 
+```typescript
+// scripts/classify-queue-tasks.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function classifyQueueTasks(context: AgentExecutionContext) {
+  const { messages } = context.input
+  const emailTasks = []
+  const apiTasks = []
+  const dataTasks = []
+
+  for (const msg of messages) {
+    switch (msg.body.type) {
+      case 'email':
+        emailTasks.push(msg)
+        break
+      case 'api':
+        apiTasks.push(msg)
+        break
+      case 'data':
+        dataTasks.push(msg)
+        break
+    }
+  }
+
+  return { emailTasks, apiTasks, dataTasks }
+}
+```
+
+```yaml
 ## Wrangler Configuration
 
 Define queues in `wrangler.toml`:
@@ -571,17 +628,35 @@ agents:
   - name: parallel-process
     operation: code
     config:
-      code: |
-        const messages = ${input.messages};
+      script: scripts/process-messages-parallel
+    input:
+      messages: ${input.messages}
+```
 
-        // Process all messages concurrently
-        const results = await Promise.all(
-          messages.map(async (msg) => {
-            return await processMessage(msg.body);
-          })
-        );
+```typescript
+// scripts/process-messages-parallel.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        return { results };
+export default async function processMessagesParallel(context: AgentExecutionContext) {
+  const { messages } = context.input
+
+  // Process all messages concurrently
+  const results = await Promise.all(
+    messages.map(async (msg: any) => {
+      return await processMessage(msg.body)
+    })
+  )
+
+  return { results }
+}
+
+async function processMessage(body: any) {
+  // Process message implementation
+  return { processed: true, body }
+}
+```
+
+```yaml
 ```
 
 ### Message Size
@@ -597,18 +672,38 @@ agents:
   - name: enqueue-large-data
     operation: code
     config:
-      code: |
-        // Store large data in R2
-        const dataId = generateId();
-        await env.DATA.put(dataId, ${input.largeData});
+      script: scripts/enqueue-large-data-reference
+    input:
+      large_data: ${input.largeData}
+      metadata: ${input.metadata}
+```
 
-        // Queue just the reference
-        await env.TASK_QUEUE.send({
-          dataId,
-          metadata: ${input.metadata}
-        });
+```typescript
+// scripts/enqueue-large-data-reference.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        return { dataId };
+export default async function enqueueLargeDataReference(context: AgentExecutionContext) {
+  const { large_data, metadata } = context.input
+
+  // Store large data in R2
+  const dataId = generateId()
+  await context.env.DATA.put(dataId, large_data)
+
+  // Queue just the reference
+  await context.env.TASK_QUEUE.send({
+    dataId,
+    metadata
+  })
+
+  return { dataId }
+}
+
+function generateId() {
+  return crypto.randomUUID()
+}
+```
+
+```yaml
 ```
 
 ## Error Handling
@@ -622,28 +717,46 @@ agents:
   - name: safe-process
     operation: code
     config:
-      code: |
-        const messages = ${input.messages};
-        const succeeded = [];
-        const failed = [];
+      script: scripts/process-messages-safely
+    input:
+      messages: ${input.messages}
+```
 
-        for (const msg of messages) {
-          try {
-            const result = await processMessage(msg.body);
-            succeeded.push({ id: msg.id, result });
-          } catch (error) {
-            failed.push({
-              id: msg.id,
-              error: error.message,
-              willRetry: msg.attempts < 3
-            });
+```typescript
+// scripts/process-messages-safely.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-            // Log failure
-            console.error(`Message ${msg.id} failed:`, error);
-          }
-        }
+export default async function processMessagesSafely(context: AgentExecutionContext) {
+  const { messages } = context.input
+  const succeeded = []
+  const failed = []
 
-        return { succeeded, failed };
+  for (const msg of messages) {
+    try {
+      const result = await processMessage(msg.body)
+      succeeded.push({ id: msg.id, result })
+    } catch (error: any) {
+      failed.push({
+        id: msg.id,
+        error: error.message,
+        willRetry: msg.attempts < 3
+      })
+
+      // Log failure
+      console.error(`Message ${msg.id} failed:`, error)
+    }
+  }
+
+  return { succeeded, failed }
+}
+
+async function processMessage(body: any) {
+  // Process message implementation
+  return { processed: true }
+}
+```
+
+```yaml
 ```
 
 ### Circuit Breaker
@@ -655,31 +768,49 @@ agents:
   - name: circuit-breaker
     operation: code
     config:
-      code: |
-        const messages = ${input.messages};
-        const results = [];
-        let failures = 0;
-        const maxFailures = 3;
+      script: scripts/process-with-circuit-breaker
+    input:
+      messages: ${input.messages}
+```
 
-        for (const msg of messages) {
-          if (failures >= maxFailures) {
-            console.warn('Circuit breaker triggered');
-            break;
-          }
+```typescript
+// scripts/process-with-circuit-breaker.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-          try {
-            const result = await processMessage(msg.body);
-            results.push({ id: msg.id, result });
-          } catch (error) {
-            failures++;
-            results.push({ id: msg.id, error: error.message });
-          }
-        }
+export default async function processWithCircuitBreaker(context: AgentExecutionContext) {
+  const { messages } = context.input
+  const results = []
+  let failures = 0
+  const maxFailures = 3
 
-        return {
-          results,
-          circuitBroken: failures >= maxFailures
-        };
+  for (const msg of messages) {
+    if (failures >= maxFailures) {
+      console.warn('Circuit breaker triggered')
+      break
+    }
+
+    try {
+      const result = await processMessage(msg.body)
+      results.push({ id: msg.id, result })
+    } catch (error: any) {
+      failures++
+      results.push({ id: msg.id, error: error.message })
+    }
+  }
+
+  return {
+    results,
+    circuitBroken: failures >= maxFailures
+  }
+}
+
+async function processMessage(body: any) {
+  // Process message implementation
+  return { processed: true }
+}
+```
+
+```yaml
 ```
 
 ## Monitoring
@@ -721,24 +852,38 @@ agents:
   - name: check-failure-rate
     operation: code
     config:
-      code: |
-        const failed = ${process-messages.output.failed};
-        const total = ${input.messages.length};
-        const failureRate = failed / total;
+      script: scripts/check-queue-failure-rate
+    input:
+      failed_count: ${process-messages.output.failed}
+      total_messages: ${input.messages.length}
+      queue_name: ${input.queue}
+```
 
-        if (failureRate > 0.5) {
-          // High failure rate, send alert
-          await fetch('${env.ALERT_WEBHOOK}', {
-            method: 'POST',
-            body: JSON.stringify({
-              alert: 'High queue failure rate',
-              rate: failureRate,
-              queue: '${input.queue}'
-            })
-          });
-        }
+```typescript
+// scripts/check-queue-failure-rate.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        return { failureRate };
+export default async function checkQueueFailureRate(context: AgentExecutionContext) {
+  const { failed_count, total_messages, queue_name } = context.input
+  const failureRate = failed_count / total_messages
+
+  if (failureRate > 0.5) {
+    // High failure rate, send alert
+    await fetch(context.env.ALERT_WEBHOOK, {
+      method: 'POST',
+      body: JSON.stringify({
+        alert: 'High queue failure rate',
+        rate: failureRate,
+        queue: queue_name
+      })
+    })
+  }
+
+  return { failureRate }
+}
+```
+
+```yaml
 ```
 
 ## Best Practices

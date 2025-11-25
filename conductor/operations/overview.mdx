@@ -178,12 +178,25 @@ operations:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          a: ${fetch-a.output},
-          b: ${fetch-b.output},
-          c: ${fetch-c.output}
-        };
+      script: scripts/merge-fetch-results
+    input:
+      fetchA: ${fetch-a.output}
+      fetchB: ${fetch-b.output}
+      fetchC: ${fetch-c.output}
+```
+
+```typescript
+// scripts/merge-fetch-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeFetchResults(context: AgentExecutionContext) {
+  const { fetchA, fetchB, fetchC } = context.input
+  return {
+    a: fetchA,
+    b: fetchB,
+    c: fetchC
+  }
+}
 ```
 
 ### Built-in Caching

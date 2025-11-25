@@ -383,20 +383,43 @@ operations:
     condition: ${call-api.output.status === 200}
     operation: code
     config:
-      code: return { success: true };
+      script: scripts/handle-api-success
 
   - name: handle-error
     condition: ${call-api.output.status >= 400}
     operation: code
     config:
-      code: |
-        return {
-          error: true,
-          status: ${call-api.output.status},
-          message: ${call-api.output.data.message}
-        };
+      script: scripts/handle-api-error
+    input:
+      status: ${call-api.output.status}
+      message: ${call-api.output.data.message}
 ```
 
+```typescript
+// scripts/handle-api-success.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleApiSuccess(context: AgentExecutionContext) {
+  return { success: true }
+}
+```
+
+```typescript
+// scripts/handle-api-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleApiError(context: AgentExecutionContext) {
+  const { status, message } = context.input
+
+  return {
+    error: true,
+    status,
+    message
+  }
+}
+```
+
+```yaml
 ### Transform Response
 
 ```yaml
@@ -409,16 +432,29 @@ operations:
   - name: transform
     operation: code
     config:
-      code: |
-        const users = ${fetch-api.output.data};
-        return {
-          users: users.map(u => ({
-            id: u.user_id,
-            name: u.full_name,
-            email: u.email_address
-          }))
-        };
+      script: scripts/transform-users
+    input:
+      users: ${fetch-api.output.data}
 ```
+
+```typescript
+// scripts/transform-users.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function transformUsers(context: AgentExecutionContext) {
+  const { users } = context.input
+
+  return {
+    users: users.map(u => ({
+      id: u.user_id,
+      name: u.full_name,
+      email: u.email_address
+    }))
+  }
+}
+```
+
+```yaml
 
 ## Common API Integrations
 
@@ -436,10 +472,24 @@ operations:
   - name: has-more
     operation: code
     config:
-      code: |
-        return {
-          hasMore: ${fetch-page.output.data.length} === 100
-        };
+      script: scripts/check-has-more-pages
+    input:
+      data_length: ${fetch-page.output.data.length}
+```
+
+```typescript
+// scripts/check-has-more-pages.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function checkHasMorePages(context: AgentExecutionContext) {
+  const { data_length } = context.input
+  return {
+    hasMore: data_length === 100
+  }
+}
+```
+
+```yaml
 ```
 
 ### GraphQL API
@@ -626,25 +676,61 @@ operations:
     condition: ${call-api.output.status >= 200 && call-api.output.status < 300}
     operation: code
     config:
-      code: return { success: true, data: ${call-api.output.data} };
+      script: scripts/handle-http-success
+    input:
+      data: ${call-api.output.data}
 
   - name: handle-client-error
     condition: ${call-api.output.status >= 400 && call-api.output.status < 500}
     operation: code
     config:
-      code: |
-        return {
-          error: 'Client error',
-          status: ${call-api.output.status},
-          message: ${call-api.output.data.error}
-        };
+      script: scripts/handle-client-error
+    input:
+      status: ${call-api.output.status}
+      error: ${call-api.output.data.error}
 
   - name: handle-server-error
     condition: ${call-api.output.status >= 500}
     operation: code
     config:
-      code: return { error: 'Server error', retry: true };
+      script: scripts/handle-server-error
 ```
+
+```typescript
+// scripts/handle-http-success.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleHttpSuccess(context: AgentExecutionContext) {
+  const { data } = context.input
+  return { success: true, data }
+}
+```
+
+```typescript
+// scripts/handle-client-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleClientError(context: AgentExecutionContext) {
+  const { status, error } = context.input
+
+  return {
+    error: 'Client error',
+    status,
+    message: error
+  }
+}
+```
+
+```typescript
+// scripts/handle-server-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleServerError(context: AgentExecutionContext) {
+  return { error: 'Server error', retry: true }
+}
+```
+
+```yaml
 
 ### Retry on Failure
 
@@ -690,8 +776,19 @@ operations:
     condition: ${!slow-api.output}
     operation: code
     config:
-      code: return { error: 'Request timed out', useCache: true };
+      script: scripts/handle-timeout
 ```
+
+```typescript
+// scripts/handle-timeout.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleTimeout(context: AgentExecutionContext) {
+  return { error: 'Request timed out', useCache: true }
+}
+```
+
+```yaml
 
 ## Caching
 
@@ -769,12 +866,29 @@ operations:
   - name: combine-results
     operation: code
     config:
-      code: |
-        return {
-          user: ${fetch-user.output.data},
-          orders: ${fetch-orders.output.data},
-          settings: ${fetch-settings.output.data}
-        };
+      script: scripts/combine-api-results
+    input:
+      user_data: ${fetch-user.output.data}
+      orders_data: ${fetch-orders.output.data}
+      settings_data: ${fetch-settings.output.data}
+```
+
+```typescript
+// scripts/combine-api-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineApiResults(context: AgentExecutionContext) {
+  const { user_data, orders_data, settings_data } = context.input
+
+  return {
+    user: user_data,
+    orders: orders_data,
+    settings: settings_data
+  }
+}
+```
+
+```yaml
 ```
 
 ### Set Appropriate Timeouts
@@ -948,13 +1062,27 @@ operations:
   - name: validate
     operation: code
     config:
-      code: |
-        const data = ${fetch.output.data};
-        if (!data.id || !data.name) {
-          throw new Error('Invalid response structure');
-        }
-        return data;
+      script: scripts/validate-response-structure
+    input:
+      data: ${fetch.output.data}
 ```
+
+```typescript
+// scripts/validate-response-structure.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateResponseStructure(context: AgentExecutionContext) {
+  const { data } = context.input
+
+  if (!data.id || !data.name) {
+    throw new Error('Invalid response structure')
+  }
+
+  return data
+}
+```
+
+```yaml
 
 **8. Rate Limit Awareness**
 ```yaml
@@ -963,12 +1091,26 @@ operations:
   - name: check-rate-limit
     operation: code
     config:
-      code: |
-        const remaining = parseInt('${fetch.output.headers["x-rate-limit-remaining"]}');
-        if (remaining < 10) {
-          // Slow down or pause
-        }
+      script: scripts/check-rate-limit
+    input:
+      rateLimit: ${fetch.output.headers["x-rate-limit-remaining"]}
 ```
+
+```typescript
+// scripts/check-rate-limit.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function checkRateLimit(context: AgentExecutionContext) {
+  const { rateLimit } = context.input
+  const remaining = parseInt(rateLimit)
+
+  if (remaining < 10) {
+    // Slow down or pause
+  }
+}
+```
+
+```yaml
 
 ## Common Pitfalls
 
@@ -995,8 +1137,19 @@ operations:
     condition: ${!call-api.output || call-api.output.status >= 400}
     operation: code
     config:
-      code: return { error: true };
+      script: scripts/handle-error-simple
 ```
+
+```typescript
+// scripts/handle-error-simple.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleErrorSimple(context: AgentExecutionContext) {
+  return { error: true }
+}
+```
+
+```yaml
 
 ### Pitfall: Missing Content-Type
 

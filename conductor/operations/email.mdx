@@ -212,18 +212,12 @@ operations:
   - name: render
     operation: code
     config:
-      code: |
-        const Liquid = require('liquidjs');
-        const engine = new Liquid();
-
-        const template = ${get-template.output.value};
-        const rendered = await engine.parseAndRender(template, {
-          name: ${input.name},
-          activationUrl: ${input.activation_url},
-          appName: 'Your App'
-        });
-
-        return { html: rendered };
+      script: scripts/render-liquid-template
+    input:
+      template: ${get-template.output.value}
+      name: ${input.name}
+      activationUrl: ${input.activation_url}
+      appName: 'Your App'
 
   # Step 3: Send rendered email
   - name: send
@@ -234,6 +228,26 @@ operations:
       to: ${input.email}
       subject: Welcome to Your App!
       html: ${render.output.html}
+```
+
+```typescript
+// scripts/render-liquid-template.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function renderLiquidTemplate(context: AgentExecutionContext) {
+  const { template, name, activationUrl, appName } = context.input
+
+  const Liquid = require('liquidjs')
+  const engine = new Liquid()
+
+  const rendered = await engine.parseAndRender(template, {
+    name,
+    activationUrl,
+    appName
+  })
+
+  return { html: rendered }
+}
 ```
 
 **Template in KV**:
@@ -508,10 +522,7 @@ operations:
   - name: generate-token
     operation: code
     config:
-      code: |
-        const crypto = require('crypto');
-        const token = crypto.randomBytes(32).toString('hex');
-        return { token, expiresAt: Date.now() + 86400000 }; // 24 hours
+      script: scripts/generate-activation-token
 
   # Store token in KV
   - name: store-token
@@ -522,7 +533,23 @@ operations:
       key: activation:${input.userId}
       value: ${generate-token.output.token}
       ttl: 86400                       # 24 hours
+```
 
+```typescript
+// scripts/generate-activation-token.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function generateActivationToken(context: AgentExecutionContext) {
+  const crypto = require('crypto')
+  const token = crypto.randomBytes(32).toString('hex')
+  return {
+    token,
+    expiresAt: Date.now() + 86400000  // 24 hours
+  }
+}
+```
+
+```yaml
   # Send welcome email
   - name: send
     operation: email
@@ -558,12 +585,7 @@ operations:
   - name: generate-token
     operation: code
     config:
-      code: |
-        const crypto = require('crypto');
-        return {
-          token: crypto.randomBytes(32).toString('hex'),
-          expiresAt: Date.now() + 3600000  // 1 hour
-        };
+      script: scripts/generate-reset-token
 
   # Store token
   - name: store-token
@@ -574,7 +596,22 @@ operations:
       key: reset:${input.userId}
       value: ${generate-token.output.token}
       ttl: 3600
+```
 
+```typescript
+// scripts/generate-reset-token.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function generateResetToken(context: AgentExecutionContext) {
+  const crypto = require('crypto')
+  return {
+    token: crypto.randomBytes(32).toString('hex'),
+    expiresAt: Date.now() + 3600000  // 1 hour
+  }
+}
+```
+
+```yaml
   # Send reset email
   - name: send
     operation: email
@@ -698,12 +735,26 @@ operations:
   - name: encode
     operation: code
     config:
-      code: |
-        return {
-          content: btoa(${export.output.data}),
-          filename: `export-${Date.now()}.csv`
-        };
+      script: scripts/encode-export-data
+    input:
+      data: ${export.output.data}
+```
 
+```typescript
+// scripts/encode-export-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function encodeExportData(context: AgentExecutionContext) {
+  const { data } = context.input
+
+  return {
+    content: btoa(data),
+    filename: `export-${Date.now()}.csv`
+  }
+}
+```
+
+```yaml
   # Email export
   - name: send
     operation: email
@@ -835,15 +886,9 @@ operations:
   - name: validate
     operation: code
     config:
-      code: |
-        const email = ${input.email};
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        if (!emailRegex.test(email)) {
-          throw new Error('Invalid email address');
-        }
-
-        return { valid: true };
+      script: scripts/validate-email
+    input:
+      email: ${input.email}
 
   # Send if valid
   - name: send
@@ -857,6 +902,23 @@ operations:
       html: <p>Welcome!</p>
 ```
 
+```typescript
+// scripts/validate-email.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateEmail(context: AgentExecutionContext) {
+  const { email } = context.input
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  if (!emailRegex.test(email)) {
+    throw new Error('Invalid email address')
+  }
+
+  return { valid: true }
+}
+```
+
+```yaml
 ### Handle Batch Errors
 
 ```yaml
@@ -986,12 +1048,9 @@ operations:
   - name: validate
     operation: code
     config:
-      code: |
-        const email = ${input.email};
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          throw new Error('Invalid email');
-        }
-        return { valid: true };
+      script: scripts/validate-email-simple
+    input:
+      email: ${input.email}
 
   - name: send
     operation: email
@@ -1004,6 +1063,22 @@ operations:
       to: ${input.email}  # Could be invalid
 ```
 
+```typescript
+// scripts/validate-email-simple.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateEmailSimple(context: AgentExecutionContext) {
+  const { email } = context.input
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid email')
+  }
+
+  return { valid: true }
+}
+```
+
+```yaml
 **3. Set Reply-To for No-Reply Emails**
 
 ```yaml
@@ -1116,12 +1191,9 @@ operations:
   - name: validate-size
     operation: code
     config:
-      code: |
-        const maxSize = 10 * 1024 * 1024; // 10MB
-        if (${input.attachment.length} > maxSize) {
-          throw new Error('Attachment too large');
-        }
-        return { valid: true };
+      script: scripts/validate-attachment-size
+    input:
+      attachmentLength: ${input.attachment.length}
 
   - name: send
     operation: email
@@ -1139,6 +1211,23 @@ operations:
         - content: ${input.attachment}
 ```
 
+```typescript
+// scripts/validate-attachment-size.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateAttachmentSize(context: AgentExecutionContext) {
+  const { attachmentLength } = context.input
+  const maxSize = 10 * 1024 * 1024  // 10MB
+
+  if (attachmentLength > maxSize) {
+    throw new Error('Attachment too large')
+  }
+
+  return { valid: true }
+}
+```
+
+```yaml
 ## Common Pitfalls
 
 ### Pitfall: Missing From Address

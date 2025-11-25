@@ -223,15 +223,29 @@ agents:
   - name: combine-data
     operation: code
     config:
-      code: |
-        return {
-          user: ${fetch-user-data.output.body},
-          orders: ${fetch-order-history.output.body},
-          preferences: ${fetch-preferences.output.body}
-        };
+      script: scripts/combine-user-data
+    input:
+      userData: ${fetch-user-data.output.body}
+      ordersData: ${fetch-order-history.output.body}
+      preferencesData: ${fetch-preferences.output.body}
 
 output:
   combined: ${combine-data.output}
+```
+
+```typescript
+// scripts/combine-user-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineUserData(context: AgentExecutionContext) {
+  const { userData, ordersData, preferencesData } = context.input
+
+  return {
+    user: userData,
+    orders: ordersData,
+    preferences: preferencesData
+  }
+}
 ```
 
 **Performance:**
@@ -485,20 +499,36 @@ agents:
   - name: handle-results
     operation: code
     config:
-      code: |
-        return {
-          critical: ${critical-task.success},
-          optional: ${optional-task.success},
-          another: ${another-task.success},
-          failedTasks: [
-            ${!critical-task.success ? 'critical-task' : null},
-            ${!optional-task.success ? 'optional-task' : null},
-            ${!another-task.success ? 'another-task' : null}
-          ].filter(Boolean)
-        };
+      script: scripts/handle-task-results
+    input:
+      criticalSuccess: ${critical-task.success}
+      optionalSuccess: ${optional-task.success}
+      anotherSuccess: ${another-task.success}
 
 output:
   results: ${handle-results.output}
+```
+
+```typescript
+// scripts/handle-task-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleTaskResults(context: AgentExecutionContext) {
+  const { criticalSuccess, optionalSuccess, anotherSuccess } = context.input
+
+  const failedTasks = [
+    !criticalSuccess ? 'critical-task' : null,
+    !optionalSuccess ? 'optional-task' : null,
+    !anotherSuccess ? 'another-task' : null
+  ].filter(Boolean)
+
+  return {
+    critical: criticalSuccess,
+    optional: optionalSuccess,
+    another: anotherSuccess,
+    failedTasks
+  }
+}
 ```
 
 ## Real-World Example: E-commerce Checkout
@@ -513,9 +543,9 @@ agents:
       - name: validate-cart
         operation: code
         config:
-          code: |
-            // Validate cart items
-            return { valid: ${input.cart.items.length > 0} };
+          script: scripts/validate-cart
+        input:
+          cartItems: ${input.cart.items}
 
       - name: validate-payment
         operation: http
@@ -546,13 +576,13 @@ agents:
   - name: check-all-valid
     operation: code
     config:
-      code: |
-        return {
-          allValid: ${validate-cart.output.valid} &&
-                    ${validate-payment.output.status === 'valid'} &&
-                    ${validate-shipping.output.valid} &&
-                    ${check-inventory.output.length === input.cart.items.length}
-        };
+      script: scripts/check-all-validations
+    input:
+      cartValid: ${validate-cart.output.valid}
+      paymentStatus: ${validate-payment.output.status}
+      shippingValid: ${validate-shipping.output.valid}
+      inventoryCount: ${check-inventory.output.length}
+      expectedItemsCount: ${input.cart.items.length}
 
   # If valid, process payment and create shipment simultaneously
   - parallel:
@@ -612,6 +642,34 @@ output:
   orderId: ${process-payment.output.id}
   trackingNumber: ${create-shipment.output.tracking_number}
   success: ${check-all-valid.output.allValid}
+```
+
+```typescript
+// scripts/validate-cart.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateCart(context: AgentExecutionContext) {
+  const { cartItems } = context.input
+
+  // Validate cart items
+  return { valid: cartItems.length > 0 }
+}
+```
+
+```typescript
+// scripts/check-all-validations.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function checkAllValidations(context: AgentExecutionContext) {
+  const { cartValid, paymentStatus, shippingValid, inventoryCount, expectedItemsCount } = context.input
+
+  return {
+    allValid: cartValid &&
+              paymentStatus === 'valid' &&
+              shippingValid &&
+              inventoryCount === expectedItemsCount
+  }
+}
 ```
 
 ## Performance Comparison

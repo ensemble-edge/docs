@@ -137,31 +137,16 @@ agents:
   - name: assemble
     operation: code
     config:
-      code: |
-        const outline = JSON.parse(${create-outline.output});
-        return {
-          title: outline.title,
-          content: [
-            ${write-intro.output},
-            '## ' + outline.sections[0].heading,
-            ${write-section-1.output},
-            '## ' + outline.sections[1].heading,
-            ${write-section-2.output},
-            '## ' + outline.sections[2].heading,
-            ${write-section-3.output},
-            '## Conclusion',
-            ${write-conclusion.output}
-          ].join('\n\n'),
-          metadata: {
-            topic: ${input.topic},
-            keywords: ${input.keywords},
-            word_count: ${write-intro.output}.split(' ').length +
-                        ${write-section-1.output}.split(' ').length +
-                        ${write-section-2.output}.split(' ').length +
-                        ${write-section-3.output}.split(' ').length +
-                        ${write-conclusion.output}.split(' ').length
-          }
-        };
+      script: scripts/assemble-blog-post
+    input:
+      outline: ${create-outline.output}
+      intro: ${write-intro.output}
+      section1: ${write-section-1.output}
+      section2: ${write-section-2.output}
+      section3: ${write-section-3.output}
+      conclusion: ${write-conclusion.output}
+      topic: ${input.topic}
+      keywords: ${input.keywords}
 
   # SEO optimization
   - name: optimize-seo
@@ -225,6 +210,42 @@ output:
   analytics: ${assemble.output.metadata}
 ```
 
+```typescript
+// scripts/assemble-blog-post.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function assembleBlogPost(context: AgentExecutionContext) {
+  const { outline, intro, section1, section2, section3, conclusion, topic, keywords } = context.input
+  const parsedOutline = JSON.parse(outline)
+
+  const content = [
+    intro,
+    '## ' + parsedOutline.sections[0].heading,
+    section1,
+    '## ' + parsedOutline.sections[1].heading,
+    section2,
+    '## ' + parsedOutline.sections[2].heading,
+    section3,
+    '## Conclusion',
+    conclusion
+  ].join('\n\n')
+
+  const wordCount = [intro, section1, section2, section3, conclusion]
+    .map(text => text.split(' ').length)
+    .reduce((sum, count) => sum + count, 0)
+
+  return {
+    title: parsedOutline.title,
+    content,
+    metadata: {
+      topic,
+      keywords,
+      word_count: wordCount
+    }
+  }
+}
+```
+
 ## Marketing Copy
 
 ```yaml
@@ -285,29 +306,46 @@ agents:
   - name: package
     operation: code
     config:
-      code: |
-        return {
-          variants: [
-            {
-              id: 'a',
-              copy: ${variant-a.output},
-              cta: ${cta-a.output},
-              tone: 'professional'
-            },
-            {
-              id: 'b',
-              copy: ${variant-b.output},
-              cta: ${cta-b.output},
-              tone: 'casual'
-            },
-            {
-              id: 'c',
-              copy: ${variant-c.output},
-              cta: ${cta-c.output},
-              tone: 'urgent'
-            }
-          ]
-        };
+      script: scripts/package-marketing-variants
+    input:
+      variantA: ${variant-a.output}
+      variantB: ${variant-b.output}
+      variantC: ${variant-c.output}
+      ctaA: ${cta-a.output}
+      ctaB: ${cta-b.output}
+      ctaC: ${cta-c.output}
+```
+
+```typescript
+// scripts/package-marketing-variants.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function packageMarketingVariants(context: AgentExecutionContext) {
+  const { variantA, variantB, variantC, ctaA, ctaB, ctaC } = context.input
+
+  return {
+    variants: [
+      {
+        id: 'a',
+        copy: variantA,
+        cta: ctaA,
+        tone: 'professional'
+      },
+      {
+        id: 'b',
+        copy: variantB,
+        cta: ctaB,
+        tone: 'casual'
+      },
+      {
+        id: 'c',
+        copy: variantC,
+        cta: ctaC,
+        tone: 'urgent'
+      }
+    ]
+  }
+}
 ```
 
 ## Product Documentation
@@ -320,13 +358,9 @@ agents:
   - name: analyze-code
     operation: code
     config:
-      code: |
-        // Analyze codebase structure
-        return {
-          functions: ['init', 'process', 'cleanup'],
-          classes: ['Manager', 'Worker'],
-          config: {}
-        };
+      script: scripts/analyze-codebase
+    input:
+      codebasePath: ${input.codebasePath}
 
   # Generate API docs
   - name: api-docs
@@ -366,13 +400,43 @@ agents:
   - name: assemble-docs
     operation: code
     config:
-      code: |
-        return {
-          api_reference: ${api-docs.output},
-          getting_started: ${tutorial.output},
-          examples: ${examples.output},
-          generated_at: new Date().toISOString()
-        };
+      script: scripts/assemble-documentation
+    input:
+      apiReference: ${api-docs.output}
+      gettingStarted: ${tutorial.output}
+      examples: ${examples.output}
+```
+
+```typescript
+// scripts/analyze-codebase.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function analyzeCodebase(context: AgentExecutionContext) {
+  const { codebasePath } = context.input
+
+  // Analyze codebase structure
+  return {
+    functions: ['init', 'process', 'cleanup'],
+    classes: ['Manager', 'Worker'],
+    config: {}
+  }
+}
+```
+
+```typescript
+// scripts/assemble-documentation.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function assembleDocumentation(context: AgentExecutionContext) {
+  const { apiReference, gettingStarted, examples } = context.input
+
+  return {
+    api_reference: apiReference,
+    getting_started: gettingStarted,
+    examples,
+    generated_at: new Date().toISOString()
+  }
+}
 ```
 
 ## Social Media Content
@@ -422,21 +486,11 @@ agents:
   - name: schedule
     operation: code
     config:
-      code: |
-        return {
-          twitter: {
-            content: JSON.parse(${twitter.output}),
-            schedule: new Date(Date.now() + 3600000)  // 1 hour
-          },
-          linkedin: {
-            content: ${linkedin.output},
-            schedule: new Date(Date.now() + 7200000)  // 2 hours
-          },
-          facebook: {
-            content: ${facebook.output},
-            schedule: new Date(Date.now() + 10800000)  // 3 hours
-          }
-        };
+      script: scripts/schedule-social-posts
+    input:
+      twitter: ${twitter.output}
+      linkedin: ${linkedin.output}
+      facebook: ${facebook.output}
 ```
 
 ## Content Repurposing
@@ -449,7 +503,9 @@ agents:
   - name: input
     operation: code
     config:
-      code: return { content: ${input.blog_post} };
+      script: scripts/prepare-blog-content
+    input:
+      blogPost: ${input.blog_post}
 
   # Generate derivatives in parallel
   - name: twitter-thread
@@ -491,17 +547,68 @@ agents:
   - name: package
     operation: code
     config:
-      code: |
-        return {
-          original: ${input.blog_post},
-          formats: {
-            twitter: ${twitter-thread.output},
-            linkedin: ${linkedin-post.output},
-            email: ${email-newsletter.output},
-            video: ${video-script.output},
-            infographic: ${infographic-outline.output}
-          }
-        };
+      script: scripts/package-repurposed-content
+    input:
+      originalPost: ${input.blog_post}
+      twitter: ${twitter-thread.output}
+      linkedin: ${linkedin-post.output}
+      email: ${email-newsletter.output}
+      video: ${video-script.output}
+      infographic: ${infographic-outline.output}
+```
+
+```typescript
+// scripts/schedule-social-posts.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function scheduleSocialPosts(context: AgentExecutionContext) {
+  const { twitter, linkedin, facebook } = context.input
+
+  return {
+    twitter: {
+      content: JSON.parse(twitter),
+      schedule: new Date(Date.now() + 3600000)  // 1 hour
+    },
+    linkedin: {
+      content: linkedin,
+      schedule: new Date(Date.now() + 7200000)  // 2 hours
+    },
+    facebook: {
+      content: facebook,
+      schedule: new Date(Date.now() + 10800000)  // 3 hours
+    }
+  }
+}
+```
+
+```typescript
+// scripts/prepare-blog-content.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function prepareBlogContent(context: AgentExecutionContext) {
+  const { blogPost } = context.input
+  return { content: blogPost }
+}
+```
+
+```typescript
+// scripts/package-repurposed-content.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function packageRepurposedContent(context: AgentExecutionContext) {
+  const { originalPost, twitter, linkedin, email, video, infographic } = context.input
+
+  return {
+    original: originalPost,
+    formats: {
+      twitter,
+      linkedin,
+      email,
+      video,
+      infographic
+    }
+  }
+}
 ```
 
 ## Best Practices

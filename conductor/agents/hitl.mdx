@@ -196,7 +196,9 @@ agents:
     condition: ${risk-check.output.risk_score < 0.3}
     operation: code
     config:
-      code: return { approved: true, auto: true };
+      script: scripts/auto-approve
+    input:
+      riskScore: ${risk-check.output.risk_score}
 
   # 3. Request approval for high risk
   - name: manual-review
@@ -222,6 +224,16 @@ agents:
       body: ${input.transaction}
 ```
 
+```typescript
+// scripts/auto-approve.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function autoApprove(context: AgentExecutionContext) {
+  const { riskScore } = context.input
+  return { approved: true, auto: true }
+}
+```
+
 ### Code Review
 
 ```yaml
@@ -232,16 +244,16 @@ agents:
   - name: lint
     operation: code
     config:
-      code: |
-        // Run linter
-        return { passed: true };
+      script: scripts/run-linter
+    input:
+      code: ${input.diff}
 
   - name: test
     operation: code
     config:
-      code: |
-        // Run tests
-        return { passed: true };
+      script: scripts/run-tests
+    input:
+      code: ${input.diff}
 
   # 2. Request human review
   - name: review
@@ -269,6 +281,28 @@ agents:
     config:
       url: https://api.github.com/repos/${input.repo}/pulls/${input.pr_number}/merge
       method: PUT
+```
+
+```typescript
+// scripts/run-linter.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function runLinter(context: AgentExecutionContext) {
+  const { code } = context.input
+  // Run linter on the code
+  return { passed: true }
+}
+```
+
+```typescript
+// scripts/run-tests.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function runTests(context: AgentExecutionContext) {
+  const { code } = context.input
+  // Run tests on the code
+  return { passed: true }
+}
 ```
 
 ## Output Schema

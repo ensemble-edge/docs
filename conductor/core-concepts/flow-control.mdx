@@ -21,8 +21,22 @@ agents:
   - name: process
     operation: code
     config:
-      code: return { processed: ${fetch.output} };
+      script: scripts/process-fetch-output
+    input:
+      fetchOutput: ${fetch.output}
+```
 
+```typescript
+// scripts/process-fetch-output.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processFetchOutput(context: AgentExecutionContext) {
+  const { fetchOutput } = context.input
+  return { processed: fetchOutput }
+}
+```
+
+```yaml
   - name: store
     operation: data
     config:
@@ -61,12 +75,25 @@ agents:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          a: ${fetch-a.output},
-          b: ${fetch-b.output},
-          c: ${fetch-c.output}
-        };
+      script: scripts/merge-fetch-results
+    input:
+      fetchA: ${fetch-a.output}
+      fetchB: ${fetch-b.output}
+      fetchC: ${fetch-c.output}
+```
+
+```typescript
+// scripts/merge-fetch-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeFetchResults(context: AgentExecutionContext) {
+  const { fetchA, fetchB, fetchC } = context.input
+  return {
+    a: fetchA,
+    b: fetchB,
+    c: fetchC
+  }
+}
 ```
 
 **Performance**: 3x faster than sequential execution.
@@ -101,8 +128,22 @@ agents:
     condition: ${validate.output.valid}  # Only run if valid
     operation: code
     config:
-      code: return { processed: ${input.data} };
+      script: scripts/process-data
+    input:
+      data: ${input.data}
+```
 
+```typescript
+// scripts/process-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processData(context: AgentExecutionContext) {
+  const { data } = context.input
+  return { processed: data }
+}
+```
+
+```yaml
   - name: log-error
     condition: ${!validate.output.valid}  # Only run if invalid
     operation: data
@@ -272,11 +313,26 @@ agents:
   - name: process-items
     operation: code
     config:
-      code: |
-        const items = ${input.items};
-        return {
-          results: items.map(item => processItem(item))
-        };
+      script: scripts/process-items
+    input:
+      items: ${input.items}
+```
+
+```typescript
+// scripts/process-items.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+function processItem(item: any) {
+  // Process individual item logic here
+  return { ...item, processed: true }
+}
+
+export default function processItems(context: AgentExecutionContext) {
+  const { items } = context.input
+  return {
+    results: items.map((item: any) => processItem(item))
+  }
+}
 ```
 
 ### Batch Processing
@@ -296,15 +352,32 @@ agents:
     condition: ${fetch-batch.output.rows.length > 0}
     operation: code
     config:
-      code: |
-        const rows = ${fetch-batch.output.rows};
-        return {
-          results: rows.map(row => ({
-            id: row.id,
-            result: processRow(row)
-          }))
-        };
+      script: scripts/process-batch-rows
+    input:
+      rows: ${fetch-batch.output.rows}
+```
 
+```typescript
+// scripts/process-batch-rows.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+function processRow(row: any) {
+  // Process individual row logic here
+  return { ...row, processed: true }
+}
+
+export default function processBatchRows(context: AgentExecutionContext) {
+  const { rows } = context.input
+  return {
+    results: rows.map((row: any) => ({
+      id: row.id,
+      result: processRow(row)
+    }))
+  }
+}
+```
+
+```yaml
   - name: mark-processed
     condition: ${process-batch.executed}
     operation: data
@@ -354,11 +427,23 @@ agents:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          a: ${step1.output},
-          b: ${step2.output}
-        };
+      script: scripts/merge-step-outputs
+    input:
+      stepA: ${step1.output}
+      stepB: ${step2.output}
+```
+
+```typescript
+// scripts/merge-step-outputs.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeStepOutputs(context: AgentExecutionContext) {
+  const { stepA, stepB } = context.input
+  return {
+    a: stepA,
+    b: stepB
+  }
+}
 ```
 
 ### Early Termination
@@ -371,10 +456,23 @@ agents:
   - name: quick-check
     operation: code
     config:
-      code: |
-        const text = "${input.text}".toLowerCase();
-        return { spam: text.includes('viagra') };
+      script: scripts/quick-spam-check
+    input:
+      text: ${input.text}
+```
 
+```typescript
+// scripts/quick-spam-check.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function quickSpamCheck(context: AgentExecutionContext) {
+  const { text } = context.input
+  const lowerText = text.toLowerCase()
+  return { spam: lowerText.includes('viagra') }
+}
+```
+
+```yaml
   # Only do expensive AI if not obvious spam
   - name: ai-moderation
     condition: ${!quick-check.output.spam}
@@ -420,15 +518,26 @@ agents:
   - name: aggregate
     operation: code
     config:
-      code: |
-        return {
-          results: [
-            ${scrape-url-1.output},
-            ${scrape-url-2.output},
-            ${scrape-url-3.output}
-          ].filter(r => r !== undefined)
-        };
+      script: scripts/aggregate-scrape-results
+    input:
+      scrape1: ${scrape-url-1.output}
+      scrape2: ${scrape-url-2.output}
+      scrape3: ${scrape-url-3.output}
+```
 
+```typescript
+// scripts/aggregate-scrape-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function aggregateScrapeResults(context: AgentExecutionContext) {
+  const { scrape1, scrape2, scrape3 } = context.input
+  return {
+    results: [scrape1, scrape2, scrape3].filter(r => r !== undefined)
+  }
+}
+```
+
+```yaml
 output:
   all_results: ${aggregate.output.results}
 ```

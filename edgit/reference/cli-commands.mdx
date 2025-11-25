@@ -50,13 +50,14 @@ edgit components add <type> <name> <path> [options]
 ```
 
 **Arguments:**
-- `type` - Component type (prompt, config, query, script, template, docs, agent)
+- `type` - Component type (prompt, config, query, script, template, docs, agent, ensemble)
 - `name` - Unique component name
 - `path` - File path relative to repo root
 
 **Options:**
 - `--description` - Human-readable description
 - `--type=agent` - Register as agent (for agent implementations)
+- `--type=ensemble` - Register as ensemble (for workflow definitions)
 
 **Examples:**
 
@@ -81,6 +82,12 @@ edgit components add docs getting-started components/docs/getting-started.md
 
 # Register agent
 edgit components add agent scraper agents/scraper/ --type=agent
+
+# Register TypeScript ensemble
+edgit components add ensemble data-pipeline ensembles/data-pipeline.ts
+
+# Register YAML ensemble
+edgit components add ensemble scraping-workflow ensembles/scraping.yaml
 ```
 
 ### `edgit components list`
@@ -119,6 +126,9 @@ edgit components list --format json
 # Filter by type
 edgit components list --type prompt
 
+# Filter by ensemble type
+edgit components list --type ensemble
+
 # Show untracked
 edgit components list --untracked
 ```
@@ -149,6 +159,7 @@ edgit tag create <name> <version> [options]
 
 **Options:**
 - `--type=agent` - Tag an agent (default: component)
+- `--type=ensemble` - Tag an ensemble
 - `-m <message>` - Tag message
 - `--force` - Overwrite existing tag
 
@@ -163,6 +174,12 @@ edgit tag create extraction-prompt v1.0.0 -m "Initial stable release"
 
 # Version an agent
 edgit tag create scraper v1.5.0 --type=agent
+
+# Version a TypeScript ensemble
+edgit tag create data-pipeline v1.0.0 --type=ensemble
+
+# Version with message
+edgit tag create data-pipeline v2.0.0 --type=ensemble -m "Added parallel processing"
 
 # Force overwrite
 edgit tag create extraction-prompt v1.0.0 --force
@@ -224,6 +241,7 @@ edgit deploy set <name> <version> --to <environment> [options]
 
 **Options:**
 - `--type=agent` - Deploy an agent
+- `--type=ensemble` - Deploy an ensemble
 
 **Examples:**
 
@@ -236,6 +254,9 @@ edgit deploy set extraction-prompt v1.0.0 --to prod
 
 # Deploy agent
 edgit deploy set scraper v1.5.0 --to prod --type=agent
+
+# Deploy TypeScript ensemble
+edgit deploy set data-pipeline v1.0.0 --to prod --type=ensemble
 
 # Deploy to custom environment
 edgit deploy set extraction-prompt v1.0.0 --to canary
@@ -272,7 +293,7 @@ edgit discover scan [options]
 ```
 
 **Options:**
-- `--type <type>` - Filter by type (prompt, config, query, script)
+- `--type <type>` - Filter by type (prompt, config, query, script, agent, ensemble)
 - `--register` - Automatically register discovered components
 
 **Examples:**
@@ -281,13 +302,21 @@ edgit discover scan [options]
 # Scan for all components
 edgit discover scan
 # Output:
-# Found 12 components:
+# Found 15 components:
 # - components/prompts/extraction.md (prompt)
 # - components/configs/api.json (config)
+# - ensembles/data-pipeline.ts (ensemble)
 # ...
 
 # Scan for prompts only
 edgit discover scan --type prompt
+
+# Scan for TypeScript ensembles
+edgit discover scan --type ensemble
+# Found 5 ensemble files:
+# - ensembles/data-pipeline.ts
+# - ensembles/scraping-workflow.ts
+# - ensembles/rag-pipeline.yaml
 
 # Scan and register
 edgit discover scan --register
@@ -310,6 +339,13 @@ edgit discover detect src/transform.ts
 # Type: script
 # Confidence: 95%
 # Suggested name: transform
+
+# Detect TypeScript ensemble
+edgit discover detect ensembles/data-pipeline.ts
+# Output:
+# Type: ensemble
+# Confidence: 95%
+# Suggested name: data-pipeline
 
 # Get just the name
 edgit discover detect src/transform.ts --name-only

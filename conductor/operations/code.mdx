@@ -3,224 +3,289 @@ title: "code Operation"
 description: "Execute custom JavaScript/TypeScript for data transformation, business logic, and calculations. Fast, free, fully under your control."
 ---
 
+<Warning>
+**Cloudflare Workers Compatibility**: Inline code (`config.code`) is **not supported** in Cloudflare Workers due to security restrictions. Workers blocks `new Function()` and `eval()` by design. Use `config.script` to reference bundled script files instead.
+</Warning>
+
 Use it for transformations, validations, calculations, and custom logic that doesn't require AI or external services.
 
 ## Basic Usage
 
+Create a script file in your `scripts/` directory:
+
+```typescript
+// scripts/calculate-profit.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function calculateProfit(context: AgentExecutionContext) {
+  const { revenue, costs } = context.input as { revenue: number; costs: number }
+  const profit = revenue - costs
+  return { profit, margin: (profit / revenue) * 100 }
+}
+```
+
+Reference it in your ensemble:
+
 ```yaml
-operations:
+agents:
   - name: transform
     operation: code
     config:
-      code: |
-        const { revenue, costs } = ${input};
-        const profit = revenue - costs;
-        return { profit, margin: (profit / revenue) * 100 };
+      script: scripts/calculate-profit
+    input:
+      revenue: $input.revenue
+      costs: $input.costs
 ```
 
 ## Configuration
 
 ```yaml
 config:
-  code: string  # JavaScript/TypeScript code to execute
+  script: string  # Path to bundled TypeScript/JavaScript script
 ```
 
-The code has access to:
-- `input` - The input data passed to the operation
-- All previous operation outputs via template expressions
-- Standard JavaScript/TypeScript globals
-- Node.js built-ins
+The script receives the full `AgentExecutionContext`:
+- `context.input` - The input data passed to the agent
+- `context.env` - Environment bindings (KV, D1, etc.)
+- `context.logger` - Structured logging
+- `context.request` - HTTP request (if triggered via HTTP)
+- `context.cache` - Caching utilities
+
+## Script File Format
+
+Scripts must export a default function:
+
+```typescript
+// scripts/my-script.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function myScript(context: AgentExecutionContext) {
+  const input = context.input as MyInputType
+
+  // Your logic here
+
+  return { result: 'success' }
+}
+```
+
+### Async Scripts
+
+Scripts can be async for operations that need to wait:
+
+```typescript
+// scripts/process-with-storage.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processWithStorage(context: AgentExecutionContext) {
+  const { env, input } = context
+
+  // Access KV storage
+  const cached = await env.KV?.get('my-key')
+  if (cached) {
+    return JSON.parse(cached)
+  }
+
+  const result = processData(input)
+  await env.KV?.put('my-key', JSON.stringify(result))
+
+  return result
+}
+```
+
+## URI Formats
+
+Both formats are supported for referencing scripts:
+
+| Format | Example |
+|--------|---------|
+| Shorthand | `scripts/transforms/csv` |
+| Full URI | `script://transforms/csv` |
+| With version | `scripts/transforms/csv@v1.0.0` |
 
 ## Common Use Cases
 
 ### 1. Data Transformation
 
+```typescript
+// scripts/transforms/format-output.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface FormatInput {
+  firstName: string
+  lastName: string
+  email: string
+  timestamp: string
+}
+
+export default function formatOutput(context: AgentExecutionContext) {
+  const input = context.input as FormatInput
+
+  return {
+    fullName: `${input.firstName} ${input.lastName}`,
+    email: input.email.toLowerCase(),
+    displayDate: new Date(input.timestamp).toLocaleDateString()
+  }
+}
+```
+
 ```yaml
-operations:
+agents:
   - name: format-output
     operation: code
     config:
-      code: |
-        return {
-          fullName: `${input.firstName} ${input.lastName}`,
-          email: ${input.email}.toLowerCase(),
-          displayDate: new Date(${input.timestamp}).toLocaleDateString()
-        };
+      script: scripts/transforms/format-output
+    input:
+      firstName: $input.firstName
+      lastName: $input.lastName
+      email: $input.email
+      timestamp: $input.timestamp
 ```
 
 ### 2. Calculations
 
-```yaml
-operations:
-  - name: calculate-roi
-    operation: code
-    config:
-      code: |
-        const { initialInvestment, currentValue, years } = ${input};
+```typescript
+// scripts/finance/calculate-roi.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        const profit = currentValue - initialInvestment;
-        const roi = (profit / initialInvestment) * 100;
-        const annualizedROI = Math.pow((currentValue / initialInvestment), (1 / years)) - 1;
+interface RoiInput {
+  initialInvestment: number
+  currentValue: number
+  years: number
+}
 
-        return {
-          profit,
-          roi: parseFloat(roi.toFixed(2)),
-          annualizedROI: parseFloat((annualizedROI * 100).toFixed(2))
-        };
+export default function calculateRoi(context: AgentExecutionContext) {
+  const { initialInvestment, currentValue, years } = context.input as RoiInput
+
+  const profit = currentValue - initialInvestment
+  const roi = (profit / initialInvestment) * 100
+  const annualizedROI = Math.pow(currentValue / initialInvestment, 1 / years) - 1
+
+  return {
+    profit,
+    roi: parseFloat(roi.toFixed(2)),
+    annualizedROI: parseFloat((annualizedROI * 100).toFixed(2))
+  }
+}
 ```
 
 ### 3. Validation
 
-```yaml
-operations:
-  - name: validate-order
-    operation: code
-    config:
-      code: |
-        const errors = [];
+```typescript
+// scripts/validators/validate-order.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        // Validate email
-        if (!${input.email} || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(${input.email})) {
-          errors.push('Invalid email address');
-        }
+interface OrderInput {
+  email?: string
+  amount?: number
+  items?: unknown[]
+}
 
-        // Validate amount
-        if (!${input.amount} || ${input.amount} <= 0) {
-          errors.push('Amount must be positive');
-        }
+export default function validateOrder(context: AgentExecutionContext) {
+  const input = context.input as OrderInput
+  const errors: string[] = []
 
-        // Validate items
-        if (!${input.items} || ${input.items}.length === 0) {
-          errors.push('Order must contain at least one item');
-        }
+  // Validate email
+  if (!input.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
+    errors.push('Invalid email address')
+  }
 
-        return {
-          valid: errors.length === 0,
-          errors
-        };
+  // Validate amount
+  if (!input.amount || input.amount <= 0) {
+    errors.push('Amount must be positive')
+  }
+
+  // Validate items
+  if (!input.items || input.items.length === 0) {
+    errors.push('Order must contain at least one item')
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
 ```
 
-### 4. String Manipulation
+### 4. Array Operations
 
-```yaml
-operations:
-  - name: process-text
-    operation: code
-    config:
-      code: |
-        const text = ${input.text};
+```typescript
+// scripts/utils/analyze-array.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        return {
-          length: text.length,
-          wordCount: text.split(/\s+/).length,
-          uppercase: text.toUpperCase(),
-          lowercase: text.toLowerCase(),
-          titleCase: text.replace(/\w\S*/g, (word) =>
-            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-          ),
-          slug: text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-]/g, '')
-        };
+export default function analyzeArray(context: AgentExecutionContext) {
+  const { numbers } = context.input as { numbers: number[] }
+
+  const sum = numbers.reduce((acc, n) => acc + n, 0)
+  const avg = sum / numbers.length
+  const sorted = [...numbers].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  const min = Math.min(...numbers)
+  const max = Math.max(...numbers)
+
+  return {
+    sum,
+    average: avg,
+    median,
+    min,
+    max,
+    count: numbers.length
+  }
+}
 ```
 
-### 5. Array Operations
+### 5. Conditional Logic
 
-```yaml
-operations:
-  - name: analyze-array
-    operation: code
-    config:
-      code: |
-        const numbers = ${input.numbers};
+```typescript
+// scripts/business/determine-action.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        const sum = numbers.reduce((acc, n) => acc + n, 0);
-        const avg = sum / numbers.length;
-        const sorted = [...numbers].sort((a, b) => a - b);
-        const median = sorted[Math.floor(sorted.length / 2)];
-        const min = Math.min(...numbers);
-        const max = Math.max(...numbers);
+interface ActionInput {
+  amount: number
+  riskScore: number
+}
 
-        return {
-          sum,
-          average: avg,
-          median,
-          min,
-          max,
-          count: numbers.length
-        };
+export default function determineAction(context: AgentExecutionContext) {
+  const { amount, riskScore } = context.input as ActionInput
+
+  if (amount > 1000) {
+    return { action: 'manual_review', reason: 'high_value' }
+  } else if (riskScore > 0.8) {
+    return { action: 'flag', reason: 'high_risk' }
+  } else {
+    return { action: 'approve', reason: 'normal' }
+  }
+}
 ```
 
-### 6. JSON Processing
+### 6. Date/Time Operations
 
-```yaml
-operations:
-  - name: transform-json
-    operation: code
-    config:
-      code: |
-        const data = ${input.data};
-        const mapping = ${input.mapping};
+```typescript
+// scripts/utils/process-dates.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        // Transform object keys based on mapping
-        const transformed = {};
+export default function processDates(context: AgentExecutionContext) {
+  const { timestamp } = context.input as { timestamp: string }
+  const date = new Date(timestamp)
 
-        for (const [oldKey, newKey] of Object.entries(mapping)) {
-          if (data[oldKey] !== undefined) {
-            transformed[newKey] = data[oldKey];
-          }
-        }
-
-        return { transformed };
+  return {
+    iso: date.toISOString(),
+    local: date.toLocaleString(),
+    date: date.toLocaleDateString(),
+    time: date.toLocaleTimeString(),
+    unix: Math.floor(date.getTime() / 1000),
+    dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
+    month: date.toLocaleDateString('en-US', { month: 'long' }),
+    year: date.getFullYear()
+  }
+}
 ```
 
-### 7. Conditional Logic
+## Using Previous Agent Outputs
+
+Reference outputs from previous agents via the input mapping:
 
 ```yaml
-operations:
-  - name: determine-action
-    operation: code
-    config:
-      code: |
-        const amount = ${input.amount};
-        const riskScore = ${assess-risk.output.score};
-
-        if (amount > 1000) {
-          return { action: 'manual_review', reason: 'high_value' };
-        } else if (riskScore > 0.8) {
-          return { action: 'flag', reason: 'high_risk' };
-        } else {
-          return { action: 'approve', reason: 'normal' };
-        }
-```
-
-### 8. Date/Time Operations
-
-```yaml
-operations:
-  - name: process-dates
-    operation: code
-    config:
-      code: |
-        const timestamp = ${input.timestamp};
-        const date = new Date(timestamp);
-
-        return {
-          iso: date.toISOString(),
-          local: date.toLocaleString(),
-          date: date.toLocaleDateString(),
-          time: date.toLocaleTimeString(),
-          unix: Math.floor(date.getTime() / 1000),
-          dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
-          month: date.toLocaleDateString('en-US', { month: 'long' }),
-          year: date.getFullYear()
-        };
-```
-
-## Accessing Previous Outputs
-
-Reference outputs from previous operations:
-
-```yaml
-operations:
+agents:
   - name: fetch-data
     operation: http
     config:
@@ -229,511 +294,285 @@ operations:
   - name: process-results
     operation: code
     config:
-      code: |
-        const apiData = ${fetch-data.output.data};
-        const processed = apiData.map(item => ({
-          id: item.id,
-          value: item.value * 2
-        }));
-
-        return { processed };
+      script: scripts/process-api-data
+    input:
+      apiData: $fetch-data.output.data
 ```
 
-## Complex Transformations
+```typescript
+// scripts/process-api-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-### Object Flattening
+export default function processApiData(context: AgentExecutionContext) {
+  const { apiData } = context.input as { apiData: Array<{ id: string; value: number }> }
 
-```yaml
-operations:
-  - name: flatten-object
-    operation: code
-    config:
-      code: |
-        function flatten(obj, prefix = '') {
-          return Object.keys(obj).reduce((acc, key) => {
-            const value = obj[key];
-            const newKey = prefix ? `${prefix}.${key}` : key;
+  const processed = apiData.map(item => ({
+    id: item.id,
+    value: item.value * 2
+  }))
 
-            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-              Object.assign(acc, flatten(value, newKey));
-            } else {
-              acc[newKey] = value;
-            }
-
-            return acc;
-          }, {});
-        }
-
-        return { flattened: flatten(${input.nested}) };
+  return { processed }
+}
 ```
 
-### Aggregation
+## Accessing Environment
 
-```yaml
-operations:
-  - name: aggregate-results
-    operation: code
-    config:
-      code: |
-        const results = [
-          ${process-a.output},
-          ${process-b.output},
-          ${process-c.output}
-        ];
+Scripts have access to Cloudflare bindings via `context.env`:
 
-        return {
-          total: results.length,
-          successful: results.filter(r => r.success).length,
-          failed: results.filter(r => !r.success).length,
-          avgDuration: results.reduce((sum, r) => sum + r.duration, 0) / results.length
-        };
-```
+```typescript
+// scripts/with-env.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-### Data Filtering
+export default async function withEnv(context: AgentExecutionContext) {
+  const { env, input } = context
 
-```yaml
-operations:
-  - name: filter-items
-    operation: code
-    config:
-      code: |
-        const items = ${input.items};
-        const minPrice = ${input.minPrice} || 0;
-        const category = ${input.category};
+  // Access KV storage
+  const cached = await env.KV?.get(`cache:${input.key}`)
+  if (cached) {
+    return JSON.parse(cached)
+  }
 
-        const filtered = items.filter(item =>
-          item.price >= minPrice &&
-          (!category || item.category === category) &&
-          item.available === true
-        );
+  // Access D1 database
+  const result = await env.DB?.prepare('SELECT * FROM users WHERE id = ?')
+    .bind(input.userId)
+    .first()
 
-        return {
-          items: filtered,
-          count: filtered.length,
-          totalValue: filtered.reduce((sum, item) => sum + item.price, 0)
-        };
-```
+  // Access environment variables
+  const apiKey = env.API_KEY
 
-### Data Grouping
-
-```yaml
-operations:
-  - name: group-by-category
-    operation: code
-    config:
-      code: |
-        const items = ${input.items};
-
-        const grouped = items.reduce((acc, item) => {
-          const category = item.category || 'uncategorized';
-          if (!acc[category]) {
-            acc[category] = [];
-          }
-          acc[category].push(item);
-          return acc;
-        }, {});
-
-        return { grouped };
+  return { user: result, apiKey: apiKey ? 'present' : 'missing' }
+}
 ```
 
 ## Error Handling
 
 ### Throw Errors
 
-```yaml
-operations:
-  - name: divide
-    operation: code
-    config:
-      code: |
-        const { numerator, denominator } = ${input};
+```typescript
+// scripts/divide.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        if (denominator === 0) {
-          throw new Error('Division by zero');
-        }
+export default function divide(context: AgentExecutionContext) {
+  const { numerator, denominator } = context.input as { numerator: number; denominator: number }
 
-        return { result: numerator / denominator };
+  if (denominator === 0) {
+    throw new Error('Division by zero')
+  }
+
+  return { result: numerator / denominator }
+}
 ```
 
 ### Return Error State
 
-```yaml
-operations:
-  - name: safe-operation
-    operation: code
-    config:
-      code: |
-        try {
-          const result = performRiskyOperation(${input.data});
-          return { success: true, result };
-        } catch (error) {
-          return {
-            success: false,
-            error: error.message,
-            fallback: getDefaultValue()
-          };
-        }
-```
-
-### Graceful Degradation
-
-```yaml
-operations:
-  - name: parse-json
-    operation: code
-    config:
-      code: |
-        const text = ${input.text};
-
-        try {
-          const parsed = JSON.parse(text);
-          return { valid: true, data: parsed };
-        } catch (error) {
-          return {
-            valid: false,
-            error: 'Invalid JSON',
-            raw: text
-          };
-        }
-```
-
-## Advanced Patterns
-
-### Memoization
-
-```yaml
-operations:
-  - name: fibonacci
-    operation: code
-    config:
-      code: |
-        const cache = new Map();
-
-        function fib(n) {
-          if (n <= 1) return n;
-          if (cache.has(n)) return cache.get(n);
-
-          const result = fib(n - 1) + fib(n - 2);
-          cache.set(n, result);
-          return result;
-        }
-
-        return { result: fib(${input.n}) };
-```
-
-### Regular Expressions
-
-```yaml
-operations:
-  - name: extract-patterns
-    operation: code
-    config:
-      code: |
-        const text = ${input.text};
-
-        // Extract emails
-        const emails = text.match(/[^\s@]+@[^\s@]+\.[^\s@]+/g) || [];
-
-        // Extract URLs
-        const urls = text.match(/https?:\/\/[^\s]+/g) || [];
-
-        // Extract phone numbers
-        const phones = text.match(/\d{3}-\d{3}-\d{4}/g) || [];
-
-        return { emails, urls, phones };
-```
-
-### Recursive Processing
-
-```yaml
-operations:
-  - name: traverse-tree
-    operation: code
-    config:
-      code: |
-        function traverse(node, depth = 0) {
-          const result = {
-            id: node.id,
-            depth,
-            children: []
-          };
-
-          if (node.children && node.children.length > 0) {
-            result.children = node.children.map(child =>
-              traverse(child, depth + 1)
-            );
-          }
-
-          return result;
-        }
-
-        return { tree: traverse(${input.root}) };
-```
-
-## Performance Optimization
-
-### Early Returns
-
-```yaml
-operations:
-  - name: optimize-processing
-    operation: code
-    config:
-      code: |
-        const data = ${input.data};
-
-        // Quick validation
-        if (!data || data.length === 0) {
-          return { processed: 0, skipped: true };
-        }
-
-        // Early return for cached
-        if (${input.useCache} && cachedResult) {
-          return cachedResult;
-        }
-
-        // Expensive processing only if needed
-        return expensiveProcessing(data);
-```
-
-### Batch Processing
-
-```yaml
-operations:
-  - name: batch-process
-    operation: code
-    config:
-      code: |
-        const items = ${input.items};
-        const batchSize = 100;
-        const results = [];
-
-        for (let i = 0; i < items.length; i += batchSize) {
-          const batch = items.slice(i, i + batchSize);
-          const processed = processBatch(batch);
-          results.push(...processed);
-        }
-
-        return { results, totalProcessed: results.length };
-```
-
-## Type Safety
-
-For complex operations, prefer creating custom agents with TypeScript:
-
 ```typescript
-// agents/my-agent/operations.ts
-export async function calculateMetrics(input: { revenue: number; costs: number }) {
-  const profit = input.revenue - input.costs;
-  const margin = (profit / input.revenue) * 100;
+// scripts/safe-operation.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-  return {
-    profit,
-    margin: parseFloat(margin.toFixed(2))
-  };
+export default function safeOperation(context: AgentExecutionContext) {
+  try {
+    const result = performRiskyOperation(context.input)
+    return { success: true, result }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      fallback: getDefaultValue()
+    }
+  }
 }
 ```
 
-```yaml
-# agents/my-agent/agent.yaml
-operations:
-  - name: calculate
-    operation: code
-    config:
-      code: |
-        return await operations.calculateMetrics(${input});
+## Directory Organization
+
+Organize your scripts by domain:
+
+```
+scripts/
+├── transforms/
+│   ├── csv.ts
+│   ├── json.ts
+│   └── normalize.ts
+├── validators/
+│   ├── email.ts
+│   └── order.ts
+├── finance/
+│   ├── calculate-roi.ts
+│   └── compound-interest.ts
+├── utils/
+│   ├── format-date.ts
+│   └── parse-json.ts
+└── auth/
+    ├── verify-token.ts
+    └── hash-password.ts
 ```
 
-## Testing
+Reference them with their path:
 
-Test code operations in your agents:
-
-```typescript
-import { TestConductor } from '@ensemble/conductor/testing';
-
-describe('calculate operation', () => {
-  it('should calculate correctly', async () => {
-    const conductor = await TestConductor.create({
-      projectPath: './conductor'
-    });
-
-    const result = await conductor.executeAgent('calculator', {
-      revenue: 1000,
-      costs: 600
-    });
-
-    expect(result.output.profit).toBe(400);
-    expect(result.output.margin).toBe(40);
-  });
-});
+```yaml
+agents:
+  - name: validate
+    operation: code
+    config:
+      script: scripts/validators/email
 ```
 
 ## Best Practices
 
-**1. Keep It Simple**
-```yaml
-# Good: Simple transformation
-code: |
-  return { total: ${input.items}.reduce((sum, item) => sum + item.price, 0) };
+**1. Keep Scripts Focused**
+```typescript
+// Good: Single responsibility
+export default function calculateTotal(context: AgentExecutionContext) {
+  const items = context.input as Array<{ price: number }>
+  return { total: items.reduce((sum, item) => sum + item.price, 0) }
+}
 
-# Bad: Complex logic belongs in custom agents
-code: |
-  // 100+ lines of complex business logic...
+// Bad: Multiple responsibilities in one script
+export default function doEverything(context: AgentExecutionContext) {
+  // Validate, transform, calculate, format... 200 lines
+}
 ```
 
-**2. Return Objects**
-```yaml
-# Good: Return object
-code: |
-  return { result: value };
+**2. Type Your Inputs**
+```typescript
+// Good: Clear types
+interface OrderInput {
+  items: Array<{ price: number; quantity: number }>
+  discount?: number
+}
 
-# Bad: Return primitive
-code: |
-  return value;
+export default function processOrder(context: AgentExecutionContext) {
+  const input = context.input as OrderInput
+  // TypeScript helps catch errors
+}
 ```
 
 **3. Handle Nulls**
-```yaml
-# Good: Check for null/undefined
-code: |
-  const items = ${input.items} || [];
-  return { count: items.length };
+```typescript
+// Good: Check for null/undefined
+export default function processItems(context: AgentExecutionContext) {
+  const items = (context.input as { items?: unknown[] }).items || []
+  return { count: items.length }
+}
 
-# Bad: Assume data exists
-code: |
-  return { count: ${input.items}.length };
+// Bad: Assume data exists
+export default function processItems(context: AgentExecutionContext) {
+  return { count: (context.input as any).items.length } // May throw
+}
 ```
 
-**4. Use Template Expressions**
-```yaml
-# Good: Template expressions for data
-code: |
-  const data = ${input.data};
-  return { processed: data.map(x => x * 2) };
+**4. Return Objects**
+```typescript
+// Good: Return object
+export default function calculate(context: AgentExecutionContext) {
+  return { result: value }
+}
 
-# Bad: Hardcoded values
-code: |
-  const data = [1, 2, 3];
-  return { processed: data.map(x => x * 2) };
+// Bad: Return primitive (less flexible)
+export default function calculate(context: AgentExecutionContext) {
+  return value
+}
 ```
 
-**5. Validate Input**
-```yaml
-# Good: Validate first
-code: |
-  if (!${input.email}) {
-    throw new Error('Email is required');
-  }
-  return { valid: true };
+**5. Don't Mutate Input**
+```typescript
+// Good: Create new array
+export default function sortItems(context: AgentExecutionContext) {
+  const items = [...(context.input as { items: number[] }).items]
+  items.sort()
+  return { items }
+}
 
-# Bad: Assume valid input
-code: |
-  return { email: ${input.email}.toLowerCase() };
+// Bad: Mutate original
+export default function sortItems(context: AgentExecutionContext) {
+  const items = (context.input as { items: number[] }).items
+  items.sort() // Mutates original
+  return { items }
+}
 ```
 
-**6. Extract Complex Logic**
-```yaml
-# Good: Complex logic in custom agent
-operations:
-  - name: process
-    agent: my-processor
+## Migration from Inline Code
 
-# Bad: Inline complex logic
-operations:
-  - name: process
+If you have existing ensembles with inline code, migrate them to script files:
+
+### Before (Not Supported in Workers)
+
+```yaml
+# ❌ This won't work in Cloudflare Workers
+agents:
+  - name: transform
     operation: code
     config:
       code: |
-        // 200 lines of complex logic...
+        const { revenue, costs } = input;
+        return { profit: revenue - costs };
 ```
 
-**7. Document Tricky Code**
+### After (Recommended)
+
+```typescript
+// scripts/calculate-profit.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function calculateProfit(context: AgentExecutionContext) {
+  const { revenue, costs } = context.input as { revenue: number; costs: number }
+  return { profit: revenue - costs }
+}
+```
+
 ```yaml
-operations:
-  - name: calculate-cagr
+# ✅ Works everywhere
+agents:
+  - name: transform
     operation: code
     config:
-      code: |
-        // Calculate compound annual growth rate (CAGR)
-        // Formula: CAGR = (Ending Value / Beginning Value)^(1/Years) - 1
-        const { beginningValue, endingValue, years } = ${input};
-        const cagr = Math.pow(endingValue / beginningValue, 1 / years) - 1;
-        return { cagr: parseFloat((cagr * 100).toFixed(2)) };
+      script: scripts/calculate-profit
+    input:
+      revenue: $input.revenue
+      costs: $input.costs
 ```
 
-**8. Use Meaningful Names**
-```yaml
-# Good: Clear variable names
-code: |
-  const totalRevenue = ${input.items}.reduce((sum, item) => sum + item.revenue, 0);
-  return { totalRevenue };
+### Key Differences
 
-# Bad: Unclear names
-code: |
-  const x = ${input.items}.reduce((a, b) => a + b.revenue, 0);
-  return { x };
-```
+| Inline Code | Script Files |
+|-------------|--------------|
+| `input` variable | `context.input` property |
+| Direct `return` | `return` from function |
+| No types | Full TypeScript support |
+| No `env` access | `context.env` for bindings |
+| Dynamic evaluation | Build-time bundling |
 
-## Common Pitfalls
+## Testing
 
-### Pitfall: Mutating Input
+Test your scripts with full TypeScript support:
 
-```yaml
-# Bad: Mutating input
-code: |
-  const items = ${input.items};
-  items.sort();  # Mutates original
-  return { items };
+```typescript
+// scripts/__tests__/calculate-profit.test.ts
+import calculateProfit from '../calculate-profit'
 
-# Good: Create new array
-code: |
-  const items = [...${input.items}];
-  items.sort();
-  return { items };
-```
+describe('calculateProfit', () => {
+  it('calculates profit correctly', () => {
+    const mockContext = {
+      input: { revenue: 1000, costs: 600 },
+      env: {},
+    } as any
 
-### Pitfall: Async Operations
+    const result = calculateProfit(mockContext)
 
-```yaml
-# Bad: Code operation doesn't support async
-code: |
-  const data = await fetch('...');  # Won't work
-  return { data };
-
-# Good: Use http operation instead
-operations:
-  - name: fetch
-    operation: http
-    config:
-      url: https://api.example.com
-```
-
-### Pitfall: Side Effects
-
-```yaml
-# Bad: Side effects
-let counter = 0;
-code: |
-  counter++;  # Don't use external state
-  return { count: counter };
-
-# Good: Pure function
-code: |
-  return { count: ${input.count} + 1 };
+    expect(result.profit).toBe(400)
+  })
+})
 ```
 
 ## When to Use Custom Agents Instead
 
-Use custom agents when you need:
+Use full custom agents (with `agents/` directory) when you need:
 
-1. **TypeScript type safety**
-2. **Complex business logic** (>50 lines)
-3. **Reusable functions**
-4. **External dependencies**
-5. **Async operations** (fetch, database)
-6. **Access to environment variables**
-7. **State management**
-8. **Unit testing** with full test coverage
+1. **Multiple related operations** - Group related functionality
+2. **Complex state management** - Shared state across operations
+3. **External dependencies** - npm packages
+4. **Database access** - Complex queries
+5. **Reusable across projects** - Publish as agent package
 
 See [Creating Agents](/conductor/building/creating-agents) for more.
 
@@ -746,8 +585,8 @@ See [Creating Agents](/conductor/building/creating-agents) for more.
   <Card title="storage Operation" icon="database" href="/conductor/operations/storage">
     Data persistence
   </Card>
-  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
-    Build custom agents
+  <Card title="Script Components" icon="code" href="/conductor/components/scripts">
+    Versioned scripts
   </Card>
   <Card title="Building Patterns" icon="layer-group" href="/conductor/building/patterns">
     Common patterns

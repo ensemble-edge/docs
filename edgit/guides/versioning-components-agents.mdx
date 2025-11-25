@@ -1,5 +1,5 @@
 ---
-title: "Versioning Components & Agents"
+title: "Versioning Components, Agents & Ensembles"
 description: "Version every piece independently. No more bumping the entire app to v2.0.0 because you changed one prompt."
 ---
 
@@ -19,9 +19,10 @@ v2.0.0: App + Prompt A (v2) + Config B (v2) + Query C (v1)
 Prompt A: v1.0.0, v1.1.0, v2.0.0 (independent)
 Config B: v1.0.0, v2.0.0, v3.0.0 (independent)
 Query C: v1.0.0, v1.5.0 (independent)
+Ensemble D: v1.0.0, v1.1.0 (independent)
 ```
 
-**Power:** Mix any combination. Prompt A v1 + Config B v3 + Query C v1.5. Infinite possibilities.
+**Power:** Mix any combination. Prompt A v1 + Config B v3 + Query C v1.5 + Ensemble D v1.1. Infinite possibilities.
 
 ## Component Versioning
 
@@ -95,6 +96,25 @@ edgit tag create extraction-prompt v1.0.1
 
 Lock to specific versions:
 
+<Tabs>
+  <Tab title="TypeScript">
+```typescript
+import { versionedAgent, createEnsemble } from '@anthropic/conductor'
+
+const companyIntel = createEnsemble({
+  name: 'company-intel',
+  steps: [
+    versionedAgent('analyzer', '1.0.0', {
+      config: { model: 'claude-sonnet-4' }
+    }).toFlowStep(),
+    versionedAgent('scorer', '2.1.0').toFlowStep()
+  ]
+})
+
+export default companyIntel
+```
+  </Tab>
+  <Tab title="YAML">
 ```yaml
 ensemble: company-intel
 
@@ -103,17 +123,23 @@ agents:
     operation: think
     component: extraction-prompt@v1.0.0  # Locked to v1.0.0
     config:
-      model: claude-3-5-sonnet-20241022
+      model: claude-sonnet-4
 
   - name: scorer
     operation: think
     component: validation-prompt@v2.1.0  # Different version
 ```
+  </Tab>
+</Tabs>
 
 **Benefits:**
 - Predictable behavior (won't break on updates)
 - Can A/B test different versions
 - Easy rollback (just change the version)
+
+<Note>
+For TypeScript ensembles, see the [Version Primitives documentation](/conductor/reference/ts-schema#version-primitives-edgit-integration) for complete API reference including `versionedAgent()`, `versionedEnsemble()`, and `deploymentRef()`.
+</Note>
 
 ## Agent Versioning
 
@@ -178,9 +204,131 @@ agents:
         description: "meta[name=description]"
 ```
 
+## Ensemble Versioning
+
+### What Are Ensembles?
+
+**Ensembles** are workflow definitions that orchestrate agents. They can be:
+
+- **YAML ensembles** (`.yaml`, `.yml`) - Declarative workflow definitions
+- **TypeScript ensembles** (`.ts`) - Programmatic workflow definitions with full type safety
+
+### Version Ensemble Definitions
+
+<Tabs>
+  <Tab title="TypeScript">
+```bash
+# Register a TypeScript ensemble
+edgit components add ensemble data-pipeline ensembles/data-pipeline.ts
+
+# Create versions
+edgit tag create data-pipeline v1.0.0 --type=ensemble
+edgit tag create data-pipeline v1.1.0 --type=ensemble
+edgit tag create data-pipeline v2.0.0 --type=ensemble
+```
+  </Tab>
+  <Tab title="YAML">
+```bash
+# Register a YAML ensemble
+edgit components add ensemble scraping-workflow ensembles/scraping.yaml
+
+# Create versions
+edgit tag create scraping-workflow v1.0.0 --type=ensemble
+edgit tag create scraping-workflow v1.5.0 --type=ensemble
+```
+  </Tab>
+</Tabs>
+
+### Git Tag Format for Ensembles
+
+Ensembles use their own namespace:
+
+```bash
+ensembles/data-pipeline/v1.0.0
+ensembles/data-pipeline/v1.1.0
+ensembles/data-pipeline/v2.0.0
+ensembles/data-pipeline/prod      # Deployment tag
+ensembles/data-pipeline/staging   # Deployment tag
+```
+
+**Why separate namespaces?**
+- Clear distinction between components, agents, and ensembles
+- No naming collisions
+- Better organization in Git
+
+### TypeScript vs YAML Ensembles
+
+<Tabs>
+  <Tab title="TypeScript">
+```typescript
+// ensembles/data-pipeline.ts
+import { createEnsemble, step, parallel, branch } from '@anthropic/conductor'
+
+export default createEnsemble('data-pipeline')
+  .addStep(
+    step('extract')
+      .operation('http')
+      .config({ url: '${input.url}' })
+  )
+  .addStep(
+    branch('route')
+      .when('${extract.output.type === "json"}')
+        .then(step('parse-json').operation('code').config({ script: 'scripts/parse-json' }))
+      .when('${extract.output.type === "xml"}')
+        .then(step('parse-xml').operation('code').config({ script: 'scripts/parse-xml' }))
+      .otherwise(
+        step('parse-text').operation('code').config({ script: 'scripts/parse-text' })
+      )
+  )
+  .build()
+```
+  </Tab>
+  <Tab title="YAML">
+```yaml
+ensemble: data-pipeline
+
+agents:
+  - name: extract
+    operation: http
+    config:
+      url: ${input.url}
+
+  - name: parse-json
+    condition: ${extract.output.type === 'json'}
+    operation: code
+    config:
+      script: scripts/parse-json
+
+  - name: parse-xml
+    condition: ${extract.output.type === 'xml'}
+    operation: code
+    config:
+      script: scripts/parse-xml
+
+  - name: parse-text
+    condition: ${!extract.output.type}
+    operation: code
+    config:
+      script: scripts/parse-text
+```
+  </Tab>
+</Tabs>
+
+**When to use TypeScript:**
+- Complex flow control (nested branches, loops)
+- Type safety requirements
+- IDE autocomplete and validation
+- Reusable ensemble patterns
+
+**When to use YAML:**
+- Simple linear workflows
+- Non-developers editing ensembles
+- Quick prototyping
+- Configuration-driven deployments
+
 ## The Versioning Multiverse
 
-The real power: **version components AND agents independently, then mix them.**
+The real power: **version components, agents, AND ensembles independently, then mix them.**
 
 ### Example: Testing Matrix
 

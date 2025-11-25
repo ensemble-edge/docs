@@ -51,7 +51,9 @@ agents:
   - name: process
     operation: code
     config:
-      code: return { processed: ${fetch.output} };  # Clear dependency
+      script: scripts/process-fetch-data  # Clear dependency via script
+    input:
+      data: ${fetch.output}
 
 # Bad: Hidden dependencies
 agents:
@@ -127,17 +129,26 @@ agents:
   - name: aggregate
     operation: code
     config:
-      code: |
-        return {
-          results: [
-            ${fetch-api-1.output},
-            ${fetch-api-2.output},
-            ${fetch-api-3.output}
-          ]
-        };
+      script: scripts/aggregate-api-results
+    input:
+      api1: ${fetch-api-1.output}
+      api2: ${fetch-api-2.output}
+      api3: ${fetch-api-3.output}
 
 output:
   all_data: ${aggregate.output.results}
+```
+
+```typescript
+// scripts/aggregate-api-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function aggregateResults(context: AgentExecutionContext) {
+  const { api1, api2, api3 } = context.input
+  return {
+    results: [api1, api2, api3]
+  }
+}
 ```
 
 ### Conditional Branching
@@ -219,7 +230,9 @@ agents:
   - name: parse-event
     operation: code
     config:
-      code: return JSON.parse("${input.event}");
+      script: scripts/parse-event
+    input:
+      event: ${input.event}
 
   - name: handle-user-created
     condition: ${parse-event.output.type === 'user.created'}
@@ -236,6 +249,15 @@ agents:
 output:
   handled: ${handle-user-created.executed || handle-payment-received.executed || handle-order-placed.executed}
   event_type: ${parse-event.output.type}
+```
+
+```typescript
+// scripts/parse-event.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function parseEvent(context: AgentExecutionContext) {
+  return JSON.parse(context.input.event)
+}
 ```
 
 ## Anti-Patterns
@@ -291,7 +313,7 @@ agents:
   - name: step1
     operation: code
     config:
-      code: return { data: "value" };
+      script: scripts/produce-data
     state:
       set:
         shared_data: ${step1.output.data}
@@ -315,20 +337,34 @@ agents:
     operation: code
     # ...
 
-# Good: Flatten with early returns
+# Good: Flatten with early returns using a validation script
 agents:
   - name: validate
     operation: code
     config:
-      code: |
-        if (!${input.a}) return { valid: false };
-        if (!${input.b}) return { valid: false };
-        if (!${input.c}) return { valid: false };
-        return { valid: true };
+      script: scripts/validate-inputs
+    input:
+      a: ${input.a}
+      b: ${input.b}
+      c: ${input.c}
   - name: process
     condition: ${validate.output.valid}
     operation: code
-    # ...
+    config:
+      script: scripts/process-validated
+```
+
+```typescript
+// scripts/validate-inputs.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function validateInputs(context: AgentExecutionContext) {
+  const { a, b, c } = context.input
+  if (!a) return { valid: false }
+  if (!b) return { valid: false }
+  if (!c) return { valid: false }
+  return { valid: true }
+}
 ```
 
 ## Performance Optimization
@@ -343,11 +379,15 @@ agents:
   - name: step2
     operation: code
     config:
-      code: return { a: ${step1.output} };
+      script: scripts/wrap-a
+    input:
+      data: ${step1.output}
   - name: step3
     operation: code
     config:
-      code: return { b: ${step2.output} };
+      script: scripts/wrap-b
+    input:
+      data: ${step2.output}
 
 # Good: Parallel where possible
 agents:
@@ -358,7 +398,20 @@ agents:
   - name: combine
     operation: code
     config:
-      code: return { a: ${step1.output}, b: ${step2.output} };
+      script: scripts/combine-outputs
+    input:
+      a: ${step1.output}
+      b: ${step2.output}
+```
+
+```typescript
+// scripts/combine-outputs.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function combineOutputs(context: AgentExecutionContext) {
+  const { a, b } = context.input
+  return { a, b }
+}
 ```
 
 ### Cache Expensive Operations
@@ -390,12 +443,24 @@ agents:
   - name: quick-check
     operation: code
     config:
-      code: return { valid: ${input.data}.length > 0 };
+      script: scripts/quick-validate
+    input:
+      data: ${input.data}
 
   # Only do expensive work if valid
   - name: expensive-process
     condition: ${quick-check.output.valid}
     agent: expensive-agent
+```
+
+```typescript
+// scripts/quick-validate.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function quickValidate(context: AgentExecutionContext) {
+  const { data } = context.input
+  return { valid: data && data.length > 0 }
+}
 ```
 
 ## Testing Ensembles
@@ -515,6 +580,117 @@ output:
   errors: ${validate.output.errors}
 ```
 
+## TypeScript Ensembles
+
+For complex workflows, TypeScript ensembles offer type safety and IDE support:
+
+### Flow Control Primitives
+
+```typescript
+import {
+  createEnsemble,
+  step,
+  parallel,
+  branch,
+  foreach,
+  tryStep,
+  switchStep,
+  whileStep,
+  mapReduce
+} from '@anthropic/conductor'
+
+const advancedWorkflow = createEnsemble('advanced-workflow')
+  // Parallel execution
+  .addStep(
+    parallel('fetch-all')
+      .steps(
+        step('api-a').agent('fetcher').input({ url: '${input.urlA}' }),
+        step('api-b').agent('fetcher').input({ url: '${input.urlB}' })
+      )
+  )
+
+  // Conditional branching
+  .addStep(
+    branch('route')
+      .condition('${input.priority === "high"}')
+      .then(step('fast').agent('fast-processor'))
+      .else(step('normal').agent('normal-processor'))
+  )
+
+  // Iteration
+  .addStep(
+    foreach('process-items')
+      .items('${input.items}')
+      .as('item')
+      .concurrency(5)
+      .step(step('process').agent('processor').input({ item: '${item}' }))
+  )
+
+  // Error handling
+  .addStep(
+    tryStep('safe-op')
+      .try(step('risky').agent('risky-agent'))
+      .catch(step('fallback').agent('fallback-agent'))
+  )
+
+  // Multi-way branching
+  .addStep(
+    switchStep('route-by-type')
+      .value('${input.type}')
+      .case('email', step('email').agent('email-handler'))
+      .case('sms', step('sms').agent('sms-handler'))
+      .default(step('default').agent('default-handler'))
+  )
+
+  // Map-reduce pattern
+  .addStep(
+    mapReduce('analyze-docs')
+      .items('${input.documents}')
+      .map(step('analyze').agent('analyzer').input({ doc: '${item}' }))
+      .reduce(step('aggregate').agent('aggregator').input({ results: '${mapResults}' }))
+  )
+
+  .build()
+
+export default advancedWorkflow
+```
+
+### Reusable Step Patterns
+
+Create factory functions for common patterns:
+
+```typescript
+import { step, tryStep } from '@anthropic/conductor'
+
+// Reusable resilient fetch pattern
+function resilientFetch(name: string, urlExpression: string) {
+  return tryStep(`${name}-safe`)
+    .try(
+      step(name)
+        .agent('fetcher')
+        .input({ url: urlExpression })
+        .retry({ maxAttempts: 3, backoff: 'exponential' })
+    )
+    .catch(
+      step(`${name}-cache`)
+        .agent('cache-reader')
+        .input({ key: `cache-${urlExpression}` })
+    )
+}
+
+// Use in multiple ensembles
+const workflow = createEnsemble('my-workflow')
+  .addStep(resilientFetch('primary', '${input.primaryUrl}'))
+  .addStep(resilientFetch('secondary', '${input.secondaryUrl}'))
+  .build()
+```
+
+<Note>
+For complete TypeScript API documentation, see the [TypeScript API Reference](/conductor/reference/ts-schema).
+</Note>
+
+---
+
 ## Best Practices
 
 1. **Single Responsibility** - One ensemble, one task
@@ -531,6 +707,10 @@ output:
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    Complete TypeScript reference
+  </Card>
+
   <Card title="A/B Testing Patterns" icon="flask" href="/conductor/building/ab-testing-patterns">
     Test multiple variants
   </Card>
@@ -541,9 +721,5 @@ output:
 
   <Card title="Playbooks" icon="books" href="/conductor/playbooks/rag-pipeline">
     Real-world examples
-  </Card>
-
-  <Card title="Core Concepts" icon="book" href="/conductor/core-concepts/ensembles">
-    Deep dive into ensembles
   </Card>
 </CardGroup>

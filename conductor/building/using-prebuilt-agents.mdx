@@ -314,26 +314,51 @@ operations:
   - name: enhance
     operation: code
     config:
-      code: |
-        const data = ${scrape.output};
-        return {
-          ...data,
-          scraped_at: Date.now(),
-          url: "${input.url}",
-          processed: true
-        };
+      script: scripts/enhance-scraped-data
+    input:
+      scrapeData: ${scrape.output}
+      url: ${input.url}
+```
 
+```typescript
+// scripts/enhance-scraped-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function enhanceScrapedData(context: AgentExecutionContext) {
+  const { scrapeData, url } = context.input
+  return {
+    ...scrapeData,
+    scraped_at: Date.now(),
+    url,
+    processed: true
+  }
+}
+```
+
+```yaml
   # Custom validation
   - name: validate
     operation: code
     config:
-      code: |
-        const data = ${enhance.output};
-        return {
-          valid: data.title && data.title.length > 0,
-          data
-        };
+      script: scripts/validate-scraped-data
+    input:
+      data: ${enhance.output}
+```
 
+```typescript
+// scripts/validate-scraped-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateScrapedData(context: AgentExecutionContext) {
+  const { data } = context.input
+  return {
+    valid: data.title && data.title.length > 0,
+    data
+  }
+}
+```
+
+```yaml
 outputs:
   data: ${validate.output.data}
   valid: ${validate.output.valid}

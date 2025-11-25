@@ -166,14 +166,27 @@ operations:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          ...${enrich.output.company_data},
-          social: ${scrape-social.output}
-        };
+      script: scripts/merge-company-profiles
+    input:
+      company_data: ${enrich.output.company_data}
+      social_data: ${scrape-social.output}
 
 outputs:
   profile: ${merge.output}
+```
+
+```typescript
+// scripts/merge-company-profiles.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeCompanyProfiles(context: AgentExecutionContext) {
+  const { company_data, social_data } = context.input
+
+  return {
+    ...company_data,
+    social: social_data
+  }
+}
 ```
 
 ## Versioning Agents
@@ -219,12 +232,10 @@ operations:
   - name: process
     operation: code
     config:
-      code: |
-        const items = ${state.items || []};
-        return {
-          items: [...items, ${input.item}],
-          count: items.length + 1
-        };
+      script: scripts/process-item
+    input:
+      item: ${input.item}
+      current_items: ${state.items || []}
     state:
       use: [items]
       set:
@@ -233,6 +244,20 @@ operations:
 
 outputs:
   count: ${state.processed_count}
+```
+
+```typescript
+// scripts/process-item.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processItem(context: AgentExecutionContext) {
+  const { item, current_items } = context.input
+
+  return {
+    items: [...current_items, item],
+    count: current_items.length + 1
+  }
+}
 ```
 
 ### Caching
@@ -386,15 +411,29 @@ operations:
   - name: merge
     operation: code
     config:
-      code: |
-        return {
-          profile: ${fetch-profile.output.body},
-          activity: ${fetch-activity.output.body},
-          preferences: ${fetch-preferences.output.body}
-        };
+      script: scripts/merge-user-data
+    input:
+      profile: ${fetch-profile.output.body}
+      activity: ${fetch-activity.output.body}
+      preferences: ${fetch-preferences.output.body}
 
 outputs:
   user_data: ${merge.output}
+```
+
+```typescript
+// scripts/merge-user-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function mergeUserData(context: AgentExecutionContext) {
+  const { profile, activity, preferences } = context.input
+
+  return {
+    profile,
+    activity,
+    preferences
+  }
+}
 ```
 
 ## Testing Agents
@@ -433,6 +472,79 @@ describe('company-enricher', () => {
 });
 ```
 
+## Using Agents in TypeScript Ensembles
+
+Agents defined in YAML can be used seamlessly in TypeScript ensembles:
+
+```typescript
+import { createEnsemble, step, parallel } from '@anthropic/conductor'
+
+const enrichAndAnalyze = createEnsemble('enrich-and-analyze')
+  // Use custom YAML agent
+  .addStep(
+    step('enricher')
+      .agent('company-enricher')  // References agents/company-enricher/agent.yaml
+      .input({
+        company_name: '${input.company}',
+        include_news: true
+      })
+  )
+  // Use pre-built agent
+  .addStep(
+    step('validate')
+      .agent('validator')
+      .input({
+        data: '${enricher.output.company_data}',
+        schema: 'company-schema'
+      })
+  )
+  // Parallel agent execution
+  .addStep(
+    parallel('multi-scrape')
+      .steps(
+        step('scrape-linkedin').agent('scraper').input({ url: '${input.linkedinUrl}' }),
+        step('scrape-twitter').agent('scraper').input({ url: '${input.twitterUrl}' })
+      )
+  )
+  .build()
+
+export default enrichAndAnalyze
+```
+
+### Agent Composition Patterns
+
+Compose multiple agents into reusable patterns:
+
+```typescript
+import { createEnsemble, step, tryStep } from '@anthropic/conductor'
+
+// Resilient data fetching pattern
+const resilientFetch = createEnsemble('resilient-fetch')
+  .addStep(
+    tryStep('fetch-with-fallback')
+      .try(
+        step('primary')
+          .agent('fetcher')
+          .input({ url: '${input.primaryUrl}' })
+          .retry({ maxAttempts: 2, backoff: 'exponential' })
+      )
+      .catch(
+        step('fallback')
+          .agent('fetcher')
+          .input({ url: '${input.fallbackUrl}' })
+      )
+  )
+  .build()
+
+export default resilientFetch
+```
+
+<Note>
+For complete TypeScript API documentation, see the [TypeScript API Reference](/conductor/reference/ts-schema).
+</Note>
+
+---
+
 ## Best Practices
 
 1. **Single Responsibility** - Each agent does one thing well
@@ -447,6 +559,10 @@ describe('company-enricher', () => {
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    TypeScript API reference
+  </Card>
+
   <Card title="Ensembles" icon="diagram-project" href="/conductor/core-concepts/ensembles">
     Orchestrate agents
   </Card>
@@ -457,9 +573,5 @@ describe('company-enricher', () => {
 
   <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
     Build custom agents
-  </Card>
-
-  <Card title="Operations" icon="bolt" href="/conductor/core-concepts/operations">
-    Learn about operations
   </Card>
 </CardGroup>

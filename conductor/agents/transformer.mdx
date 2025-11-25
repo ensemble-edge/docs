@@ -235,10 +235,9 @@ agents:
   - name: filter
     operation: code
     config:
-      code: |
-        return {
-          items: ${input.items}.filter(item => item.active)
-        };
+      script: scripts/filter-active-items
+    input:
+      items: ${input.items}
 
   - name: transform
     agent: transformer
@@ -248,6 +247,18 @@ agents:
         - id: ${item.id}
           name: ${item.name}
           timestamp: ${Date.now()}
+```
+
+```typescript
+// scripts/filter-active-items.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function filterActiveItems(context: AgentExecutionContext) {
+  const { items } = context.input
+  return {
+    items: items.filter((item: any) => item.active)
+  }
+}
 ```
 
 ## Built-in Functions

@@ -509,12 +509,23 @@ agents:
     condition: ${risky-tool.failed}
     operation: code
     config:
-      code: |
-        return {
-          error: true,
-          message: 'Tool failed',
-          fallback_value: null
-        }
+      script: scripts/handle-tool-error
+```
+
+```typescript
+// scripts/handle-tool-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleToolError(context: AgentExecutionContext) {
+  return {
+    error: true,
+    message: 'Tool failed',
+    fallback_value: null
+  }
+}
+```
+
+```yaml
 
 outputs:
   result: ${risky-tool.output || handle-error.output}
@@ -536,11 +547,27 @@ agents:
   - name: check-result
     operation: code
     config:
-      code: |
-        if (${call-tool.output.isError}) {
-          throw new Error('Tool returned error: ' + ${call-tool.output.content});
-        }
-        return ${call-tool.output.content};
+      script: scripts/check-tool-result
+    input:
+      tool_output: ${call-tool.output}
+```
+
+```typescript
+// scripts/check-tool-result.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function checkToolResult(context: AgentExecutionContext) {
+  const { tool_output } = context.input
+
+  if (tool_output.isError) {
+    throw new Error('Tool returned error: ' + tool_output.content)
+  }
+
+  return tool_output.content
+}
+```
+
+```yaml
 ```
 
 ### Timeout Handling
@@ -668,11 +695,28 @@ describe('github MCP integration', () => {
 - name: verify
   operation: code
   config:
-    code: |
-      if (${tool-call.failed} || ${tool-call.output.isError}) {
-        throw new Error('Tool failed');
-      }
-      return ${tool-call.output.content};
+    script: scripts/verify-tool-call
+  input:
+    tool_call_failed: ${tool-call.failed}
+    tool_output: ${tool-call.output}
+```
+
+```typescript
+// scripts/verify-tool-call.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function verifyToolCall(context: AgentExecutionContext) {
+  const { tool_call_failed, tool_output } = context.input
+
+  if (tool_call_failed || tool_output.isError) {
+    throw new Error('Tool failed')
+  }
+
+  return tool_output.content
+}
+```
+
+```yaml
 ```
 
 ### 4. Use Typed Inputs

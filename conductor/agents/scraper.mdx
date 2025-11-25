@@ -219,12 +219,25 @@ agents:
     condition: ${scrape.failed}
     operation: code
     config:
-      code: |
-        return {
-          error: ${scrape.error.message},
-          status: ${scrape.error.status},
-          retry: ${scrape.error.retryable}
-        };
+      script: scripts/handle-scrape-error
+    input:
+      error_message: ${scrape.error.message}
+      error_status: ${scrape.error.status}
+      retryable: ${scrape.error.retryable}
+
+```typescript
+// scripts/handle-scrape-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleScrapeError(context: AgentExecutionContext) {
+  const { error_message, error_status, retryable } = context.input
+
+  return {
+    error: error_message,
+    status: error_status,
+    retry: retryable
+  }
+}
 ```
 
 ## Best Practices
@@ -256,7 +269,15 @@ agents:
     condition: ${scrape.failed}
     operation: code
     config:
-      code: return { cached: true };
+      script: scripts/return-cached-response
+
+```typescript
+// scripts/return-cached-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnCachedResponse(context: AgentExecutionContext) {
+  return { cached: true }
+}
 ```
 
 **5. Rate Limit Proactively**
@@ -296,9 +317,24 @@ agents:
   - name: extract-price
     operation: code
     config:
-      code: |
-        const match = ${scrape-product.output.html}.match(/\$(\d+\.\d{2})/);
-        return { price: parseFloat(match[1]) };
+      script: scripts/extract-price-from-html
+    input:
+      html: ${scrape-product.output.html}
+
+```typescript
+// scripts/extract-price-from-html.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function extractPriceFromHtml(context: AgentExecutionContext) {
+  const { html } = context.input
+  const match = html.match(/\$(\d+\.\d{2})/)
+
+  if (!match) {
+    throw new Error('Price not found in HTML')
+  }
+
+  return { price: parseFloat(match[1]) }
+}
 ```
 
 **Content Aggregation**
@@ -312,10 +348,21 @@ agents:
   - name: combine
     operation: code
     config:
-      code: |
-        return {
-          content: ${scrape-sources.output}.map(r => r.text).join('\n\n')
-        };
+      script: scripts/combine-scraped-content
+    input:
+      scraped_results: ${scrape-sources.output}
+
+```typescript
+// scripts/combine-scraped-content.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineScrapedContent(context: AgentExecutionContext) {
+  const { scraped_results } = context.input
+
+  return {
+    content: scraped_results.map((r: any) => r.text).join('\n\n')
+  }
+}
 ```
 
 ## Limitations

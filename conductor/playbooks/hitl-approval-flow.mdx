@@ -58,7 +58,7 @@ agents:
     condition: ${auto-moderate.output.moderation.safe}
     operation: code
     config:
-      code: return { approved: true, auto: true };
+      script: scripts/return-auto-approval
 
   # Human review for flagged content
   - name: human-review
@@ -126,7 +126,7 @@ agents:
     condition: ${JSON.parse(assess-risk.output).risk_score < 0.3}
     operation: code
     config:
-      code: return { approved: true, auto: true };
+      script: scripts/return-auto-approval
 
   # Require approval for medium risk
   - name: manager-approval
@@ -194,18 +194,35 @@ agents:
   - name: run-tests
     operation: code
     config:
-      code: |
-        // Run test suite
-        return { passed: true, coverage: 85 };
+      script: scripts/run-test-suite
 
   # Security scan
   - name: security-scan
     operation: code
     config:
-      code: |
-        // Run security checks
-        return { vulnerabilities: [] };
+      script: scripts/run-security-scan
 
+```typescript
+// scripts/run-test-suite.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function runTestSuite(context: AgentExecutionContext) {
+  // Run test suite
+  return { passed: true, coverage: 85 }
+}
+```
+
+```typescript
+// scripts/run-security-scan.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function runSecurityScan(context: AgentExecutionContext) {
+  // Run security checks
+  return { vulnerabilities: [] }
+}
+```
+
+```yaml
   # Auto-deploy to staging
   - name: deploy-staging
     condition: ${run-tests.output.passed && security-scan.output.vulnerabilities.length === 0}
@@ -346,7 +363,7 @@ agents:
     condition: ${input.amount < 1000}
     operation: code
     config:
-      code: return { approved: true, level: 'auto' };
+      script: scripts/return-auto-approval-with-level
 
   # Level 2: Manager for medium amounts
   - name: manager-approval
@@ -377,6 +394,24 @@ agents:
         - cfo@example.com
         - ceo@example.com
       minApprovals: 2
+```
+
+```typescript
+// scripts/return-auto-approval.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnAutoApproval(context: AgentExecutionContext) {
+  return { approved: true, auto: true }
+}
+```
+
+```typescript
+// scripts/return-auto-approval-with-level.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnAutoApprovalWithLevel(context: AgentExecutionContext) {
+  return { approved: true, level: 'auto' }
+}
 ```
 
 ## Timeout Handling

@@ -96,18 +96,31 @@ agents:
   - name: validate-math
     operation: code
     config:
-      code: |
-        const invoice = JSON.parse(${extract.output});
-        const lineTotal = invoice.line_items.reduce((sum, item) =>
-          sum + (item.quantity * item.price), 0
-        );
+      script: scripts/validate-invoice-math
+    input:
+      invoice: ${extract.output}
 
-        return {
-          valid: Math.abs(lineTotal - invoice.subtotal) < 0.01,
-          calculated_total: lineTotal,
-          invoice_total: invoice.subtotal
-        };
+```typescript
+// scripts/validate-invoice-math.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
+export default function validateInvoiceMath(context: AgentExecutionContext) {
+  const { invoice } = context.input
+  const invoiceData = JSON.parse(invoice)
+
+  const lineTotal = invoiceData.line_items.reduce((sum: number, item: any) =>
+    sum + (item.quantity * item.price), 0
+  )
+
+  return {
+    valid: Math.abs(lineTotal - invoiceData.subtotal) < 0.01,
+    calculated_total: lineTotal,
+    invoice_total: invoiceData.subtotal
+  }
+}
+```
+
+```yaml
   # Check vendor
   - name: check-vendor
     operation: data
@@ -132,8 +145,19 @@ agents:
     condition: ${check-vendor.output.length > 0 && JSON.parse(extract.output).total < 5000}
     operation: code
     config:
-      code: return { approved: true, auto: true };
+      script: scripts/return-auto-approval
+```
 
+```typescript
+// scripts/return-auto-approval.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnAutoApproval(context: AgentExecutionContext) {
+  return { approved: true, auto: true }
+}
+```
+
+```yaml
   # Store invoice
   - name: store
     condition: ${auto-approve.executed || approve-vendor.output.approved}
@@ -317,17 +341,29 @@ agents:
   - name: check-complete
     operation: code
     config:
-      code: |
-        const form = JSON.parse(${extract.output});
-        const required = ${input.required_fields};
+      script: scripts/check-form-completeness
+    input:
+      form_data: ${extract.output}
+      required_fields: ${input.required_fields}
 
-        const missing = required.filter(field => !form[field]);
+```typescript
+// scripts/check-form-completeness.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-        return {
-          complete: missing.length === 0,
-          missing_fields: missing
-        };
+export default function checkFormCompleteness(context: AgentExecutionContext) {
+  const { form_data, required_fields } = context.input
+  const form = JSON.parse(form_data)
 
+  const missing = required_fields.filter((field: string) => !form[field])
+
+  return {
+    complete: missing.length === 0,
+    missing_fields: missing
+  }
+}
+```
+
+```yaml
   # Request missing info
   - name: request-info
     condition: ${!check-complete.output.complete}

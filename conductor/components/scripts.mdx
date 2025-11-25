@@ -3,281 +3,233 @@ title: "Script Components"
 description: "Reusable JavaScript/TypeScript code for Code operations"
 ---
 
-**Define and version reusable code scripts as components for consistent business logic across ensembles.**
+<Warning>
+**Cloudflare Workers Compatibility**: Inline code (`config.code`) is **not supported** in Cloudflare Workers due to security restrictions. All code must be in script files that are bundled at build time.
+</Warning>
+
+**Define reusable code scripts as components for consistent business logic across ensembles.**
 
 ## Overview
 
 Script components enable you to:
 - **Reuse code logic** across multiple agents and ensembles
 - **Version scripts** with semantic versioning for reproducibility
-- **A/B test** different implementations
-- **Organize** complex JavaScript/TypeScript code separately from YAML
-- **Deploy** scripts independently from ensembles
-- **Collaborate** by sharing utility functions across teams
+- **Organize** TypeScript code separately from YAML
+- **Type-safe** development with full TypeScript support
+- **Test** scripts independently with unit tests
+- **Bundle** scripts at build time for Workers compatibility
 
 ## Quick Start
 
-### 1. Create a Script Component
+### 1. Create a Script File
 
-Create a JavaScript/TypeScript file that exports a default function:
+Create a TypeScript file in your `scripts/` directory:
 
-```javascript
-// scripts/transform-data.js
-export default async function(context) {
-  const data = context.input.raw_data;
+```typescript
+// scripts/transform-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-  // Process the input data
-  const processed = data.map(item => ({
+interface TransformInput {
+  raw_data: Array<{
+    id: string
+    value: number
+    min: number
+    max: number
+    created_at: string
+  }>
+}
+
+export default function transformData(context: AgentExecutionContext) {
+  const { raw_data } = context.input as TransformInput
+
+  const processed = raw_data.map(item => ({
     id: item.id,
     normalized_value: (item.value - item.min) / (item.max - item.min),
     timestamp: new Date(item.created_at).toISOString()
-  }));
+  }))
 
   return {
     processed,
     total_items: processed.length
-  };
+  }
 }
 ```
 
-### 2. Add to Edgit
-
-```bash
-edgit components add transform-data scripts/transform-data.js script
-edgit tag create transform-data v1.0.0
-edgit deploy set transform-data v1.0.0 --to production
-```
-
-### 3. Reference in Your Ensemble
+### 2. Reference in Your Ensemble
 
 ```yaml
-ensemble: data-processor
+name: data-processor
 
 agents:
   - name: transform
     operation: code
     config:
-      script: "script://transform-data@v1.0.0"
+      script: scripts/transform-data
+    input:
+      raw_data: $input.raw_data
 
-inputs:
-  raw_data:
-    type: array
+input:
+  raw_data: []
 
-outputs:
+output:
   result: ${transform.output}
 ```
 
-## URI Format and Versioning
+### 3. Build & Deploy
 
-All script components use the standardized URI format:
+Scripts are automatically discovered and bundled during the build:
 
+```bash
+npm run build    # Scripts are bundled automatically
+npm run deploy   # Deploy to Cloudflare
 ```
-script://{path}[@{version}]
-```
 
-**Format breakdown:**
-- `script://` - Protocol identifier for script components
-- `{path}` - Logical path to the script (e.g., `transform-data`, `utils/validation`)
-- `[@{version}]` - Optional version identifier (defaults to `@latest`)
+## URI Formats
 
-**Version format**:
-- `@latest` - Always uses the most recent version
-- `@v1` - Uses latest patch of major version (v1.x.x)
-- `@v1.0.0` - Specific semantic version (immutable)
-- `@prod` - Custom tag for production versions
-- `@staging` - Custom tag for staging versions
+Both formats are supported for referencing scripts:
 
-### Example URIs
+| Format | Example |
+|--------|---------|
+| Shorthand | `scripts/transforms/csv` |
+| Full URI | `script://transforms/csv` |
+| With version | `scripts/transforms/csv@v1.0.0` |
 
 ```yaml
-# Always latest version
+# Shorthand format (recommended)
+script: scripts/transform-data
+
+# Full URI format
 script: "script://transform-data"
-script: "script://transform-data@latest"
-
-# Specific semantic version
-script: "script://transform-data@v1.0.0"
-script: "script://transform-data@v2.1.3"
-
-# Major/minor version (gets latest patch)
-script: "script://transform-data@v1"
-script: "script://transform-data@v1.2"
-
-# Custom tags
-script: "script://transform-data@prod"
-script: "script://transform-data@staging"
 
 # Nested paths
-script: "script://utils/validation@v1.0.0"
-script: "script://pipelines/etl/normalize@v2"
+script: scripts/pipelines/etl/normalize
+
+# With version (for edgit-managed components)
+script: "script://transform-data@v1.0.0"
 ```
 
-## Script Format
+## Script File Format
 
-Scripts must export a default function that receives the agent execution context:
+Scripts must export a default function that receives `AgentExecutionContext`:
 
-```javascript
-// scripts/example.js
-export default async function(context) {
+```typescript
+// scripts/my-script.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function myScript(context: AgentExecutionContext) {
   // Available in context:
   const {
     input,      // Input data from ensemble
-    env,        // Environment variables and bindings (KV, D1, etc.)
-    state,      // Shared state (if configured)
-    cache,      // Cache instance
+    env,        // Environment bindings (KV, D1, etc.)
     logger,     // Logger instance
-    agents      // Results from previous agents
-  } = context;
+    request,    // HTTP request (if triggered via HTTP)
+    cache,      // Cache utilities
+  } = context
 
   // Your logic here
-  const result = processData(input);
+  const result = processData(input)
 
   // Return value becomes agent output
-  return result;
-}
-
-function processData(data) {
-  // Helper functions can be defined in the same file
-  return data;
+  return result
 }
 ```
 
-### TypeScript Support
+### Async Scripts
+
+Scripts can be async for operations that interact with storage:
+
+```typescript
+// scripts/with-storage.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function withStorage(context: AgentExecutionContext) {
+  const { env, input } = context
+
+  // Access KV storage
+  const cached = await env.KV?.get('my-key')
+  if (cached) {
+    return JSON.parse(cached)
+  }
+
+  const result = processData(input)
+  await env.KV?.put('my-key', JSON.stringify(result))
+
+  return result
+}
+```
+
+### TypeScript Types
+
+Full TypeScript support with proper typing:
 
 ```typescript
 // scripts/typed-transform.ts
-import type { AgentExecutionContext } from '@ensemble/conductor';
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
 interface InputData {
   items: Array<{
-    id: string;
-    value: number;
-  }>;
+    id: string
+    value: number
+  }>
 }
 
 interface OutputData {
   processed: Array<{
-    id: string;
-    normalized: number;
-  }>;
-  total: number;
+    id: string
+    normalized: number
+  }>
+  total: number
 }
 
-export default async function(
+export default function typedTransform(
   context: AgentExecutionContext
-): Promise<OutputData> {
-  const data = context.input as InputData;
+): OutputData {
+  const data = context.input as InputData
 
   const processed = data.items.map(item => ({
     id: item.id,
     normalized: item.value / 100
-  }));
+  }))
 
   return {
     processed,
     total: processed.length
-  };
+  }
 }
 ```
 
-## How to Reference in Ensembles
+## Directory Organization
 
-There are three ways to reference scripts in your ensembles:
+Organize scripts by domain:
 
-### 1. URI Format (Recommended)
-
-Use the `script://` URI format to reference versioned script components:
-
-```yaml
-ensemble: data-processor
-
-agents:
-  - name: transform
-    operation: code
-    config:
-      script: "script://transform-data@v1.0.0"
-
-inputs:
-  raw_data:
-    type: array
-
-outputs:
-  result: ${transform.output}
+```
+scripts/
+├── transforms/
+│   ├── csv.ts
+│   ├── json.ts
+│   └── normalize.ts
+├── validators/
+│   ├── email.ts
+│   └── order.ts
+├── pipelines/
+│   ├── extract.ts
+│   ├── transform.ts
+│   └── aggregate.ts
+├── auth/
+│   ├── verify-token.ts
+│   └── hash-password.ts
+└── examples/           # Excluded with --no-examples flag
+    ├── health-check.ts
+    └── http/
+        └── greet-user.ts
 ```
 
-### 2. Template Expression Format
+## Multi-Step Workflows
 
-Use `${components.script_name@version}` to embed script references in code:
-
-```yaml
-ensemble: data-pipeline
-
-agents:
-  - name: process
-    operation: code
-    config:
-      code: |
-        // Load reusable script logic
-        ${components.transform-data@v1}
-
-        // Execute with custom input
-        return transformData(input.raw_data);
-
-inputs:
-  raw_data:
-    type: array
-```
-
-### 3. Inline Code
-
-For simple operations or during development, use inline code directly:
+Use multiple script agents for complex data pipelines:
 
 ```yaml
-ensemble: data-transformer
-
-agents:
-  - name: transform
-    operation: code
-    config:
-      code: |
-        // Process the input data
-        const data = input.raw_data;
-
-        return {
-          processed: data.map(item => ({
-            id: item.id,
-            normalized_value: (item.value - item.min) / (item.max - item.min),
-            timestamp: new Date(item.created_at).toISOString()
-          })),
-          total_items: data.length
-        };
-
-inputs:
-  raw_data:
-    type: array
-
-outputs:
-  result: ${transform.output}
-```
-
-## Using Script Components
-
-### With Caching Options
-
-```yaml
-agents:
-  - name: transform
-    operation: code
-    config:
-      script: "script://transform-data@v1.0.0"
-      cache:
-        ttl: 7200  # Cache script for 2 hours
-        # or bypass: true to skip cache
-```
-
-### Multiple Scripts in Workflow
-
-```yaml
-ensemble: data-pipeline
+name: data-pipeline
 
 flow:
   - agent: extract
@@ -289,323 +241,245 @@ agents:
   - name: extract
     operation: code
     config:
-      script: "script://pipelines/extract@v1"
+      script: scripts/pipelines/extract
+    input:
+      data: $input.data
 
   - name: transform
     operation: code
     config:
-      script: "script://pipelines/transform@v1"
+      script: scripts/pipelines/transform
+    input:
+      extracted: $extract.output
 
   - name: validate
     operation: code
     config:
-      script: "script://pipelines/validate@v1"
+      script: scripts/pipelines/validate
+    input:
+      transformed: $transform.output
 
   - name: aggregate
     operation: code
     config:
-      script: "script://pipelines/aggregate@v1"
-```
+      script: scripts/pipelines/aggregate
+    input:
+      validated: $validate.output.valid_items
 
-## Caching and Performance
+input:
+  data: []
 
-Script components are automatically cached for 1 hour (3600 seconds) after first load.
-
-### Default Caching
-
-```yaml
-agents:
-  - name: process
-    operation: code
-    config:
-      script: "script://transform-data@v1.0.0"
-      # Cached for 1 hour automatically
-```
-
-**Performance:**
-- **First load**: Fetched from KV and compiled (~10-20ms)
-- **Subsequent loads**: Served from edge cache (~0.1ms)
-- **Cache per version**: Each version cached independently
-
-### Custom Cache TTL
-
-```yaml
-agents:
-  - name: process
-    operation: code
-    config:
-      script: "script://transform-data@v1"
-      cache:
-        ttl: 86400  # 24 hours for stable scripts
-```
-
-### Bypass Cache
-
-```yaml
-agents:
-  - name: process
-    operation: code
-    config:
-      script: "script://transform-data@latest"
-      cache:
-        bypass: true  # Fresh load during development
-```
-
-## Code Operation Patterns
-
-Code agents enable you to execute JavaScript/TypeScript logic within ensembles. They're useful for:
-- **Data transformation** - Processing and normalizing data
-- **Business logic** - Custom calculations and rules
-- **Integration** - Connecting multiple data sources
-- **Validation** - Checking data quality and constraints
-
-### Basic Code Agent
-
-```yaml
-ensemble: process-order
-
-agents:
-  - name: validate
-    operation: code
-    config:
-      code: |
-        const order = input.order;
-
-        // Validate required fields
-        if (!order.customer_id || !order.items || order.items.length === 0) {
-          throw new Error('Invalid order: missing required fields');
-        }
-
-        // Calculate total
-        const total = order.items.reduce((sum, item) => {
-          return sum + (item.price * item.quantity);
-        }, 0);
-
-        return {
-          valid: true,
-          order_id: order.id,
-          total: total,
-          item_count: order.items.length
-        };
-
-inputs:
-  order:
-    type: object
-
-outputs:
-  validation_result: ${validate.output}
-```
-
-### Multi-Step Code Workflow
-
-```yaml
-ensemble: data-pipeline
-
-flow:
-  - agent: extract
-  - agent: transform
-  - agent: validate
-  - agent: aggregate
-
-agents:
-  - name: extract
-    operation: code
-    config:
-      code: |
-        // Extract relevant fields from raw input
-        return input.data.map(item => ({
-          id: item['ID'],
-          name: item['Full Name'],
-          amount: parseFloat(item['Amount'])
-        }));
-
-  - name: transform
-    operation: code
-    config:
-      code: |
-        // Normalize and enhance data
-        return input.extract_output.map(item => ({
-          ...item,
-          amount_cents: Math.round(item.amount * 100),
-          processed_at: new Date().toISOString(),
-          normalized_name: item.name.toUpperCase().trim()
-        }));
-
-  - name: validate
-    operation: code
-    config:
-      code: |
-        // Validate data quality
-        const items = input.transform_output;
-        const valid = items.filter(item => {
-          return item.id && item.amount_cents > 0;
-        });
-
-        const invalid = items.filter(item => {
-          return !item.id || item.amount_cents <= 0;
-        });
-
-        return {
-          valid_items: valid,
-          invalid_items: invalid,
-          success_rate: (valid.length / items.length) * 100
-        };
-
-  - name: aggregate
-    operation: code
-    config:
-      code: |
-        // Aggregate results
-        const items = input.validate_output.valid_items;
-
-        return {
-          total_items: items.length,
-          total_amount: items.reduce((sum, item) => sum + item.amount_cents, 0),
-          items: items,
-          processed_at: new Date().toISOString()
-        };
-
-inputs:
-  data:
-    type: array
-
-outputs:
+output:
   result: ${aggregate.output}
 ```
 
-## Best Practices (Today)
+With corresponding script files:
 
-### 1. Keep Code Modular
+```typescript
+// scripts/pipelines/extract.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-Break complex logic into multiple code agents:
+export default function extract(context: AgentExecutionContext) {
+  const { data } = context.input as { data: Array<Record<string, unknown>> }
 
-```yaml
-ensemble: complex-workflow
-
-flow:
-  - agent: step1
-  - agent: step2
-  - agent: step3
-
-agents:
-  - name: step1
-    operation: code
-    config:
-      code: |
-        return { step1_result: input.data };
-
-  - name: step2
-    operation: code
-    config:
-      code: |
-        const result = input.step1_result;
-        return { step2_result: result };
-
-  - name: step3
-    operation: code
-    config:
-      code: |
-        const result = input.step2_result;
-        return { final_result: result };
+  return data.map(item => ({
+    id: item['ID'],
+    name: item['Full Name'],
+    amount: parseFloat(String(item['Amount']))
+  }))
+}
 ```
 
-### 2. Add Error Handling
+```typescript
+// scripts/pipelines/transform.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-```yaml
-agents:
-  - name: process
-    operation: code
-    config:
-      code: |
-        try {
-          const data = JSON.parse(input.json_string);
-          return { success: true, data: data };
-        } catch (error) {
-          throw new Error(`Failed to parse JSON: ${error.message}`);
-        }
+interface ExtractedItem {
+  id: string
+  name: string
+  amount: number
+}
+
+export default function transform(context: AgentExecutionContext) {
+  const { extracted } = context.input as { extracted: ExtractedItem[] }
+
+  return extracted.map(item => ({
+    ...item,
+    amount_cents: Math.round(item.amount * 100),
+    processed_at: new Date().toISOString(),
+    normalized_name: item.name.toUpperCase().trim()
+  }))
+}
 ```
 
-### 3. Use Meaningful Variable Names
+```typescript
+// scripts/pipelines/validate.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-```javascript
-// Good: Clear variable names
-const totalAmount = items.reduce((sum, item) => sum + item.price, 0);
-const customerName = customer.first_name + ' ' + customer.last_name;
+interface TransformedItem {
+  id: string
+  amount_cents: number
+}
 
-// Bad: Unclear names
-const t = items.reduce((s, i) => s + i.p, 0);
-const cn = c.f + ' ' + c.l;
+export default function validate(context: AgentExecutionContext) {
+  const { transformed } = context.input as { transformed: TransformedItem[] }
+
+  const valid = transformed.filter(item => item.id && item.amount_cents > 0)
+  const invalid = transformed.filter(item => !item.id || item.amount_cents <= 0)
+
+  return {
+    valid_items: valid,
+    invalid_items: invalid,
+    success_rate: (valid.length / transformed.length) * 100
+  }
+}
 ```
 
-### 4. Add Comments for Complex Logic
+```typescript
+// scripts/pipelines/aggregate.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-```yaml
-agents:
-  - name: calculate-compound-interest
-    operation: code
-    config:
-      code: |
-        // Calculate compound interest using A = P(1 + r/n)^(nt)
-        const principal = input.principal;
-        const rate = input.rate / 100;  // Convert percentage to decimal
-        const compounds = input.compounds_per_year;
-        const years = input.years;
+interface ValidatedItem {
+  amount_cents: number
+}
 
-        const amount = principal * Math.pow(1 + rate / compounds, compounds * years);
+export default function aggregate(context: AgentExecutionContext) {
+  const { validated } = context.input as { validated: ValidatedItem[] }
 
-        return {
-          principal: principal,
-          final_amount: Math.round(amount * 100) / 100,
-          interest_earned: Math.round((amount - principal) * 100) / 100
-        };
+  return {
+    total_items: validated.length,
+    total_amount: validated.reduce((sum, item) => sum + item.amount_cents, 0),
+    items: validated,
+    processed_at: new Date().toISOString()
+  }
+}
 ```
 
-### 5. Validate Input Data
+## Best Practices
 
-```yaml
-agents:
-  - name: process-with-validation
-    operation: code
-    config:
-      code: |
-        // Validate input exists and has required fields
-        if (!input.data) {
-          throw new Error('Input data is required');
-        }
+### 1. Keep Scripts Focused
 
-        if (!Array.isArray(input.data)) {
-          throw new Error('Input data must be an array');
-        }
+Each script should do one thing well:
 
-        if (input.data.length === 0) {
-          throw new Error('Input data cannot be empty');
-        }
+```typescript
+// Good: Single responsibility
+export default function calculateTotal(context: AgentExecutionContext) {
+  const items = context.input as Array<{ price: number }>
+  return { total: items.reduce((sum, item) => sum + item.price, 0) }
+}
 
-        return { items_processed: input.data.length };
+// Bad: Multiple responsibilities
+export default function doEverything(context: AgentExecutionContext) {
+  // Validate, transform, calculate, format... too much
+}
 ```
 
-## Integration Patterns
+### 2. Type Your Inputs
+
+TypeScript helps catch errors at build time:
+
+```typescript
+interface OrderInput {
+  items: Array<{ price: number; quantity: number }>
+  discount?: number
+}
+
+export default function processOrder(context: AgentExecutionContext) {
+  const input = context.input as OrderInput
+  // TypeScript helps catch errors
+}
+```
+
+### 3. Handle Edge Cases
+
+```typescript
+export default function processItems(context: AgentExecutionContext) {
+  const { items } = context.input as { items?: unknown[] }
+
+  // Handle missing or empty arrays
+  if (!items || items.length === 0) {
+    return { count: 0, items: [] }
+  }
+
+  return { count: items.length, items }
+}
+```
+
+### 4. Add Error Handling
+
+```typescript
+export default function parseJson(context: AgentExecutionContext) {
+  const { json_string } = context.input as { json_string: string }
+
+  try {
+    const data = JSON.parse(json_string)
+    return { success: true, data }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Parse failed'
+    }
+  }
+}
+```
+
+### 5. Don't Mutate Input
+
+```typescript
+// Good: Create new array
+export default function sortItems(context: AgentExecutionContext) {
+  const { items } = context.input as { items: number[] }
+  const sorted = [...items].sort((a, b) => a - b)
+  return { sorted }
+}
+
+// Bad: Mutates original
+export default function sortItems(context: AgentExecutionContext) {
+  const { items } = context.input as { items: number[] }
+  items.sort() // Mutates input!
+  return { sorted: items }
+}
+```
+
+## Testing Scripts
+
+Test scripts with unit tests:
+
+```typescript
+// scripts/__tests__/transform-data.test.ts
+import transformData from '../transform-data'
+
+describe('transformData', () => {
+  it('normalizes values correctly', () => {
+    const context = {
+      input: {
+        raw_data: [
+          { id: '1', value: 50, min: 0, max: 100, created_at: '2024-01-01' }
+        ]
+      },
+      env: {}
+    } as any
+
+    const result = transformData(context)
+
+    expect(result.processed[0].normalized_value).toBe(0.5)
+    expect(result.total_items).toBe(1)
+  })
+})
+```
+
+## Integration with Other Operations
 
 ### With Think Agents
 
 ```yaml
-ensemble: analyze-with-code-prep
-
-flow:
-  - agent: prepare
-  - agent: analyze
-
 agents:
   - name: prepare
     operation: code
     config:
-      code: |
-        // Prepare data for AI analysis
-        return {
-          summary: input.text.substring(0, 1000),
-          word_count: input.text.split(' ').length,
-          char_count: input.text.length
-        };
+      script: scripts/prepare-for-ai
+    input:
+      text: $input.text
 
   - name: analyze
     operation: think
@@ -613,117 +487,69 @@ agents:
       provider: anthropic
       model: claude-sonnet-4
       prompt: |
-        Analyze this text and provide insights:
-        ${input.prepare_output}
+        Analyze this prepared data:
+        ${prepare.output}
 ```
 
 ### With Data Agents
 
 ```yaml
-ensemble: query-and-process
-
-flow:
-  - agent: fetch
-  - agent: process
-
 agents:
   - name: fetch
     operation: data
     config:
-      database: postgres
+      database: d1
       query: "query://get-users@v1"
 
   - name: process
     operation: code
     config:
-      code: |
-        // Process database results
-        const users = input.fetch_output;
-        return {
-          total_users: users.length,
-          active_users: users.filter(u => u.active).length,
-          avg_age: users.reduce((sum, u) => sum + u.age, 0) / users.length
-        };
+      script: scripts/process-users
+    input:
+      users: $fetch.output.rows
 
-outputs:
+output:
   stats: ${process.output}
 ```
 
-## JavaScript Runtime Environment
+## Versioning with Edgit
 
-Code agents execute in a secure JavaScript runtime with:
+For production deployments, use edgit to version and manage scripts:
 
-- **Full ES6+ support** - All modern JavaScript features
-- **Built-in objects** - Array, Object, Math, Date, JSON, etc.
-- **Safe execution** - Isolated from other agents
-- **Input access** - Access via `input` object
-- **Output requirement** - Must return a value
+```bash
+# Add script to edgit
+edgit components add transform-data scripts/transform-data.ts script
 
-### Available Globals
+# Create version tag
+edgit tag create transform-data v1.0.0
+
+# Deploy to production
+edgit deploy set transform-data v1.0.0 --to production
+```
+
+Reference versioned scripts:
 
 ```yaml
 agents:
-  - name: demo
+  - name: transform
     operation: code
     config:
-      code: |
-        // All standard JavaScript is available
-        const now = new Date();
-        const random = Math.random();
-        const text = "Hello World";
-        const arr = [1, 2, 3];
-        const obj = { key: "value" };
-
-        // Return result
-        return {
-          timestamp: now.toISOString(),
-          random_number: random,
-          arrays_work: arr.map(x => x * 2)
-        };
+      script: "script://transform-data@v1.0.0"
 ```
-
-## Troubleshooting
-
-### Syntax Errors
-
-**Issue**: Code doesn't execute
-
-**Solutions**:
-1. Check JavaScript syntax (use `node` locally to test)
-2. Ensure all variables are defined
-3. Check for missing parentheses or braces
-
-### Runtime Errors
-
-**Issue**: Code throws an error during execution
-
-**Solutions**:
-1. Add error handling with try/catch
-2. Validate input data before processing
-3. Check that referenced properties exist
-
-### Type Errors
-
-**Issue**: Cannot perform operation on undefined value
-
-**Solutions**:
-1. Check input structure
-2. Add null/undefined checks
-3. Use optional chaining: `obj?.property`
 
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="Code Operation" icon="terminal" href="/conductor/operations/code">
+    Full code operation docs
+  </Card>
   <Card title="Prompt Components" icon="wand2" href="/conductor/components/prompts">
     Reusable AI instructions
-  </Card>
-  <Card title="Config Components" icon="gear" href="/conductor/components/configs">
-    JSON settings as components
   </Card>
   <Card title="Query Components" icon="database" href="/conductor/components/queries">
     SQL queries as components
   </Card>
-  <Card title="Code Operation" icon="terminal" href="/conductor/operations/code">
-    Custom code execution
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Build custom agents
   </Card>
 </CardGroup>

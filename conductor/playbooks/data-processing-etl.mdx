@@ -5,6 +5,8 @@ description: "Move data between systems. Transform, validate, and load at scale.
 
 ## Basic ETL Pattern
 
+<Tabs>
+  <Tab title="YAML">
 ```yaml
 ensemble: etl-pipeline
 
@@ -40,6 +42,58 @@ agents:
       sql: INSERT INTO target_table ...
       params: ${validate.output.data}
 ```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step, branch } from '@anthropic/conductor'
+
+const etlPipeline = createEnsemble('etl-pipeline')
+  // Extract
+  .addStep(
+    step('extract')
+      .operation('http')
+      .config({ url: 'https://source-api.example.com/data' })
+  )
+  // Transform
+  .addStep(
+    step('transform')
+      .agent('transformer')
+      .input({
+        data: '${extract.output.body}',
+        template: '${component.transform-template@v1.0.0}'
+      })
+  )
+  // Validate
+  .addStep(
+    step('validate')
+      .agent('validator')
+      .input({
+        data: '${transform.output}',
+        schema: '${component.target-schema@v1.0.0}'
+      })
+  )
+  // Load (conditional)
+  .addStep(
+    branch('load-if-valid')
+      .condition('${validate.output.valid}')
+      .then(
+        step('load')
+          .operation('data')
+          .config({
+            backend: 'd1',
+            binding: 'DB',
+            operation: 'execute',
+            sql: 'INSERT INTO target_table ...',
+            params: '${validate.output.data}'
+          })
+      )
+  )
+  .build()
+
+export default etlPipeline
+```
+  </Tab>
+</Tabs>
 
 ## Database to Database
 
@@ -265,19 +319,9 @@ agents:
   - name: parse
     operation: code
     config:
-      code: |
-        const csv = ${fetch-csv.output};
-        const lines = csv.split('\n');
-        const headers = lines[0].split(',');
-
-        const records = lines.slice(1).map(line => {
-          const values = line.split(',');
-          return Object.fromEntries(
-            headers.map((h, i) => [h, values[i]])
-          );
-        });
-
-        return { records };
+      script: scripts/parse-csv
+    input:
+      csv: ${fetch-csv.output}
 
   # Validate each record
   - name: validate
@@ -301,30 +345,10 @@ agents:
   - name: split-records
     operation: code
     config:
-      code: |
-        const validation = ${validate.output};
-
-        if (validation.valid) {
-          return {
-            valid: validation.data,
-            invalid: []
-          };
-        }
-
-        // Split records by validation errors
-        const valid = [];
-        const invalid = [];
-
-        ${parse.output.records}.forEach((record, idx) => {
-          const error = validation.errors.find(e => e.row === idx);
-          if (error) {
-            invalid.push({ ...record, error: error.message });
-          } else {
-            valid.push(record);
-          }
-        });
-
-        return { valid, invalid };
+      script: scripts/split-validated-records
+    input:
+      validation: ${validate.output}
+      records: ${parse.output.records}
 
   # Load valid records
   - name: load-valid
@@ -361,6 +385,66 @@ agents:
 
         ${split-records.output.invalid.length > 0 ?
           'Invalid records saved to: imports/invalid/' + input.file_name : ''}
+```
+
+```typescript
+// scripts/parse-csv.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function parseCsv(context: AgentExecutionContext) {
+  const { csv } = context.input
+  const lines = csv.split('\n')
+  const headers = lines[0].split(',')
+
+  const records = lines.slice(1).map(line => {
+    const values = line.split(',')
+    return Object.fromEntries(
+      headers.map((h, i) => [h, values[i]])
+    )
+  })
+
+  return { records }
+}
+```
+
+```typescript
+// scripts/split-validated-records.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function splitValidatedRecords(context: AgentExecutionContext) {
+  const { validation, records } = context.input
+
+  if (validation.valid) {
+    return {
+      valid: validation.data,
+      invalid: []
+    }
+  }
+
+  // Split records by validation errors
+  const valid = []
+  const invalid = []
+
+  records.forEach((record, idx) => {
+    const error = validation.errors.find(e => e.row === idx)
+    if (error) {
+      invalid.push({ ...record, error: error.message })
+    } else {
+      valid.push(record)
+    }
+  })
+
+  return { valid, invalid }
+}
+```
+
+```typescript
+// scripts/return-no-new-data.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnNoNewData(context: AgentExecutionContext) {
+  return { message: 'No new data' }
+}
 ```
 
 ## Incremental Sync
@@ -406,7 +490,7 @@ agents:
     condition: ${extract.output.length === 0}
     operation: code
     config:
-      code: return { message: 'No new data' };
+      script: scripts/return-no-new-data
 
   # Transform
   - name: transform

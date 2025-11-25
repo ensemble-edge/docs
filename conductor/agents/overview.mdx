@@ -83,7 +83,8 @@ Every pre-built agent supports:
 - **Conditions**: Conditional execution
 - **State**: Manage persistent state
 
-Example:
+<Tabs>
+  <Tab title="YAML">
 ```yaml
 agents:
   - name: fetch
@@ -97,6 +98,23 @@ agents:
       maxAttempts: 5
       backoff: exponential
 ```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step } from '@anthropic/conductor'
+
+createEnsemble('custom-scrape')
+  .addStep(
+    step('fetch')
+      .agent('scraper')
+      .input({ url: '${input.url}' })
+      .cache({ ttl: 3600, key: 'scrape-${input.url}' })
+      .retry({ maxAttempts: 5, backoff: 'exponential' })
+  )
+  .build()
+```
+  </Tab>
+</Tabs>
 
 ## When to Use
 
@@ -114,6 +132,8 @@ agents:
 
 Pre-built agents compose naturally:
 
+<Tabs>
+  <Tab title="YAML">
 ```yaml
 ensemble: content-pipeline
 
@@ -144,6 +164,45 @@ agents:
       action: embed
       text: ${transform.output}
 ```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step } from '@anthropic/conductor'
+
+const contentPipeline = createEnsemble('content-pipeline')
+  // Scrape with retries
+  .addStep(
+    step('scrape')
+      .agent('scraper')
+      .input({ url: '${input.url}' })
+  )
+  // Validate structure
+  .addStep(
+    step('validate')
+      .agent('validator')
+      .input({ data: '${scrape.output}' })
+  )
+  // Transform to target format
+  .addStep(
+    step('transform')
+      .agent('transformer')
+      .input({
+        data: '${validate.output}',
+        template: '${component.template@v1.0.0}'
+      })
+  )
+  // Store in vector DB
+  .addStep(
+    step('embed')
+      .agent('rag')
+      .config({ action: 'embed', text: '${transform.output}' })
+  )
+  .build()
+
+export default contentPipeline
+```
+  </Tab>
+</Tabs>
 
 ## Versioning Strategy
 

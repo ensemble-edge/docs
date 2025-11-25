@@ -492,20 +492,38 @@ agents:
   - name: step1
     operation: code
     config:
-      code: |
-        console.log('Step1 input:', ${JSON.stringify(input)});
-        const result = processData(${input.data});
-        console.log('Step1 output:', JSON.stringify(result));
-        return result;
+      script: scripts/traceable-step1
+    input:
+      data: ${input.data}
 
   - name: step2
     operation: code
     config:
-      code: |
-        console.log('Step2 input:', ${JSON.stringify(step1.output)});
-        const result = transformData(${step1.output});
-        console.log('Step2 output:', JSON.stringify(result));
-        return result;
+      script: scripts/traceable-step2
+    input:
+      previousOutput: ${step1.output}
+```
+
+```typescript
+// scripts/traceable-step1.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function traceableStep1(context: AgentExecutionContext) {
+  console.log('Step1 input:', JSON.stringify(context.input))
+  const result = processData(context.input.data)
+  console.log('Step1 output:', JSON.stringify(result))
+  return result
+}
+
+// scripts/traceable-step2.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function traceableStep2(context: AgentExecutionContext) {
+  console.log('Step2 input:', JSON.stringify(context.input.previousOutput))
+  const result = transformData(context.input.previousOutput)
+  console.log('Step2 output:', JSON.stringify(result))
+  return result
+}
 ```
 
 ## Performance Testing

@@ -13,6 +13,8 @@ description: "Run multiple AI agents in parallel for comprehensive analysis. Fas
 
 ## Basic Pattern
 
+<Tabs>
+  <Tab title="YAML">
 ```yaml
 ensemble: multi-agent-analysis
 
@@ -37,12 +39,64 @@ agents:
   - name: aggregate
     operation: code
     config:
-      code: |
-        return {
-          aspect1: ${agent-1.output},
-          aspect2: ${agent-2.output},
-          aspect3: ${agent-3.output}
-        };
+      script: scripts/aggregate-analysis-results
+    input:
+      aspect1: ${agent-1.output}
+      aspect2: ${agent-2.output}
+      aspect3: ${agent-3.output}
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { createEnsemble, step, parallel } from '@anthropic/conductor'
+
+const multiAgentAnalysis = createEnsemble('multi-agent-analysis')
+  // All run in parallel using parallel() primitive
+  .addStep(
+    parallel('analyze-aspects')
+      .steps(
+        step('agent-1')
+          .operation('think')
+          .config({ prompt: 'Analyze aspect 1 of: ${input.content}' }),
+        step('agent-2')
+          .operation('think')
+          .config({ prompt: 'Analyze aspect 2 of: ${input.content}' }),
+        step('agent-3')
+          .operation('think')
+          .config({ prompt: 'Analyze aspect 3 of: ${input.content}' })
+      )
+  )
+  // Aggregate results
+  .addStep(
+    step('aggregate')
+      .operation('code')
+      .config({ script: 'scripts/aggregate-analysis-results' })
+      .input({
+        aspect1: '${agent-1.output}',
+        aspect2: '${agent-2.output}',
+        aspect3: '${agent-3.output}'
+      })
+  )
+  .build()
+
+export default multiAgentAnalysis
+```
+  </Tab>
+</Tabs>
+
+```typescript
+// scripts/aggregate-analysis-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function aggregateAnalysisResults(context: AgentExecutionContext) {
+  const { aspect1, aspect2, aspect3 } = context.input
+
+  return {
+    aspect1,
+    aspect2,
+    aspect3
+  }
+}
 ```
 
 ## Content Moderation
@@ -109,26 +163,41 @@ agents:
   - name: aggregate
     operation: code
     config:
-      code: |
-        const checks = {
-          explicit: JSON.parse(${check-explicit.output}),
-          hate_speech: JSON.parse(${check-hate-speech.output}),
-          spam: JSON.parse(${check-spam.output}),
-          violence: JSON.parse(${check-violence.output})
-        };
-
-        const flags = Object.entries(checks)
-          .filter(([_, v]) => v[Object.keys(v)[0]])
-          .map(([k, v]) => ({ type: k, ...v }));
-
-        return {
-          safe: flags.length === 0,
-          flags,
-          checks
-        };
+      script: scripts/aggregate-moderation-checks
+    input:
+      explicit_check: ${check-explicit.output}
+      hate_speech_check: ${check-hate-speech.output}
+      spam_check: ${check-spam.output}
+      violence_check: ${check-violence.output}
 
 output:
   moderation: ${aggregate.output}
+```
+
+```typescript
+// scripts/aggregate-moderation-checks.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function aggregateModerationChecks(context: AgentExecutionContext) {
+  const { explicit_check, hate_speech_check, spam_check, violence_check } = context.input
+
+  const checks = {
+    explicit: JSON.parse(explicit_check),
+    hate_speech: JSON.parse(hate_speech_check),
+    spam: JSON.parse(spam_check),
+    violence: JSON.parse(violence_check)
+  }
+
+  const flags = Object.entries(checks)
+    .filter(([_, v]) => (v as any)[Object.keys(v as any)[0]])
+    .map(([k, v]) => ({ type: k, ...v as any }))
+
+  return {
+    safe: flags.length === 0,
+    flags,
+    checks
+  }
+}
 ```
 
 ## Code Review
@@ -237,37 +306,52 @@ agents:
   - name: aggregate
     operation: code
     config:
-      code: |
-        const security = JSON.parse(${security-review.output});
-        const performance = JSON.parse(${performance-review.output});
-        const style = JSON.parse(${style-review.output});
-        const tests = JSON.parse(${test-coverage-review.output});
-
-        const allIssues = [
-          ...security.issues.map(i => ({ ...i, category: 'security' })),
-          ...performance.issues.map(i => ({ ...i, category: 'performance' })),
-          ...style.issues.map(i => ({ ...i, category: 'style' }))
-        ];
-
-        const overallScore = Math.round(
-          (security.score + performance.score + style.score + tests.score) / 4
-        );
-
-        return {
-          score: overallScore,
-          issues: allIssues.sort((a, b) => {
-            const severityOrder = { high: 0, medium: 1, low: 2 };
-            return severityOrder[a.severity] - severityOrder[b.severity];
-          }),
-          security: security.score,
-          performance: performance.score,
-          style: style.score,
-          test_coverage: tests.score,
-          missing_tests: tests.missing_tests
-        };
+      script: scripts/aggregate-code-reviews
+    input:
+      security_review: ${security-review.output}
+      performance_review: ${performance-review.output}
+      style_review: ${style-review.output}
+      test_coverage_review: ${test-coverage-review.output}
 
 output:
   review: ${aggregate.output}
+```
+
+```typescript
+// scripts/aggregate-code-reviews.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function aggregateCodeReviews(context: AgentExecutionContext) {
+  const { security_review, performance_review, style_review, test_coverage_review } = context.input
+
+  const security = JSON.parse(security_review)
+  const performance = JSON.parse(performance_review)
+  const style = JSON.parse(style_review)
+  const tests = JSON.parse(test_coverage_review)
+
+  const allIssues = [
+    ...security.issues.map((i: any) => ({ ...i, category: 'security' })),
+    ...performance.issues.map((i: any) => ({ ...i, category: 'performance' })),
+    ...style.issues.map((i: any) => ({ ...i, category: 'style' }))
+  ]
+
+  const overallScore = Math.round(
+    (security.score + performance.score + style.score + tests.score) / 4
+  )
+
+  return {
+    score: overallScore,
+    issues: allIssues.sort((a: any, b: any) => {
+      const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
+      return severityOrder[a.severity] - severityOrder[b.severity]
+    }),
+    security: security.score,
+    performance: performance.score,
+    style: style.score,
+    test_coverage: tests.score,
+    missing_tests: tests.missing_tests
+  }
+}
 ```
 
 ## Document Analysis
@@ -326,14 +410,29 @@ agents:
   - name: combine
     operation: code
     config:
-      code: |
-        return {
-          summary: ${summarize.output},
-          entities: JSON.parse(${extract-entities.output}),
-          topics: JSON.parse(${extract-topics.output}),
-          sentiment: JSON.parse(${sentiment-analysis.output}),
-          key_points: JSON.parse(${extract-key-points.output})
-        };
+      script: scripts/combine-document-analyses
+    input:
+      summary: ${summarize.output}
+      entities: ${extract-entities.output}
+      topics: ${extract-topics.output}
+      sentiment: ${sentiment-analysis.output}
+      key_points: ${extract-key-points.output}
+
+```typescript
+// scripts/combine-document-analyses.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineDocumentAnalyses(context: AgentExecutionContext) {
+  const { summary, entities, topics, sentiment, key_points } = context.input
+
+  return {
+    summary,
+    entities: JSON.parse(entities),
+    topics: JSON.parse(topics),
+    sentiment: JSON.parse(sentiment),
+    key_points: JSON.parse(key_points)
+  }
+}
 ```
 
 ## Market Research
@@ -476,10 +575,25 @@ agents:
     condition: ${slow-agent.success || slow-agent.timeout}
     operation: code
     config:
-      code: |
-        return {
-          result: ${slow-agent.success ? slow-agent.output : 'timeout'}
-        };
+      script: scripts/aggregate-with-timeout
+    input:
+      agent_success: ${slow-agent.success}
+      agent_output: ${slow-agent.output}
+```
+
+```typescript
+// scripts/aggregate-with-timeout.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function aggregateWithTimeout(context: AgentExecutionContext) {
+  const { agent_success, agent_output } = context.input
+  return {
+    result: agent_success ? agent_output : 'timeout'
+  }
+}
+```
+
+```yaml
 ```
 
 **3. Failure Handling**
@@ -491,13 +605,37 @@ agents:
   - name: aggregate
     operation: code
     config:
-      code: |
-        // Only include successful results
-        const results = [];
-        if (${agent-1.success}) results.push(${agent-1.output});
-        if (${agent-2.success}) results.push(${agent-2.output});
-        if (${agent-3.success}) results.push(${agent-3.output});
-        return { results };
+      script: scripts/aggregate-successful-results
+    input:
+      agent1_success: ${agent-1.success}
+      agent1_output: ${agent-1.output}
+      agent2_success: ${agent-2.success}
+      agent2_output: ${agent-2.output}
+      agent3_success: ${agent-3.success}
+      agent3_output: ${agent-3.output}
+```
+
+```typescript
+// scripts/aggregate-successful-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function aggregateSuccessfulResults(context: AgentExecutionContext) {
+  const {
+    agent1_success, agent1_output,
+    agent2_success, agent2_output,
+    agent3_success, agent3_output
+  } = context.input
+
+  const results = []
+  if (agent1_success) results.push(agent1_output)
+  if (agent2_success) results.push(agent2_output)
+  if (agent3_success) results.push(agent3_output)
+
+  return { results }
+}
+```
+
+```yaml
 ```
 
 **4. Cost Optimization**

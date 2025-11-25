@@ -5,6 +5,10 @@ description: "Complete YAML configuration reference"
 
 **Complete reference for ensemble, agent, and component YAML files.**
 
+<Note>
+Prefer TypeScript? See the [TypeScript API Reference](/conductor/reference/ts-schema) for programmatic ensemble creation with full type safety.
+</Note>
+
 ## Ensemble Schema
 
 ```yaml
@@ -387,9 +391,9 @@ agents:
   - name: validate-email
     operation: code
     config:
-      code: |
-        const regex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
-        return { valid: regex.test(${input.email}) };
+      script: scripts/validate-email-address
+    input:
+      email: ${input.email}
 
   - name: create-account
     condition: ${validate-email.output.valid}
@@ -400,7 +404,21 @@ agents:
       params:
         - ${input.email}
         - ${input.name}
+```
 
+```typescript
+// scripts/validate-email-address.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function validateEmailAddress(context: AgentExecutionContext) {
+  const { email } = context.input
+  const regex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/
+
+  return { valid: regex.test(email) }
+}
+```
+
+```yaml
   - name: send-welcome
     condition: ${create-account.success}
     operation: email
@@ -417,11 +435,11 @@ output:
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    TypeScript API reference
+  </Card>
   <Card title="CLI Commands" icon="terminal" href="/conductor/reference/cli-commands">
     Command line reference
-  </Card>
-  <Card title="Environment Variables" icon="sliders" href="/conductor/reference/environment-variables">
-    Configuration
   </Card>
   <Card title="Operations" icon="bolt" href="/conductor/operations/overview">
     Operation details

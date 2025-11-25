@@ -85,6 +85,140 @@ Example:
 conductor test --coverage
 ```
 
+## Validate Command
+
+### validate
+
+Validate ensemble and agent configuration files (YAML or TypeScript).
+
+```bash
+conductor validate [path] [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `path` | Path to file or directory to validate (default: current directory) |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--fix` | Automatically fix fixable issues |
+| `-r, --recursive` | Recursively validate directories |
+| `--strict` | Enable strict validation mode |
+| `--format <format>` | Output format: `text`, `json` (default: `text`) |
+
+**Supported File Types:**
+
+- `.yaml`, `.yml` - YAML ensemble and agent definitions
+- `.ts` - TypeScript ensembles using `createEnsemble()`
+
+**Examples:**
+
+```bash
+# Validate current directory
+conductor validate
+
+# Validate specific file
+conductor validate ensembles/workflow.yaml
+conductor validate ensembles/workflow.ts
+
+# Validate with auto-fix
+conductor validate --fix
+
+# Validate recursively with JSON output
+conductor validate . -r --format json
+```
+
+---
+
+## Bundle & Import Commands
+
+### bundle
+
+Export an ensemble or agent with all its dependencies into a portable archive.
+
+```bash
+conductor bundle <type> <name> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `type` | Type to bundle: `ensemble` or `agent` |
+| `name` | Name of the ensemble or agent to bundle |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output <path>` | Output file path |
+| `--format <format>` | Archive format: `tar` (default) or `zip` |
+| `--dry-run` | Preview what would be bundled |
+| `--agents-dir <dir>` | Agents directory (default: `agents`) |
+| `--ensembles-dir <dir>` | Ensembles directory (default: `ensembles`) |
+| `--prompts-dir <dir>` | Prompts directory (default: `prompts`) |
+
+**Examples:**
+
+```bash
+# Bundle an ensemble
+conductor bundle ensemble my-workflow -o my-workflow.tar.gz
+
+# Bundle an agent
+conductor bundle agent company-enricher --format zip
+
+# Preview bundle contents
+conductor bundle ensemble rag-pipeline --dry-run
+```
+
+### import
+
+Import a bundled ensemble or agent into the current project.
+
+```bash
+conductor import <bundle> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `bundle` | Path to bundle file (`.tar.gz` or `.zip`) |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-f, --force` | Overwrite existing files without prompting |
+| `-s, --skip` | Skip existing files without prompting |
+| `--dry-run` | Preview import without writing files |
+| `--target-dir <dir>` | Target directory (default: `.`) |
+| `--ensembles-dir <dir>` | Ensembles directory (default: `ensembles`) |
+| `--agents-dir <dir>` | Agents directory (default: `agents`) |
+| `--prompts-dir <dir>` | Prompts directory (default: `prompts`) |
+
+**Examples:**
+
+```bash
+# Import a bundle
+conductor import ./my-workflow.tar.gz
+
+# Preview import
+conductor import ./shared-agent.zip --dry-run
+
+# Force overwrite existing files
+conductor import ./updated-workflow.tar.gz --force
+
+# Skip conflicts
+conductor import ./new-agents.tar.gz --skip
+```
+
+---
+
 ## Ensemble Commands
 
 ### ensemble:list
@@ -110,7 +244,7 @@ conductor ensemble:run greet-user '{"name": "Alice"}'
 
 ### ensemble:validate
 
-Validate ensemble YAML.
+Validate ensemble YAML (legacy - prefer `conductor validate`).
 
 ```bash
 conductor ensemble:validate <file>
@@ -470,16 +604,16 @@ export default {
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="YAML Schema" icon="file-code" href="/conductor/reference/yaml-schema">
+    YAML configuration reference
+  </Card>
+  <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
+    TypeScript API reference
+  </Card>
   <Card title="Environment Variables" icon="sliders" href="/conductor/reference/environment-variables">
     Configuration reference
   </Card>
-  <Card title="YAML Schema" icon="file-code" href="/conductor/reference/yaml-schema">
-    YAML reference
-  </Card>
   <Card title="Your First Project" icon="rocket" href="/conductor/getting-started/your-first-project">
     Get started
-  </Card>
-  <Card title="Testing" icon="vial" href="/conductor/building/testing-observability">
-    Testing guide
   </Card>
 </CardGroup>

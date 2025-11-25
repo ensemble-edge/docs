@@ -42,11 +42,21 @@ agents:
   - name: process
     operation: code
     config:
-      code: |
-        const count = ${state.processed_count || 0};
-        return { new_count: count + 1 };
+      script: scripts/increment-count
+    input:
+      current_count: ${state.processed_count || 0}
     state:
       use: [processed_count]  # Declare what you read
+```
+
+```typescript
+// scripts/increment-count.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function incrementCount(context: AgentExecutionContext) {
+  const { current_count } = context.input
+  return { new_count: current_count + 1 }
+}
 ```
 
 ### Write State
@@ -56,16 +66,28 @@ agents:
   - name: update
     operation: code
     config:
-      code: |
-        return {
-          user: ${fetch-user.output},
-          count: ${state.processed_count + 1}
-        };
+      script: scripts/update-user-state
+    input:
+      user: ${fetch-user.output}
+      count: ${state.processed_count}
     state:
       use: [processed_count]
       set:
         user_data: ${update.output.user}
         processed_count: ${update.output.count}
+```
+
+```typescript
+// scripts/update-user-state.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function updateUserState(context: AgentExecutionContext) {
+  const { user, count } = context.input
+  return {
+    user: user,
+    count: count + 1
+  }
+}
 ```
 
 ## State Patterns
@@ -86,17 +108,12 @@ agents:
   - name: process-doc
     operation: code
     config:
-      code: |
-        const docs = ${state.processed_docs || []};
-        const words = ${state.total_words || 0};
-        const newDoc = {
-          id: "${input.doc_id}",
-          words: ${input.content}.split(' ').length
-        };
-        return {
-          docs: [...docs, newDoc],
-          words: words + newDoc.words
-        };
+      script: scripts/accumulate-document
+    input:
+      doc_id: ${input.doc_id}
+      content: ${input.content}
+      current_docs: ${state.processed_docs || []}
+      current_words: ${state.total_words || 0}
     state:
       use: [processed_docs, total_words]
       set:
@@ -106,6 +123,25 @@ agents:
 output:
   total_documents: ${state.processed_docs.length}
   total_words: ${state.total_words}
+```
+
+```typescript
+// scripts/accumulate-document.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function accumulateDocument(context: AgentExecutionContext) {
+  const { doc_id, content, current_docs, current_words } = context.input
+
+  const newDoc = {
+    id: doc_id,
+    words: content.split(' ').length
+  }
+
+  return {
+    docs: [...current_docs, newDoc],
+    words: current_words + newDoc.words
+  }
+}
 ```
 
 ### Pattern 2: Configuration State
@@ -173,15 +209,11 @@ agents:
     condition: ${step1.failed}
     operation: code
     config:
-      code: |
-        const errors = ${state.errors || []};
-        return {
-          errors: [...errors, {
-            agent: 'step1',
-            error: '${step1.error}',
-            timestamp: Date.now()
-          }]
-        };
+      script: scripts/track-error
+    input:
+      current_errors: ${state.errors || []}
+      agent_name: step1
+      error_message: ${step1.error}
     state:
       use: [errors]
       set:
@@ -190,6 +222,23 @@ agents:
 output:
   success: ${!step1.failed}
   errors: ${state.errors}
+```
+
+```typescript
+// scripts/track-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function trackError(context: AgentExecutionContext) {
+  const { current_errors, agent_name, error_message } = context.input
+
+  return {
+    errors: [...current_errors, {
+      agent: agent_name,
+      error: error_message,
+      timestamp: Date.now()
+    }]
+  }
+}
 ```
 
 ### Pattern 4: Multi-Step Context
@@ -265,7 +314,19 @@ agents:
   - name: process
     operation: code
     config:
-      code: return { processed: ${fetch.output} };
+      script: scripts/process-fetch-output
+    input:
+      fetch_output: ${fetch.output}
+```
+
+```typescript
+// scripts/process-fetch-output.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processFetchOutput(context: AgentExecutionContext) {
+  const { fetch_output } = context.input
+  return { processed: fetch_output }
+}
 ```
 
 ### Use State For
@@ -337,17 +398,31 @@ agents:
   - name: process
     operation: code
     config:
-      code: |
-        return {
-          progress: ${state.progress + 10},
-          data: { ...${state.data}, updated: Date.now() }
-        };
+      script: scripts/update-progress
+    input:
+      current_progress: ${state.progress}
+      current_data: ${state.data}
     state:
       use: [progress, data]
       set:
         progress: ${process.output.progress}
         data: ${process.output.data}
 
+```typescript
+// scripts/update-progress.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function updateProgress(context: AgentExecutionContext) {
+  const { current_progress, current_data } = context.input
+
+  return {
+    progress: current_progress + 10,
+    data: { ...current_data, updated: Date.now() }
+  }
+}
+```
+
+```yaml
   - name: save-state
     operation: storage
     config:
@@ -382,14 +457,23 @@ agents:
   - name: process
     operation: code
     config:
-      code: |
-        return {
-          status: 'processing',
-          updated_at: Date.now()
-        };
+      script: scripts/update-workflow-status
     state:
       use: [workflow_data]
 
+```typescript
+// scripts/update-workflow-status.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function updateWorkflowStatus(context: AgentExecutionContext) {
+  return {
+    status: 'processing',
+    updated_at: Date.now()
+  }
+}
+```
+
+```yaml
   - name: save-workflow-state
     operation: storage
     config:
@@ -444,11 +528,22 @@ operations:
   - name: increment
     operation: code
     config:
-      code: return { count: (${state.internal_counter} || 0) + 1 };
+      script: scripts/increment-internal-counter
+    input:
+      counter: ${state.internal_counter || 0}
     state:
       use: [internal_counter]
       set:
         internal_counter: ${increment.output.count}
+
+```typescript
+// scripts/increment-internal-counter.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function incrementInternalCounter(context: AgentExecutionContext) {
+  const { counter } = context.input
+  return { count: counter + 1 }
+}
 ```
 
 ## Best Practices
@@ -474,9 +569,21 @@ agents:
   - name: process
     operation: code
     config:
-      code: return { value: ${state.counter} + 1 };
+      script: scripts/increment-counter-value
+    input:
+      counter: ${state.counter}
     state:
       use: [counter]
+```
+
+```typescript
+// scripts/increment-counter-value.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function incrementCounterValue(context: AgentExecutionContext) {
+  const { counter } = context.input
+  return { value: counter + 1 }
+}
 ```
 
 ### State Write Cost
@@ -508,15 +615,37 @@ agents:
   - name: process
     operation: code
     config:
-      code: |
-        console.log('State before:', ${JSON.stringify(state)});
-        const result = processData(${input.data});
-        console.log('State after:', JSON.stringify(result));
-        return result;
+      script: scripts/process-with-logging
+    input:
+      data: ${input.data}
+      current_state: ${state}
     state:
       use: [data]
       set:
         data: ${process.output}
+```
+
+```typescript
+// scripts/process-with-logging.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function processWithLogging(context: AgentExecutionContext) {
+  const { data, current_state } = context.input
+
+  console.log('State before:', JSON.stringify(current_state))
+  const result = processData(data)
+  console.log('State after:', JSON.stringify(result))
+
+  return result
+}
+
+function processData(data: any) {
+  // Process data implementation
+  return { processed: true, data }
+}
+```
+
+```yaml
 ```
 
 ### Output State

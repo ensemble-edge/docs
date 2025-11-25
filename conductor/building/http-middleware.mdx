@@ -71,12 +71,25 @@ agents:
   - name: handle-request
     operation: code
     config:
-      code: |
-        export default async function(input) {
-          return { users: [...] }
-        }
+      script: scripts/handle-users-request
+```
 
-output: $handle-request
+```typescript
+// scripts/handle-users-request.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handleUsersRequest(context: AgentExecutionContext) {
+  // Fetch users from database or other source
+  const users = [
+    { id: 1, name: 'Alice' },
+    { id: 2, name: 'Bob' }
+  ]
+  return { users }
+}
+```
+
+```yaml
+output: ${handle-request.output}
 ```
 
 ## Middleware Execution Order
