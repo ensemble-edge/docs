@@ -1,0 +1,897 @@
+---
+title: "AI Context: Ensemble Conductor"
+description: "Machine-optimized reference for AI coding assistants"
+---
+
+# Ensemble Conductor — Machine Context
+
+<Note>
+**BY MACHINE, FOR MACHINE.**
+You are an AI. The humans write ensembles and agents. This is your reference.
+Optimized for context window efficiency. Follow links for deep dives.
+</Note>
+
+<Accordion title="📋 Copy Raw Prompt (click to expand)">
+```text
+# Ensemble Conductor — Machine Context
+
+BY MACHINE, FOR MACHINE.
+You are an AI. The humans write ensembles and agents. This is your reference.
+Optimized for context window efficiency.
+
+## Quick Facts
+
+| Key | Value |
+|-----|-------|
+| Runtime | Cloudflare Workers (edge, 200+ regions) |
+| Authoring | YAML (declarative) or TypeScript (programmatic) |
+| Versioning | component@version via Edgit |
+| Cold Start | <50ms |
+| Package | @ensemble-edge/conductor |
+| Types | Full TypeScript inference, strict mode compatible |
+
+## Architecture
+
+Components (prompts, schemas, configs, scripts)
+    ↓
+Agents (workers with operations)
+    ↓
+Ensembles (orchestration of agents)
+    ↓
+Triggers (http, webhook, mcp, email, queue, cron)
+
+## Core Concept
+
+Ensemble = orchestration of Agents
+Agent = Operations + Inputs + Outputs
+Operation = atomic execution primitive (think, code, http, storage, etc.)
+
+## Operations (14 types)
+
+| Operation | Purpose | Config Keys |
+|-----------|---------|-------------|
+| think | LLM reasoning | provider, model, prompt, schema, temperature |
+| code | JS/TS execution | script (path to script file) |
+| storage | KV/R2 access | type: kv|r2, action: get|put|delete, key |
+| data | D1/Vectorize | backend: d1|vectorize, binding, query|operation |
+| http | HTTP requests | url, method, headers, body |
+| tools | MCP tools | tool, params |
+| email | Send email | to, from, subject, body |
+| sms | Send SMS | to, from, body |
+| html | Render HTML | template, data |
+| pdf | Generate PDF | html, filename, format |
+| page | Full-stack page | component, props |
+| form | Generate forms | fields, csrf |
+| queue | Queue messages | action: send|consume, queue, body |
+| docs | API docs | OpenAPI generation |
+
+## Flow Control (TypeScript)
+
+| Primitive | Signature | Purpose |
+|-----------|-----------|---------|
+| createEnsemble(name) | .addStep().build() | Ensemble container |
+| step(name) | .agent()|.operation().input().config() | Unit of work |
+| parallel(name) | .steps([...]) | Concurrent execution |
+| branch(name) | .condition().then().else() | If/else |
+| switchStep(name) | .value().case().default() | Multi-branch |
+| foreach(name) | .items().as().step() | Iterate array |
+| tryStep(name) | .try().catch() | Error handling |
+| whileStep(name) | .condition().maxIterations().step() | Loop |
+| mapReduce(name) | .items().map().reduce() | Map-reduce pattern |
+
+## Lifecycle Hooks
+
+| Hook | Trigger | Use Case |
+|------|---------|----------|
+| beforeExecute | Before agent runs | Logging, validation |
+| afterExecute | After agent completes | Metrics, cleanup |
+| onError | On agent failure | Error reporting, fallback |
+
+## Pre-built Agents (7 types)
+
+| Agent | Purpose | Key Inputs |
+|-------|---------|------------|
+| scraper | Web scraping with retries | url |
+| validator | Data validation | data, schema |
+| rag | Vector search + LLM | query, action: embed|search |
+| hitl | Human approval flow | prompt, context |
+| fetcher | HTTP with caching | url |
+| transformer | Data transformation | data, template |
+| scheduler | Cron execution | cron, task |
+
+## Triggers (6 types)
+
+| Trigger | Config | Use Case |
+|---------|--------|----------|
+| http | path, methods, auth, rateLimit, cors | Web apps, APIs with path params |
+| webhook | path, methods, auth, async | External integrations |
+| mcp | auth, public | AI tool exposure |
+| email | addresses, reply_with_output | Email routing |
+| queue | queue, batch_size, max_retries | Message processing |
+| cron | cron, timezone, enabled | Scheduled execution |
+
+## Components (7 types)
+
+| Type | Extension | Reference Syntax |
+|------|-----------|------------------|
+| schemas | .json | schemas/name@v1.0.0 |
+| prompts | .md | prompts/name@latest |
+| configs | .json, .yaml | configs/name@production |
+| queries | .sql | queries/name@v2 |
+| scripts | .ts, .js | scripts/name@v1 |
+| templates | .html | templates/name@v1 |
+| docs | .md | docs/name@v1 |
+
+## Expression Syntax
+
+### Variable Access
+${input.field}                    # Ensemble/agent input
+${agent-name.output}              # Agent output
+${agent-name.output.nested.field} # Nested access
+${state.field}                    # State variable
+${env.VARIABLE}                   # Environment variable
+${component.name@v1.0.0}          # Component reference
+
+### Execution Status
+${agent.executed}                 # Boolean: ran
+${agent.failed}                   # Boolean: errored
+${agent.success}                  # Boolean: succeeded
+${agent.cached}                   # Boolean: from cache
+${agent.duration}                 # Number: ms
+
+### Conditions
+condition: ${input.value > 10}
+condition: ${agent.failed}
+condition: ${!agent.executed}
+condition: ${input.type === 'premium'}
+condition: ${input.age >= 18 && input.verified}
+
+## YAML Ensemble Schema
+
+ensemble: string                   # Required
+description: string                # Optional
+trigger:                           # Optional
+  - type: http|webhook|mcp|email|queue|cron
+state:                             # Optional
+  schema:
+    field: type
+agents:                            # Required
+  - name: string
+    agent: string                  # OR operation
+    operation: string              # OR agent
+    inputs: { key: value }
+    config: { key: value }
+    condition: string
+    cache: { ttl: number, key: string }
+    retry: { maxAttempts: number, backoff: exponential|linear }
+    timeout: number
+    state: { use: [fields], set: { field: value } }
+output:                            # Optional
+  key: value
+
+## Common Patterns
+
+### Linear Pipeline
+agents:
+  - name: fetch
+    operation: http
+    config: { url: "${input.url}" }
+  - name: process
+    operation: code
+    config: { script: scripts/process }
+    input: { data: ${fetch.output} }
+
+### Cache-or-Generate
+agents:
+  - name: check-cache
+    operation: storage
+    config: { type: kv, action: get, key: "result-${input.query}" }
+  - name: generate
+    condition: ${check-cache.output.value === null}
+    operation: think
+    config: { provider: openai, model: gpt-4o, prompt: "${input.query}" }
+
+### Fallback Chain
+agents:
+  - name: try-primary
+    operation: http
+    config: { url: "https://primary-api.com" }
+    retry: { maxAttempts: 2 }
+  - name: try-backup
+    condition: ${try-primary.failed}
+    operation: http
+    config: { url: "https://backup-api.com" }
+
+## File Structure
+
+project/
+├── ensembles/          # YAML or TS ensembles
+├── agents/             # Custom agents
+├── scripts/            # TS/JS for code operations
+├── prompts/            # Prompt templates
+├── schemas/            # JSON schemas
+├── configs/            # Reusable configs
+├── queries/            # SQL templates
+├── wrangler.toml       # Cloudflare config
+└── .dev.vars           # Local secrets (gitignored)
+
+## CLI Quick Reference
+
+conductor init [name]             # Create project
+conductor dev                     # Local dev server
+conductor deploy                  # Deploy to CF Workers
+conductor test                    # Run tests
+conductor validate [path]         # Validate YAML/TS
+conductor validate --fix          # Auto-fix issues
+conductor ensemble:run <name> <input>
+conductor agent:run <name> <input>
+
+## Common Mistakes
+
+| Don't | Do |
+|-------|-----|
+| Inline JS in YAML | Use script: scripts/path |
+| Hardcode secrets | Use ${env.SECRET} |
+| Skip error handling | Use tryStep() or condition: ${x.failed} |
+| Create mega-ensembles | Compose via agents |
+| Forget cache | Add cache: { ttl: 3600 } to expensive ops |
+
+## Provider Models (think operation)
+
+| Provider | Models |
+|----------|--------|
+| openai | gpt-4o, gpt-4o-mini, text-embedding-3-small |
+| anthropic | claude-3-5-sonnet-20241022, claude-sonnet-4 |
+| cloudflare | @cf/meta/llama-3-8b-instruct |
+| groq | llama3-70b-8192, mixtral-8x7b-32768 |
+
+Machine context ends. The humans thank you for building their ensembles.
+```
+</Accordion>
+
+## Quick Facts
+
+| Key | Value |
+|-----|-------|
+| Runtime | Cloudflare Workers (edge, 200+ regions) |
+| Authoring | YAML (declarative) or TypeScript (programmatic) |
+| Versioning | `component@version` via Edgit |
+| Cold Start | <50ms |
+| Package | `@ensemble-edge/conductor` |
+| Types | Full TypeScript inference, strict mode compatible |
+
+## Architecture
+
+```
+Components (prompts, schemas, configs, scripts)
+    ↓
+Agents (workers with operations)
+    ↓
+Ensembles (orchestration of agents)
+    ↓
+Triggers (http, webhook, mcp, email, queue, cron)
+```
+
+## Core Concept
+
+```
+Ensemble = orchestration of Agents
+Agent = Operations + Inputs + Outputs
+Operation = atomic execution primitive (think, code, http, storage, etc.)
+```
+
+---
+
+## Primitives Reference
+
+### Operations (14 types)
+
+| Operation | Purpose | Config Keys |
+|-----------|---------|-------------|
+| `think` | LLM reasoning | `provider`, `model`, `prompt`, `schema`, `temperature` |
+| `code` | JS/TS execution | `script` (path to script file) |
+| `storage` | KV/R2 access | `type: kv\|r2`, `action: get\|put\|delete`, `key` |
+| `data` | D1/Vectorize | `backend: d1\|vectorize`, `binding`, `query\|operation` |
+| `http` | HTTP requests | `url`, `method`, `headers`, `body` |
+| `tools` | MCP tools | `tool`, `params` |
+| `email` | Send email | `to`, `from`, `subject`, `body` |
+| `sms` | Send SMS | `to`, `from`, `body` |
+| `html` | Render HTML | `template`, `data` |
+| `pdf` | Generate PDF | `html`, `filename`, `format` |
+| `page` | Full-stack page | `component`, `props` |
+| `form` | Generate forms | `fields`, `csrf` |
+| `queue` | Queue messages | `action: send\|consume`, `queue`, `body` |
+| `docs` | API docs | OpenAPI generation |
+
+> [Operations Reference](/conductor/operations/overview)
+
+### Flow Control (TypeScript)
+
+| Primitive | Signature | Purpose |
+|-----------|-----------|---------|
+| `createEnsemble(name)` | `.addStep().build()` | Ensemble container |
+| `step(name)` | `.agent()\|.operation().input().config()` | Unit of work |
+| `parallel(name)` | `.steps([...])` | Concurrent execution |
+| `branch(name)` | `.condition().then().else()` | If/else |
+| `switchStep(name)` | `.value().case().default()` | Multi-branch |
+| `foreach(name)` | `.items().as().step()` | Iterate array |
+| `tryStep(name)` | `.try().catch()` | Error handling |
+| `whileStep(name)` | `.condition().maxIterations().step()` | Loop |
+| `mapReduce(name)` | `.items().map().reduce()` | Map-reduce pattern |
+
+### Lifecycle Hooks
+
+| Hook | Trigger | Use Case |
+|------|---------|----------|
+| `beforeExecute` | Before agent runs | Logging, validation |
+| `afterExecute` | After agent completes | Metrics, cleanup |
+| `onError` | On agent failure | Error reporting, fallback |
+
+> [TypeScript API Reference](/conductor/reference/ts-schema)
+
+### Pre-built Agents (7 types)
+
+| Agent | Purpose | Key Inputs |
+|-------|---------|------------|
+| `scraper` | Web scraping with retries | `url` |
+| `validator` | Data validation | `data`, `schema` |
+| `rag` | Vector search + LLM | `query`, `action: embed\|search` |
+| `hitl` | Human approval flow | `prompt`, `context` |
+| `fetcher` | HTTP with caching | `url` |
+| `transformer` | Data transformation | `data`, `template` |
+| `scheduler` | Cron execution | `cron`, `task` |
+
+> [Pre-built Agents](/conductor/agents/overview)
+
+### Triggers (6 types)
+
+| Trigger | Config | Use Case |
+|---------|--------|----------|
+| `http` | `path`, `methods`, `auth`, `rateLimit`, `cors` | Web apps, APIs with path params |
+| `webhook` | `path`, `methods`, `auth`, `async` | External integrations |
+| `mcp` | `auth`, `public` | AI tool exposure |
+| `email` | `addresses`, `reply_with_output` | Email routing |
+| `queue` | `queue`, `batch_size`, `max_retries` | Message processing |
+| `cron` | `cron`, `timezone`, `enabled` | Scheduled execution |
+
+> [Triggers Reference](/conductor/core-concepts/triggers)
+
+### Components (7 types)
+
+| Type | Extension | Reference Syntax |
+|------|-----------|------------------|
+| `schemas` | `.json` | `schemas/name@v1.0.0` |
+| `prompts` | `.md` | `prompts/name@latest` |
+| `configs` | `.json`, `.yaml` | `configs/name@production` |
+| `queries` | `.sql` | `queries/name@v2` |
+| `scripts` | `.ts`, `.js` | `scripts/name@v1` |
+| `templates` | `.html` | `templates/name@v1` |
+| `docs` | `.md` | `docs/name@v1` |
+
+> [Components Guide](/conductor/core-concepts/components)
+
+---
+
+## Expression Syntax
+
+### Variable Access
+
+```yaml
+${input.field}                    # Ensemble/agent input
+${agent-name.output}              # Agent output
+${agent-name.output.nested.field} # Nested access
+${state.field}                    # State variable
+${env.VARIABLE}                   # Environment variable
+${component.name@v1.0.0}          # Component reference
+```
+
+### Execution Status
+
+```yaml
+${agent.executed}                 # Boolean: ran
+${agent.failed}                   # Boolean: errored
+${agent.success}                  # Boolean: succeeded
+${agent.cached}                   # Boolean: from cache
+${agent.duration}                 # Number: ms
+```
+
+### Conditions
+
+```yaml
+condition: ${input.value > 10}
+condition: ${agent.failed}
+condition: ${!agent.executed}
+condition: ${input.type === 'premium'}
+condition: ${input.age >= 18 && input.verified}
+```
+
+### Built-in Functions
+
+```yaml
+${Date.now()}
+${JSON.stringify(obj)}
+${JSON.parse(str)}
+${array.length}
+${array.map(x => x.id)}
+${array.filter(x => x.active)}
+${string.split(',')}
+${string.toUpperCase()}
+```
+
+---
+
+## YAML Schemas
+
+### Ensemble Schema
+
+```yaml
+ensemble: string                   # Required
+description: string                # Optional
+
+trigger:                           # Optional: invocation methods
+  - type: http|webhook|mcp|email|queue|cron
+    # ... trigger-specific config
+
+state:                             # Optional
+  schema:
+    field: type
+
+agents:                            # Required
+  - name: string
+    agent: string                  # OR operation
+    operation: string              # OR agent
+    inputs: { key: value }
+    config: { key: value }
+    condition: string
+    cache: { ttl: number, key: string }
+    retry: { maxAttempts: number, backoff: exponential|linear }
+    timeout: number
+    state: { use: [fields], set: { field: value } }
+
+output:                            # Optional
+  key: value
+```
+
+### Agent Schema
+
+```yaml
+agent: string                      # Required
+description: string                # Optional
+
+inputs:                            # Optional
+  field:
+    type: string|number|boolean|array|object
+    required: boolean
+    default: any
+
+operations:                        # Required
+  - name: string
+    operation: string
+    config: { ... }
+    condition: string
+    cache: { ttl, key }
+    retry: { maxAttempts, backoff }
+
+outputs:                           # Optional
+  field: expression
+```
+
+---
+
+## TypeScript API
+
+### Ensemble Builder
+
+```typescript
+import { createEnsemble, step, parallel, branch, tryStep } from '@ensemble-edge/conductor'
+
+const ensemble = createEnsemble('name')
+  .setDescription('...')
+  .setInput<InputType>()
+  .setOutput<OutputType>()
+  .addStep(step('name').agent('agent-name').input({ ... }))
+  .addStep(step('name').operation('think').config({ ... }))
+  .addStep(parallel('name').steps([...]))
+  .addStep(branch('name').condition('...').then(...).else(...))
+  .addStep(tryStep('name').try(...).catch(...))
+  .build()
+
+export default ensemble
+```
+
+### Step Builder
+
+```typescript
+step('name')
+  .agent('agent-name')           // Reference agent
+  .operation('think')            // OR use operation directly
+  .input({ key: '${...}' })      // Inputs
+  .config({ ... })               // Operation config
+  .condition('${...}')           // Conditional execution
+  .cache({ ttl: 3600, key: '...' })
+  .retry({ maxAttempts: 3, backoff: 'exponential' })
+  .timeout(30000)
+```
+
+### Version Primitives (Edgit)
+
+```typescript
+import { componentRef, versionedAgent, versionedEnsemble } from '@ensemble-edge/conductor'
+
+// Component reference
+componentRef('agent', 'path/name', '1.0.0')
+componentRef('agent', 'path/name', '^1.0.0', { fallback: '0.9.0' })
+
+// Versioned agent
+versionedAgent('path/name', '1.0.0')
+versionedAgent('path/name', '^1.0.0', { config: { ... } })
+
+// Versioned ensemble
+versionedEnsemble('pipelines/name', '^2.0.0', { input: { ... } })
+```
+
+---
+
+## Patterns (Copy-Paste Ready)
+
+### Linear Pipeline
+
+```yaml
+agents:
+  - name: fetch
+    operation: http
+    config: { url: "${input.url}" }
+  - name: process
+    operation: code
+    config: { script: scripts/process }
+    input: { data: ${fetch.output} }
+  - name: store
+    operation: data
+    config: { backend: d1, binding: DB, query: "INSERT..." }
+```
+
+### Parallel Fetch + Merge
+
+```yaml
+agents:
+  - name: fetch-a
+    operation: http
+    config: { url: "https://api-a.com" }
+  - name: fetch-b
+    operation: http
+    config: { url: "https://api-b.com" }
+  - name: merge
+    operation: code
+    config: { script: scripts/merge }
+    input: { a: ${fetch-a.output}, b: ${fetch-b.output} }
+```
+
+### Cache-or-Generate
+
+```yaml
+agents:
+  - name: check-cache
+    operation: storage
+    config: { type: kv, action: get, key: "result-${input.query}" }
+  - name: generate
+    condition: ${check-cache.output.value === null}
+    operation: think
+    config: { provider: openai, model: gpt-4o, prompt: "${input.query}" }
+  - name: save-cache
+    condition: ${generate.executed}
+    operation: storage
+    config: { type: kv, action: put, key: "result-${input.query}", value: ${generate.output} }
+output:
+  result: ${check-cache.output.value || generate.output}
+```
+
+### Fallback Chain
+
+```yaml
+agents:
+  - name: try-primary
+    operation: http
+    config: { url: "https://primary-api.com" }
+    retry: { maxAttempts: 2 }
+  - name: try-backup
+    condition: ${try-primary.failed}
+    operation: http
+    config: { url: "https://backup-api.com" }
+  - name: use-cache
+    condition: ${try-primary.failed && try-backup.failed}
+    operation: storage
+    config: { type: kv, action: get, key: cached-data }
+output:
+  data: ${try-primary.output || try-backup.output || use-cache.output}
+```
+
+### Conditional Routing
+
+```yaml
+agents:
+  - name: classify
+    operation: think
+    config: { provider: openai, model: gpt-4o-mini, prompt: "Classify: ${input.text}. Return: urgent|normal|low" }
+  - name: urgent-handler
+    condition: ${classify.output === 'urgent'}
+    agent: urgent-processor
+  - name: normal-handler
+    condition: ${classify.output === 'normal'}
+    agent: normal-processor
+output:
+  result: ${urgent-handler.output || normal-handler.output}
+```
+
+### RAG Pipeline
+
+```yaml
+agents:
+  - name: embed
+    operation: think
+    config: { provider: openai, model: text-embedding-3-small, input: "${input.question}" }
+  - name: search
+    operation: data
+    config: { backend: vectorize, binding: VECTORIZE, operation: query, vector: ${embed.output}, topK: 5 }
+  - name: generate
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: |
+        Context: ${search.output.results}
+        Question: ${input.question}
+        Answer using only the context.
+```
+
+### HITL Approval
+
+```yaml
+agents:
+  - name: generate
+    operation: think
+    config: { prompt: "Generate content for: ${input.topic}" }
+  - name: review
+    agent: hitl
+    inputs: { prompt: "Review content", context: { content: ${generate.output} } }
+  - name: publish
+    condition: ${review.output.approved}
+    operation: data
+    config: { backend: d1, query: "INSERT INTO published..." }
+```
+
+### HTTP Trigger with Auth
+
+```yaml
+trigger:
+  - type: http
+    path: /api/data/:id
+    methods: [GET, POST]
+    auth:
+      type: bearer
+      secret: ${env.API_TOKEN}
+    rateLimit:
+      requests: 100
+      window: 60
+    cors:
+      origin: "https://myapp.com"
+```
+
+### Cron Schedule
+
+```yaml
+trigger:
+  - type: cron
+    cron: "0 8 * * *"
+    timezone: "America/New_York"
+    input: { report_type: "daily" }
+```
+
+---
+
+## File Structure
+
+```
+project/
+├── ensembles/          # YAML or TS ensembles
+│   └── my-workflow.yaml
+├── agents/             # Custom agents
+│   └── my-agent/
+│       └── agent.yaml
+├── scripts/            # TS/JS for code operations
+│   └── transform.ts
+├── prompts/            # Prompt templates
+│   └── analyzer.md
+├── schemas/            # JSON schemas for structured output
+│   └── response.json
+├── configs/            # Reusable configs
+│   └── settings.yaml
+├── queries/            # SQL templates
+│   └── analytics.sql
+├── wrangler.toml       # Cloudflare config
+└── .dev.vars           # Local secrets (gitignored)
+```
+
+---
+
+## Script Template
+
+```typescript
+// scripts/my-script.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function myScript(context: AgentExecutionContext) {
+  const { input, env, bindings } = context
+
+  // Your logic here
+
+  return { result: "..." }
+}
+```
+
+---
+
+## Cloudflare Bindings
+
+| Binding | Type | wrangler.toml |
+|---------|------|---------------|
+| KV | Key-value | `[[kv_namespaces]]` |
+| D1 | SQL database | `[[d1_databases]]` |
+| R2 | Object storage | `[[r2_buckets]]` |
+| Vectorize | Vector DB | `[[vectorize]]` |
+| Queues | Message queue | `[[queues.producers]]` |
+| AI | Workers AI | `[ai]` |
+| AI Gateway | AI caching | `[ai] gateway_id` |
+
+---
+
+## Limits
+
+| Limit | Free Tier | Paid |
+|-------|-----------|------|
+| CPU time | 50ms | 30s |
+| Execution time | 30s | 15min |
+| Memory | 128MB | 128MB |
+| Payload | 100MB | 100MB |
+
+**Mitigations:**
+- Split into smaller steps
+- Use streaming for large data
+- Leverage caching
+
+---
+
+## CLI Quick Reference
+
+```bash
+# Project
+conductor init [name]             # Create project
+conductor dev                     # Local dev server
+conductor deploy                  # Deploy to CF Workers
+conductor test                    # Run Vitest tests
+
+# Validate
+conductor validate [path]         # Validate YAML/TS files
+conductor validate --fix          # Auto-fix issues
+conductor validate -r             # Recursive directory scan
+conductor validate --strict       # Strict mode
+conductor validate --format json  # JSON output
+
+# Execute
+conductor ensemble:run <name> <input>
+conductor agent:run <name> <input>
+
+# Components
+conductor component:create <name> --type <type>
+conductor component:list
+
+# Secrets
+wrangler secret put <NAME>        # Production secrets
+```
+
+---
+
+## Testing
+
+```typescript
+import { describe, it, expect } from 'vitest'
+import { Executor, MemberLoader } from '@ensemble-edge/conductor'
+
+describe('My Ensemble', () => {
+  it('executes successfully', async () => {
+    const executor = new Executor({ env, ctx })
+    const result = await executor.executeFromYAML(yaml, { input: 'test' })
+    expect(result.success).toBe(true)
+  })
+})
+```
+
+Run: `conductor test` or `pnpm test`
+
+---
+
+## Validation
+
+```bash
+# Validate all files in current directory
+conductor validate
+
+# Validate specific file
+conductor validate ensembles/my-workflow.yaml
+conductor validate ensembles/my-workflow.ts
+
+# Recursive with auto-fix
+conductor validate . -r --fix
+
+# Strict mode with JSON output (for CI)
+conductor validate --strict --format json
+```
+
+**Validates:**
+- Ensemble YAML/TS syntax and schema
+- Agent definitions and references
+- Component references (`@version` syntax)
+- Expression syntax (`${...}`)
+- Operation configs
+
+---
+
+## Common Mistakes
+
+| Don't | Do |
+|-------|-----|
+| Inline JS in YAML | Use `script: scripts/path` |
+| Hardcode secrets | Use `${env.SECRET}` |
+| Skip error handling | Use `tryStep()` or `condition: ${x.failed}` |
+| Create mega-ensembles | Compose via agents |
+| Forget cache | Add `cache: { ttl: 3600 }` to expensive ops |
+| Create deps for parallel | Keep parallel steps independent |
+
+---
+
+## Provider Models
+
+### think operation
+
+| Provider | Models |
+|----------|--------|
+| `openai` | `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `text-embedding-3-small` |
+| `anthropic` | `claude-3-5-sonnet-20241022`, `claude-3-opus`, `claude-sonnet-4` |
+| `cloudflare` | `@cf/meta/llama-3-8b-instruct`, `@cf/mistral/...` |
+| `groq` | `llama3-70b-8192`, `mixtral-8x7b-32768` |
+
+---
+
+## Links
+
+### Core Concepts
+- [Operations](/conductor/core-concepts/operations)
+- [Agents](/conductor/core-concepts/agents)
+- [Ensembles](/conductor/core-concepts/ensembles)
+- [Triggers](/conductor/core-concepts/triggers)
+- [Components](/conductor/core-concepts/components)
+- [Flow Control](/conductor/core-concepts/flow-control)
+- [State Management](/conductor/core-concepts/state-management)
+
+### Reference
+- [YAML Schema](/conductor/reference/yaml-schema)
+- [TypeScript API](/conductor/reference/ts-schema)
+- [CLI Commands](/conductor/reference/cli-commands)
+- [Environment Variables](/conductor/reference/environment-variables)
+
+### Operations
+- [think](/conductor/operations/think)
+- [code](/conductor/operations/code)
+- [storage](/conductor/operations/storage)
+- [data](/conductor/operations/data)
+- [http](/conductor/operations/http)
+- [All Operations](/conductor/operations/overview)
+
+### Patterns
+- [RAG Pipeline](/conductor/playbooks/rag-pipeline)
+- [HITL Approval](/conductor/playbooks/hitl-approval-flow)
+- [Multi-Agent](/conductor/playbooks/multi-agent-analysis)
+- [A/B Testing](/conductor/playbooks/ab-testing-prompts)
+
+---
+
+*Machine context ends. The humans thank you for building their ensembles.*

@@ -239,8 +239,10 @@
       "group": "Reference",
       "pages": [
         "conductor/reference/yaml-schema",
+        "conductor/reference/ts-schema",
         "conductor/reference/cli-commands",
-        "conductor/reference/environment-variables"
+        "conductor/reference/environment-variables",
+        "conductor/reference/ai-context"
       ]
     },
     {
