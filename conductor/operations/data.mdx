@@ -239,26 +239,77 @@ operations:
 
 ### Hyperdrive (Postgres, MySQL)
 
-Connect to external databases with connection pooling:
+Connect to external databases with automatic connection pooling and edge caching.
 
+**Configuration options:**
+```yaml
+config:
+  backend: hyperdrive
+  binding: string           # Wrangler binding name
+  databaseType: string      # postgres, mysql, or mariadb (default: postgres)
+  schema: string            # Schema name (Postgres only)
+  readOnly: boolean         # Prevent write operations (default: false)
+  operation: string         # query, get, put, delete, list
+```
+
+**PostgreSQL Example:**
 ```yaml
 operations:
   - name: query-postgres
     operation: data
     config:
       backend: hyperdrive
-      binding: HYPERDRIVE
+      binding: PRODUCTION_DB
+      databaseType: postgres
       operation: query
-      sql: SELECT * FROM users WHERE email = $1
+    input:
+      query: SELECT * FROM users WHERE email = $1
       params: [${input.email}]
 ```
 
-**Wrangler configuration**:
+**MySQL Example:**
+```yaml
+operations:
+  - name: query-mysql
+    operation: data
+    config:
+      backend: hyperdrive
+      binding: ANALYTICS_DB
+      databaseType: mysql
+      operation: query
+    input:
+      query: SELECT * FROM orders WHERE user_id = ?
+      params: [${input.userId}]
+```
+
+**Output:**
+```typescript
+{
+  rows: any[]              // Query results
+  metadata: {
+    executionTime: number  // Query duration (ms)
+    columns: string[]      // Column names
+    rowCount: number       // Number of rows returned
+    rowsAffected?: number  // For write operations
+  }
+  success: boolean
+}
+```
+
+**Wrangler configuration:**
 ```toml
 [[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "your-hyperdrive-id"
+binding = "PRODUCTION_DB"
+id = "your-hyperdrive-id-production"
+
+[[hyperdrive]]
+binding = "ANALYTICS_DB"
+id = "your-hyperdrive-id-analytics"
 ```
+
+<Note>
+Hyperdrive automatically handles connection pooling, so you don't need to manage connections manually. This dramatically reduces latency compared to direct database connections.
+</Note>
 
 ### Supabase Plugin
 
