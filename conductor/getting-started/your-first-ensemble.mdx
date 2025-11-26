@@ -114,6 +114,48 @@ output:
   result: ${risky-operation.output || fallback.output}
 ```
 
+### Default Values with Fallbacks
+
+```yaml
+# Nullish coalescing (??) - only catches null/undefined
+input:
+  name: ${input.query.name ?? input.body.name ?? "Guest"}
+  count: ${input.page ?? 1}  # Preserves 0 if page is 0
+
+# Falsy coalescing (||) - catches "", 0, false, null, undefined
+input:
+  title: ${input.title || "Untitled"}
+  limit: ${input.limit || 10}  # Uses 10 if limit is 0
+```
+
+### Ternary Conditions
+
+```yaml
+output:
+  status: ${process.success ? "completed" : "failed"}
+  tier: ${input.premium ? "premium" : "basic"}
+  greeting: ${input.name ? input.name : "Anonymous"}
+```
+
+### Array Access
+
+```yaml
+input:
+  first_item: ${response.items[0]}
+  second_user: ${input.users[1].name}
+  primary_tag: ${article.tags[0] ?? "untagged"}
+```
+
+### Boolean Negation
+
+```yaml
+condition: ${!input.disabled}      # Run if NOT disabled
+condition: ${!previous-step.failed} # Run if previous step didn't fail
+
+output:
+  is_active: ${!user.suspended}
+```
+
 ## Important: Agent Signatures for Ensembles
 
 **Critical**: For agents to work in ensembles, they MUST use the `AgentExecutionContext` signature!

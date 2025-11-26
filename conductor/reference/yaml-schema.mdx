@@ -130,6 +130,56 @@ ${agent-name.output.nested.field}  # Nested output
 ${component.name@v1.0.0}          # Component reference
 ```
 
+### Array Indexing
+
+```yaml
+${input.items[0]}                  # First array element
+${input.items[2]}                  # Third element (0-indexed)
+${input.users[0].name}             # Property of first element
+${data.results[1].meta.id}         # Deep nested access
+```
+
+### Nullish Coalescing (??)
+
+Returns the first value that is not `null` or `undefined`:
+
+```yaml
+${input.name ?? "default"}         # Use "default" if null/undefined
+${input.query.name ?? input.body.name ?? "Guest"}  # Chain fallbacks
+
+# Preserves falsy values (unlike ||)
+${input.count ?? 0}                # Returns 0 if count is 0, not the fallback
+${input.value ?? ""}               # Returns "" if value is ""
+```
+
+### Falsy Coalescing (||)
+
+Returns the first truthy value (catches `""`, `0`, `false`, `null`, `undefined`):
+
+```yaml
+${input.name || "default"}         # Use "default" if empty/falsy
+${input.count || 10}               # Use 10 if count is 0
+${input.enabled || true}           # Use true if enabled is false
+${input.a || input.b || "fallback"} # Chain multiple values
+```
+
+### Ternary Conditionals (?:)
+
+```yaml
+${input.enabled ? "yes" : "no"}    # Returns "yes" if truthy
+${input.count ? input.count : 1}   # Returns count or 1
+${input.premium ? 100 : 10}        # Numeric conditional
+${input.type ? input.type : "default"} # Path in branches
+```
+
+### Boolean Negation (!)
+
+```yaml
+${!input.disabled}                 # true if disabled is falsy
+${!input.hidden}                   # true if hidden is false/undefined
+${!agent.executed}                 # true if agent didn't run
+```
+
 ### Conditionals
 
 ```yaml
@@ -139,6 +189,15 @@ condition: ${agent.failed}
 condition: ${!agent.executed}
 condition: ${input.type === 'premium'}
 condition: ${input.age >= 18 && input.verified}
+```
+
+### Filter Chains
+
+```yaml
+${input.text | uppercase}          # Apply uppercase filter
+${input.text | split(" ") | first} # Chain multiple filters
+${input.items | length}            # Array/string length
+${input.value | default("none")}   # Default if empty
 ```
 
 ### Functions
@@ -154,6 +213,22 @@ ${array.filter(item => item.active)} # Array filter
 ${array.reduce((sum, item) => sum + item.value, 0)} # Array reduce
 ${string.split(',')}               # String split
 ${string.toUpperCase()}            # String uppercase
+```
+
+### Operator Precedence
+
+When combining operators, they're evaluated in this order:
+
+1. **Ternary** (`?:`) - evaluated first
+2. **Nullish coalescing** (`??`) - null/undefined only
+3. **Falsy coalescing** (`||`) - all falsy values
+4. **Filters** (`|`) - transformation chains
+
+```yaml
+# Complex example
+${input.enabled ? input.premium ?? "basic" : "disabled"}
+# If enabled is truthy: returns premium or "basic"
+# If enabled is falsy: returns "disabled"
 ```
 
 ## Operation-Specific Config
