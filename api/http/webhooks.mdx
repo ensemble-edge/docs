@@ -14,6 +14,10 @@ Conductor supports webhooks in two directions:
 
 Expose ensembles as webhook endpoints that can be triggered by external services.
 
+<Note>
+**You own your webhook paths.** You can define any path for your webhooks (e.g., `/github/events`, `/stripe/payments`, `/my-custom-path`). We recommend using `/webhooks/*` paths for clarity and consistency (e.g., `/webhooks/github`, `/webhooks/stripe`).
+</Note>
+
 ### Configure Inbound Webhook
 
 ```yaml
@@ -21,7 +25,7 @@ name: github-pr-review
 
 trigger:
   - type: webhook
-    path: /github/pr-review
+    path: /webhooks/github/pr-review  # Recommended: /webhooks/* prefix
     methods: [POST]
     public: false
     auth:
@@ -78,7 +82,7 @@ Response:
 ```yaml
 trigger:
   - type: webhook
-    path: /secure-endpoint
+    path: /webhooks/secure-endpoint
     auth:
       type: bearer
       secret: ${env.WEBHOOK_TOKEN}
@@ -88,7 +92,7 @@ trigger:
 ```yaml
 trigger:
   - type: webhook
-    path: /github-webhook
+    path: /webhooks/github
     auth:
       type: signature
       secret: ${env.GITHUB_SECRET}
@@ -114,7 +118,7 @@ const signature = 'sha256=' + crypto
 ```yaml
 trigger:
   - type: webhook
-    path: /oauth-endpoint
+    path: /webhooks/oauth-endpoint
     auth:
       type: oauth
       issuer: https://auth.example.com
@@ -125,7 +129,7 @@ trigger:
 ```yaml
 trigger:
   - type: webhook
-    path: /basic-auth
+    path: /webhooks/basic-auth
     auth:
       type: basic
       secret: ${env.BASIC_AUTH_CREDENTIALS}  # Format: username:password
@@ -135,7 +139,7 @@ trigger:
 ```yaml
 trigger:
   - type: webhook
-    path: /public-webhook
+    path: /webhooks/public
     public: true  # Explicitly allow anonymous access
 ```
 
@@ -649,7 +653,7 @@ if (recentFailures > 3) {
 # GOOD: Explicit authentication
 trigger:
   - type: webhook
-    path: /secure
+    path: /webhooks/secure
     auth:
       type: bearer
       secret: ${env.SECRET}
@@ -657,13 +661,13 @@ trigger:
 # GOOD: Explicitly public
 trigger:
   - type: webhook
-    path: /public
+    path: /webhooks/public
     public: true
 
 # BAD: No auth, not marked public (will be rejected)
 trigger:
   - type: webhook
-    path: /unsafe  # Error: requires auth or public: true
+    path: /webhooks/unsafe  # Error: requires auth or public: true
 ```
 
 ## Migration Guide

@@ -238,6 +238,10 @@ This approach gives you:
 
 Expose ensembles as HTTP endpoints for external services.
 
+<Note>
+**You own your webhook paths.** You can define any path you want. We recommend using `/webhooks/*` paths for clarity (e.g., `/webhooks/github`, `/webhooks/stripe`).
+</Note>
+
 ### Basic Webhook
 
 ```yaml
@@ -245,7 +249,7 @@ name: data-processor
 
 trigger:
   - type: webhook
-    path: /process
+    path: /webhooks/process  # Recommended: /webhooks/* prefix
     methods: [POST]
     public: true
 
@@ -277,7 +281,7 @@ curl -X POST https://your-worker.workers.dev/webhooks/process \
 ```yaml
 trigger:
   - type: webhook
-    path: /secure-endpoint
+    path: /webhooks/secure-endpoint
     methods: [POST, PUT]
     auth:
       type: bearer
@@ -299,7 +303,7 @@ curl -X POST https://your-worker.workers.dev/webhooks/secure-endpoint \
 ```yaml
 trigger:
   - type: webhook
-    path: /bearer-auth
+    path: /webhooks/bearer-auth
     auth:
       type: bearer
       secret: ${env.WEBHOOK_SECRET}
@@ -309,7 +313,7 @@ trigger:
 ```yaml
 trigger:
   - type: webhook
-    path: /github-webhook
+    path: /webhooks/github
     auth:
       type: signature
       secret: ${env.GITHUB_SECRET}
@@ -325,7 +329,7 @@ X-Webhook-Timestamp: 1705315200
 ```yaml
 trigger:
   - type: webhook
-    path: /basic-auth
+    path: /webhooks/basic-auth
     auth:
       type: basic
       secret: ${env.BASIC_CREDS}  # Format: username:password
@@ -338,7 +342,7 @@ For long-running ensembles, return immediately and process in background:
 ```yaml
 trigger:
   - type: webhook
-    path: /long-task
+    path: /webhooks/long-task
     methods: [POST]
     async: true
     timeout: 300000  # 5 minutes

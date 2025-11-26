@@ -357,6 +357,62 @@ Optional feedback:
 [Text area]
 ```
 
+## Callback URLs
+
+When a workflow is suspended for approval, Conductor generates a unique resumption token. The approval/rejection is handled via callback URLs:
+
+```
+# Resume with approval/rejection data
+POST /callback/:token
+Body: { approved: true/false, feedback?: string, reason?: string }
+
+# Get token metadata (without consuming it)
+GET /callback/:token
+```
+
+The base path (`/callback`) is configurable via `APIConfig.hitl.resumeBasePath`.
+
+### Security Model
+
+The callback URLs use **token-based authentication** - the token itself IS the auth (like a password reset link):
+
+- Token is cryptographically generated (`crypto.randomUUID()`)
+- Token is one-time use (deleted after resumption)
+- Token has expiration (configured via `timeout`)
+- Token is delivered via secure channel (notification to authorized user)
+
+### Example: Custom Approval UI
+
+```javascript
+// Get approval context
+const response = await fetch(`https://your-worker.workers.dev/callback/${token}`);
+const { metadata } = await response.json();
+
+// Display approval UI with metadata...
+
+// User clicks approve
+await fetch(`https://your-worker.workers.dev/callback/${token}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    approved: true,
+    feedback: 'Looks good!',
+    approver: 'jane@example.com'
+  })
+});
+
+// Or user clicks reject
+await fetch(`https://your-worker.workers.dev/callback/${token}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    approved: false,
+    reason: 'Needs revision',
+    feedback: 'Please fix the formatting'
+  })
+});
+```
+
 ## Best Practices
 
 **1. Set Reasonable Timeouts**

@@ -386,7 +386,7 @@ name: image-processor
 trigger:
   # Webhook enqueues images
   - type: webhook
-    path: /upload
+    path: /webhooks/upload
     methods: [POST]
     public: true
 
