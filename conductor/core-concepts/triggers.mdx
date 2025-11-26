@@ -858,11 +858,53 @@ trigger:
 | `input` | `object` | No | Default input data |
 | `metadata` | `object` | No | Schedule metadata |
 
+## Triggers vs API Routes
+
+Conductor provides two ways to execute ensembles:
+
+### Triggers (This Page)
+
+Triggers are defined in ensemble YAML and provide:
+- Path-based routing with parameters (`/users/:id`)
+- Per-trigger authentication configuration
+- Rate limiting and CORS settings
+- Auto-discovery from ensemble definitions
+
+```yaml
+trigger:
+  - type: http
+    path: /api/users/:id
+    public: true  # Explicit public access
+```
+
+### API Execute Routes
+
+The `/api/v1/execute/*` routes provide programmatic access:
+
+```bash
+# Execute via API (requires authentication by default)
+curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/my-workflow \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"input": {}}'
+```
+
+**Key Differences:**
+
+| Feature | Triggers | API Routes |
+|---------|----------|------------|
+| Configuration | Per-trigger in YAML | Global in `conductor.config.ts` |
+| Default Auth | Requires `public: true` or `auth` | Requires auth (secure by default) |
+| Use Case | Public APIs, webhooks | Service-to-service, internal |
+| Permissions | Per-trigger auth | Permission-based scoping |
+
+See [Security & Authentication](/conductor/building/security-authentication) for complete auth documentation.
+
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Webhooks" icon="webhook" href="/api/http/webhooks">
-    Complete webhook integration guide
+  <Card title="Security & Auth" icon="shield" href="/conductor/building/security-authentication">
+    API keys, permissions, and authentication
   </Card>
   <Card title="MCP Integration" icon="plug" href="/conductor/building/tools-mcp-integration">
     Expose ensembles as MCP tools

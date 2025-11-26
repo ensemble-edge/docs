@@ -69,15 +69,19 @@ Deploy it:
 
 ```bash
 conductor deploy
-# Live at: https://your-worker.workers.dev/ensembles/company-intel
 ```
 
-Test it:
+Test it via the API:
 
 ```bash
-curl https://your-worker.workers.dev/ensembles/company-intel \
+# Execute via API (requires authentication)
+curl https://your-worker.workers.dev/api/v1/execute/ensemble/company-intel \
+  -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"domain": "stripe.com"}'
+  -d '{"input": {"domain": "stripe.com"}}'
+
+# Or define an HTTP trigger for public access
+# See triggers documentation for auth options
 ```
 
 **You're running AI workflows at the edge in &lt;5 minutes.**
@@ -623,6 +627,10 @@ Your project includes:
 
   <Card title="Testing & Observability" icon="chart-line" href="/conductor/building/testing-observability">
     Debug and monitor your workflows
+  </Card>
+
+  <Card title="Security & Auth" icon="shield" href="/conductor/building/security-authentication">
+    API keys, permissions, and authentication
   </Card>
 </CardGroup>
 

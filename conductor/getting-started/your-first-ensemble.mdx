@@ -307,10 +307,9 @@ ppnpm run build
 **Step 3**: Execute via API
 
 ```bash
-curl -X POST http://localhost:8787/api/v1/execute \
+curl -X POST http://localhost:8787/api/v1/execute/ensemble/my-workflow \
   -H "Content-Type: application/json" \
   -d '{
-    "ensemble": "my-workflow",
     "input": { "data": "test" }
   }'
 ```
@@ -335,21 +334,22 @@ export default createAutoDiscoveryAPI({
 ```
 
 This provides:
-- `POST /api/v1/execute` - Execute any ensemble or agent
-- `GET /api/v1/ensembles` - List all ensembles (coming soon)
+- `POST /api/v1/execute/ensemble/{name}` - Execute an ensemble by name
+- `POST /api/v1/execute/agent/{name}` - Execute an agent directly (if enabled)
+- `GET /api/v1/ensembles` - List all ensembles
 - `GET /api/v1/agents` - List all agents
 - Automatic webhook and cron trigger handling
 
 ### Execute Request Format
 
-Execute an ensemble via the unified API:
+Execute an ensemble via the API:
 
 ```bash
-POST /api/v1/execute
+POST /api/v1/execute/ensemble/greeting-workflow
+Authorization: Bearer YOUR_TOKEN
 Content-Type: application/json
 
 {
-  "ensemble": "greeting-workflow",
   "input": {
     "name": "Alice",
     "style": "formal"
@@ -357,14 +357,16 @@ Content-Type: application/json
 }
 ```
 
-Execute an agent via the same API:
+> **Note:** All `/api/v1/*` routes require authentication by default. See [Security & Authentication](/conductor/building/security-authentication) for details.
+
+Execute an agent directly (if `allowDirectAgentExecution` is enabled):
 
 ```bash
-POST /api/v1/execute
+POST /api/v1/execute/agent/hello
+Authorization: Bearer YOUR_TOKEN
 Content-Type: application/json
 
 {
-  "agent": "hello",
   "input": {
     "name": "Bob"
   }

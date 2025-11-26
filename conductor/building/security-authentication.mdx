@@ -1,0 +1,459 @@
+---
+title: "Security & Authentication"
+description: "Secure your Conductor APIs with authentication, permissions, and API key management"
+---
+
+## Overview
+
+Conductor is **secure by default**. All API routes require authentication unless explicitly configured otherwise. This guide covers:
+
+1. **Two Execution Paths** - Triggers vs API routes
+2. **API Authentication** - Bearer tokens and API keys
+3. **Permission System** - Fine-grained access control
+4. **API Key Management** - CLI commands for key generation
+5. **Configuration** - Security settings in `conductor.config.ts`
+
+## Two Execution Paths
+
+Conductor provides two ways to execute ensembles and agents:
+
+### Path 1: HTTP Triggers (Recommended for Public APIs)
+
+Triggers are defined in ensemble YAML and go through the full routing system:
+
+```yaml
+name: public-api
+trigger:
+  - type: http
+    path: /api/users/:id
+    methods: [GET]
+    public: true  # Must be explicit!
+
+flow:
+  - agent: fetch-user
+```
+
+**Security Features:**
+- ✅ Explicit `public: true` required for unauthenticated access
+- ✅ Per-trigger auth configuration
+- ✅ Rate limiting support
+- ✅ CORS configuration
+- ✅ Path-based routing
+
+### Path 2: API Execute Routes (For Service-to-Service)
+
+The `/api/v1/execute/*` routes provide direct access to run ensembles and agents:
+
+```bash
+# Execute an ensemble
+POST /api/v1/execute/ensemble/invoice-pdf
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"input": {"orderId": "12345"}}
+
+# Execute an agent directly (if enabled)
+POST /api/v1/execute/agent/http
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"input": {"url": "https://api.example.com/data"}}
+```
+
+**Security Features:**
+- ✅ Authentication required by default
+- ✅ Permission-based access control
+- ✅ Direct agent execution can be disabled
+- ✅ Works with any auth provider (JWT, API keys, Unkey)
+
+## API Authentication
+
+All `/api/v1/*` routes require authentication by default. Conductor supports multiple authentication methods:
+
+### Bearer Token (JWT)
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/my-workflow \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  -H "Content-Type: application/json" \
+  -d '{"input": {}}'
+```
+
+Configure JWT validation in your auth provider or use the built-in bearer provider:
+
+```yaml
+# In ensemble trigger config
+auth:
+  type: bearer
+  secret: ${env.JWT_SECRET}
+```
+
+### API Key
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/my-workflow \
+  -H "X-API-Key: cnd_live_xxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"input": {}}'
+```
+
+API keys can be generated using the CLI (see below) or managed via Unkey.
+
+### Unkey Integration
+
+For production deployments, we recommend [Unkey](https://unkey.dev) for advanced API key management:
+
+```typescript
+// conductor.config.ts
+export default {
+  auth: {
+    provider: 'unkey',
+    rootKey: process.env.UNKEY_ROOT_KEY,
+  },
+}
+```
+
+Unkey provides:
+- Rate limiting per key
+- Usage analytics
+- Key expiration
+- Automatic key rotation
+
+## Permission System
+
+Conductor uses an industry-standard permission format compatible with OAuth 2.0 / RBAC patterns:
+
+```
+{resource}:{name}:{action}
+```
+
+### Permission Examples
+
+| Permission | Description |
+|-----------|-------------|
+| `*` | Superuser - full access |
+| `ensemble:*` | All ensemble permissions |
+| `ensemble:*:execute` | Execute any ensemble |
+| `ensemble:invoice-pdf:execute` | Execute specific ensemble |
+| `ensemble:billing-*:execute` | Execute ensembles starting with "billing-" |
+| `agent:*:execute` | Execute any agent |
+| `agent:http:execute` | Execute specific agent |
+
+### Wildcard Patterns
+
+The permission system supports glob-style wildcards:
+
+```typescript
+// These all match "ensemble:billing-invoice:execute"
+"*"                           // Superuser
+"ensemble:*"                  // All ensemble permissions
+"ensemble:*:execute"          // Execute any ensemble
+"ensemble:billing-*:execute"  // Pattern matching
+```
+
+### Auto-Permissions
+
+When `autoPermissions` is enabled, Conductor automatically requires the appropriate permission for each resource:
+
+```typescript
+// conductor.config.ts
+export default {
+  security: {
+    autoPermissions: true,
+  },
+}
+```
+
+With this enabled:
+- `POST /api/v1/execute/ensemble/invoice-pdf` requires `ensemble:invoice-pdf:execute`
+- `POST /api/v1/execute/agent/http` requires `agent:http:execute`
+
+## API Key Management
+
+Conductor includes CLI commands for managing API keys stored in Cloudflare KV.
+
+### Generate a Key
+
+```bash
+# Basic key with full access
+conductor keys generate --name "admin-key" --permissions "*"
+
+# Scoped key for specific ensembles
+conductor keys generate \
+  --name "billing-service" \
+  --permissions "ensemble:billing-*:execute,ensemble:invoice-*:execute" \
+  --expires "90d"
+
+# Key that never expires
+conductor keys generate \
+  --name "internal-service" \
+  --permissions "ensemble:*:execute" \
+  --expires "never"
+```
+
+Output:
+```
+✓ API Key generated
+Key ID: key_abc123
+Key: cnd_live_xxxxxxxxxxxxxxxxxxxx
+Permissions: ensemble:billing-*:execute, ensemble:invoice-*:execute
+Expires: 2024-05-15
+
+⚠️  Save this key now - it won't be shown again!
+```
+
+### List Keys
+
+```bash
+conductor keys list
+
+# Output as JSON
+conductor keys list --json
+```
+
+### Revoke a Key
+
+```bash
+conductor keys revoke key_abc123
+```
+
+### Get Key Info
+
+```bash
+conductor keys info key_abc123
+```
+
+### Rotate a Key
+
+Generate a new key while keeping the same metadata:
+
+```bash
+conductor keys rotate key_abc123
+```
+
+## Configuration
+
+### Security Configuration
+
+```typescript
+// conductor.config.ts
+export default {
+  auth: {
+    /**
+     * Require authentication on /api/* routes
+     * @default true (SECURE BY DEFAULT)
+     */
+    requireAuth: true,
+
+    /** List of valid API keys (for simple setups) */
+    apiKeys: [process.env.API_KEY],
+
+    /** Allow anonymous access (not recommended for production) */
+    allowAnonymous: false,
+  },
+
+  security: {
+    /**
+     * Allow direct agent execution via /api/v1/execute/agent/:name
+     * Set to false to only allow ensemble execution
+     * @default true
+     */
+    allowDirectAgentExecution: true,
+
+    /**
+     * Automatically require resource-specific permissions
+     * When true, executing ensemble "foo" requires permission "ensemble:foo:execute"
+     * @default false
+     */
+    autoPermissions: false,
+  },
+}
+```
+
+### Docs Authentication
+
+By default, documentation is protected. Shipped templates explicitly set `public` for convenience:
+
+```yaml
+# docs/docs.yaml
+route:
+  auth:
+    requirement: public  # Explicitly public for docs
+```
+
+To require authentication for docs:
+
+```yaml
+# docs/docs.yaml
+route:
+  auth:
+    requirement: required
+```
+
+## Security Best Practices
+
+### 1. Never Expose API Keys in Client Code
+
+API keys should only be used server-side. For client applications, use:
+- Short-lived JWT tokens
+- OAuth 2.0 flows
+- Session cookies
+
+### 2. Use Scoped Permissions
+
+Instead of giving services full access (`*`), scope their permissions:
+
+```bash
+# Bad: Full access
+conductor keys generate --name "billing" --permissions "*"
+
+# Good: Scoped to what's needed
+conductor keys generate --name "billing" \
+  --permissions "ensemble:billing-*:execute,ensemble:invoice-*:execute"
+```
+
+### 3. Rotate Keys Regularly
+
+```bash
+# Rotate keys periodically
+conductor keys rotate key_abc123
+```
+
+### 4. Use Unkey for Production
+
+For production deployments, use Unkey for:
+- Rate limiting
+- Usage analytics
+- Automatic rotation
+- Key insights
+
+### 5. Enable Auto-Permissions
+
+For strict access control:
+
+```typescript
+// conductor.config.ts
+export default {
+  security: {
+    autoPermissions: true,
+  },
+}
+```
+
+### 6. Disable Direct Agent Execution
+
+If you don't need to call agents directly:
+
+```typescript
+// conductor.config.ts
+export default {
+  security: {
+    allowDirectAgentExecution: false,
+  },
+}
+```
+
+## API Reference
+
+### Execute Ensemble
+
+```
+POST /api/v1/execute/ensemble/{name}
+```
+
+**Headers:**
+- `Authorization: Bearer <token>` or `X-API-Key: <key>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "input": {
+    // Ensemble input data
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "output": {
+    // Ensemble output
+  },
+  "metadata": {
+    "executionId": "req_abc123",
+    "duration": 1234,
+    "timestamp": 1699900000000
+  }
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Missing or invalid authentication
+- `403 Forbidden` - Missing required permission
+- `404 Not Found` - Ensemble not found
+- `500 Internal Server Error` - Execution failed
+
+### Execute Agent
+
+```
+POST /api/v1/execute/agent/{name}
+```
+
+**Headers:**
+- `Authorization: Bearer <token>` or `X-API-Key: <key>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "input": {
+    // Agent input data (required)
+  },
+  "config": {
+    // Optional config overrides
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    // Agent output
+  },
+  "metadata": {
+    "executionId": "req_abc123",
+    "duration": 567,
+    "timestamp": 1699900000000
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Missing required input
+- `401 Unauthorized` - Missing or invalid authentication
+- `403 Forbidden` - Direct agent execution disabled or missing permission
+- `404 Not Found` - Agent not found
+- `500 Internal Server Error` - Execution failed
+
+## Migrating from v0.3.x
+
+If you're upgrading from v0.3.x, note these breaking changes:
+
+1. **Auth Required by Default**: All `/api/v1/*` routes now require authentication. To restore open access (not recommended):
+   ```typescript
+   export default {
+     auth: {
+       requireAuth: false,
+     },
+   }
+   ```
+
+2. **Docs Auth Default Changed**: Documentation now defaults to `required` auth. Shipped templates explicitly set `public`.
+
+3. **New Route Structure**: Prefer the new URL-based routes:
+   - Old: `POST /api/v1/execute` with `{"ensemble": "name"}`
+   - New: `POST /api/v1/execute/ensemble/{name}`

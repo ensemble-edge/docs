@@ -202,7 +202,7 @@ const results = await Promise.all(
 ### Check Current Usage
 
 ```bash
-curl https://api.ensemble.dev/v1/usage \
+curl https://your-worker.workers.dev/api/v1/usage \
   -H "Authorization: Bearer ${API_TOKEN}"
 ```
 
@@ -228,28 +228,23 @@ Response:
 
 ### Usage Dashboard
 
-View real-time usage at:
+Monitor your usage through Cloudflare's dashboard or implement custom analytics in your Conductor deployment.
+
+## Configure Rate Limits
+
+Rate limits can be configured in your `conductor.config.ts`:
+
+```typescript
+export default {
+  rateLimit: {
+    requests: 1000,      // Per hour
+    window: 3600,        // Seconds
+    concurrent: 50       // Max concurrent executions
+  }
+}
 ```
-https://cloud.ensemble.dev/usage
-```
 
-## Increase Limits
-
-### Upgrade Plan
-
-```bash
-# Upgrade to Pro
-conductor upgrade pro
-
-# Or visit dashboard
-https://cloud.ensemble.dev/billing
-```
-
-### Request Increase
-
-For Enterprise plans, contact:
-- Email: sales@ensemble.dev
-- Dashboard: Settings  Rate Limits  Request Increase
+For custom rate limiting, you can use Cloudflare's built-in rate limiting or implement your own middleware.
 
 ## Error Codes
 
@@ -269,7 +264,7 @@ For Enterprise plans, contact:
   <Card title="Webhooks" icon="webhook" href="/api/http/webhooks">
     Avoid polling
   </Card>
-  <Card title="Upgrade" icon="arrow-up" href="https://ensemble.dev/pricing">
+  <Card title="Upgrade" icon="arrow-up" href="https://ensemble.ai/pricing">
     Increase limits
   </Card>
 </CardGroup>

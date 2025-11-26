@@ -91,10 +91,13 @@ outputs:
 ### 3. Get Structured Output
 
 ```bash
-curl -X POST https://your-worker.workers.dev/execute/contact-extractor \
+curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/contact-extractor \
+  -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "John Smith, john@acme.com, works at Acme Corp"
+    "input": {
+      "text": "John Smith, john@acme.com, works at Acme Corp"
+    }
   }'
 ```
 

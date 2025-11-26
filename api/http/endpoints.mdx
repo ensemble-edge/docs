@@ -6,14 +6,10 @@ description: "Complete REST API for ensemble execution and management"
 ## Base URL
 
 ```
-https://api.ensemble.dev/v1
-```
-
-Or self-hosted:
-
-```
 https://your-worker.workers.dev/api/v1
 ```
+
+Replace `your-worker.workers.dev` with your deployed Cloudflare Worker URL.
 
 ## Authentication
 
@@ -30,18 +26,14 @@ Execute an ensemble workflow.
 ### Request
 
 ```http
-POST /ensembles/{name}/execute
+POST /api/v1/execute/ensemble/{name}
 Content-Type: application/json
 Authorization: Bearer {token}
 
 {
-  "inputs": {
+  "input": {
     "field1": "value1",
     "field2": "value2"
-  },
-  "options": {
-    "timeout": 30000,
-    "enableTracing": true
   }
 }
 ```
@@ -85,11 +77,11 @@ Authorization: Bearer {token}
 ### Example
 
 ```bash
-curl -X POST https://api.ensemble.dev/v1/ensembles/user-onboarding/execute \
+curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/user-onboarding \
   -H "Authorization: Bearer ${API_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "inputs": {
+    "input": {
       "email": "alice@example.com",
       "name": "Alice"
     }
@@ -98,17 +90,19 @@ curl -X POST https://api.ensemble.dev/v1/ensembles/user-onboarding/execute \
 
 ## Execute Agent
 
-Execute a single agent.
+Execute a single agent directly.
+
+> **Note**: Direct agent execution must be enabled in your security configuration. See [Security & Authentication](/conductor/building/security-authentication).
 
 ### Request
 
 ```http
-POST /agents/{name}/execute
+POST /api/v1/execute/agent/{name}
 Content-Type: application/json
 Authorization: Bearer {token}
 
 {
-  "inputs": {
+  "input": {
     "company_name": "Anthropic"
   }
 }
@@ -140,7 +134,7 @@ Get all available ensembles.
 ### Request
 
 ```http
-GET /ensembles
+GET /api/v1/ensembles
 Authorization: Bearer {token}
 ```
 
@@ -178,7 +172,7 @@ Get ensemble metadata.
 ### Request
 
 ```http
-GET /ensembles/{name}
+GET /api/v1/ensembles/{name}
 Authorization: Bearer {token}
 ```
 
@@ -202,7 +196,7 @@ Get all available agents.
 ### Request
 
 ```http
-GET /agents
+GET /api/v1/agents
 Authorization: Bearer {token}
 ```
 
@@ -229,7 +223,7 @@ Get execution status and details.
 ### Request
 
 ```http
-GET /executions/{id}
+GET /api/v1/executions/{id}
 Authorization: Bearer {token}
 ```
 
@@ -256,7 +250,7 @@ Cancel a running execution.
 ### Request
 
 ```http
-POST /executions/{id}/cancel
+POST /api/v1/executions/{id}/cancel
 Authorization: Bearer {token}
 ```
 
@@ -276,7 +270,7 @@ Get execution history.
 ### Request
 
 ```http
-GET /executions
+GET /api/v1/executions
 Authorization: Bearer {token}
 ```
 
@@ -312,7 +306,7 @@ Get ensemble state.
 ### Request
 
 ```http
-GET /executions/{id}/state
+GET /api/v1/executions/{id}/state
 Authorization: Bearer {token}
 ```
 
@@ -336,7 +330,7 @@ Update ensemble state.
 ### Request
 
 ```http
-PUT /executions/{id}/state
+PUT /api/v1/executions/{id}/state
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -363,7 +357,7 @@ Get execution logs.
 ### Request
 
 ```http
-GET /executions/{id}/logs
+GET /api/v1/executions/{id}/logs
 Authorization: Bearer {token}
 ```
 
@@ -394,7 +388,7 @@ Check API health.
 ### Request
 
 ```http
-GET /health
+GET /api/v1/health
 ```
 
 ### Response
@@ -460,7 +454,7 @@ When rate limited (429):
 List endpoints support cursor-based pagination:
 
 ```http
-GET /executions?limit=100&cursor=cursor-xyz...
+GET /api/v1/executions?limit=100&cursor=cursor-xyz...
 ```
 
 Response includes:

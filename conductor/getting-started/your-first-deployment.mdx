@@ -78,10 +78,9 @@ curl http://localhost:8787/api/v1/agents
 }
 
 # Test execution
-curl -X POST http://localhost:8787/api/v1/execute \
+curl -X POST http://localhost:8787/api/v1/execute/ensemble/hello-world \
   -H "Content-Type: application/json" \
   -d '{
-    "ensemble": "hello-world",
     "input": { "name": "Production" }
   }'
 ```
@@ -92,12 +91,15 @@ After deployment, your auto-discovered resources are available at:
 
 ```bash
 # Execute ensembles
-https://your-app.workers.dev/api/v1/execute
+https://your-app.workers.dev/api/v1/execute/ensemble/{name}
+
+# Execute agents (if enabled)
+https://your-app.workers.dev/api/v1/execute/agent/{name}
 
 # List agents
 https://your-app.workers.dev/api/v1/agents
 
-# List ensembles (coming soon)
+# List ensembles
 https://your-app.workers.dev/api/v1/ensembles
 
 # Health check

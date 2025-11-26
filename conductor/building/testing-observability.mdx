@@ -222,231 +222,337 @@ describe('process-invoice ensemble', () => {
 });
 ```
 
-### Testing Parallel Execution
+---
+
+## Observability Configuration
+
+Conductor provides **Cloudflare-first** observability with structured logging, metrics via Analytics Engine, and optional OpenTelemetry export.
+
+### Configuration in conductor.config.ts
 
 ```typescript
-describe('parallel-processing ensemble', () => {
-  it('should execute agents in parallel', async () => {
-    const conductor = await TestConductor.create();
-    await conductor.loadProject('./');
+// conductor.config.ts
+import { defineConfig } from '@ensemble-edge/conductor'
 
-    const result = await conductor.execute('parallel-processing', {
-      urls: ['url1', 'url2', 'url3']
-    });
+export default defineConfig({
+  observability: {
+    // Logging configuration
+    logging: {
+      enabled: true,
+      level: 'info',  // 'debug' | 'info' | 'warn' | 'error'
+      format: 'json', // JSON for Workers Logs indexing
 
-    expect(result).toBeSuccessful();
+      // Fields to automatically include in all logs
+      context: ['requestId', 'executionId', 'ensembleName', 'agentName'],
 
-    // Check all agents executed
-    expect(result.agents['fetch-1'].executed).toBe(true);
-    expect(result.agents['fetch-2'].executed).toBe(true);
-    expect(result.agents['fetch-3'].executed).toBe(true);
+      // Sensitive fields to redact (replaced with [REDACTED])
+      redact: ['password', 'apiKey', 'token', 'authorization', 'secret'],
 
-    // Check they started at roughly the same time
-    const startTimes = [
-      result.agents['fetch-1'].startTime,
-      result.agents['fetch-2'].startTime,
-      result.agents['fetch-3'].startTime
-    ];
+      // Events to log automatically
+      events: [
+        'request',        // HTTP requests
+        'response',       // HTTP responses
+        'agent:start',    // Agent execution start
+        'agent:complete', // Agent completion
+        'agent:error',    // Agent errors
+      ],
+    },
 
-    const timeSpread = Math.max(...startTimes) - Math.min(...startTimes);
-    expect(timeSpread).toBeLessThan(100); // Within 100ms
-  });
-});
+    // Analytics Engine metrics
+    metrics: {
+      enabled: true,
+      binding: 'ANALYTICS', // Must match wrangler.toml
+      track: [
+        'ensemble:execution',  // Ensemble duration/success
+        'agent:execution',     // Agent duration/success
+        'http:request',        // HTTP request stats
+        'error',               // Error counts
+      ],
+    },
+
+    // Optional: External observability (Datadog, Honeycomb, etc.)
+    opentelemetry: {
+      enabled: false,
+      endpoint: 'https://api.honeycomb.io',
+      headers: { 'x-honeycomb-team': '${HONEYCOMB_API_KEY}' },
+      samplingRate: 1.0,
+    },
+
+    // Track AI token usage for cost analysis
+    trackTokenUsage: true,
+  },
+})
 ```
 
-### Testing State Management
+### Setting Up Analytics Engine
+
+Add to your `wrangler.toml`:
+
+```toml
+# Analytics Engine for metrics
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "conductor-metrics"
+```
+
+Then create the dataset in Cloudflare Dashboard:
+1. Go to **Workers & Pages** → **Analytics Engine**
+2. Click **Create dataset**
+3. Name it `conductor-metrics`
+
+---
+
+## Logging in Agents
+
+Every agent receives a pre-configured `logger` and `metrics` recorder in its execution context:
 
 ```typescript
-describe('stateful-workflow ensemble', () => {
-  it('should maintain state across operations', async () => {
-    const conductor = await TestConductor.create();
-    await conductor.loadProject('./');
+// scripts/my-agent.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-    const result = await conductor.execute('stateful-workflow', {
-      item: 'item1'
-    });
+export default async function myAgent(context: AgentExecutionContext) {
+  const { input, logger, metrics, executionId, requestId } = context
 
-    expect(result).toBeSuccessful();
-    expect(result.state.processed_items).toContain('item1');
-    expect(result.state.total_count).toBe(1);
-  });
-});
+  // Structured logging - automatically includes execution context
+  logger.info('Processing started', {
+    itemCount: input.items.length,
+    category: input.category
+  })
+
+  const startTime = Date.now()
+
+  try {
+    const result = await processItems(input.items)
+
+    // Log completion
+    logger.info('Processing complete', {
+      processedCount: result.length,
+      durationMs: Date.now() - startTime
+    })
+
+    // Record custom metric
+    metrics.record('items.processed', result.length, {
+      category: input.category
+    })
+
+    return result
+  } catch (error) {
+    // Error logging with stack trace
+    logger.error('Processing failed', error, {
+      itemCount: input.items.length,
+      attemptedAt: Date.now()
+    })
+
+    // Record error metric
+    metrics.recordError('ProcessingError', input.category)
+
+    throw error
+  }
+}
 ```
+
+### Log Levels
+
+| Level | Use For | Example |
+|-------|---------|---------|
+| `debug` | Detailed debugging | Input/output values, cache decisions |
+| `info` | Normal operations | Start/complete events, important milestones |
+| `warn` | Potential issues | Rate limits, fallback usage, slow queries |
+| `error` | Failures | Exceptions, validation errors, API failures |
+
+---
+
+## YAML-Based Observability
+
+### Agent-Level Logging
+
+```yaml
+# agents/sensitive-processor/agent.yaml
+name: sensitive-processor
+operation: code
+config:
+  script: scripts/sensitive-processor
+
+# Agent-level logging overrides
+logging:
+  level: debug  # More verbose for this agent
+  redact:
+    - password
+    - ssn
+    - creditCard
+  events:
+    onStart: true
+    onComplete: true
+    onError: true
+
+# Agent-level metrics
+metrics:
+  enabled: true
+  custom:
+    - name: records.processed
+      value: output.count
+      type: counter
+```
+
+### Ensemble-Level Logging
+
+```yaml
+# ensembles/user-workflow.yaml
+name: user-workflow
+
+# Ensemble-level logging configuration
+logging:
+  level: info
+  trace:
+    enabled: true
+    includeInputs: true
+    includeOutputs: false  # Don't log large outputs
+    redactInputs:
+      - password
+      - creditCard
+
+# Ensemble-level metrics
+metrics:
+  enabled: true
+  custom:
+    - name: workflow.completed
+      condition: success
+      type: counter
+    - name: workflow.duration
+      value: _executionTime
+      type: histogram
+
+flow:
+  - name: validate
+    agent: validator
+    input:
+      data: ${input.userData}
+
+  - name: process
+    agent: processor
+    input:
+      validated: ${validate.output}
+
+output:
+  success: ${process.output.success}
+  data: ${process.output.result}
+```
+
+---
+
+## Querying Metrics
+
+### Analytics Engine SQL API
+
+Query your metrics using the Cloudflare dashboard or API:
+
+```sql
+-- Average ensemble execution time (last 24 hours)
+SELECT
+  blob1 as ensemble_name,
+  AVG(double1) as avg_duration_ms,
+  MIN(double1) as min_duration_ms,
+  MAX(double1) as max_duration_ms,
+  COUNT(*) as executions
+FROM conductor_metrics
+WHERE index1 = 'ensemble.execution'
+  AND timestamp > NOW() - INTERVAL '24' HOUR
+GROUP BY blob1
+ORDER BY avg_duration_ms DESC
+
+-- Agent error rate
+SELECT
+  blob1 as agent_name,
+  SUM(CASE WHEN double2 = 0 THEN 1 ELSE 0 END) as failures,
+  COUNT(*) as total,
+  ROUND(SUM(CASE WHEN double2 = 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as error_rate_pct
+FROM conductor_metrics
+WHERE index1 = 'agent.execution'
+  AND timestamp > NOW() - INTERVAL '7' DAY
+GROUP BY blob1
+HAVING COUNT(*) > 10
+ORDER BY error_rate_pct DESC
+
+-- Cache hit rate
+SELECT
+  blob1 as cache_status,
+  COUNT(*) as count,
+  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) as percentage
+FROM conductor_metrics
+WHERE index1 = 'cache.performance'
+  AND timestamp > NOW() - INTERVAL '1' DAY
+GROUP BY blob1
+```
+
+---
 
 ## Production Monitoring
 
-### Cloudflare Analytics
+### Cloudflare Workers Dashboard
 
-View metrics in Cloudflare dashboard:
-
-1. **Workers & Pages**  Your worker  **Metrics**
-2. View:
+View real-time metrics:
+1. **Workers & Pages** → Your worker → **Metrics**
+2. Monitor:
    - Requests per second
    - Error rate
    - CPU time
    - Duration (p50, p95, p99)
 
-### Custom Metrics
+### Viewing Logs
 
-Log custom metrics:
+```bash
+# Stream all logs
+wrangler tail
 
-```yaml
-ensemble: monitored-workflow
+# Filter by status
+wrangler tail --status=error
 
-agents:
-  - name: process
-    agent: processor
-    inputs:
-      data: ${input.data}
-
-  # Log metrics
-  - name: log-metrics
-    operation: data
-    config:
-      backend: d1
-      binding: DB
-      operation: execute
-      sql: |
-        INSERT INTO metrics
-        (ensemble, agent, duration_ms, success, timestamp)
-        VALUES (?, ?, ?, ?, ?)
-      params:
-        - monitored-workflow
-        - process
-        - ${process.duration}
-        - ${!process.failed}
-        - ${Date.now()}
-
-output:
-  result: ${process.output}
-  duration_ms: ${process.duration}
+# Filter by specific execution
+wrangler tail --search="exec_abc123"
 ```
 
-Query metrics:
+### Log Format
 
-```sql
--- Average duration by agent
-SELECT
-  agent,
-  AVG(duration_ms) as avg_duration_ms,
-  MIN(duration_ms) as min_duration_ms,
-  MAX(duration_ms) as max_duration_ms,
-  COUNT(*) as executions
-FROM metrics
-WHERE timestamp > datetime('now', '-24 hours')
-GROUP BY agent
-ORDER BY avg_duration_ms DESC;
+Conductor outputs structured JSON logs for Cloudflare Workers Logs:
 
--- Success rate by ensemble
-SELECT
-  ensemble,
-  COUNT(*) as total,
-  SUM(CASE WHEN success THEN 1 ELSE 0 END) as successes,
-  ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) * 100, 2) as success_rate_pct
-FROM metrics
-WHERE timestamp > datetime('now', '-24 hours')
-GROUP BY ensemble;
+```json
+{
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "level": "info",
+  "message": "Agent execution completed",
+  "service": "conductor",
+  "requestId": "req_abc123",
+  "executionId": "exec_xyz789",
+  "ensembleName": "user-workflow",
+  "agentName": "processor",
+  "stepIndex": 2,
+  "durationMs": 150,
+  "cached": false
+}
 ```
 
-### Logging
+### OpenTelemetry Integration
+
+Export to external platforms like Datadog or Honeycomb:
 
 ```typescript
-// src/index.ts
-import { Conductor } from '@ensemble-edge/conductor';
-
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const conductor = new Conductor({ env, ctx });
-
-    // Log request
-    console.log('Request:', {
-      url: request.url,
-      method: request.method,
-      timestamp: Date.now()
-    });
-
-    try {
-      const result = await conductor.execute('my-ensemble', {});
-
-      // Log success
-      console.log('Success:', {
-        ensemble: 'my-ensemble',
-        duration_ms: result.duration,
-        agents_executed: Object.keys(result.agents).filter(k => result.agents[k].executed).length
-      });
-
-      return Response.json(result.output);
-    } catch (error) {
-      // Log error
-      console.error('Error:', {
-        ensemble: 'my-ensemble',
-        error: error.message,
-        stack: error.stack
-      });
-
-      return Response.json({ error: error.message }, { status: 500 });
-    }
-  }
-};
+// conductor.config.ts
+export default defineConfig({
+  observability: {
+    opentelemetry: {
+      enabled: true,
+      endpoint: 'https://http-intake.logs.datadoghq.com/api/v2/logs',
+      headers: {
+        'DD-API-KEY': '${DATADOG_API_KEY}',
+        'DD-SOURCE': 'conductor'
+      },
+      samplingRate: 0.1, // Sample 10% of requests
+    },
+  },
+})
 ```
 
-View logs:
-```bash
-wrangler tail
-wrangler tail --status=error
-```
-
-### Error Tracking
-
-Store errors for analysis:
-
-```yaml
-ensemble: error-tracked-workflow
-
-agents:
-  - name: process
-    agent: processor
-    inputs:
-      data: ${input.data}
-
-  # Log errors
-  - name: log-error
-    condition: ${process.failed}
-    operation: data
-    config:
-      backend: d1
-      binding: DB
-      operation: execute
-      sql: |
-        INSERT INTO errors
-        (ensemble, agent, error_message, input_data, timestamp)
-        VALUES (?, ?, ?, ?, ?)
-      params:
-        - error-tracked-workflow
-        - process
-        - ${process.error}
-        - ${JSON.stringify(input.data)}
-        - ${Date.now()}
-
-output:
-  result: ${process.output}
-  error: ${process.error}
-```
-
-Query errors:
-
-```sql
--- Error frequency
-SELECT
-  agent,
-  error_message,
-  COUNT(*) as occurrences
-FROM errors
-WHERE timestamp > datetime('now', '-7 days')
-GROUP BY agent, error_message
-ORDER BY occurrences DESC
-LIMIT 10;
-```
+---
 
 ## Debugging
 
@@ -455,18 +561,16 @@ LIMIT 10;
 ```yaml
 ensemble: debuggable-workflow
 
-debug: true  # Enable debug output
+logging:
+  level: debug  # Enable verbose logging
+  trace:
+    enabled: true
+    includeInputs: true
+    includeOutputs: true
 
-agents:
+flow:
   # ... agents ...
 ```
-
-Output includes:
-- Execution timeline
-- Operation inputs/outputs
-- Cache hits/misses
-- Retry attempts
-- Error details
 
 ### Local Development
 
@@ -475,56 +579,38 @@ Output includes:
 wrangler dev --log-level=debug
 
 # Test ensemble locally
-curl http://localhost:8787/api/v1/execute \
+curl -X POST http://localhost:8787/api/v1/execute/ensemble/my-ensemble \
   -H "Content-Type: application/json" \
-  -d '{
-    "ensemble": "my-ensemble",
-    "input": { "test": "data" }
-  }'
+  -d '{"input": { "test": "data" }}'
 ```
 
-### Trace Execution
-
-```yaml
-ensemble: traceable-workflow
-
-agents:
-  - name: step1
-    operation: code
-    config:
-      script: scripts/traceable-step1
-    input:
-      data: ${input.data}
-
-  - name: step2
-    operation: code
-    config:
-      script: scripts/traceable-step2
-    input:
-      previousOutput: ${step1.output}
-```
+### Trace Execution with Logger
 
 ```typescript
-// scripts/traceable-step1.ts
+// scripts/traceable-agent.ts
 import type { AgentExecutionContext } from '@ensemble-edge/conductor'
 
-export default async function traceableStep1(context: AgentExecutionContext) {
-  console.log('Step1 input:', JSON.stringify(context.input))
-  const result = processData(context.input.data)
-  console.log('Step1 output:', JSON.stringify(result))
-  return result
-}
+export default async function traceableAgent(context: AgentExecutionContext) {
+  const { logger, executionId, input } = context
 
-// scripts/traceable-step2.ts
-import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+  // Use built-in logger instead of console.log
+  logger.debug('Agent started', {
+    executionId,
+    inputKeys: Object.keys(input)
+  })
 
-export default async function traceableStep2(context: AgentExecutionContext) {
-  console.log('Step2 input:', JSON.stringify(context.input.previousOutput))
-  const result = transformData(context.input.previousOutput)
-  console.log('Step2 output:', JSON.stringify(result))
+  const result = await processData(input.data)
+
+  logger.debug('Agent completed', {
+    executionId,
+    outputKeys: Object.keys(result)
+  })
+
   return result
 }
 ```
+
+---
 
 ## Performance Testing
 
@@ -532,22 +618,15 @@ export default async function traceableStep2(context: AgentExecutionContext) {
 
 ```typescript
 // scripts/load-test.ts
-import { Conductor } from '@ensemble-edge/conductor';
-
 async function loadTest() {
-  const results = [];
-
   // Send 100 concurrent requests
   const promises = Array.from({ length: 100 }, async (_, i) => {
     const start = Date.now();
 
-    const result = await fetch('https://your-worker.workers.dev', {
+    const result = await fetch('https://your-worker.workers.dev/api/v1/execute/ensemble/my-ensemble', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ensemble: 'my-ensemble',
-        input: { id: i }
-      })
+      body: JSON.stringify({ input: { id: i } })
     });
 
     const duration = Date.now() - start;
@@ -559,7 +638,8 @@ async function loadTest() {
   // Analyze results
   const successes = results.filter(r => r.success).length;
   const avgDuration = results.reduce((sum, r) => sum + r.duration, 0) / results.length;
-  const p95Duration = results.sort((a, b) => a.duration - b.duration)[Math.floor(results.length * 0.95)].duration;
+  const sorted = results.sort((a, b) => a.duration - b.duration);
+  const p95Duration = sorted[Math.floor(results.length * 0.95)].duration;
 
   console.log({
     total: results.length,
@@ -573,18 +653,22 @@ async function loadTest() {
 loadTest();
 ```
 
+---
+
 ## Best Practices
 
 1. **Test Coverage** - Aim for 80%+ coverage
 2. **Mock External Calls** - Don't hit real APIs in tests
 3. **Test Error Paths** - Test failures and fallbacks
-4. **Monitor Continuously** - Track metrics in production
-5. **Log Strategically** - Log important events, not everything
-6. **Debug Locally First** - Use `wrangler dev` before deploying
-7. **Track Errors** - Store errors for analysis
-8. **Performance Test** - Load test before major releases
-9. **Alert on Anomalies** - Set up alerts for errors/slowness
-10. **Review Logs Regularly** - Check for patterns
+4. **Use Structured Logging** - Always log as JSON with context
+5. **Redact Sensitive Data** - Configure `redact` patterns
+6. **Monitor Continuously** - Track metrics in production
+7. **Set Up Alerts** - Alert on error rate spikes
+8. **Sample in Production** - Use `samplingRate` for high-volume traffic
+9. **Debug Locally First** - Use `wrangler dev` before deploying
+10. **Review Logs Regularly** - Check for patterns and anomalies
+
+---
 
 ## Next Steps
 

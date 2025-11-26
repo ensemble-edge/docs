@@ -404,6 +404,102 @@ List all configuration.
 conductor config:list
 ```
 
+## API Key Commands
+
+Manage API keys for authentication. Keys are stored in Cloudflare KV.
+
+### keys generate
+
+Generate a new API key with optional scoped permissions.
+
+```bash
+conductor keys generate --name <name> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--name <name>` | Human-readable name for the key (required) |
+| `--permissions <perms>` | Comma-separated permissions (default: `*`) |
+| `--expires <duration>` | Expiration: `30d`, `90d`, `1y`, `never` (default: `90d`) |
+| `--user-id <userId>` | User/service ID this key belongs to |
+| `--json` | Output as JSON |
+
+**Examples:**
+
+```bash
+# Full access key
+conductor keys generate --name "admin" --permissions "*"
+
+# Scoped key for billing ensembles
+conductor keys generate \
+  --name "billing-service" \
+  --permissions "ensemble:billing-*:execute,ensemble:invoice-*:execute" \
+  --expires "90d"
+
+# Key that never expires
+conductor keys generate --name "internal" --permissions "*" --expires never
+```
+
+### keys list
+
+List all API keys.
+
+```bash
+conductor keys list [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON |
+
+### keys revoke
+
+Revoke an API key.
+
+```bash
+conductor keys revoke <keyId> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON |
+
+### keys info
+
+Show information about an API key.
+
+```bash
+conductor keys info <keyId> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON |
+
+### keys rotate
+
+Rotate an API key (generates new key, keeps metadata).
+
+```bash
+conductor keys rotate <keyId> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON |
+
+---
+
 ## Secrets Commands
 
 ### secret:set

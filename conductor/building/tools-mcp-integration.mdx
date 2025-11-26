@@ -522,11 +522,10 @@ outputs:
 
 **1. Use research-assistant ensemble directly:**
 ```bash
-curl https://your-worker.workers.dev/api/v1/execute \
+curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/research-assistant \
   -H "X-API-Key: ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-    "ensemble": "research-assistant",
     "input": {
       "question": "How to implement MCP servers?",
       "repo": "anthropics/model-context-protocol"
