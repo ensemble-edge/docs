@@ -715,6 +715,49 @@ TypeScript ensembles support the same expression syntax as YAML:
 '${stepName.output.nested.field}' // Nested output
 ```
 
+### Array Indexing
+
+```typescript
+'${input.items[0]}'               // First array element
+'${input.users[0].name}'          // Property of first element
+'${data.results[1].meta.id}'      // Deep nested access
+```
+
+### Nullish Coalescing (??)
+
+Returns the first value that is not `null` or `undefined`:
+
+```typescript
+'${input.name ?? "default"}'      // Use "default" if null/undefined
+'${input.query.name ?? input.body.name ?? "Guest"}'  // Chain fallbacks
+'${input.count ?? 0}'             // Preserves 0 (unlike ||)
+```
+
+### Falsy Coalescing (||)
+
+Returns the first truthy value (catches `""`, `0`, `false`, `null`, `undefined`):
+
+```typescript
+'${input.name || "default"}'      // Use "default" if empty/falsy
+'${input.count || 10}'            // Use 10 if count is 0
+'${input.a || input.b || "fallback"}'  // Chain values
+```
+
+### Ternary Conditionals (?:)
+
+```typescript
+'${input.enabled ? "yes" : "no"}'       // Returns "yes" if truthy
+'${input.premium ? 100 : 10}'           // Numeric conditional
+'${input.type ? input.type : "default"}' // Path in branches
+```
+
+### Boolean Negation (!)
+
+```typescript
+'${!input.disabled}'              // true if disabled is falsy
+'${!stepName.executed}'           // true if step didn't run
+```
+
 ### Conditionals
 
 ```typescript
@@ -724,6 +767,14 @@ TypeScript ensembles support the same expression syntax as YAML:
 '${!stepName.executed}'
 '${input.type === "premium"}'
 '${input.age >= 18 && input.verified}'
+```
+
+### Filter Chains
+
+```typescript
+'${input.text | uppercase}'       // Apply uppercase filter
+'${input.text | split(" ") | first}'  // Chain filters
+'${input.items | length}'         // Array/string length
 ```
 
 ### Functions
