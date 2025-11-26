@@ -180,6 +180,8 @@ my-project/
 
 **Pattern:** `agents/**/*.yaml`
 
+**Included:** `agents/examples/**` (by default, set `includeExamples: false` to exclude)
+
 **Excluded:** `agents/generate-docs/**` (by default)
 
 **Handler Detection:** If `agents/{name}/index.ts` exists, it's auto-loaded as the handler
@@ -191,8 +193,11 @@ agents/
 ├── greet/
 │   ├── agent.yaml      # Config
 │   └── index.ts        # Handler (optional)
-└── analyze/
-    └── agent.yaml      # Config only
+├── analyze/
+│   └── agent.yaml      # Config only
+└── examples/           # ✅ Included by default
+    └── hello/
+        └── agent.yaml
 ```
 
 </Accordion>
@@ -285,6 +290,21 @@ if (loader) {
 ---
 
 ## Advanced Usage
+
+### Including/Excluding Examples
+
+By default, agents in `agents/examples/` **are included** in discovery. To exclude example agents:
+
+```typescript
+// vite.config.ts
+export default defineConfig({
+  plugins: [
+    agentDiscoveryPlugin({
+      includeExamples: false, // Exclude agents/examples/
+    }),
+  ],
+})
+```
 
 ### Custom Exclusions
 
