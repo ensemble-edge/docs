@@ -1,61 +1,72 @@
 ---
 title: Your First Documentation
-description: Generate & maintain API documentation using Conductor's built-in tools
+description: Set up API documentation using Conductor's docs/ directory
 ---
 
 **Estimated Time:** 10-15 minutes
-**Prerequisites:** Working Conductor 1.8.1+ project
+**Prerequisites:** Working Conductor project
 
 ## What You'll Learn
 
 By the end of this guide, you'll understand how to:
 
-- 📖 Auto-generate API documentation from your code
+- 📖 Create a `docs/` directory with auto-generated API documentation
+- ✍️ Write markdown documentation pages with frontmatter
+- 🎨 Customize branding, themes, and navigation
 - 🔐 Control documentation access (public, authenticated, admin)
-- 🔍 Add semantic search to your docs
-- ✍️ Use AI to write better documentation
-- 🔄 Keep docs in sync with code changes
-- 📊 Deploy documentation to production
+- 🔄 Use Handlebars templating for dynamic content
 
 ## Understanding Documentation in Conductor
 
-### What's the Difference?
+The `docs/` directory is a **first-class component directory** in Conductor, just like `agents/` and `ensembles/`. It provides:
 
-**Docs (plural) = The infrastructure**
-- The agents in `agents/docs/` that generate documentation
-- Production tools you configure and keep
-- Part of your application infrastructure
+- **Auto-generated OpenAPI docs** from your agents and ensembles
+- **Markdown pages** with YAML frontmatter for custom documentation
+- **Multiple UI frameworks** (Stoplight, Redoc, Swagger, Scalar, RapiDoc)
+- **Built-in navigation** with auto-discovery and manual ordering
 
-**Documentation (singular) = The output**
-- The actual API docs your users read
-- Generated HTML/JSON/Markdown
-- Served at endpoints like `/docs-public`
-
-**Think of it like:**
-- **Docs agents** = Your documentation factory 🏭
-- **Documentation** = The products it manufactures 📄
-
-## Step 1: Verify Your Setup
-
-### Check What's Already There
-
-Conductor 1.8.1 includes documentation agents by default:
-
-```bash
-ls -la agents/docs/
-
-# You should see:
-# docs-simple.yaml
-# docs-admin.yaml
-# docs-authenticated.yaml
-# docs-public.yaml
-# docs-search/
-# docs-writer/
+```
+your-project/
+├── docs/                    # First-class docs directory
+│   ├── docs.yaml            # Configuration (required)
+│   ├── getting-started.md   # Custom page
+│   └── authentication.md    # Another page
+├── agents/                  # Your agents
+├── ensembles/               # Your ensembles
+└── conductor.config.ts
 ```
 
-These are **production-ready tools**, not examples to delete!
+## Step 1: Create the docs/ Directory
 
-### Test the Simplest Docs Agent
+### Initialize Your Docs
+
+Create the docs directory with a configuration file:
+
+```bash
+mkdir -p docs
+```
+
+Create `docs/docs.yaml`:
+
+```yaml
+# docs/docs.yaml
+name: docs
+description: API Documentation
+
+route:
+  path: /docs
+  auth:
+    requirement: public
+
+title: My API Documentation
+ui: stoplight
+
+theme:
+  primaryColor: '#3B82F6'
+  darkMode: false
+```
+
+### Test It Works
 
 Start your dev server:
 
@@ -63,646 +74,593 @@ Start your dev server:
 pnpm run dev
 ```
 
-Visit the documentation endpoint:
+Visit the documentation:
 
 ```bash
-curl http://localhost:8787/docs-simple
+curl http://localhost:8787/docs
 
 # Or open in browser:
-# http://localhost:8787/docs-simple
+open http://localhost:8787/docs
 ```
 
 <Note>
-**What you should see:** Auto-generated documentation of your API endpoints!
+You should see auto-generated documentation of your API endpoints!
 </Note>
 
-## Step 2: Configure Your First Documentation
+## Step 2: Add Documentation Pages
 
-### Choose Your Documentation Type
+### Create a Getting Started Page
 
-<Tabs>
-<Tab title="Public APIs">
-```yaml
-# agents/docs/docs-public.yaml
-name: docs-public
-operation: docs
-description: Public-facing API documentation
+Create `docs/getting-started.md`:
 
-auth: none  # No authentication required
+```markdown
+---
+title: Getting Started
+description: Quick start guide for the API
+order: 1
+icon: 🚀
+---
 
-include:
-  - /api/v1/*
-  - /public/*
+# Getting Started
 
-exclude:
-  - /admin/*
-  - /internal/*
+Welcome to our API! This guide will help you make your first call.
+
+## Base URL
+
 ```
-</Tab>
-
-<Tab title="Authenticated APIs">
-```yaml
-# agents/docs/docs-authenticated.yaml
-name: docs-authenticated
-operation: docs
-description: Documentation for authenticated users
-
-auth: required  # Must be logged in
-
-include:
-  - /api/v1/*
-  - /protected/*
-```
-</Tab>
-
-<Tab title="Admin-Only">
-```yaml
-# agents/docs/docs-admin.yaml
-name: docs-admin
-operation: docs
-description: Admin-only API documentation
-
-auth: admin  # Requires admin role
-
-include:
-  - /admin/*
-  - /internal/*
-```
-</Tab>
-</Tabs>
-
-### Customize Appearance
-
-```yaml
-# agents/docs/docs-public.yaml
-name: docs-public
-operation: docs
-
-metadata:
-  title: "My API Documentation"
-  version: "1.0"
-  description: "Complete API reference for MyApp"
-  contact: api@myapp.com
-
-style:
-  theme: dark  # or: light
-  primary_color: "#007bff"
-  logo: "/assets/logo.png"
+Production: https://api.example.com
+Development: http://localhost:8787
 ```
 
-### Test Your Configuration
+## Quick Start
+
+### 1. Get Your API Key
+
+Sign up and generate your API key from the dashboard.
+
+### 2. Make Your First Request
 
 ```bash
-# Start dev server
-pnpm run dev
-
-# Visit your configured docs
-curl http://localhost:8787/docs-public
-
-# Or in browser with pretty formatting:
-open http://localhost:8787/docs-public
+curl -X GET https://api.example.com/v1/users \
+  -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-## Step 3: Add AI-Powered Documentation Writing
+### 3. Handle the Response
 
-<Note>
-This step is optional but recommended for better documentation quality.
-</Note>
+```json
+{
+  "success": true,
+  "data": [
+    { "id": 1, "name": "Alice" },
+    { "id": 2, "name": "Bob" }
+  ]
+}
+```
+```
 
-### Why Use AI for Docs?
+### Create an Authentication Page
 
-The `docs-writer` agent can:
-- Analyze your code structure
-- Write clear, helpful descriptions
-- Generate usage examples
-- Maintain consistent style
-- Update docs as code changes
+Create `docs/authentication.md`:
 
-### Enable Workers AI
+```markdown
+---
+title: Authentication
+description: How to authenticate with the API
+order: 2
+icon: 🔐
+---
 
-First, ensure Workers AI is bound in `wrangler.toml`:
+# Authentication
+
+All API requests require authentication via Bearer token.
+
+## Getting a Token
+
+1. Sign up at our dashboard
+2. Navigate to API Settings
+3. Generate a new API key
+
+## Using the Token
+
+Include your token in the Authorization header:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  https://api.example.com/v1/endpoint
+```
+
+## Token Expiration
+
+Tokens expire after 30 days. Refresh them via the dashboard.
+```
+
+### Frontmatter Options
+
+Each markdown file can have YAML frontmatter:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Page title (shown in nav and header) |
+| `description` | string | Page description (for SEO/preview) |
+| `order` | number | Navigation order (lower = first) |
+| `hidden` | boolean | Hide from navigation |
+| `icon` | string | Icon for navigation (emoji or icon name) |
+| `category` | string | Category for grouping |
+
+## Step 3: Configure Navigation
+
+### Simple Ordering
+
+Update `docs/docs.yaml` to control page order:
+
+```yaml
+# docs/docs.yaml
+name: docs
+description: API Documentation
+
+route:
+  path: /docs
+  auth:
+    requirement: public
+
+title: My API Documentation
+ui: stoplight
+
+nav:
+  order:
+    - getting-started    # First
+    - authentication     # Second
+    - guides/*           # All pages in guides/ folder
+    - tutorials/**       # Nested pages recursively
+
+  hide:
+    - internal-notes     # Hide specific pages
+    - drafts/*           # Hide entire folders
+```
+
+### Navigation Groups
+
+Organize into collapsible sections:
+
+```yaml
+nav:
+  groups:
+    - title: Getting Started
+      icon: 🚀
+      items:
+        - getting-started
+        - quickstart
+        - installation
+
+    - title: Guides
+      icon: 📖
+      items:
+        - guides/*
+
+    - title: API Reference
+      icon: 📚
+      items:
+        - api
+        - agents
+        - ensembles
+      collapsed: true  # Collapsed by default
+```
+
+### Reserved Sections
+
+Conductor auto-generates sections for your agents and ensembles:
+
+```yaml
+nav:
+  showReserved:
+    agents: true       # Auto-generated agents list
+    ensembles: true    # Auto-generated ensembles list
+    api: true          # OpenAPI reference
+
+  reservedPosition: bottom  # top | bottom
+
+  reservedLabels:
+    agents: "AI Agents"
+    ensembles: "Workflows"
+    api: "API Reference"
+```
+
+## Step 4: Customize Appearance
+
+### Theme Configuration
+
+```yaml
+# docs/docs.yaml
+title: My API Documentation
+description: Complete API reference
+
+theme:
+  primaryColor: '#1a73e8'  # Your brand color
+  darkMode: true
+  customCss: |
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .sidebar {
+      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    }
+```
+
+### Choose a UI Framework
+
+```yaml
+ui: stoplight  # Options: stoplight, redoc, swagger, scalar, rapidoc
+```
+
+| UI | Best For |
+|-----|----------|
+| `stoplight` | Modern, interactive docs (default) |
+| `redoc` | Clean, mobile-friendly |
+| `swagger` | Classic Swagger UI |
+| `scalar` | Beautiful, customizable |
+| `rapidoc` | Fast, lightweight |
+
+### Add Logo and Favicon
+
+```yaml
+logo: /static/logo.svg
+favicon: /static/favicon.ico
+```
+
+## Step 5: Control Access
+
+### Public Documentation
+
+```yaml
+route:
+  path: /docs
+  auth:
+    requirement: public  # Anyone can access
+```
+
+### Authenticated Documentation
+
+```yaml
+route:
+  path: /docs
+  auth:
+    requirement: authenticated  # Must be logged in
+```
+
+### Admin-Only Documentation
+
+```yaml
+route:
+  path: /docs/admin
+  auth:
+    requirement: admin  # Admin role required
+```
+
+### Multiple Documentation Sites
+
+You can have different docs for different audiences by creating multiple config files or using `include`/`exclude`:
+
+```yaml
+# Public docs - filter to public endpoints only
+route:
+  path: /docs/public
+  auth:
+    requirement: public
+
+include:
+  - /api/v1/public/*
+
+exclude:
+  - /api/v1/internal/*
+  - /admin/*
+```
+
+## Step 6: Use Handlebars Templating
+
+### Dynamic Content
+
+Your markdown pages support Handlebars:
+
+```markdown
+---
+title: Welcome
+---
+
+# Welcome to {{projectName}}
+
+Current version: **{{version}}**
+
+{{#if showBetaFeatures}}
+## Beta Features
+
+Check out our new beta features!
+{{/if}}
+
+{{#each endpoints}}
+- **{{this.name}}**: {{this.description}}
+{{/each}}
+```
+
+### Variables
+
+Variables come from your configuration and context:
+
+```yaml
+# docs/docs.yaml
+variables:
+  projectName: MyApp
+  version: 2.0.0
+  showBetaFeatures: true
+```
+
+## Step 7: Enable Caching
+
+For better performance in production:
+
+```yaml
+cache:
+  enabled: true
+  ttl: 300  # 5 minutes
+```
+
+Requires a KV binding in `wrangler.toml`:
 
 ```toml
-# wrangler.toml
+[[kv_namespaces]]
+binding = "DOCS_CACHE"
+id = "your-kv-namespace-id"
+```
+
+## Step 8: Add AI Enhancement (Optional)
+
+Use AI to improve documentation descriptions:
+
+```yaml
+ai:
+  enabled: true
+  model: '@cf/meta/llama-3.1-8b-instruct'
+  provider: cloudflare
+  temperature: 0.3
+```
+
+Ensure Workers AI is bound in `wrangler.toml`:
+
+```toml
 [ai]
 binding = "AI"
 ```
 
-### Configure the AI Writer
+## Complete Example
+
+Here's a full `docs/docs.yaml`:
 
 ```yaml
-# agents/docs/docs-writer/agent.yaml
-name: docs-writer
-operation: think
-model: @cf/meta/llama-3.1-8b-instruct
+name: docs
+description: Complete API Documentation
 
-description: |
-  AI-powered documentation generator that creates clear,
-  helpful API documentation from your codebase.
+route:
+  path: /docs
+  auth:
+    requirement: public
+  priority: 50
 
-schema:
-  input:
-    codebase_path: string
-    style: string  # conversational, technical, beginner-friendly
-    include_examples: boolean
-  output:
-    markdown: string
-    html: string
+title: MyApp API Documentation
+ui: scalar
+
+theme:
+  primaryColor: '#1a73e8'
+  darkMode: true
+
+nav:
+  groups:
+    - title: Getting Started
+      icon: 🚀
+      items:
+        - getting-started
+        - authentication
+        - quickstart
+
+    - title: Guides
+      icon: 📖
+      items:
+        - guides/*
+
+    - title: Reference
+      icon: 📚
+      items:
+        - api
+        - agents
+        - ensembles
+
+  hide:
+    - internal-notes
+    - drafts/*
+
+  showReserved:
+    agents: true
+    ensembles: true
+    api: true
+  reservedPosition: bottom
+
+servers:
+  - url: https://api.myapp.com/v1
+    description: Production
+  - url: http://localhost:8787
+    description: Development
+
+cache:
+  enabled: true
+  ttl: 600
+
+ai:
+  enabled: true
+  model: '@cf/meta/llama-3.1-8b-instruct'
 ```
 
-### Create a Documentation Ensemble
-
-Automate doc generation with an ensemble:
-
-```yaml
-# ensembles/auto-docs.yaml
-name: auto-docs
-description: Automatically generate and update documentation
-
-flow:
-  # 1. Analyze codebase and generate docs
-  - agent: docs-writer
-    input:
-      codebase_path: ./src
-      style: ${input.style || "conversational"}
-      include_examples: true
-
-  # 2. Format and save
-  - agent: docs-formatter
-    input:
-      markdown: ${docs-writer.output.markdown}
-      format: html
-
-output:
-  markdown: ${docs-writer.output.markdown}
-  html: ${docs-formatter.output.html}
-  metadata:
-    generated_at: ${timestamp}
-    agent_used: docs-writer
-```
-
-### Use the AI Writer
+## Accessing Your Documentation
 
 ```bash
-# Generate docs via API
-curl -X POST http://localhost:8787/ensemble/auto-docs \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "style": "conversational"
-  }'
+# Interactive HTML documentation
+GET /docs
+
+# Specific pages
+GET /docs/getting-started
+GET /docs/authentication
+
+# OpenAPI specification
+GET /docs/openapi.yaml
+GET /docs/openapi.json
+
+# Auto-generated sections
+GET /docs/agents
+GET /docs/ensembles
+GET /docs/api
 ```
 
-## Step 4: Add Semantic Search
+## Directory Structure
 
-<Note>
-This step is optional and requires Vectorize binding.
-</Note>
-
-### Why Add Search?
-
-The `docs-search` agent enables:
-- Semantic search (understands meaning, not just keywords)
-- Fuzzy matching ("how to athenticate" still finds "authentication")
-- Relevance ranking
-- Better user experience for large docs
-
-### Enable Vectorize
-
-Add Vectorize binding to `wrangler.toml`:
-
-```toml
-# wrangler.toml
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "docs-index"
-dimensions = 768
-metric = "cosine"
-```
-
-### Configure Search Agent
-
-```yaml
-# agents/docs/docs-search/agent.yaml
-name: docs-search
-operation: data
-description: Semantic search for documentation
-
-vectorize: true
-
-schema:
-  input:
-    query: string
-    limit: number
-    filters: object?
-  output:
-    results: array
-    count: number
-```
-
-### Index Your Documentation
-
-```bash
-# Index docs (one-time setup)
-curl -X POST http://localhost:8787/docs-search/index \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "source": "/docs-public",
-    "reindex": true
-  }'
-```
-
-### Search Your Docs
-
-```bash
-# Search via API
-curl -X POST http://localhost:8787/docs-search \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "query": "how to authenticate",
-    "limit": 10
-  }'
-
-# Response:
-{
-  "results": [
-    {
-      "title": "Authentication Guide",
-      "excerpt": "Use Bearer tokens...",
-      "url": "/docs/auth",
-      "relevance": 0.94
-    }
-  ],
-  "count": 10
-}
-```
-
-## Step 5: Automate Documentation Updates
-
-### Keep Docs in Sync with Code
-
-<Tabs>
-<Tab title="Git Pre-commit Hook">
-```bash
-# .git/hooks/pre-commit
-#!/bin/bash
-
-echo "Updating documentation..."
-pnpm run generate-docs
-
-# Add updated docs to commit
-git add docs/
-```
-</Tab>
-
-<Tab title="CI/CD Pipeline">
-```yaml
-# .github/workflows/docs.yml
-name: Update Documentation
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'agents/**'
-
-jobs:
-  generate-docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Generate documentation
-        run: pnpm run generate-docs
-
-      - name: Deploy docs
-        run: ppnpm run deploy-docs
-```
-</Tab>
-
-<Tab title="Scheduled Updates">
-```yaml
-# wrangler.toml
-[triggers]
-crons = ["0 2 * * *"]  # Daily at 2 AM
-
-# src/scheduled.ts
-export async function scheduled(event: ScheduledEvent, env: Env) {
-  // Regenerate docs daily
-  await generateDocumentation(env);
-}
-```
-</Tab>
-</Tabs>
-
-### NPM Scripts
-
-Add to `package.json`:
-
-```json
-{
-  "scripts": {
-    "generate-docs": "node scripts/generate-docs.js",
-    "deploy-docs": "wrangler deploy",
-    "docs:dev": "wrangler dev",
-    "docs:preview": "wrangler pages dev"
-  }
-}
-```
-
-## Step 6: Deploy to Production
-
-### Build Documentation
-
-```bash
-# Generate production docs
-pnpm run generate-docs
-
-# Build project
-pnpm run build
-```
-
-### Deploy with Wrangler
-
-```bash
-# Deploy to Cloudflare Workers
-pnpm run deploy
-
-# Your docs will be available at:
-# https://your-app.workers.dev/docs-public
-# https://your-app.workers.dev/docs-authenticated
-# https://your-app.workers.dev/docs-admin
-```
-
-### Custom Domain (Optional)
-
-```toml
-# wrangler.toml
-routes = [
-  { pattern = "docs.myapp.com/*", zone_name = "myapp.com" }
-]
-```
-
-Now accessible at:
-- `https://docs.myapp.com/public`
-- `https://docs.myapp.com/authenticated`
-- `https://docs.myapp.com/admin`
-
-## Common Patterns & Use Cases
-
-### Multiple API Versions
+A well-organized docs directory:
 
 ```
-agents/docs/
-├── docs-v1-public.yaml      # /api/v1/docs
-├── docs-v1-authenticated.yaml
-├── docs-v2-public.yaml      # /api/v2/docs
-└── docs-v2-authenticated.yaml
-```
-
-Each config:
-```yaml
-name: v2-public
-operation: docs
-path: /api/v2/docs
-include:
-  - /api/v2/*
-```
-
-### Separate Customer & Partner Docs
-
-```yaml
-# agents/docs/docs-customer.yaml
-name: customer-docs
-operation: docs
-auth: none
-include: [/api/public/*]
-style:
-  branding: customer
-
-# agents/docs/docs-partner.yaml
-name: partner-docs
-operation: docs
-auth: partner-api-key
-include: [/api/partner/*]
-style:
-  branding: partner
-```
-
-### Internal + External Docs
-
-```yaml
-# agents/docs/docs-external.yaml
-name: external-docs
-operation: docs
-auth: none
-include:
-  - /api/v1/*
-exclude:
-  - /api/v1/internal/*
-  - /api/v1/admin/*
-
-# agents/docs/docs-internal.yaml
-name: internal-docs
-operation: docs
-auth: employee
-include:
-  - /api/v1/*
-  - /internal/*
+docs/
+├── docs.yaml              # Configuration
+├── getting-started.md     # Entry point
+├── authentication.md      # Auth guide
+├── guides/
+│   ├── quickstart.md
+│   ├── advanced.md
+│   └── best-practices.md
+├── reference/
+│   ├── errors.md
+│   └── rate-limits.md
+└── tutorials/
+    └── first-integration.md
 ```
 
 ## Troubleshooting
 
 <AccordionGroup>
 <Accordion title="Docs Not Showing">
-**Problem:** `/docs-simple` returns 404
+**Problem:** `/docs` returns 404
 
 **Solutions:**
-1. Check agent is registered:
+1. Verify `docs/docs.yaml` exists
+2. Check the route path matches your URL
+3. Rebuild and restart:
    ```bash
-   pnpm run dev
-   # Look for "docs-simple" in agent list
+   pnpm run build && pnpm run dev
    ```
-
-2. Verify agent name matches route:
-   ```yaml
-   name: docs-simple  # Serves at /docs-simple
-   ```
-
-3. Check `operation: docs` is set correctly
-
-4. Review logs for errors:
+4. Check logs for errors:
    ```bash
-   pnpm run dev | grep docs
+   npx wrangler tail
    ```
+</Accordion>
+
+<Accordion title="Pages Not Appearing">
+**Problem:** Markdown pages not showing in navigation
+
+**Solutions:**
+1. Check frontmatter syntax (must start with `---`)
+2. Verify file extension is `.md`
+3. Check `nav.hide` doesn't exclude the page
+4. Ensure `hidden: true` isn't set in frontmatter
 </Accordion>
 
 <Accordion title="Authentication Issues">
 **Problem:** Can't access authenticated docs
 
 **Solutions:**
-1. Configure auth in `conductor.config.ts`:
-   ```typescript
-   export default {
-     auth: {
-       type: 'bearer',
-       required: true
-     }
-   };
-   ```
-
-2. Test with auth header:
+1. Verify auth configuration in `docs.yaml`
+2. Test with correct headers:
    ```bash
-   curl -H "Authorization: Bearer YOUR_TOKEN" \
-        http://localhost:8787/docs-authenticated
+   curl -H "Authorization: Bearer TOKEN" \
+     http://localhost:8787/docs
    ```
-
-3. Check auth middleware is registered
+3. Check auth middleware is configured in `conductor.config.ts`
 </Accordion>
 
-<Accordion title="AI Writer Not Working">
-**Problem:** docs-writer agent fails
+<Accordion title="Styling Not Applied">
+**Problem:** Theme colors not showing
 
 **Solutions:**
-1. Verify Workers AI binding:
-   ```toml
-   [ai]
-   binding = "AI"
-   ```
-
-2. Check model availability in your region
-
-3. Review AI usage limits:
-   ```bash
-   wrangler ai usage
-   ```
-
-4. Test with simpler input
-</Accordion>
-
-<Accordion title="Search Not Finding Results">
-**Problem:** docs-search returns no results
-
-**Solutions:**
-1. Verify Vectorize binding configured
-
-2. Check index exists:
-   ```bash
-   wrangler vectorize list
-   ```
-
-3. Reindex documentation:
-   ```bash
-   curl -X POST http://localhost:8787/docs-search/reindex
-   ```
-
-4. Test with exact matches first
+1. Verify `theme` section in `docs.yaml`
+2. Check hex colors include `#` prefix
+3. Clear browser cache
+4. Check `customCss` syntax is valid
 </Accordion>
 </AccordionGroup>
 
 ## Best Practices
 
-### Documentation Maintenance
+### Documentation
 
 ✅ **Do:**
-- Update docs when API changes
-- Version your documentation
-- Include code examples
-- Test all examples work
-- Keep docs and code in sync
+- Keep pages focused and scannable
+- Include code examples for every endpoint
+- Use frontmatter for consistent metadata
+- Version your documentation with your API
 
 ❌ **Don't:**
-- Manually write docs that can be auto-generated
-- Mix different API versions in same docs
-- Forget to update docs after code changes
-- Expose internal endpoints in public docs
+- Write walls of text without headings
+- Skip authentication documentation
+- Include internal endpoints in public docs
+- Forget to update docs when API changes
 
 ### Security
 
 ✅ **Do:**
-- Separate public/authenticated/admin docs
+- Separate public and internal documentation
+- Use authentication for sensitive endpoints
 - Sanitize examples (remove real API keys)
-- Rate limit documentation endpoints
-- Log documentation access
-- Review docs for sensitive information
+- Review docs for leaked credentials
 
 ❌ **Don't:**
 - Expose admin endpoints publicly
-- Include real credentials in examples
-- Skip authentication on sensitive docs
-- Allow unlimited doc generation requests
+- Include real tokens in examples
+- Skip auth on sensitive documentation
 
 ### Performance
 
 ✅ **Do:**
-- Cache generated documentation
-- Use CDN for static docs
-- Lazy-load large documentation sets
-- Index incrementally
-- Monitor generation times
+- Enable caching in production
+- Keep custom CSS minimal
+- Use CDN for static assets
 
 ❌ **Don't:**
 - Generate docs on every request
-- Load entire codebase for each doc
-- Skip caching strategies
-- Ignore performance metrics
-
-## Next Steps
-
-### Level Up Your Docs
-
-1. **Add Interactive Examples**
-   - Include API playground
-   - Live request/response testing
-   - Code generators
-
-2. **Integrate with CI/CD**
-   - Auto-generate on deploy
-   - Preview docs for PRs
-   - Validate doc completeness
-
-3. **Add Analytics**
-   - Track most-viewed docs
-   - Monitor search queries
-   - Identify documentation gaps
-
-4. **Multilingual Docs**
-   - Use AI to translate
-   - Maintain multiple versions
-   - Auto-detect user language
-
-5. **Advanced Search**
-   - Filters by category
-   - Related documentation
-   - Suggested docs based on history
+- Include massive images without optimization
 
 ## Summary
 
 You've learned how to:
 
-- ✅ Use Conductor's built-in documentation agents
-- ✅ Configure public, authenticated, and admin docs
-- ✅ Add AI-powered doc generation
-- ✅ Enable semantic search
-- ✅ Automate documentation updates
-- ✅ Deploy docs to production
+- ✅ Create a `docs/` directory with `docs.yaml`
+- ✅ Write markdown pages with frontmatter
+- ✅ Configure navigation with ordering and groups
+- ✅ Customize themes and branding
+- ✅ Control access with authentication
+- ✅ Use Handlebars for dynamic content
 
 <Tip>
-**The `agents/docs/` directory isn't just examples - it's production infrastructure for maintaining great API documentation with minimal effort!**
+The `docs/` directory is a first-class component in Conductor - just add your YAML config and markdown files, and documentation is automatically served!
 </Tip>
 
-## Related Guides
+## Next Steps
 
-- [docs Operation Reference](/conductor/operations/docs) - Complete configuration reference and advanced features
-- [Your First Agent](/conductor/getting-started/your-first-agent) - Build custom agents
-- [Your First Ensemble](/conductor/getting-started/your-first-ensemble) - Orchestrate workflows
-- [Authentication & Authorization](/conductor/core-concepts/authentication) - Secure your docs
-- [Deploying to Production](/conductor/deployment/cloudflare-workers) - Go live
+<CardGroup cols={2}>
+  <Card title="Documentation Reference" href="/conductor/building/documentation">
+    Complete configuration options
+  </Card>
+
+  <Card title="Your First Agent" href="/conductor/getting-started/your-first-agent">
+    Create AI-powered agents
+  </Card>
+
+  <Card title="Your First Ensemble" href="/conductor/getting-started/your-first-ensemble">
+    Orchestrate multi-agent workflows
+  </Card>
+
+  <Card title="Authentication" href="/conductor/core-concepts/authentication">
+    Secure your APIs and documentation
+  </Card>
+</CardGroup>

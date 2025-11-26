@@ -292,29 +292,44 @@ docs: docs/getting-started@production
 docs: docs/getting-started@v1.2.3
 ```
 
-## Integration with Documentation Generation
+## Integration with Documentation Directory
 
-Combine auto-generated API docs with custom markdown guides:
+The `docs/` directory is a first-class component in Conductor. Configure it with `docs/docs.yaml`:
 
-```typescript
-// agents/generate-docs/docs-public.yaml
-name: docs-public
-operation: docs
+```yaml
+# docs/docs.yaml
+name: docs
+description: API Documentation
 
-# Auto-generate OpenAPI from agents
-autoGenerate:
-  enabled: true
-  includeAgents: true
-  includeEnsembles: true
+route:
+  path: /docs
+  auth:
+    requirement: public
 
-# Reference custom docs from docs/ directory
-customGuides:
-  - name: Getting Started
-    component: docs/getting-started@production
-  - name: Authentication
-    component: docs/authentication@production
-  - name: Advanced Workflows
-    component: docs/advanced-workflows@production
+title: My API Documentation
+ui: stoplight
+
+nav:
+  order:
+    - getting-started
+    - authentication
+    - advanced-workflows
+    - guides/*
+
+  showReserved:
+    agents: true
+    ensembles: true
+    api: true
+```
+
+Place your markdown guides directly in the `docs/` directory:
+
+```
+docs/
+├── docs.yaml              # Configuration
+├── getting-started.md     # Custom guide (uses Handlebars)
+├── authentication.md      # Another guide
+└── advanced-workflows.md  # More documentation
 ```
 
 ## Use Cases

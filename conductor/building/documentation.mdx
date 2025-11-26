@@ -1,0 +1,539 @@
+---
+title: "Documentation"
+description: "Serve interactive API documentation with the docs/ directory"
+---
+
+The `docs/` directory is a first-class component directory in Conductor that serves interactive API documentation. It auto-generates OpenAPI 3.1 specifications from your ensembles and agents, supports markdown documentation pages with Handlebars templating, and serves them through multiple documentation UIs.
+
+## Features
+
+- **First-class component directory** - Just like `agents/` and `ensembles/`, `docs/` is a dedicated directory
+- **Auto-generated OpenAPI specs** - Scans your ensembles and agents to create accurate API docs
+- **Markdown documentation** - Write `.md` files with frontmatter for custom pages
+- **Multiple UI frameworks** - Stoplight Elements, Redoc, Swagger UI, Scalar, RapiDoc
+- **Custom branding** - Add your logo, colors, and styling
+- **Built-in caching** - Fast documentation serving with optional KV caching
+- **Authentication** - Public, authenticated, or admin-only documentation
+- **Handlebars templating** - Dynamic content with variables
+
+<Info>
+  **New to docs?** Check out [Your First Documentation](/conductor/getting-started/your-first-documentation) for a comprehensive step-by-step guide.
+</Info>
+
+## Directory Structure
+
+```
+your-project/
+├── docs/
+│   ├── docs.yaml           # Configuration file
+│   ├── getting-started.md  # Markdown page
+│   ├── authentication.md   # Another page
+│   └── guides/
+│       ├── quickstart.md
+│       └── advanced.md
+├── agents/
+├── ensembles/
+└── conductor.config.ts
+```
+
+## Basic Configuration
+
+Create a `docs/docs.yaml` file:
+
+```yaml
+name: docs
+description: API Documentation for MyApp
+
+route:
+  path: /docs           # Where docs are served
+  methods: [GET]
+  auth:
+    requirement: public
+  priority: 50
+
+title: My API Documentation
+ui: stoplight
+
+theme:
+  primaryColor: '#3B82F6'
+  darkMode: true
+```
+
+Access your docs:
+```bash
+curl http://localhost:8787/docs
+```
+
+## Configuration Reference
+
+### Route Configuration
+
+Control where and how docs are served:
+
+```yaml
+route:
+  path: /docs           # URL path (default: /docs)
+  methods: [GET]        # HTTP methods (default: [GET])
+  auth:
+    requirement: public # public | authenticated | admin
+  priority: 50          # Route priority (default: 50)
+```
+
+**Change the path:**
+```yaml
+route:
+  path: /api/reference  # Now served at /api/reference
+```
+
+**Require authentication:**
+```yaml
+route:
+  auth:
+    requirement: authenticated
+```
+
+### UI Framework
+
+Choose your preferred documentation UI:
+
+```yaml
+ui: stoplight  # Options: stoplight, redoc, swagger, scalar, rapidoc
+```
+
+| UI | Description |
+|-----|-------------|
+| `stoplight` | Modern, interactive Stoplight Elements (default) |
+| `redoc` | Clean, mobile-friendly Redoc |
+| `swagger` | Classic Swagger UI |
+| `scalar` | Beautiful, customizable Scalar |
+| `rapidoc` | Fast, lightweight RapiDoc |
+
+### Theme & Branding
+
+Customize the appearance:
+
+```yaml
+title: "My API Documentation"
+description: "Complete API reference"
+
+theme:
+  primaryColor: '#007bff'
+  darkMode: true
+  customCss: |
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+```
+
+### Navigation Configuration
+
+Control how documentation pages are organized:
+
+```yaml
+nav:
+  # Simple ordering (slugs or glob patterns)
+  order:
+    - getting-started
+    - authentication
+    - guides/*           # All pages in guides/
+    - api/**             # Recursive glob
+
+  # Hide specific pages
+  hide:
+    - internal-notes
+    - drafts/*
+
+  # Reserved sections (auto-generated)
+  showReserved:
+    agents: true         # Show agents section
+    ensembles: true      # Show ensembles section
+    api: true            # Show OpenAPI reference
+
+  reservedPosition: bottom  # top | bottom
+
+  reservedLabels:
+    agents: "AI Agents"
+    ensembles: "Workflows"
+    api: "API Reference"
+```
+
+#### Navigation Groups
+
+Organize pages into collapsible groups:
+
+```yaml
+nav:
+  groups:
+    - title: Getting Started
+      icon: 🚀
+      items:
+        - overview
+        - quickstart
+        - installation
+
+    - title: Guides
+      icon: 📖
+      items:
+        - guides/*        # Glob pattern
+
+    - title: API Reference
+      icon: 📚
+      items:
+        - api/*
+      collapsed: true     # Collapsed by default
+```
+
+### Caching
+
+Enable caching for better performance:
+
+```yaml
+cache:
+  enabled: true
+  ttl: 300  # seconds
+```
+
+### AI Enhancement
+
+Use AI to improve documentation descriptions:
+
+```yaml
+ai:
+  enabled: true
+  model: '@cf/meta/llama-3.1-8b-instruct'
+  provider: cloudflare  # cloudflare | openai | anthropic
+  temperature: 0.3
+```
+
+### Server URLs
+
+Specify API server URLs in OpenAPI spec:
+
+```yaml
+servers:
+  - url: https://api.example.com/v1
+    description: Production
+  - url: https://staging.example.com/v1
+    description: Staging
+```
+
+### Content Filtering
+
+Control which endpoints appear in docs:
+
+```yaml
+include:
+  - /api/v1/*
+  - /public/*
+
+exclude:
+  - /api/v1/internal/*
+  - /admin/*
+```
+
+## Writing Documentation Pages
+
+### Markdown with Frontmatter
+
+Create `.md` files in the `docs/` directory:
+
+```markdown
+---
+title: Getting Started
+description: Quick start guide for the API
+order: 1
+icon: 🚀
+---
+
+# Getting Started
+
+Welcome to the API! This guide will help you make your first call.
+
+## Base URL
+
+\`\`\`
+https://api.example.com/v1
+\`\`\`
+
+## Authentication
+
+Include your API key in the header:
+
+\`\`\`bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://api.example.com/v1/users
+\`\`\`
+```
+
+### Frontmatter Options
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Page title (used in nav and header) |
+| `description` | string | Page description (for SEO/preview) |
+| `order` | number | Navigation order (lower = first) |
+| `hidden` | boolean | Hide from navigation |
+| `icon` | string | Icon for navigation (emoji or icon name) |
+| `category` | string | Category for organization |
+
+### Handlebars Templating
+
+Use Handlebars syntax for dynamic content:
+
+```markdown
+---
+title: Getting Started
+---
+
+# Welcome to {{projectName}}
+
+Current version: {{version}}
+
+{{#if showAdvanced}}
+## Advanced Features
+...
+{{/if}}
+```
+
+Variables are passed during rendering from your configuration.
+
+## Reserved Routes
+
+These routes are automatically generated:
+
+| Route | Description |
+|-------|-------------|
+| `/docs/agents` | Auto-generated list of all agents |
+| `/docs/ensembles` | Auto-generated list of all ensembles |
+| `/docs/api` | OpenAPI interactive reference |
+| `/docs/openapi.json` | OpenAPI spec in JSON format |
+| `/docs/openapi.yaml` | OpenAPI spec in YAML format |
+
+Control visibility in `docs.yaml`:
+
+```yaml
+nav:
+  showReserved:
+    agents: true
+    ensembles: true
+    api: true
+```
+
+## Complete Example
+
+```yaml
+# docs/docs.yaml
+name: docs
+description: Complete API Documentation
+
+route:
+  path: /docs
+  auth:
+    requirement: public
+
+title: MyApp API Documentation
+ui: scalar
+
+theme:
+  primaryColor: '#1a73e8'
+  darkMode: true
+
+nav:
+  groups:
+    - title: Getting Started
+      icon: 🚀
+      items:
+        - getting-started
+        - authentication
+        - quickstart
+
+    - title: Guides
+      icon: 📖
+      items:
+        - guides/*
+
+    - title: Reference
+      icon: 📚
+      items:
+        - api
+        - agents
+        - ensembles
+      collapsed: true
+
+  hide:
+    - internal-notes
+    - drafts/*
+
+servers:
+  - url: https://api.myapp.com/v1
+    description: Production
+  - url: http://localhost:8787
+    description: Development
+
+cache:
+  enabled: true
+  ttl: 600
+
+ai:
+  enabled: true
+  model: '@cf/meta/llama-3.1-8b-instruct'
+```
+
+## Global Configuration
+
+You can also configure docs globally in `conductor.config.ts`:
+
+```typescript
+// conductor.config.ts
+import { defineConfig } from '@anthropic/conductor'
+
+export default defineConfig({
+  docs: {
+    title: 'My API Documentation',
+    ui: 'stoplight',
+
+    theme: {
+      primaryColor: '#3B82F6',
+      darkMode: true,
+    },
+
+    auth: {
+      requirement: 'public',
+    },
+
+    cache: {
+      enabled: true,
+      ttl: 300,
+    },
+
+    ai: {
+      enabled: true,
+      model: '@cf/meta/llama-3.1-70b-instruct',
+      provider: 'cloudflare',
+    },
+  },
+})
+```
+
+Settings in `docs/docs.yaml` override global configuration.
+
+## Accessing Documentation
+
+```bash
+# Interactive HTML documentation
+GET /docs
+
+# Specific documentation page
+GET /docs/getting-started
+GET /docs/authentication
+
+# OpenAPI specification
+GET /docs/openapi.yaml
+GET /docs/openapi.json
+
+# Auto-generated sections
+GET /docs/agents
+GET /docs/ensembles
+GET /docs/api
+```
+
+## Best Practices
+
+### Organization
+
+```
+docs/
+├── docs.yaml              # Configuration
+├── getting-started.md     # Entry point
+├── authentication.md      # Core concepts
+├── guides/
+│   ├── quickstart.md
+│   └── advanced.md
+└── reference/
+    └── errors.md
+```
+
+### Security
+
+1. **Use authentication** for sensitive documentation
+2. **Filter endpoints** with `include`/`exclude`
+3. **Separate docs** for different audiences
+
+```yaml
+# Public docs
+route:
+  path: /docs/public
+  auth:
+    requirement: public
+
+include:
+  - /api/v1/public/*
+```
+
+```yaml
+# Internal docs
+route:
+  path: /docs/internal
+  auth:
+    requirement: authenticated
+
+include:
+  - /api/v1/*
+```
+
+### Performance
+
+1. **Enable caching** for production
+2. **Use CDN** through Cloudflare
+3. **Minimize custom CSS**
+
+```yaml
+cache:
+  enabled: true
+  ttl: 3600  # 1 hour
+```
+
+## Troubleshooting
+
+### Docs Not Showing
+
+1. Verify `docs/docs.yaml` exists
+2. Check route path is correct
+3. Review logs for errors:
+   ```bash
+   npx wrangler tail
+   ```
+
+### Authentication Issues
+
+1. Verify auth configuration
+2. Test with correct headers:
+   ```bash
+   curl -H "Authorization: Bearer TOKEN" http://localhost:8787/docs
+   ```
+
+### Pages Not Appearing
+
+1. Check frontmatter syntax is valid
+2. Verify file extension is `.md`
+3. Check `hide` config doesn't exclude the page
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Your First Documentation" href="/conductor/getting-started/your-first-documentation">
+    Step-by-step guide to setting up docs
+  </Card>
+
+  <Card title="Agents Overview" href="/conductor/core-concepts/agents">
+    Learn about creating agents
+  </Card>
+
+  <Card title="Ensembles" href="/conductor/core-concepts/ensembles">
+    Orchestrate multi-agent workflows
+  </Card>
+
+  <Card title="Authentication" href="/conductor/core-concepts/authentication">
+    Secure your documentation
+  </Card>
+</CardGroup>

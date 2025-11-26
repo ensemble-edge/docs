@@ -157,6 +157,7 @@
         "conductor/building/creating-agents",
         "conductor/building/using-prebuilt-agents",
         "conductor/building/writing-ensembles",
+        "conductor/building/documentation",
         "conductor/building/http-middleware",
         "conductor/building/ab-testing-patterns",
         "conductor/building/tools-mcp-integration",
@@ -191,8 +192,7 @@
         "conductor/operations/form",
         "conductor/operations/html",
         "conductor/operations/pdf",
-        "conductor/operations/queue",
-        "conductor/operations/docs"
+        "conductor/operations/queue"
       ]
     },
     {
