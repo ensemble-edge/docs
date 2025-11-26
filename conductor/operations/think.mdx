@@ -785,7 +785,62 @@ operations:
 
 ## Output Parsing
 
-### Text Output
+Think operations support **schema-aware output mapping** - when you define an output schema,
+the AI response is automatically mapped to your schema field names, making outputs intuitive
+to use in ensembles.
+
+### Schema-Aware Output (Recommended)
+
+Define your output schema and access results using your field names:
+
+```yaml
+# Agent definition (agents/greeter/agent.yaml)
+name: greeter
+operation: think
+config:
+  provider: cloudflare
+  model: '@cf/meta/llama-3.1-8b-instruct'
+prompt: |
+  Greet the user warmly. Keep it under 20 words.
+  Name: {{input.name}}
+
+schema:
+  input:
+    name: string
+  output:
+    greeting: string  # Define your output field name
+
+# In ensembles, access using your schema field name:
+# ${greeter.output.greeting}  ✅ Uses your schema field!
+```
+
+```yaml
+# Ensemble using the greeter agent
+name: welcome-flow
+trigger:
+  - type: http
+    path: /welcome
+    methods: [POST]
+    public: true
+
+flow:
+  - agent: greeter
+    input:
+      name: ${input.userName}
+
+output:
+  message: ${greeter.output.greeting}  # Intuitive access!
+  model: ${greeter.output._meta.model}  # Metadata via _meta
+```
+
+**How it works:**
+1. Schema defines `output: { greeting: string }` → AI response maps to `greeting` field
+2. If AI returns valid JSON, all fields are spread to top level
+3. Metadata (model, provider, tokensUsed) available via `_meta`
+
+### Text Output (Simple)
+
+For simple text responses without schema:
 
 ```yaml
 operations:
@@ -796,12 +851,62 @@ operations:
       model: gpt-4o-mini
       prompt: Write a tagline for: ${input.product}
 
-# Access output
+# Access output (no schema = content field)
 outputs:
-  tagline: ${generate-text.output}  # String response
+  tagline: ${generate-text.output.content}
 ```
 
-### JSON Output
+### JSON Output (Structured)
+
+When the AI returns JSON, fields are automatically available at top level:
+
+```yaml
+# Agent that returns structured JSON
+name: analyzer
+operation: think
+config:
+  provider: openai
+  model: gpt-4o-mini
+  responseFormat: json
+  prompt: |
+    Analyze the sentiment and extract keywords as JSON:
+    {"sentiment": "positive|negative|neutral", "keywords": ["word1", "word2"]}
+
+    Text: {{input.text}}
+
+schema:
+  output:
+    sentiment: string
+    keywords: array
+```
+
+```yaml
+# Ensemble accessing structured output
+flow:
+  - agent: analyzer
+    input:
+      text: ${input.text}
+
+output:
+  sentiment: ${analyzer.output.sentiment}    # Direct access!
+  keywords: ${analyzer.output.keywords}      # Arrays work too
+  model: ${analyzer.output._meta.model}      # Metadata
+```
+
+### Output Metadata
+
+All think operations include metadata in the `_meta` field:
+
+```yaml
+# Available metadata fields:
+${agent.output._meta.model}       # Model used (e.g., "gpt-4o-mini")
+${agent.output._meta.provider}    # Provider (e.g., "openai")
+${agent.output._meta.tokensUsed}  # Total tokens consumed
+```
+
+### Legacy: Manual JSON Parsing
+
+For backwards compatibility, you can still parse JSON manually in code:
 
 ```yaml
 operations:
@@ -817,13 +922,12 @@ operations:
 
         Text: ${input.text}
 
-# Parse JSON in next operation
   - name: use-data
     operation: code
     config:
       script: scripts/parse-json-output
     input:
-      json_output: ${extract-json.output}
+      json_output: ${extract-json.output.content}
 ```
 
 ```typescript
@@ -835,9 +939,6 @@ export default function parseJsonOutput(context: AgentExecutionContext) {
   const data = JSON.parse(json_output)
   return { userName: data.name }
 }
-```
-
-```yaml
 ```
 
 ## Testing
