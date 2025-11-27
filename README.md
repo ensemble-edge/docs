@@ -6,7 +6,7 @@ The official documentation for Ensemble Edge, built with [Mintlify](https://mint
 
 Comprehensive documentation covering:
 - **Edgit**: Git-native component management and versioning
-- **Conductor**: Agent orchestration and workflow automation (coming soon)
+- **Conductor**: Production-ready agent orchestration and workflow automation
 - **Shared Concepts**: Cross-product patterns and best practices
 - **API Reference**: REST, GraphQL, and webhook APIs
 - **AI Tools**: Integration guides for Cursor, Claude Code, and Windsurf

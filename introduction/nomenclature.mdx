@@ -607,9 +607,9 @@ What each entity can do:
 
 | Entity | Use Components | Use Operations | Use Tools | Call Agents | Call Ensembles |
 |--------|---------------|----------------|-----------|-------------|----------------|
-| **Ensemble** |  |  |  |  |  |
-| **Agent** |  |  |  |  |  |
-| **Operation** |  | N/A | N/A |  |  |
+| **Ensemble** | ❌ | ❌ | ❌ | ✅ | ✅ (nested) |
+| **Agent** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Operation** | ✅ | N/A | N/A | ❌ | ❌ |
 | **Component** | N/A | N/A | N/A | N/A | N/A |
 
 **Key Insight:** Agents are the only entity that can use operations and components directly. Ensembles orchestrate agents.
@@ -621,7 +621,7 @@ What each entity can do:
 ### Common Confusions
 
 **Q: Are ensembles versioned?**
-A: No. Ensembles are like Kubernetes manifests - they reference versioned agents and components.
+A: Yes! With Edgit, ensembles can be versioned independently using `edgit tag create my-ensemble v1.0.0 --type=ensemble`. They reference versioned agents and components, and the ensemble itself can be version-pinned.
 
 **Q: Can ensembles use operations directly?**
 A: No. Ensembles orchestrate agents. Agents use operations.

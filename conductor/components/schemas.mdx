@@ -547,6 +547,112 @@ outputs:
   line_items: ${extract-line-items.output}
 ```
 
+## Using ctx API in Agents
+
+When building custom agents with TypeScript handlers, you can access schemas through the `ctx` API:
+
+### ctx.schemas.get(name)
+
+Get a schema by name:
+
+```typescript
+// agents/validator/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function validate(ctx: AgentExecutionContext) {
+  // Get schema by name
+  const contactSchema = await ctx.schemas.get('contact')
+
+  return {
+    schema: contactSchema,
+    fields: Object.keys(contactSchema.properties || {})
+  }
+}
+```
+
+### ctx.schemas.validate(name, data)
+
+Validate data against a schema. Throws an error if validation fails:
+
+```typescript
+// agents/validator/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function validateContact(ctx: AgentExecutionContext) {
+  const { contact } = ctx.input as { contact: any }
+
+  try {
+    // Validate and get validated data
+    const validated = await ctx.schemas.validate('contact', contact)
+
+    return {
+      success: true,
+      data: validated
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Validation failed'
+    }
+  }
+}
+```
+
+### ctx.schemas.isValid(name, data)
+
+Check if data is valid without throwing errors (returns boolean):
+
+```typescript
+// agents/checker/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function checkContact(ctx: AgentExecutionContext) {
+  const { contact } = ctx.input as { contact: any }
+
+  // Check validity without throwing
+  const isValid = await ctx.schemas.isValid('contact', contact)
+
+  return {
+    valid: isValid,
+    data: contact
+  }
+}
+```
+
+### Complete Example
+
+```typescript
+// agents/contact-processor/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface ContactInput {
+  contacts: Array<Record<string, any>>
+}
+
+export default async function processContacts(ctx: AgentExecutionContext) {
+  const { contacts } = ctx.input as ContactInput
+
+  const results = await Promise.all(
+    contacts.map(async (contact) => {
+      const isValid = await ctx.schemas.isValid('contact', contact)
+
+      if (isValid) {
+        return { contact, status: 'valid' }
+      } else {
+        return { contact, status: 'invalid' }
+      }
+    })
+  )
+
+  return {
+    total: contacts.length,
+    valid: results.filter(r => r.status === 'valid').length,
+    invalid: results.filter(r => r.status === 'invalid').length,
+    results
+  }
+}
+```
+
 ## Troubleshooting
 
 ### Schema Not Found

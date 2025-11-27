@@ -38,7 +38,7 @@ Agents (workers with operations)
     ↓
 Ensembles (orchestration of agents)
     ↓
-Triggers (http, webhook, mcp, email, queue, cron)
+Triggers (http, webhook, mcp, email, queue, cron, build, cli)
 
 ## Core Concept
 
@@ -46,12 +46,56 @@ Ensemble = orchestration of Agents
 Agent = Operations + Inputs + Outputs
 Operation = atomic execution primitive (think, code, http, storage, etc.)
 
+## Design Philosophy
+
+### Ensembles = Orchestration Layer
+- Complex YAML is appropriate
+- Defines routing, triggers, flow between agents
+- Declarative composition of agents
+- This is where the "glue" logic lives
+
+### Agents = Capability Layer
+- Simple YAML = metadata, inputs/outputs schema, action declarations
+- Complex logic lives in TypeScript handler
+- The YAML is a "contract" or "interface"
+- TypeScript does the actual work
+
+### The YAML/TypeScript Split
+Follows interface vs implementation pattern:
+- YAML declares WHAT an agent can do (its contract)
+- TypeScript defines HOW it does it
+- Keeps agents testable, type-safe, debuggable
+
+Rule: If writing conditional expressions in YAML, move to TypeScript.
+
+### Leverage Components
+Agents access shared components via ctx:
+- ctx.schemas.get('name') / ctx.schemas.validate('name', data)
+- ctx.prompts.get('name') / ctx.prompts.render('name', vars)
+- ctx.configs.get('name')
+- ctx.queries.getSql('name')
+- ctx.scripts.get('name')
+- ctx.templates.render('name', vars)
+- ctx.config (project ConductorConfig)
+
+### Discovery Registries
+Agents can introspect available components:
+- ctx.agentRegistry.list() / ctx.agentRegistry.get('name')
+- ctx.ensembleRegistry.list() / ctx.ensembleRegistry.get('name')
+
+### Eating Our Own Dog Food
+Built-in capabilities ship as catalog templates (real agents/ensembles):
+- catalog/agents/system/redirect/ → agents/system/redirect/
+- catalog/agents/system/docs/ → agents/system/docs/
+- catalog/ensembles/system/docs/ → ensembles/system/docs/
+No magic. Framework must support all use cases.
+
 ## Operations (14 types)
 
 | Operation | Purpose | Config Keys |
 |-----------|---------|-------------|
 | think | LLM reasoning | provider, model, prompt, schema, temperature |
-| code | JS/TS execution | script (path to script file) |
+| code | JS/TS execution | handler: ./file.ts OR script: scripts/path |
 | storage | KV/R2 access | type: kv|r2, action: get|put|delete, key |
 | data | D1/Hyperdrive/Vectorize | backend: d1|hyperdrive|vectorize, binding, query|operation |
 | http | HTTP requests | url, method, headers, body |
@@ -99,28 +143,65 @@ Operation = atomic execution primitive (think, code, http, storage, etc.)
 | transformer | Data transformation | data, template |
 | scheduler | Cron execution | cron, task |
 
-## Triggers (6 types)
+## Triggers (8 types)
 
 | Trigger | Config | Use Case |
 |---------|--------|----------|
-| http | path, methods, auth, rateLimit, cors | Web apps, APIs with path params |
-| webhook | path, methods, auth, async | External integrations |
+| http | path, paths[], methods, auth, rateLimit, cors, public | Web apps, APIs with path params |
+| webhook | path, methods, auth, async, public | External integrations |
 | mcp | auth, public | AI tool exposure |
 | email | addresses, reply_with_output | Email routing |
 | queue | queue, batch_size, max_retries | Message processing |
 | cron | cron, timezone, enabled | Scheduled execution |
+| build | output, enabled, input, metadata | Static generation at build time |
+| cli | command, description, options[] | Developer commands |
+
+### Build Trigger (NEW)
+trigger:
+  - type: build
+    enabled: true
+    output: ./dist/docs
+flow:
+  - agent: docs
+    input: { action: generate-openapi }
+
+### CLI Trigger (NEW)
+trigger:
+  - type: cli
+    command: generate-docs
+    description: Generate documentation
+    options:
+      - name: format
+        type: string
+        default: yaml
+      - name: output
+        type: string
+        required: true
+flow:
+  - agent: docs
+    input: { format: ${trigger.options.format} }
+
+### Multi-Path HTTP Trigger
+trigger:
+  - type: http
+    paths:
+      - path: /api/v1/users
+        methods: [GET, POST]
+      - path: /api/v1/users/:id
+        methods: [GET, PUT, DELETE]
+    public: true
 
 ## Components (7 types)
 
-| Type | Extension | Reference Syntax |
-|------|-----------|------------------|
-| schemas | .json | schemas/name@v1.0.0 |
-| prompts | .md | prompts/name@latest |
-| configs | .json, .yaml | configs/name@production |
-| queries | .sql | queries/name@v2 |
-| scripts | .ts, .js | scripts/name@v1 |
-| templates | .html | templates/name@v1 |
-| docs | .md | docs/name@v1 |
+| Type | Extension | Reference Syntax | ctx Method |
+|------|-----------|------------------|------------|
+| schemas | .json | schemas/name@v1.0.0 | ctx.schemas.validate() |
+| prompts | .md | prompts/name@latest | ctx.prompts.render() |
+| configs | .json, .yaml | configs/name@production | ctx.configs.get() |
+| queries | .sql | queries/name@v2 | ctx.queries.getSql() |
+| scripts | .ts, .js | scripts/name@v1 | ctx.scripts.get() |
+| templates | .html | templates/name@v1 | ctx.templates.render() |
+| docs | .md | docs/name@v1 | - |
 
 ## Expression Syntax
 
@@ -131,6 +212,7 @@ Operation = atomic execution primitive (think, code, http, storage, etc.)
 \${state.field}                    # State variable
 \${env.VARIABLE}                   # Environment variable
 \${component.name@v1.0.0}          # Component reference
+\${trigger.options.format}         # CLI trigger options
 
 ### Execution Status
 \${agent.executed}                 # Boolean: ran
@@ -146,27 +228,40 @@ condition: \${!agent.executed}
 condition: \${input.type === 'premium'}
 condition: \${input.age >= 18 && input.verified}
 
+## YAML Agent Schema (with handler)
+
+name: my-agent
+operation: code
+handler: ./my-handler.ts          # TypeScript implementation
+description: What this agent does
+
+schema:
+  input:
+    field: type
+  output:
+    field: type
+
 ## YAML Ensemble Schema
 
-ensemble: string                   # Required
+name: string                       # Required (filename-derived)
 description: string                # Optional
 trigger:                           # Optional
-  - type: http|webhook|mcp|email|queue|cron
+  - type: http|webhook|mcp|email|queue|cron|build|cli
 state:                             # Optional
   schema:
     field: type
-agents:                            # Required
+flow:                              # Required
   - name: string
     agent: string                  # OR operation
     operation: string              # OR agent
-    inputs: { key: value }
+    input: { key: value }
     config: { key: value }
     condition: string
     cache: { ttl: number, key: string }
     retry: { maxAttempts: number, backoff: exponential|linear }
     timeout: number
     state: { use: [fields], set: { field: value } }
-output:                            # Optional
+output:                            # Optional - supports conditional blocks
   key: value
 
 ## Common Patterns
@@ -205,15 +300,29 @@ agents:
 ## File Structure
 
 project/
-├── ensembles/          # YAML or TS ensembles
-├── agents/             # Custom agents
-├── scripts/            # TS/JS for code operations
-├── prompts/            # Prompt templates
-├── schemas/            # JSON schemas
-├── configs/            # Reusable configs
-├── queries/            # SQL templates
-├── wrangler.toml       # Cloudflare config
-└── .dev.vars           # Local secrets (gitignored)
+├── ensembles/              # YAML or TS ensembles
+│   ├── examples/           # Example ensembles
+│   ├── system/             # Built-in functionality (docs, etc.)
+│   ├── debug/              # Debug/dev ensembles
+│   └── user/               # User-created ensembles
+├── agents/                 # Custom agents
+│   ├── examples/           # Example agents
+│   ├── system/             # Built-in agents (redirect, docs)
+│   │   ├── redirect/       # URL redirect service
+│   │   │   ├── agent.yaml
+│   │   │   └── redirect.ts
+│   │   └── docs/           # Documentation agent
+│   │       ├── agent.yaml
+│   │       └── docs.ts
+│   ├── debug/              # Debug agents
+│   └── user/               # User-created agents
+├── scripts/                # TS/JS for code operations
+├── prompts/                # Prompt templates
+├── schemas/                # JSON schemas
+├── configs/                # Reusable configs
+├── queries/                # SQL templates
+├── wrangler.toml           # Cloudflare config
+└── .dev.vars               # Local secrets (gitignored)
 
 ## CLI Quick Reference
 
@@ -223,6 +332,8 @@ conductor deploy                  # Deploy to CF Workers
 conductor test                    # Run tests
 conductor validate [path]         # Validate YAML/TS
 conductor validate --fix          # Auto-fix issues
+conductor build                   # Run build triggers
+conductor run <command>           # Run CLI triggers
 conductor ensemble:run NAME INPUT
 conductor agent:run NAME INPUT
 
@@ -230,11 +341,12 @@ conductor agent:run NAME INPUT
 
 | Don't | Do |
 |-------|-----|
-| Inline JS in YAML | Use script: scripts/path |
+| Inline JS in YAML | Use handler: ./file.ts or script: scripts/path |
 | Hardcode secrets | Use \${env.SECRET} |
 | Skip error handling | Use tryStep() or condition: \${x.failed} |
 | Create mega-ensembles | Compose via agents |
 | Forget cache | Add cache: { ttl: 3600 } to expensive ops |
+| HTTP trigger without auth | Add public: true or auth config |
 
 ## Provider Models (think operation)
 
@@ -269,7 +381,7 @@ Agents (workers with operations)
     ↓
 Ensembles (orchestration of agents)
     ↓
-Triggers (http, webhook, mcp, email, queue, cron)
+Triggers (http, webhook, mcp, email, queue, cron, build, cli)
 ```
 
 ## Core Concept
@@ -279,6 +391,207 @@ Ensemble = orchestration of Agents
 Agent = Operations + Inputs + Outputs
 Operation = atomic execution primitive (think, code, http, storage, etc.)
 ```
+
+---
+
+## Design Philosophy
+
+### Ensembles = Orchestration Layer
+
+Ensembles are the **glue** that composes agents into workflows. Complex YAML is appropriate here because ensembles define:
+
+- **Routing**: Which agents handle which triggers
+- **Flow control**: Branching, looping, parallel execution
+- **Data flow**: Mapping outputs from one agent to inputs of another
+- **Error handling**: Fallbacks, retries, circuit breakers
+- **Triggers**: HTTP, webhooks, cron, queues, email
+
+```yaml
+# Ensembles: Complex orchestration is OK
+ensemble: order-pipeline
+trigger:
+  - type: http
+    path: /api/orders
+agents:
+  - name: validate
+    agent: order-validator
+    inputs: { order: ${input.body} }
+  - name: process
+    condition: ${validate.output.valid}
+    agent: order-processor
+  - name: notify
+    condition: ${process.success}
+    agent: notification-sender
+output:
+  orderId: ${process.output.id}
+  status: ${process.output.status}
+```
+
+### Agents = Capability Layer
+
+Agents define **what** can be done. Keep agent YAML simple—it's a contract/interface:
+
+- **Metadata**: Name, description, version
+- **Input/Output schemas**: What goes in, what comes out
+- **Action declarations**: Named operations the agent can perform
+- **TypeScript handler**: Where all the complex logic lives
+
+```yaml
+# Agent YAML: Simple contract
+agent: order-validator
+description: Validates order data against business rules
+version: 1.0.0
+
+inputs:
+  order:
+    type: object
+    required: true
+
+actions:
+  - name: validate
+    operation: code
+    handler: ./validator.ts
+
+outputs:
+  valid: boolean
+  errors: array
+```
+
+```typescript
+// validator.ts: Complex logic lives here
+import type { AgentContext } from '@ensemble-edge/conductor'
+import { orderSchema } from '../schemas/order.js'
+
+export default async function validate(ctx: AgentContext) {
+  const { order } = ctx.input
+
+  // All complex validation logic in TypeScript
+  const errors: string[] = []
+
+  if (!order.items?.length) {
+    errors.push('Order must have at least one item')
+  }
+
+  if (order.total < 0) {
+    errors.push('Order total cannot be negative')
+  }
+
+  // Use shared schema for structure validation
+  const schemaResult = ctx.schemas.validate('order', order)
+  if (!schemaResult.valid) {
+    errors.push(...schemaResult.errors)
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+```
+
+### The YAML/TypeScript Split
+
+This follows the classic **interface vs implementation** pattern:
+
+| Aspect | YAML (Contract) | TypeScript (Implementation) |
+|--------|-----------------|----------------------------|
+| Purpose | Declares capabilities | Implements logic |
+| Complexity | Simple, declarative | As complex as needed |
+| Testing | Schema validation | Unit testable |
+| Debugging | Easy to read | Full IDE support |
+| Reuse | Composition in ensembles | Import/export modules |
+
+**Rule of thumb**: If you're writing conditional expressions or complex transformations in YAML, move it to TypeScript.
+
+### Leverage Components
+
+Agents should use shared components rather than duplicating logic:
+
+```yaml
+# Agent leveraging components
+agent: docs-generator
+inputs:
+  page:
+    type: string
+    required: true
+
+actions:
+  - name: generate
+    operation: code
+    handler: ./generator.ts
+    # Reference shared components
+    uses:
+      - schemas/docs-page@1.0.0      # Validation schema
+      - prompts/docs-writer@latest    # AI prompt (if useAI enabled)
+      - configs/docs-settings@1.0.0   # Shared configuration
+```
+
+```typescript
+// generator.ts
+export default async function generate(ctx: AgentContext) {
+  // Access components directly
+  const schema = ctx.schemas.get('docs-page')
+  const prompt = ctx.prompts.get('docs-writer')
+  const config = ctx.configs.get('docs-settings')
+
+  // Access project configuration
+  const docsConfig = ctx.config.docs
+
+  if (docsConfig?.useAI && prompt) {
+    // AI-powered generation
+    return ctx.think({
+      prompt: prompt.render({ page: ctx.input.page }),
+      schema: schema
+    })
+  }
+
+  // Static generation
+  return generateStatic(ctx.input.page, config)
+}
+```
+
+### Config Access
+
+Agents and ensembles have full access to the project configuration:
+
+```typescript
+// Read config
+const projectName = ctx.config.name
+const docsSettings = ctx.config.docs
+const authConfig = ctx.config.routing?.auth
+
+// Config is read-only at runtime
+// To modify settings, use the config component system
+```
+
+### Eating Our Own Dog Food
+
+Built-in capabilities (redirects, docs, etc.) are implemented as **catalog templates**—real agents and ensembles that ship with Conductor:
+
+```
+catalog/
+├── agents/
+│   ├── redirect/           # URL redirect agent
+│   │   ├── redirect.yaml   # Simple contract
+│   │   └── redirect.ts     # All redirect logic
+│   └── docs/               # Documentation agent
+│       ├── docs.yaml       # Simple contract
+│       └── docs.ts         # All docs logic
+└── ensembles/
+    ├── redirects/          # Redirect orchestration
+    │   └── resolve.yaml    # HTTP trigger + routing
+    └── docs/               # Docs orchestration
+        ├── serve.yaml      # HTTP serving
+        └── generate.yaml   # Build-time generation
+```
+
+When you run `conductor init`, these are copied to your project. You can:
+- Use them as-is
+- Customize them for your needs
+- Replace them entirely
+- Learn from them as examples
+
+**No magic**. If the framework can't express something as an agent/ensemble, we fix the framework—we don't add special cases.
 
 ---
 
@@ -343,16 +656,18 @@ Operation = atomic execution primitive (think, code, http, storage, etc.)
 
 > [Pre-built Agents](/conductor/agents/overview)
 
-### Triggers (6 types)
+### Triggers (8 types)
 
 | Trigger | Config | Use Case |
 |---------|--------|----------|
-| `http` | `path`, `methods`, `auth`, `rateLimit`, `cors` | Web apps, APIs with path params |
-| `webhook` | `path`, `methods`, `auth`, `async` | External integrations |
+| `http` | `path`, `paths[]`, `methods`, `auth`, `rateLimit`, `cors`, `public` | Web apps, APIs with path params |
+| `webhook` | `path`, `methods`, `auth`, `async`, `public` | External integrations |
 | `mcp` | `auth`, `public` | AI tool exposure |
 | `email` | `addresses`, `reply_with_output` | Email routing |
 | `queue` | `queue`, `batch_size`, `max_retries` | Message processing |
 | `cron` | `cron`, `timezone`, `enabled` | Scheduled execution |
+| `build` | `output`, `enabled`, `input`, `metadata` | Static generation at build time |
+| `cli` | `command`, `description`, `options[]` | Developer commands |
 
 > [Triggers Reference](/conductor/core-concepts/triggers)
 
@@ -383,6 +698,7 @@ ${agent-name.output.nested.field} # Nested access
 ${state.field}                    # State variable
 ${env.VARIABLE}                   # Environment variable
 ${component.name@v1.0.0}          # Component reference
+${trigger.options.format}         # CLI trigger options
 ```
 
 ### Execution Status
@@ -429,7 +745,7 @@ ensemble: string                   # Required
 description: string                # Optional
 
 trigger:                           # Optional: invocation methods
-  - type: http|webhook|mcp|email|queue|cron
+  - type: http|webhook|mcp|email|queue|cron|build|cli
     # ... trigger-specific config
 
 state:                             # Optional
@@ -768,6 +1084,8 @@ conductor init [name]             # Create project
 conductor dev                     # Local dev server
 conductor deploy                  # Deploy to CF Workers
 conductor test                    # Run Vitest tests
+conductor build                   # Run all build triggers
+conductor run <command>           # Run CLI trigger by command name
 
 # Validate
 conductor validate [path]         # Validate YAML/TS files

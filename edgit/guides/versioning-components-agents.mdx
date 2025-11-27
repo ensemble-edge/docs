@@ -99,17 +99,19 @@ Lock to specific versions:
 <Tabs>
   <Tab title="TypeScript">
 ```typescript
-import { versionedAgent, createEnsemble } from '@anthropic/conductor'
+import { versionedAgent, createEnsemble, step } from '@ensemble-edge/conductor'
 
-const companyIntel = createEnsemble({
-  name: 'company-intel',
-  steps: [
-    versionedAgent('analyzer', '1.0.0', {
-      config: { model: 'claude-sonnet-4' }
-    }).toFlowStep(),
-    versionedAgent('scorer', '2.1.0').toFlowStep()
-  ]
+// Use versionedAgent for version-pinned agent references
+const analyzer = versionedAgent('analyzer', '1.0.0', {
+  config: { model: 'claude-sonnet-4' }
 })
+const scorer = versionedAgent('scorer', '2.1.0')
+
+// Convert to flow steps in your ensemble
+const companyIntel = createEnsemble('company-intel')
+  .addStep(step('analyze').agent(analyzer.path).config(analyzer.agentConfig || {}))
+  .addStep(step('score').agent(scorer.path))
+  .build()
 
 export default companyIntel
 ```
@@ -262,7 +264,7 @@ ensembles/data-pipeline/staging   # Deployment tag
   <Tab title="TypeScript">
 ```typescript
 // ensembles/data-pipeline.ts
-import { createEnsemble, step, parallel, branch } from '@anthropic/conductor'
+import { createEnsemble, step, parallel, branch } from '@ensemble-edge/conductor'
 
 export default createEnsemble('data-pipeline')
   .addStep(

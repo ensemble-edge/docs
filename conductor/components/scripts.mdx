@@ -537,6 +537,146 @@ agents:
       script: "script://transform-data@v1.0.0"
 ```
 
+## Using ctx API in Agents
+
+When building custom agents with TypeScript handlers, you can access and execute other scripts through the `ctx` API:
+
+### ctx.scripts.get(name)
+
+Get and execute a script by name:
+
+```typescript
+// agents/orchestrator/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function orchestrate(ctx: AgentExecutionContext) {
+  // Get and execute another script
+  const transformScript = await ctx.scripts.get('transform-data')
+
+  // Execute the script with custom input
+  const result = await transformScript({
+    ...ctx,
+    input: { data: [1, 2, 3, 4, 5] }
+  })
+
+  return {
+    transformed: result,
+    original: ctx.input
+  }
+}
+```
+
+### Composing Multiple Scripts
+
+```typescript
+// agents/pipeline/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function runPipeline(ctx: AgentExecutionContext) {
+  const { data } = ctx.input as { data: any[] }
+
+  // Load multiple scripts
+  const extract = await ctx.scripts.get('pipelines/extract')
+  const transform = await ctx.scripts.get('pipelines/transform')
+  const validate = await ctx.scripts.get('pipelines/validate')
+
+  // Execute pipeline
+  const extracted = await extract({ ...ctx, input: { data } })
+  const transformed = await transform({ ...ctx, input: { extracted } })
+  const validated = await validate({ ...ctx, input: { transformed } })
+
+  return validated
+}
+```
+
+### Dynamic Script Loading
+
+```typescript
+// agents/dynamic-processor/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processWithScript(ctx: AgentExecutionContext) {
+  const { processorType, data } = ctx.input as {
+    processorType: 'csv' | 'json' | 'xml'
+    data: string
+  }
+
+  // Load processor based on type
+  const scriptName = `transforms/${processorType}`
+  const processor = await ctx.scripts.get(scriptName)
+
+  const result = await processor({ ...ctx, input: { data } })
+
+  return {
+    type: processorType,
+    result
+  }
+}
+```
+
+### Script with Shared Utilities
+
+```typescript
+// agents/with-utilities/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processWithUtils(ctx: AgentExecutionContext) {
+  const { items } = ctx.input as { items: any[] }
+
+  // Load utility scripts
+  const validate = await ctx.scripts.get('utils/validate')
+  const normalize = await ctx.scripts.get('utils/normalize')
+
+  // Use utilities
+  const validated = await Promise.all(
+    items.map(item => validate({ ...ctx, input: { item } }))
+  )
+
+  const normalized = await Promise.all(
+    validated.map(item => normalize({ ...ctx, input: { item } }))
+  )
+
+  return {
+    processed: normalized,
+    total: items.length
+  }
+}
+```
+
+### Error Handling with Scripts
+
+```typescript
+// agents/safe-processor/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function safeProcess(ctx: AgentExecutionContext) {
+  const { data } = ctx.input as { data: any }
+
+  try {
+    // Try primary processor
+    const processor = await ctx.scripts.get('processors/primary')
+    const result = await processor({ ...ctx, input: { data } })
+
+    return {
+      success: true,
+      result,
+      processor: 'primary'
+    }
+  } catch (error) {
+    // Fallback to backup processor
+    const fallback = await ctx.scripts.get('processors/fallback')
+    const result = await fallback({ ...ctx, input: { data } })
+
+    return {
+      success: true,
+      result,
+      processor: 'fallback',
+      primaryError: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>

@@ -85,6 +85,106 @@ Example:
 conductor test --coverage
 ```
 
+### build
+
+Execute all build triggers in the project. Build triggers run at build time to generate static assets like documentation, OpenAPI specs, or pre-rendered pages.
+
+```bash
+conductor build
+```
+
+Options:
+- `--env <environment>` - Target environment (default: production)
+- `--output <path>` - Override output directory
+- `--verbose` - Verbose output
+
+Example:
+```bash
+conductor build --env staging --verbose
+```
+
+**What it does:**
+- Finds all ensembles with `type: build` triggers
+- Executes them sequentially
+- Outputs generated files to configured directories
+- Reports build status and timing
+
+**Common Use Cases:**
+- `conductor build` before deployment (CI/CD)
+- Generate OpenAPI documentation
+- Pre-render static pages
+- Build search indexes
+
+### run
+
+Execute a CLI trigger by command name. CLI triggers are custom commands defined in ensemble YAML files.
+
+```bash
+conductor run <command> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `command` | Name of the CLI command to run (from `trigger.command`) |
+
+**Options:**
+
+Options are defined in the ensemble's CLI trigger configuration. They can be:
+- `--<option-name> <value>` - For string/number options
+- `--<flag-name>` - For boolean flags
+- Multiple values supported for array options
+
+Example:
+```bash
+# Run a CLI command with options
+conductor run generate-docs --output ./docs --format markdown --verbose
+
+# Run with required and optional parameters
+conductor run import-data --file data.json --batch-size 100
+
+# Boolean flags
+conductor run deploy --dry-run --skip-tests
+```
+
+**Defining CLI Commands:**
+
+```yaml
+# ensembles/my-cli.yaml
+ensemble: my-cli
+trigger:
+  - type: cli
+    command: generate-docs
+    description: Generate project documentation
+    options:
+      - name: output
+        type: string
+        required: true
+        description: Output directory
+      - name: format
+        type: string
+        default: markdown
+        description: Output format (markdown, html, pdf)
+      - name: verbose
+        type: boolean
+        default: false
+        description: Enable verbose output
+
+flow:
+  - agent: docs-generator
+    input:
+      output: ${trigger.options.output}
+      format: ${trigger.options.format}
+      verbose: ${trigger.options.verbose}
+```
+
+**Listing Available Commands:**
+
+```bash
+conductor ensemble:list --type cli
+```
+
 ## Validate Command
 
 ### validate

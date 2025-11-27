@@ -113,7 +113,7 @@ TypeScript ensembles provide full type safety:
 
 ```typescript
 // ensembles/data-pipeline.ts
-import { createEnsemble, step, parallel } from '@anthropic/conductor'
+import { createEnsemble, step, parallel } from '@ensemble-edge/conductor'
 
 export default createEnsemble('data-pipeline')
   .addStep(
@@ -141,7 +141,7 @@ Know exactly what's deployed where:
 
 ```bash
 # Mark as deployed
-edgit deploy set my-prompt v1.0.0 --to production
+edgit deploy set my-prompt v1.0.0 --to prod
 
 # Check status
 edgit components list --format tree
@@ -273,7 +273,7 @@ agents:
   <Tab title="TypeScript">
 ```typescript
 // ensembles/multiverse-test.ts
-import { createEnsemble, step, parallel } from '@anthropic/conductor'
+import { createEnsemble, step, parallel } from '@ensemble-edge/conductor'
 
 export default createEnsemble('multiverse-test')
   .addStep(

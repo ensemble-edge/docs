@@ -547,6 +547,187 @@ agents:
       query: "query://get-customer-profile@v1.0.0"
 ```
 
+## Using ctx API in Agents
+
+When building custom agents with TypeScript handlers, you can access SQL queries through the `ctx` API:
+
+### ctx.queries.getSql(name)
+
+Get a SQL query template by name:
+
+```typescript
+// agents/data-fetcher/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function fetchData(ctx: AgentExecutionContext) {
+  // Get SQL query template
+  const sql = await ctx.queries.getSql('get-customer-profile')
+
+  return {
+    query: sql,
+    length: sql.length
+  }
+}
+```
+
+### Using Query with D1
+
+```typescript
+// agents/customer-lookup/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface CustomerInput {
+  customerId: string
+}
+
+export default async function lookupCustomer(ctx: AgentExecutionContext) {
+  const { customerId } = ctx.input as CustomerInput
+
+  // Get SQL query
+  const sql = await ctx.queries.getSql('get-customer-profile')
+
+  // Execute with D1
+  const db = ctx.env.DB // D1 binding
+  const result = await db.prepare(sql)
+    .bind(customerId)
+    .first()
+
+  return {
+    customer: result,
+    found: !!result
+  }
+}
+```
+
+### Parameterized Query Execution
+
+```typescript
+// agents/order-fetcher/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface OrderInput {
+  startDate: string
+  endDate: string
+  limit: number
+}
+
+export default async function fetchOrders(ctx: AgentExecutionContext) {
+  const { startDate, endDate, limit } = ctx.input as OrderInput
+
+  // Get SQL query template
+  const sql = await ctx.queries.getSql('orders-by-date-range')
+
+  // Execute with parameters
+  const db = ctx.env.DB
+  const result = await db.prepare(sql)
+    .bind(startDate, endDate, limit)
+    .all()
+
+  return {
+    orders: result.results || [],
+    count: result.results?.length || 0
+  }
+}
+```
+
+### Dynamic Query Selection
+
+```typescript
+// agents/dynamic-reporter/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function generateReport(ctx: AgentExecutionContext) {
+  const { reportType, params } = ctx.input as {
+    reportType: 'daily' | 'weekly' | 'monthly'
+    params: Record<string, any>
+  }
+
+  // Select query based on report type
+  const queryName = `report-${reportType}`
+  const sql = await ctx.queries.getSql(queryName)
+
+  const db = ctx.env.DB
+  const result = await db.prepare(sql)
+    .bind(...Object.values(params))
+    .all()
+
+  return {
+    reportType,
+    data: result.results || [],
+    count: result.results?.length || 0
+  }
+}
+```
+
+### Batch Query Execution
+
+```typescript
+// agents/batch-processor/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface BatchInput {
+  customerIds: string[]
+}
+
+export default async function batchFetch(ctx: AgentExecutionContext) {
+  const { customerIds } = ctx.input as BatchInput
+
+  // Get query template
+  const sql = await ctx.queries.getSql('get-customer-profile')
+
+  const db = ctx.env.DB
+
+  // Execute queries in parallel
+  const results = await Promise.all(
+    customerIds.map(id =>
+      db.prepare(sql).bind(id).first()
+    )
+  )
+
+  return {
+    customers: results.filter(r => r !== null),
+    total: customerIds.length,
+    found: results.filter(r => r !== null).length
+  }
+}
+```
+
+### Query with Result Processing
+
+```typescript
+// agents/analytics-processor/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processAnalytics(ctx: AgentExecutionContext) {
+  const { startDate, endDate } = ctx.input as {
+    startDate: string
+    endDate: string
+  }
+
+  // Get and execute query
+  const sql = await ctx.queries.getSql('daily-metrics')
+  const db = ctx.env.DB
+
+  const result = await db.prepare(sql)
+    .bind(startDate, endDate)
+    .all()
+
+  // Process results
+  const metrics = result.results || []
+  const summary = {
+    total_events: metrics.reduce((sum: number, m: any) => sum + m.total_events, 0),
+    avg_duration: metrics.reduce((sum: number, m: any) => sum + m.avg_duration, 0) / metrics.length,
+    unique_users: new Set(metrics.flatMap((m: any) => m.unique_users)).size
+  }
+
+  return {
+    daily_metrics: metrics,
+    summary,
+    period: { startDate, endDate }
+  }
+}
+```
+
 ## Troubleshooting
 
 ### Query Not Found

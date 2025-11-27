@@ -354,6 +354,351 @@ output:
   errors: ${validate.output.errors}
 ```
 
+## Conditional Output Blocks
+
+Control HTTP response status codes, headers, and body formats based on execution results. Conditional outputs allow you to implement proper REST API semantics, handle errors gracefully, and support multiple response formats.
+
+### Basic Conditional Outputs
+
+Use `when` conditions to select the appropriate response:
+
+```yaml
+ensemble: user-lookup
+
+trigger:
+  - type: http
+    path: /api/users/:id
+    methods: [GET]
+    public: true
+
+agents:
+  - name: fetch-user
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT * FROM users WHERE id = ?"
+      params: [${input.params.id}]
+
+output:
+  # Success case - user found
+  - when: ${fetch-user.output.length > 0}
+    status: 200
+    body:
+      data: ${fetch-user.output[0]}
+      success: true
+
+  # Not found case
+  - when: ${fetch-user.output.length === 0}
+    status: 404
+    body:
+      error: 'not_found'
+      message: 'User not found'
+
+  # Default fallback (no when = always matches)
+  - status: 500
+    body:
+      error: 'unknown'
+      message: 'An unexpected error occurred'
+```
+
+**Key concepts:**
+- Conditions are evaluated in order
+- First matching `when` condition is used
+- Block without `when` acts as default fallback
+- Always provide a fallback for safety
+
+### Custom Status Codes
+
+Support all HTTP status codes (2xx, 3xx, 4xx, 5xx):
+
+```yaml
+output:
+  # Success
+  - when: ${create-user.output.created}
+    status: 201
+    body:
+      id: ${create-user.output.id}
+      message: 'User created successfully'
+
+  # Validation error
+  - when: ${validate.output.errors}
+    status: 422
+    body:
+      error: 'validation_failed'
+      details: ${validate.output.errors}
+
+  # Conflict (duplicate)
+  - when: ${create-user.output.duplicate}
+    status: 409
+    body:
+      error: 'conflict'
+      message: 'User already exists'
+
+  # Rate limited
+  - when: ${rate-limit.output.exceeded}
+    status: 429
+    body:
+      error: 'rate_limit_exceeded'
+      retry_after: ${rate-limit.output.retryAfter}
+
+  # Server error
+  - when: ${create-user.failed}
+    status: 500
+    body:
+      error: 'internal_error'
+```
+
+### HTTP Redirects
+
+Implement redirects with custom status codes:
+
+```yaml
+ensemble: url-shortener
+
+trigger:
+  - type: http
+    path: /:shortcode
+    methods: [GET]
+    public: true
+
+agents:
+  - name: lookup-url
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: url-${input.params.shortcode}
+
+output:
+  # Permanent redirect (301)
+  - when: ${lookup-url.output.value && lookup-url.output.permanent}
+    redirect:
+      url: ${lookup-url.output.value}
+      status: 301
+
+  # Temporary redirect (302)
+  - when: ${lookup-url.output.value}
+    redirect:
+      url: ${lookup-url.output.value}
+      status: 302
+
+  # Not found
+  - when: ${!lookup-url.output.value}
+    status: 404
+    body:
+      error: 'not_found'
+      message: 'Short URL not found'
+```
+
+**Redirect status codes:**
+- `301` - Permanent redirect (browsers cache)
+- `302` - Temporary redirect (default)
+- `303` - See Other (POST → GET)
+- `307` - Temporary redirect (preserve method)
+- `308` - Permanent redirect (preserve method)
+
+### Custom Headers
+
+Add custom headers to responses:
+
+```yaml
+output:
+  # JSON response with custom headers
+  - when: ${format === 'json'}
+    status: 200
+    headers:
+      Content-Type: application/json
+      X-API-Version: '2.0'
+      X-Rate-Limit-Remaining: ${rate-limit.output.remaining}
+    body:
+      data: ${process.output}
+
+  # YAML response
+  - when: ${format === 'yaml'}
+    status: 200
+    headers:
+      Content-Type: text/yaml
+      X-Generated-At: ${new Date().toISOString()}
+    rawBody: ${yamlContent}
+
+  # CSV download
+  - when: ${format === 'csv'}
+    status: 200
+    headers:
+      Content-Type: text/csv
+      Content-Disposition: 'attachment; filename="export.csv"'
+    rawBody: ${csvContent}
+```
+
+### Raw Body Responses
+
+Use `rawBody` for non-JSON responses (XML, CSV, plain text, etc.):
+
+```yaml
+ensemble: data-export
+
+agents:
+  - name: fetch-data
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT * FROM exports WHERE id = ?"
+      params: [${input.id}]
+
+  - name: format-data
+    operation: code
+    config:
+      handler: |
+        const { format, data } = context.input
+        if (format === 'xml') {
+          return { xml: `<data>${JSON.stringify(data)}</data>` }
+        } else if (format === 'csv') {
+          return { csv: data.map(row => Object.values(row).join(',')).join('\n') }
+        }
+        return { json: data }
+    input:
+      format: ${input.format}
+      data: ${fetch-data.output}
+
+output:
+  # XML response
+  - when: ${input.format === 'xml'}
+    status: 200
+    headers:
+      Content-Type: application/xml
+    rawBody: ${format-data.output.xml}
+
+  # CSV response
+  - when: ${input.format === 'csv'}
+    status: 200
+    headers:
+      Content-Type: text/csv
+    rawBody: ${format-data.output.csv}
+
+  # JSON response (default)
+  - status: 200
+    headers:
+      Content-Type: application/json
+    body: ${format-data.output.json}
+```
+
+**When to use `rawBody`:**
+- Non-JSON content (XML, CSV, YAML, plain text)
+- Pre-serialized strings
+- Binary data (with proper encoding)
+- Custom content types
+
+**When to use `body`:**
+- JSON responses (auto-serialized)
+- Object/array data structures
+- Standard REST APIs
+
+### Complex Example: RESTful CRUD
+
+Complete example with multiple status codes and error handling:
+
+```yaml
+ensemble: products-api
+
+trigger:
+  - type: http
+    paths:
+      - path: /api/products/:id
+        methods: [GET, PUT, DELETE]
+    auth:
+      type: bearer
+      secret: ${env.API_KEY}
+
+agents:
+  - name: validate-auth
+    operation: code
+    config:
+      handler: |
+        const token = context.input.headers.authorization
+        return { valid: token === process.env.API_KEY }
+
+  - name: fetch-product
+    condition: ${validate-auth.output.valid}
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT * FROM products WHERE id = ?"
+      params: [${input.params.id}]
+
+  - name: update-product
+    condition: ${input.method === 'PUT' && fetch-product.output.length > 0}
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "UPDATE products SET name = ?, price = ? WHERE id = ?"
+      params: [${input.body.name}, ${input.body.price}, ${input.params.id}]
+
+  - name: delete-product
+    condition: ${input.method === 'DELETE' && fetch-product.output.length > 0}
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "DELETE FROM products WHERE id = ?"
+      params: [${input.params.id}]
+
+output:
+  # Unauthorized
+  - when: ${!validate-auth.output.valid}
+    status: 401
+    body:
+      error: 'unauthorized'
+      message: 'Invalid or missing authentication token'
+
+  # GET success
+  - when: ${input.method === 'GET' && fetch-product.output.length > 0}
+    status: 200
+    headers:
+      Cache-Control: 'max-age=300'
+    body:
+      data: ${fetch-product.output[0]}
+
+  # PUT success
+  - when: ${input.method === 'PUT' && update-product.executed}
+    status: 200
+    body:
+      message: 'Product updated successfully'
+      data: ${fetch-product.output[0]}
+
+  # DELETE success
+  - when: ${input.method === 'DELETE' && delete-product.executed}
+    status: 204
+    body: null
+
+  # Not found
+  - when: ${fetch-product.output.length === 0}
+    status: 404
+    body:
+      error: 'not_found'
+      message: 'Product not found'
+
+  # Server error
+  - status: 500
+    body:
+      error: 'internal_error'
+      message: 'An unexpected error occurred'
+```
+
+### Best Practices
+
+1. **Always provide a fallback** - Include a default output block without `when`
+2. **Order matters** - Place more specific conditions first
+3. **Use appropriate status codes** - Follow HTTP semantics
+4. **Include error details** - Help clients debug issues
+5. **Set proper headers** - Content-Type, Cache-Control, etc.
+6. **Handle authentication** - Return 401/403 for auth failures
+7. **Validate input** - Return 422 for validation errors
+8. **Use rawBody sparingly** - Prefer `body` for JSON APIs
+
 ## Real-World Patterns
 
 ### RAG Pipeline

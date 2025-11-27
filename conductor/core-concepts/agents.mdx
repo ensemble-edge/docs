@@ -19,10 +19,49 @@ Ensembles (orchestration)      -> Workflows
 
 An agent has:
 - **Inputs**: Parameters it accepts
-- **Operations**: Work it performs
+- **Operation**: The type of work it performs (code, think, http, etc.)
+- **Handler** (for code operations): TypeScript file that implements the logic
 - **Outputs**: Data it returns
 
-Example:
+### The Handler Pattern
+
+For custom logic, agents use the **handler pattern** which separates YAML contracts from TypeScript implementation:
+
+**YAML (Contract)** - Declares WHAT the agent does:
+```yaml
+# agents/my-agent/my-agent.yaml
+name: my-agent
+operation: code
+handler: ./my-agent.ts
+description: What this agent does
+
+schema:
+  input:
+    query: string
+  output:
+    result: string
+```
+
+**TypeScript (Implementation)** - Defines HOW it works:
+```typescript
+// agents/my-agent/my-agent.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handler(ctx: AgentExecutionContext) {
+  const { query } = ctx.input
+  return { result: `Processed: ${query}` }
+}
+```
+
+This pattern keeps agents:
+- **Testable** - Pure TypeScript functions
+- **Type-safe** - Full TypeScript type checking
+- **Debuggable** - Standard debugging tools work
+- **Maintainable** - Clear separation of concerns
+
+### Multi-Operation Agent Example
+
+For agents with multiple operations, use YAML flow:
 
 ```yaml
 # agents/company-enricher/agent.yaml
@@ -75,17 +114,46 @@ outputs:
 
 ## Agent Types
 
-### 1. Custom Agents
+Conductor provides three categories of agents:
+
+### 1. System Agents
+
+Built-in agents for core infrastructure functionality.
+
+**Location**: `agents/system/`
+
+**Available**:
+- `redirect` - URL redirect service (permanent, expiring, single-use links)
+- `docs` - Documentation generation and serving
+- `fetch` - HTTP fetching with caching
+- `validate` - Data validation with multiple strategies
+- `scrape` - Web scraping with bot detection
+- `slug` - Generate URL-safe slugs
+- `tools` - MCP tools integration
+- `queries` - SQL query execution
+
+### 2. Debug Agents
+
+Development utilities for testing and debugging.
+
+**Location**: `agents/debug/`
+
+**Available**:
+- `echo` - Returns input unchanged (inspect data)
+- `delay` - Add artificial delay (simulate slow operations)
+- `inspect-context` - View execution context
+
+### 3. Custom Agents
 
 Agents you build for your specific needs.
 
-**Location**: `agents/my-agent/agent.yaml`
+**Location**: `agents/user/my-agent/`
 
 **Example**: Company enricher, data processor, report generator
 
-### 2. Pre-built Agents
+### 4. Pre-built Feature Agents
 
-Ready-made agents provided by Conductor.
+Ready-made agents for common workflows.
 
 **Location**: Built-in, reference by name
 

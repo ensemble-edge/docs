@@ -159,6 +159,7 @@
         "conductor/building/writing-ensembles",
         "conductor/building/documentation",
         "conductor/building/http-middleware",
+        "conductor/building/security-authentication",
         "conductor/building/ab-testing-patterns",
         "conductor/building/tools-mcp-integration",
         "conductor/building/workers-ai-ml",

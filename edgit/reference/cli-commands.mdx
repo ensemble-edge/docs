@@ -295,6 +295,10 @@ edgit discover scan [options]
 **Options:**
 - `--type <type>` - Filter by type (prompt, config, query, script, agent, ensemble)
 - `--register` - Automatically register discovered components
+- `--changed` - Only scan files changed since last commit (useful for CI/CD)
+- `--since <ref>` - Git ref to compare against (default: HEAD~1). Use with --changed
+- `--tracked-only` - Only scan git-tracked files
+- `--output <format>` - Output format: table (default), json, simple
 
 **Examples:**
 
@@ -318,8 +322,19 @@ edgit discover scan --type ensemble
 # - ensembles/scraping-workflow.ts
 # - ensembles/rag-pipeline.yaml
 
+# Scan only changed files (for CI/CD)
+edgit discover scan --changed
+# Only scans files changed since HEAD~1
+
+# Scan changes since a specific branch
+edgit discover scan --changed --since main
+# Only scans files changed since main branch
+
 # Scan and register
 edgit discover scan --register
+
+# JSON output for scripting
+edgit discover scan --changed --output json
 ```
 
 ### `edgit discover detect`

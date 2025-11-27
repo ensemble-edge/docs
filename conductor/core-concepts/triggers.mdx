@@ -5,7 +5,7 @@ description: "Invoke ensembles via webhooks, MCP tools, email, queues, and cron 
 
 ## Overview
 
-Triggers define how ensembles are invoked. Conductor supports six trigger types, all configured using the unified `trigger:` array in your ensemble YAML:
+Triggers define how ensembles are invoked. Conductor supports eight trigger types, all configured using the unified `trigger:` array in your ensemble YAML:
 
 1. **HTTP** - Full web routing with path params, CORS, rate limiting, HTML/JSON responses
 2. **Webhook** - Simple HTTP endpoints for external integrations
@@ -13,6 +13,8 @@ Triggers define how ensembles are invoked. Conductor supports six trigger types,
 4. **Email** - Email routing and processing
 5. **Queue** - Cloudflare Queues message processing
 6. **Cron** - Scheduled execution with cron expressions
+7. **Build** - Static generation at build time
+8. **CLI** - Custom developer commands
 
 All triggers use the same configuration pattern:
 
@@ -138,6 +140,100 @@ trigger:
 | **Use case** | Web apps, APIs | Simple webhooks |
 
 **Rule of thumb**: Use `http` for web routing and pages. Use `webhook` for receiving webhooks from external services.
+
+### Multi-Path HTTP Triggers
+
+Handle multiple related endpoints in a single ensemble using the `paths` array. This allows one ensemble to serve multiple routes with different HTTP methods and path parameters.
+
+```yaml
+name: users-api
+
+trigger:
+  - type: http
+    paths:
+      - path: /api/v1/users
+        methods: [GET, POST]
+      - path: /api/v1/users/:id
+        methods: [GET, PUT, DELETE]
+    public: true
+
+flow:
+  - operation: code
+    config:
+      handler: |
+        const { method, params } = context.input
+
+        if (method === 'GET' && params.id) {
+          // GET /api/v1/users/:id - Fetch single user
+          return { action: 'fetch-user', userId: params.id }
+        } else if (method === 'GET') {
+          // GET /api/v1/users - List users
+          return { action: 'list-users' }
+        } else if (method === 'POST') {
+          // POST /api/v1/users - Create user
+          return { action: 'create-user', data: context.input.body }
+        } else if (method === 'PUT' && params.id) {
+          // PUT /api/v1/users/:id - Update user
+          return { action: 'update-user', userId: params.id, data: context.input.body }
+        } else if (method === 'DELETE' && params.id) {
+          // DELETE /api/v1/users/:id - Delete user
+          return { action: 'delete-user', userId: params.id }
+        }
+
+  - agent: users-handler
+    input: ${code.output}
+
+agents:
+  - name: users-handler
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: ${input.action === 'fetch-user' ? 'SELECT * FROM users WHERE id = ?' :
+              input.action === 'list-users' ? 'SELECT * FROM users' :
+              input.action === 'create-user' ? 'INSERT INTO users (name, email) VALUES (?, ?)' :
+              input.action === 'update-user' ? 'UPDATE users SET name = ?, email = ? WHERE id = ?' :
+              'DELETE FROM users WHERE id = ?'}
+
+outputs:
+  result: ${users-handler.output}
+```
+
+**Benefits of Multi-Path Triggers:**
+- Organize related endpoints in one ensemble
+- Share authentication and middleware across paths
+- Reduce configuration duplication
+- Keep related business logic together
+- Support RESTful API patterns naturally
+
+**Path Parameters:**
+- Use `:param` syntax for dynamic segments (e.g., `/users/:id`, `/posts/:slug`)
+- Access via `${input.params.id}`, `${input.params.slug}`, etc.
+- Works with any HTTP method
+
+**Example: Blog API**
+
+```yaml
+trigger:
+  - type: http
+    paths:
+      - path: /blog
+        methods: [GET]
+      - path: /blog/:slug
+        methods: [GET]
+      - path: /blog/:slug/comments
+        methods: [GET, POST]
+    public: true
+    rateLimit:
+      requests: 100
+      window: 60
+```
+
+This single ensemble handles:
+- `GET /blog` - List all posts
+- `GET /blog/:slug` - View single post
+- `GET /blog/:slug/comments` - List comments
+- `POST /blog/:slug/comments` - Add comment
 
 ### Complex Website Structure
 
@@ -662,6 +758,218 @@ flow:
       triggered_at: ${input._schedule.triggeredAt}
 ```
 
+## Build Triggers
+
+Run ensembles at build time to generate static content. Build triggers execute during the `conductor build` command and are useful for generating documentation, static pages, or pre-computing data.
+
+### Basic Build Trigger
+
+```yaml
+name: generate-docs
+
+trigger:
+  - type: build
+    enabled: true
+    output: ./dist/docs
+
+flow:
+  - agent: docs
+    input: { action: generate-openapi }
+
+agents:
+  - name: docs
+    operation: docs
+    config:
+      format: openapi
+      version: 3.0.0
+      includeSchemas: true
+
+outputs:
+  path: ${trigger.output}/openapi.json
+  content: ${docs.output}
+```
+
+Run with: `conductor build`
+
+### Build with Custom Input
+
+Pass data to build-time executions:
+
+```yaml
+trigger:
+  - type: build
+    enabled: true
+    output: ./dist/static
+    input:
+      format: json
+      includeExamples: true
+    metadata:
+      description: "Generate API documentation"
+      version: "1.0.0"
+
+flow:
+  - agent: docs
+    input:
+      format: ${trigger.input.format}
+      examples: ${trigger.input.includeExamples}
+```
+
+Access trigger metadata in ensemble:
+```yaml
+agents:
+  - name: process
+    operation: think
+    config:
+      prompt: "Generate ${trigger.metadata.description} v${trigger.metadata.version}"
+```
+
+### Multiple Build Triggers
+
+Generate different static assets:
+
+```yaml
+trigger:
+  # Generate OpenAPI docs
+  - type: build
+    enabled: true
+    output: ./dist/docs
+    input: { action: generate-openapi }
+
+  # Generate static site
+  - type: build
+    enabled: true
+    output: ./dist/site
+    input: { action: generate-site }
+
+  # Pre-compute analytics
+  - type: build
+    enabled: true
+    output: ./dist/data
+    input: { action: compute-analytics }
+```
+
+### Conditional Build
+
+Use `enabled` to skip builds conditionally:
+
+```yaml
+trigger:
+  - type: build
+    enabled: ${env.BUILD_DOCS === 'true'}
+    output: ./dist/docs
+```
+
+## CLI Triggers
+
+Create custom CLI commands that execute ensembles. CLI triggers are invoked via `conductor run <command>` and support options with defaults and validation.
+
+### Basic CLI Trigger
+
+```yaml
+name: generate-docs
+
+trigger:
+  - type: cli
+    command: generate-docs
+    description: Generate documentation
+
+flow:
+  - agent: docs
+    input: { action: generate-openapi }
+
+agents:
+  - name: docs
+    operation: docs
+    config:
+      format: openapi
+
+outputs:
+  result: ${docs.output}
+```
+
+Run with: `conductor run generate-docs`
+
+### CLI with Options
+
+Define command-line options with types and defaults:
+
+```yaml
+trigger:
+  - type: cli
+    command: generate-docs
+    description: Generate documentation in various formats
+    options:
+      - name: format
+        type: string
+        default: yaml
+        description: Output format (yaml, json, html)
+      - name: output
+        type: string
+        required: true
+        description: Output file path
+      - name: verbose
+        type: boolean
+        default: false
+        description: Enable verbose logging
+
+flow:
+  - agent: docs
+    input:
+      format: ${trigger.options.format}
+      outputPath: ${trigger.options.output}
+      verbose: ${trigger.options.verbose}
+```
+
+Run with:
+```bash
+conductor run generate-docs --format=json --output=./docs/api.json --verbose
+```
+
+### CLI Options Types
+
+Supported option types:
+
+```yaml
+options:
+  # String option
+  - name: format
+    type: string
+    default: yaml
+
+  # Number option
+  - name: limit
+    type: number
+    default: 100
+
+  # Boolean flag
+  - name: verbose
+    type: boolean
+    default: false
+
+  # Required option
+  - name: output
+    type: string
+    required: true
+```
+
+### Access Options in Flow
+
+CLI options are available via `${trigger.options.*}`:
+
+```yaml
+flow:
+  - operation: code
+    config:
+      handler: |
+        const format = context.input.format
+        const output = context.input.outputPath
+        console.log(`Generating ${format} to ${output}`)
+        return { success: true }
+    input:
+      format: ${trigger.options.format}
+      outputPath: ${trigger.options.output}
+```
+
 ## Multiple Triggers
 
 Ensembles can have multiple triggers of different types:
@@ -795,6 +1103,9 @@ trigger:
 |-------|------|----------|-------------|
 | `type` | `"http"` | Yes | Trigger type |
 | `path` | `string` | No | URL path with params (default: `/{ensemble-name}`) |
+| `paths` | `array` | No | Multiple paths configuration (alternative to `path`) |
+| `paths[].path` | `string` | Yes | URL path with params |
+| `paths[].methods` | `string[]` | Yes | HTTP methods for this path |
 | `methods` | `string[]` | No | HTTP methods (default: `["GET"]`) |
 | `auth` | `object` | Conditional | Authentication config (required unless `public: true`) |
 | `public` | `boolean` | No | Allow unauthenticated access (default: `false`) |
@@ -861,6 +1172,30 @@ trigger:
 | `enabled` | `boolean` | No | Enable trigger (default: `true`) |
 | `input` | `object` | No | Default input data |
 | `metadata` | `object` | No | Schedule metadata |
+
+### Build Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"build"` | Yes | Trigger type |
+| `enabled` | `boolean` | No | Enable trigger (default: `true`) |
+| `output` | `string` | Yes | Output directory path |
+| `input` | `object` | No | Default input data |
+| `metadata` | `object` | No | Build metadata |
+
+### CLI Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"cli"` | Yes | Trigger type |
+| `command` | `string` | Yes | Command name |
+| `description` | `string` | No | Command description |
+| `options` | `array` | No | Command-line options |
+| `options[].name` | `string` | Yes | Option name |
+| `options[].type` | `"string"\|"number"\|"boolean"` | Yes | Option type |
+| `options[].default` | `any` | No | Default value |
+| `options[].required` | `boolean` | No | Whether option is required (default: `false`) |
+| `options[].description` | `string` | No | Option description |
 
 ## Triggers vs API Routes
 

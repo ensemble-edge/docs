@@ -3,7 +3,64 @@ title: "Pre-built Agents"
 description: "Production-ready agents you can drop into your ensembles. No boilerplate, no reinventing the wheel, just proven patterns for common workflows."
 ---
 
-## Available Agents
+## Agent Types
+
+Conductor provides three categories of pre-built agents:
+
+1. **System Agents** - Built-in agents for core functionality (redirects, docs, fetching, validation)
+2. **Debug Agents** - Development and testing utilities (echo, delay, inspect-context)
+3. **Example Agents** - Reference implementations shipped with templates
+
+## System Agents
+
+Built-in agents that provide core infrastructure capabilities:
+
+<CardGroup cols={2}>
+  <Card title="redirect" icon="arrow-turn-up" href="/conductor/agents/redirect">
+    URL redirect service with permanent, expiring, and single-use (magic) links
+  </Card>
+  <Card title="docs" icon="book" href="/conductor/agents/docs">
+    Documentation generation and serving (OpenAPI, etc.)
+  </Card>
+  <Card title="fetch" icon="download" href="/conductor/agents/fetch">
+    HTTP fetching with caching and retry logic
+  </Card>
+  <Card title="validate" icon="check-circle" href="/conductor/agents/validate">
+    Data validation with multiple evaluation strategies
+  </Card>
+  <Card title="scrape" icon="spider-web" href="/conductor/agents/scrape">
+    Web scraping with bot detection and HTML parsing
+  </Card>
+  <Card title="slug" icon="hashtag" href="/conductor/agents/slug">
+    Generate URL-safe slugs from text
+  </Card>
+  <Card title="tools" icon="wrench" href="/conductor/agents/tools">
+    MCP (Model Context Protocol) tools integration
+  </Card>
+  <Card title="queries" icon="database" href="/conductor/agents/queries">
+    SQL query execution and formatting
+  </Card>
+</CardGroup>
+
+## Debug Agents
+
+Development utilities for testing and debugging workflows:
+
+<CardGroup cols={2}>
+  <Card title="echo" icon="reply" href="/conductor/agents/echo">
+    Returns input unchanged - inspect data at any point in your flow
+  </Card>
+  <Card title="delay" icon="clock" href="/conductor/agents/delay">
+    Add artificial delay to simulate slow operations
+  </Card>
+  <Card title="inspect-context" icon="magnifying-glass" href="/conductor/agents/inspect-context">
+    Inspect execution context for debugging
+  </Card>
+</CardGroup>
+
+## Pre-built Feature Agents
+
+Ready-made agents for common workflows:
 
 <CardGroup cols={2}>
   <Card title="scraper" icon="spider-web" href="/conductor/agents/scraper">
@@ -52,6 +109,34 @@ agents:
     operation: think
     config:
       prompt: Analyze: ${validate-data.output}
+```
+
+### Using Debug Agents
+
+Debug agents help you test and troubleshoot workflows during development:
+
+```yaml
+ensemble: debug-workflow
+
+flow:
+  # Echo agent: Inspect data at any point
+  - name: inspect-input
+    agent: echo
+    input:
+      data: ${input}
+
+  # Delay agent: Simulate slow operations
+  - name: simulate-delay
+    agent: delay
+    input:
+      milliseconds: 2000
+
+  # Inspect-context agent: View execution context
+  - name: check-context
+    agent: inspect-context
+    input:
+      includeEnv: false
+      includeConfig: true
 ```
 
 ## Why Pre-built Agents?

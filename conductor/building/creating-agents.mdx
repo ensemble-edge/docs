@@ -7,13 +7,84 @@ Already read [Your First Agent](/conductor/getting-started/your-first-agent)? Th
 
 ## Agent Structure
 
+Agents follow a simple directory structure with separate YAML and TypeScript files:
+
 ```
 agents/
- my-agent/
-     agent.yaml          # Agent definition
-     agent.test.ts       # Tests
-     README.md           # Documentation (optional)
+└── my-agent/
+    ├── my-agent.yaml      # Agent contract (WHAT it does)
+    ├── my-agent.ts        # Handler implementation (HOW it does it)
+    ├── my-agent.test.ts   # Tests (optional)
+    └── README.md          # Documentation (optional)
 ```
+
+### The Handler Pattern
+
+Conductor follows an **interface vs implementation** pattern:
+
+- **YAML declares WHAT** - The agent's contract: inputs, outputs, and metadata
+- **TypeScript defines HOW** - The actual implementation logic
+
+This keeps agents testable, type-safe, and debuggable while avoiding complex logic in YAML.
+
+### Simple Handler Example
+
+Here's a minimal agent showing the handler pattern:
+
+<Tabs>
+  <Tab title="YAML (Contract)">
+```yaml
+# agents/greeter/greeter.yaml
+name: greeter
+operation: code
+handler: ./greeter.ts
+description: Greets a user by name
+
+schema:
+  input:
+    type: object
+    properties:
+      name:
+        type: string
+        description: Name to greet
+  output:
+    type: object
+    properties:
+      greeting:
+        type: string
+        description: Personalized greeting
+```
+  </Tab>
+  <Tab title="TypeScript (Implementation)">
+```typescript
+// agents/greeter/greeter.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface GreeterInput {
+  name: string
+}
+
+interface GreeterOutput {
+  greeting: string
+}
+
+export default async function greeter(
+  input: GreeterInput,
+  ctx: AgentExecutionContext
+): Promise<GreeterOutput> {
+  return {
+    greeting: `Hello, ${input.name}!`
+  }
+}
+```
+  </Tab>
+</Tabs>
+
+**Key Points:**
+- The YAML `handler: ./greeter.ts` points to the TypeScript file
+- The TypeScript function signature: `(input, ctx) => Promise<Output>`
+- The function name can be anything (typically matches the agent name)
+- Full type safety with TypeScript interfaces
 
 ## Complete Agent Example
 

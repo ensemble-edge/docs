@@ -789,6 +789,181 @@ Returns the first truthy value (catches `""`, `0`, `false`, `null`, `undefined`)
 
 ---
 
+## AgentExecutionContext
+
+When writing TypeScript handlers for agents, you receive a rich execution context with access to all project resources.
+
+```typescript
+interface AgentExecutionContext {
+  input: Record<string, unknown>  // Input from ensemble
+  env: Env                        // Cloudflare Workers env
+  request?: Request               // Original HTTP request (if triggered by HTTP)
+
+  // Component registries
+  schemas: {
+    get(name: string): Schema | undefined
+    validate(name: string, data: unknown): ValidationResult
+    isValid(name: string, data: unknown): boolean
+  }
+
+  prompts: {
+    get(name: string): Prompt | undefined
+    render(name: string, vars: Record<string, unknown>): string
+  }
+
+  configs: {
+    get(name: string): unknown
+  }
+
+  queries: {
+    getSql(name: string): string
+  }
+
+  scripts: {
+    get(name: string): Function
+  }
+
+  templates: {
+    render(name: string, vars: Record<string, unknown>): string
+  }
+
+  // Discovery registries
+  agentRegistry: {
+    list(): AgentMetadata[]
+    get(name: string): AgentDefinition | undefined
+  }
+
+  ensembleRegistry: {
+    list(): EnsembleMetadata[]
+    get(name: string): EnsembleDefinition | undefined
+  }
+
+  // Project config
+  config: ConductorConfig
+}
+```
+
+### Using AgentExecutionContext
+
+```typescript
+// agents/my-agent/handler.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handler(ctx: AgentExecutionContext) {
+  // Access input from ensemble
+  const { userId, action } = ctx.input
+
+  // Validate with shared schema
+  const isValid = ctx.schemas.isValid('user-request', ctx.input)
+  if (!isValid) {
+    throw new Error('Invalid input')
+  }
+
+  // Render prompt with variables
+  const prompt = ctx.prompts.render('analyze-user', {
+    userId,
+    context: 'detailed analysis'
+  })
+
+  // Get shared configuration
+  const apiConfig = ctx.configs.get('api-settings')
+
+  // Access SQL query template
+  const query = ctx.queries.getSql('user-lookup')
+
+  // Access environment variables
+  const apiKey = ctx.env.API_KEY
+
+  // Access project config
+  const projectName = ctx.config.name
+
+  // Discover available agents
+  const agents = ctx.agentRegistry.list()
+
+  return {
+    result: 'success',
+    data: { /* ... */ }
+  }
+}
+```
+
+### Component Registries
+
+Component registries provide access to versioned, reusable project resources:
+
+```typescript
+// Schemas - validation and type checking
+const schema = ctx.schemas.get('user-profile')
+const validation = ctx.schemas.validate('order', orderData)
+if (!validation.valid) {
+  console.error(validation.errors)
+}
+
+// Prompts - templated AI instructions
+const prompt = ctx.prompts.get('sentiment-analyzer')
+const rendered = ctx.prompts.render('sentiment-analyzer', {
+  text: userInput,
+  language: 'en'
+})
+
+// Configs - shared configuration
+const settings = ctx.configs.get('app-settings')
+
+// Queries - SQL templates
+const sqlQuery = ctx.queries.getSql('analytics-report')
+
+// Scripts - shared JavaScript/TypeScript modules
+const utilFunction = ctx.scripts.get('data-transformer')
+
+// Templates - HTML/text templates
+const html = ctx.templates.render('email-template', {
+  userName: 'Alice',
+  message: 'Welcome!'
+})
+```
+
+### Discovery Registries
+
+Discovery registries enable runtime introspection of available agents and ensembles:
+
+```typescript
+// List all available agents
+const allAgents = ctx.agentRegistry.list()
+console.log(allAgents.map(a => a.name))
+
+// Get specific agent definition
+const enricher = ctx.agentRegistry.get('company-enricher')
+if (enricher) {
+  console.log(enricher.description)
+  console.log(enricher.inputs)
+}
+
+// List all ensembles
+const ensembles = ctx.ensembleRegistry.list()
+
+// Get specific ensemble
+const workflow = ctx.ensembleRegistry.get('user-onboarding')
+```
+
+### Project Configuration Access
+
+Access the full project configuration from any agent:
+
+```typescript
+// Project metadata
+const projectName = ctx.config.name
+const version = ctx.config.version
+
+// Routing configuration
+const authConfig = ctx.config.routing?.auth
+const corsSettings = ctx.config.routing?.cors
+
+// Custom configuration sections
+const customSettings = ctx.config.myCustomSection
+```
+
+---
+
 ## Type Definitions
 
 ### RetryOptions

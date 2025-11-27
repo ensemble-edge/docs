@@ -16,6 +16,10 @@ ensemble: string                    # Required: Ensemble name
 
 description: string                 # Optional: Description
 
+trigger:                           # Optional: Trigger configuration
+  - type: http | webhook | mcp | email | queue | cron | build | cli
+    # See Trigger Types section below for type-specific fields
+
 inputs:                            # Optional: Input definitions
   input_name:
     type: string | number | boolean | array | object
@@ -117,6 +121,187 @@ type: prompt | template | schema | config
 content: string | object           # Component content
 ```
 
+## Trigger Types
+
+Ensembles can be invoked via multiple trigger mechanisms. Each trigger type has specific configuration fields.
+
+### HTTP Trigger
+
+Expose ensembles as HTTP endpoints with support for single or multiple paths.
+
+```yaml
+trigger:
+  - type: http
+    path: /api/users/:id        # Single path
+    methods: [GET, POST]
+    auth:
+      type: bearer
+      secret: ${env.API_TOKEN}
+    rateLimit:
+      requests: 100
+      window: 60
+    cors:
+      origin: "https://myapp.com"
+    public: true                 # Optional: bypass auth
+```
+
+#### Multi-Path HTTP
+
+Define multiple paths with different methods in a single trigger:
+
+```yaml
+trigger:
+  - type: http
+    paths:
+      - path: /api/v1/users
+        methods: [GET, POST]
+      - path: /api/v1/users/:id
+        methods: [GET, PUT, DELETE]
+      - path: /api/v1/users/:id/profile
+        methods: [GET, PATCH]
+    auth:
+      type: bearer
+    public: false
+```
+
+### Webhook Trigger
+
+Handle incoming webhooks from external services.
+
+```yaml
+trigger:
+  - type: webhook
+    path: /webhooks/github
+    methods: [POST]
+    auth:
+      type: signature
+      secret: ${env.WEBHOOK_SECRET}
+    async: true                  # Optional: process asynchronously
+    public: false
+```
+
+### MCP Trigger
+
+Expose ensemble as an MCP (Model Context Protocol) tool for AI agents.
+
+```yaml
+trigger:
+  - type: mcp
+    auth:
+      type: api_key
+    public: false
+```
+
+### Email Trigger
+
+Route emails to ensembles for processing.
+
+```yaml
+trigger:
+  - type: email
+    addresses: [support@company.com, info@company.com]
+    reply_with_output: true      # Optional: send output as reply
+```
+
+### Queue Trigger
+
+Process messages from queues.
+
+```yaml
+trigger:
+  - type: queue
+    queue: user-events
+    batch_size: 10
+    max_retries: 3
+```
+
+### Cron Trigger
+
+Schedule ensemble execution at specific times.
+
+```yaml
+trigger:
+  - type: cron
+    cron: "0 8 * * *"            # 8 AM daily
+    timezone: "America/New_York"
+    enabled: true
+    input:                       # Optional: static input
+      report_type: "daily"
+```
+
+### Build Trigger (NEW)
+
+Execute ensemble at build time for static generation.
+
+```yaml
+trigger:
+  - type: build
+    enabled: true
+    output: ./dist/docs          # Optional: output directory
+    input:                       # Optional: build-time input
+      action: generate-openapi
+    metadata:                    # Optional: metadata
+      version: 1.0.0
+```
+
+**Use Cases:**
+- Generate OpenAPI documentation
+- Pre-render static pages
+- Build search indexes
+- Generate sitemap files
+
+**CLI Usage:**
+```bash
+conductor build               # Run all build triggers
+```
+
+### CLI Trigger (NEW)
+
+Create custom CLI commands for development and operations.
+
+```yaml
+trigger:
+  - type: cli
+    command: generate-docs
+    description: Generate documentation
+    options:
+      - name: format
+        type: string
+        default: yaml
+        description: Output format
+      - name: output
+        type: string
+        required: true
+        description: Output file path
+      - name: verbose
+        type: boolean
+        default: false
+        description: Verbose output
+```
+
+**Access Options in Flow:**
+```yaml
+flow:
+  - agent: docs-generator
+    input:
+      format: ${trigger.options.format}
+      output: ${trigger.options.output}
+      verbose: ${trigger.options.verbose}
+```
+
+**CLI Usage:**
+```bash
+conductor run generate-docs --output ./docs --format markdown --verbose
+```
+
+**Option Types:**
+- `string` - Text value
+- `number` - Numeric value
+- `boolean` - True/false flag
+- `array` - Multiple values
+
+---
+
 ## Expression Syntax
 
 ### Variable Access
@@ -128,6 +313,7 @@ ${state.field}                     # State variable
 ${agent-name.output}               # Agent output
 ${agent-name.output.nested.field}  # Nested output
 ${component.name@v1.0.0}          # Component reference
+${trigger.options.format}          # CLI trigger option
 ```
 
 ### Array Indexing

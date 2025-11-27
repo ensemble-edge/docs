@@ -686,6 +686,218 @@ agents:
       layout: "template://layouts/main@v1.0.0"
 ```
 
+## Using ctx API in Agents
+
+When building custom agents with TypeScript handlers, you can access and render templates through the `ctx` API:
+
+### ctx.templates.render(name, vars)
+
+Render an HTML template with variables:
+
+```typescript
+// agents/email-generator/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface EmailInput {
+  name: string
+  confirmUrl: string
+}
+
+export default async function generateEmail(ctx: AgentExecutionContext) {
+  const { name, confirmUrl } = ctx.input as EmailInput
+
+  // Render template with variables
+  const html = await ctx.templates.render('emails/welcome', {
+    name,
+    confirmUrl,
+    year: new Date().getFullYear(),
+    companyName: 'Acme Corp'
+  })
+
+  return {
+    html,
+    subject: 'Welcome to Acme Corp',
+    to: ctx.input.email
+  }
+}
+```
+
+### Dynamic Template Selection
+
+```typescript
+// agents/dynamic-renderer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function renderPage(ctx: AgentExecutionContext) {
+  const { templateType, data } = ctx.input as {
+    templateType: 'basic' | 'premium' | 'enterprise'
+    data: Record<string, any>
+  }
+
+  // Select template based on type
+  const templateName = `pages/${templateType}`
+  const html = await ctx.templates.render(templateName, {
+    ...data,
+    timestamp: new Date().toISOString()
+  })
+
+  return {
+    html,
+    type: templateType
+  }
+}
+```
+
+### Rendering with Layout
+
+```typescript
+// agents/page-generator/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function generatePage(ctx: AgentExecutionContext) {
+  const { title, content } = ctx.input as {
+    title: string
+    content: string
+  }
+
+  // Render content template
+  const contentHtml = await ctx.templates.render('components/content', {
+    content
+  })
+
+  // Render with layout
+  const html = await ctx.templates.render('layouts/main', {
+    title,
+    content: contentHtml,
+    year: new Date().getFullYear(),
+    companyName: 'Acme Corp'
+  })
+
+  return {
+    html,
+    title
+  }
+}
+```
+
+### Multi-Template Composition
+
+```typescript
+// agents/email-composer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function composeEmail(ctx: AgentExecutionContext) {
+  const { recipient, items } = ctx.input as {
+    recipient: { name: string; email: string }
+    items: Array<{ name: string; price: number }>
+  }
+
+  // Render multiple templates
+  const header = await ctx.templates.render('components/email-header', {
+    name: recipient.name
+  })
+
+  const itemsHtml = await Promise.all(
+    items.map(item =>
+      ctx.templates.render('components/order-item', item)
+    )
+  )
+
+  const footer = await ctx.templates.render('components/email-footer', {
+    year: new Date().getFullYear()
+  })
+
+  // Compose final email
+  const html = `
+    ${header}
+    <div class="items">
+      ${itemsHtml.join('\n')}
+    </div>
+    ${footer}
+  `
+
+  return {
+    html,
+    to: recipient.email,
+    subject: 'Your Order Confirmation'
+  }
+}
+```
+
+### Template Rendering with Error Handling
+
+```typescript
+// agents/safe-renderer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function safeRender(ctx: AgentExecutionContext) {
+  const { templateName, data } = ctx.input as {
+    templateName: string
+    data: Record<string, any>
+  }
+
+  try {
+    // Try to render template
+    const html = await ctx.templates.render(templateName, data)
+
+    return {
+      success: true,
+      html
+    }
+  } catch (error) {
+    // Fallback to default template
+    const html = await ctx.templates.render('default', {
+      error: 'Template not found',
+      message: 'Using default template'
+    })
+
+    return {
+      success: false,
+      html,
+      error: error instanceof Error ? error.message : 'Render failed'
+    }
+  }
+}
+```
+
+### Conditional Template Rendering
+
+```typescript
+// agents/conditional-renderer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function renderConditional(ctx: AgentExecutionContext) {
+  const { userTier, data } = ctx.input as {
+    userTier: 'free' | 'pro' | 'enterprise'
+    data: Record<string, any>
+  }
+
+  // Select template based on user tier
+  let templateName: string
+  switch (userTier) {
+    case 'enterprise':
+      templateName = 'pages/enterprise-dashboard'
+      break
+    case 'pro':
+      templateName = 'pages/pro-dashboard'
+      break
+    default:
+      templateName = 'pages/basic-dashboard'
+  }
+
+  const html = await ctx.templates.render(templateName, {
+    ...data,
+    tier: userTier
+  })
+
+  return {
+    html,
+    tier: userTier,
+    template: templateName
+  }
+}
+```
+
 ## Troubleshooting
 
 ### Template Not Found

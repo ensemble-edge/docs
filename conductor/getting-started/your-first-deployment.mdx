@@ -9,13 +9,13 @@ You've built your ensemble. Now let's put it in production where it matters.
 
 Before deploying:
 -  Wrangler installed and authenticated (`wrangler login`)
--  Working ensemble running locally (`ppnpm run dev`)
+-  Working ensemble running locally (`pnpm run dev`)
 -  `wrangler.toml` configured
 
 ## Deploy to Production
 
 ```bash
-ppnpm run deploy
+pnpm run deploy
 ```
 
 That's it. Your ensemble is live globally.
@@ -54,7 +54,7 @@ When you run `pnpm run build`, the bundle includes:
 **Step 1**: Build locally
 
 ```bash
-ppnpm run build
+pnpm run build
 ```
 
 **Step 2**: Test with wrangler dev
@@ -114,8 +114,8 @@ https://your-app.workers.dev/health
 **Fix**: Rebuild and redeploy
 
 ```bash
-ppnpm run build
-ppnpm run deploy
+pnpm run build
+pnpm run deploy
 ```
 
 Agents are discovered at build time. If you added a new agent, you must rebuild.
@@ -512,7 +512,7 @@ In `wrangler.toml`:
 
 ```toml
 [build]
-command = "ppnpm run build"
+command = "pnpm run build"
 
 [build.upload]
 format = "modules"

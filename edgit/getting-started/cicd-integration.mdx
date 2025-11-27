@@ -28,14 +28,15 @@ jobs:
 
       - name: Auto-version changed components
         run: |
-          # Detect changed components
-          CHANGED=$(edgit discover scan --changed)
+          # Discover components in changed files since last commit
+          CHANGED=$(edgit discover scan --changed --output simple | awk '{print $2}' | sort -u)
 
-          # Auto-increment versions
+          # Auto-increment versions for each changed component
           for component in $CHANGED; do
-            LATEST=$(edgit tag list $component | tail -1)
+            LATEST=$(edgit tag list $component 2>/dev/null | tail -1 || echo "v0.0.0")
             NEW_VERSION=$(edgit version bump $LATEST patch)
             edgit tag create $component $NEW_VERSION
+            echo "✓ Versioned $component: $LATEST → $NEW_VERSION"
           done
 
       - name: Push tags
@@ -316,7 +317,8 @@ Use in CI:
 ```yaml
 - name: Auto Version
   run: |
-    CHANGED=$(edgit discover scan --changed)
+    # Discover changed components using Edgit's built-in --changed flag
+    CHANGED=$(edgit discover scan --changed --output simple | awk '{print $2}' | sort -u)
     for component in $CHANGED; do
       ./scripts/auto-version.sh $component
     done

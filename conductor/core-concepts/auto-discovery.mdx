@@ -17,7 +17,7 @@ import analyzeConfig from './agents/analyze/agent.yaml'
 import analyzeHandler from './agents/analyze/index.ts'
 // ... import 50 more agents ...
 
-const loader = new MemberLoader({ env, ctx })
+const loader = new AgentLoader({ env, ctx })
 loader.registerAgent(greetConfig, greetHandler)
 loader.registerAgent(analyzeConfig, analyzeHandler)
 // ... register 50 more agents ...
@@ -78,7 +78,7 @@ export const agents = [
 
 ### Step 3: Runtime Auto-Discovery
 
-At runtime, `MemberLoader.autoDiscover()` processes the virtual modules:
+At runtime, `AgentLoader.autoDiscover()` processes the virtual modules:
 
 1. Parses YAML configs
 2. Loads handler functions (if present)
@@ -257,20 +257,20 @@ Creates a Conductor API with auto-discovery.
 
 **Returns:** `ExportedHandler<Env>`
 
-### `getMemberLoader()`
+### `getAgentLoader()`
 
-Get the initialized `MemberLoader` instance.
+Get the initialized `AgentLoader` instance.
 
 ```typescript
-import { getMemberLoader } from '@ensemble-edge/conductor/api'
+import { getAgentLoader } from '@ensemble-edge/conductor/api'
 
-const loader = getMemberLoader()
+const loader = getAgentLoader()
 if (loader) {
-  console.log(`Loaded agents: ${loader.getMemberNames().join(', ')}`)
+  console.log(`Loaded agents: ${loader.getAgentNames().join(', ')}`)
 }
 ```
 
-**Returns:** `MemberLoader | null`
+**Returns:** `AgentLoader | null`
 
 ### `getEnsembleLoader()`
 
@@ -340,19 +340,19 @@ export default defineConfig({
 Use the loaders directly for advanced use cases:
 
 ```typescript
-import { getMemberLoader, getEnsembleLoader } from '@ensemble-edge/conductor/api'
+import { getAgentLoader, getEnsembleLoader } from '@ensemble-edge/conductor/api'
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const memberLoader = getMemberLoader()
+    const agentLoader = getAgentLoader()
     const ensembleLoader = getEnsembleLoader()
 
-    if (!memberLoader || !ensembleLoader) {
+    if (!agentLoader || !ensembleLoader) {
       return new Response('Loaders not initialized', { status: 503 })
     }
 
     // Custom logic using loaders
-    const agents = memberLoader.getAllMembers()
+    const agents = agentLoader.getAllAgents()
     const ensembles = ensembleLoader.getAllEnsembles()
 
     return Response.json({
@@ -464,6 +464,210 @@ npx wrangler dev
 </Steps>
 
 ---
+
+## Discovery Registries (ctx API)
+
+In addition to auto-discovering agents and ensembles at build time, Conductor provides runtime access to discovery registries through the `ctx` API. This allows agents to introspect what's available in the project.
+
+### ctx.agentRegistry
+
+Access the agent registry to list and inspect available agents:
+
+#### ctx.agentRegistry.list()
+
+List all available agents in the project:
+
+```typescript
+// agents/inspector/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function listAgents(ctx: AgentExecutionContext) {
+  // List all available agents
+  const agents = await ctx.agentRegistry.list()
+
+  return {
+    total: agents.length,
+    agents: agents.map(a => ({
+      name: a.name,
+      description: a.description
+    }))
+  }
+}
+```
+
+#### ctx.agentRegistry.get(name)
+
+Get a specific agent definition:
+
+```typescript
+// agents/inspector/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function inspectAgent(ctx: AgentExecutionContext) {
+  const { agentName } = ctx.input as { agentName: string }
+
+  // Get agent definition
+  const agent = await ctx.agentRegistry.get(agentName)
+
+  return {
+    name: agent.name,
+    description: agent.description,
+    operation: agent.operation,
+    schema: agent.schema
+  }
+}
+```
+
+### ctx.ensembleRegistry
+
+Access the ensemble registry to list and inspect available ensembles:
+
+#### ctx.ensembleRegistry.list()
+
+List all available ensembles in the project:
+
+```typescript
+// agents/ensemble-lister/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function listEnsembles(ctx: AgentExecutionContext) {
+  // List all available ensembles
+  const ensembles = await ctx.ensembleRegistry.list()
+
+  return {
+    total: ensembles.length,
+    ensembles: ensembles.map(e => ({
+      name: e.name,
+      description: e.description,
+      triggers: e.trigger?.map(t => t.type)
+    }))
+  }
+}
+```
+
+#### ctx.ensembleRegistry.get(name)
+
+Get a specific ensemble definition:
+
+```typescript
+// agents/ensemble-inspector/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function inspectEnsemble(ctx: AgentExecutionContext) {
+  const { ensembleName } = ctx.input as { ensembleName: string }
+
+  // Get ensemble definition
+  const ensemble = await ctx.ensembleRegistry.get(ensembleName)
+
+  return {
+    name: ensemble.name,
+    description: ensemble.description,
+    triggers: ensemble.trigger,
+    flow: ensemble.flow?.map(step => ({
+      name: step.name,
+      agent: step.agent,
+      operation: step.operation
+    }))
+  }
+}
+```
+
+### ctx.config
+
+Access the project's Conductor configuration:
+
+```typescript
+// agents/config-inspector/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function inspectConfig(ctx: AgentExecutionContext) {
+  // Access project configuration
+  const config = ctx.config
+
+  return {
+    version: config.version,
+    name: config.name,
+    components: {
+      schemas: Object.keys(config.components?.schemas || {}),
+      prompts: Object.keys(config.components?.prompts || {}),
+      configs: Object.keys(config.components?.configs || {})
+    }
+  }
+}
+```
+
+### Complete Example: Dynamic Routing Agent
+
+```typescript
+// agents/dynamic-router/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function routeRequest(ctx: AgentExecutionContext) {
+  const { action } = ctx.input as { action: string }
+
+  // Check if agent exists for this action
+  const agents = await ctx.agentRegistry.list()
+  const targetAgent = agents.find(a => a.name === `handle-${action}`)
+
+  if (!targetAgent) {
+    return {
+      success: false,
+      error: `No agent found for action: ${action}`,
+      availableAgents: agents.map(a => a.name)
+    }
+  }
+
+  return {
+    success: true,
+    agent: targetAgent.name,
+    description: targetAgent.description
+  }
+}
+```
+
+### Complete Example: Documentation Generator
+
+```typescript
+// agents/docs-generator/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function generateDocs(ctx: AgentExecutionContext) {
+  // List all agents and ensembles
+  const agents = await ctx.agentRegistry.list()
+  const ensembles = await ctx.ensembleRegistry.list()
+
+  // Generate documentation
+  const docs = {
+    project: ctx.config.name,
+    version: ctx.config.version,
+    agents: agents.map(a => ({
+      name: a.name,
+      description: a.description,
+      operation: a.operation,
+      inputs: a.schema?.input,
+      outputs: a.schema?.output
+    })),
+    ensembles: ensembles.map(e => ({
+      name: e.name,
+      description: e.description,
+      triggers: e.trigger?.map(t => t.type),
+      steps: e.flow?.length || 0
+    }))
+  }
+
+  return docs
+}
+```
+
+### Use Cases
+
+Discovery registries enable powerful introspection patterns:
+
+1. **Dynamic Routing**: Route requests to agents based on runtime conditions
+2. **Documentation Generation**: Auto-generate API docs from agent definitions
+3. **Validation**: Check if required agents exist before execution
+4. **Monitoring**: List all available capabilities for observability
+5. **Development Tools**: Build CLI tools that inspect project structure
 
 ## Benefits
 

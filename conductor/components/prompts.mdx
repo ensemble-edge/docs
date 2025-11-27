@@ -498,6 +498,117 @@ agents:
       prompt: "prompt://analyze-company@v1.0.0"
 ```
 
+## Using ctx API in Agents
+
+When building custom agents with TypeScript handlers, you can access prompts through the `ctx` API:
+
+### ctx.prompts.get(name)
+
+Get the raw prompt text by name:
+
+```typescript
+// agents/analyzer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function analyze(ctx: AgentExecutionContext) {
+  // Get raw prompt
+  const analysisPrompt = await ctx.prompts.get('analyze-company')
+
+  return {
+    prompt: analysisPrompt,
+    length: analysisPrompt.length
+  }
+}
+```
+
+### ctx.prompts.render(name, vars)
+
+Render a prompt template with variables:
+
+```typescript
+// agents/analyzer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function analyzeCompany(ctx: AgentExecutionContext) {
+  const { companyData } = ctx.input as { companyData: string }
+
+  // Render prompt with variables
+  const rendered = await ctx.prompts.render('analyze-company', {
+    company_data: companyData,
+    analysis_depth: 'detailed',
+    focus_areas: 'products, market, risks'
+  })
+
+  return {
+    prompt: rendered,
+    ready: true
+  }
+}
+```
+
+### Complete Example with AI Call
+
+```typescript
+// agents/company-analyzer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+import Anthropic from '@anthropic-ai/sdk'
+
+interface AnalysisInput {
+  companyData: string
+  focusAreas?: string[]
+}
+
+export default async function analyzeCompany(ctx: AgentExecutionContext) {
+  const { companyData, focusAreas } = ctx.input as AnalysisInput
+
+  // Render prompt with variables
+  const prompt = await ctx.prompts.render('analyze-company', {
+    company_data: companyData,
+    focus_areas: focusAreas?.join(', ') || 'all areas'
+  })
+
+  // Use rendered prompt with AI
+  const client = new Anthropic({
+    apiKey: ctx.env.ANTHROPIC_API_KEY
+  })
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4',
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: prompt }]
+  })
+
+  return {
+    analysis: response.content[0].type === 'text' ? response.content[0].text : '',
+    prompt_used: prompt
+  }
+}
+```
+
+### Dynamic Prompt Selection
+
+```typescript
+// agents/dynamic-analyzer/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function analyze(ctx: AgentExecutionContext) {
+  const { analysisType, data } = ctx.input as {
+    analysisType: 'financial' | 'technical' | 'market'
+    data: string
+  }
+
+  // Choose prompt based on type
+  const promptName = `analyze-${analysisType}`
+  const prompt = await ctx.prompts.render(promptName, { data })
+
+  return {
+    type: analysisType,
+    prompt,
+    ready: true
+  }
+}
+```
+
 ## Troubleshooting
 
 ### Prompt Not Found

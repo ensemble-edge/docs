@@ -504,6 +504,139 @@ outputs:
   version_2: ${process-v2.output}
 ```
 
+## Using ctx API in Agents
+
+When building custom agents with TypeScript handlers, you can access configs through the `ctx` API:
+
+### ctx.configs.get(name)
+
+Get a configuration object by name:
+
+```typescript
+// agents/processor/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function process(ctx: AgentExecutionContext) {
+  // Get config by name
+  const aiConfig = await ctx.configs.get('anthropic-settings')
+
+  return {
+    provider: aiConfig.provider,
+    model: aiConfig.model,
+    temperature: aiConfig.temperature
+  }
+}
+```
+
+### Using Config for API Calls
+
+```typescript
+// agents/ai-caller/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+import Anthropic from '@anthropic-ai/sdk'
+
+interface ProcessInput {
+  text: string
+}
+
+export default async function callAI(ctx: AgentExecutionContext) {
+  const { text } = ctx.input as ProcessInput
+
+  // Get AI config
+  const config = await ctx.configs.get('anthropic-settings')
+
+  // Use config for API call
+  const client = new Anthropic({
+    apiKey: ctx.env.ANTHROPIC_API_KEY
+  })
+
+  const response = await client.messages.create({
+    model: config.model,
+    max_tokens: config.max_tokens,
+    temperature: config.temperature,
+    messages: [{ role: 'user', content: text }]
+  })
+
+  return {
+    result: response.content[0].type === 'text' ? response.content[0].text : '',
+    config_used: {
+      model: config.model,
+      temperature: config.temperature
+    }
+  }
+}
+```
+
+### Dynamic Config Selection
+
+```typescript
+// agents/multi-provider/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function processWithProvider(ctx: AgentExecutionContext) {
+  const { provider, text } = ctx.input as {
+    provider: 'anthropic' | 'openai' | 'cloudflare'
+    text: string
+  }
+
+  // Load config based on provider
+  const configName = `${provider}-settings`
+  const config = await ctx.configs.get(configName)
+
+  return {
+    provider,
+    config,
+    ready: true
+  }
+}
+```
+
+### Environment-Based Config
+
+```typescript
+// agents/env-aware/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function process(ctx: AgentExecutionContext) {
+  // Load different config based on environment
+  const env = ctx.env.ENVIRONMENT || 'production'
+  const configName = `api-settings-${env}`
+
+  const config = await ctx.configs.get(configName)
+
+  return {
+    environment: env,
+    config,
+    baseUrl: config.base_url,
+    timeout: config.timeout
+  }
+}
+```
+
+### Merging Configs
+
+```typescript
+// agents/config-merger/index.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function mergeConfigs(ctx: AgentExecutionContext) {
+  // Get multiple configs and merge
+  const baseConfig = await ctx.configs.get('base-ai-config')
+  const overrideConfig = await ctx.configs.get('production-overrides')
+
+  const merged = {
+    ...baseConfig,
+    ...overrideConfig
+  }
+
+  return {
+    config: merged,
+    base: baseConfig,
+    overrides: overrideConfig
+  }
+}
+```
+
 ## Troubleshooting
 
 ### Config Not Found
