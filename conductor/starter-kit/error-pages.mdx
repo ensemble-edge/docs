@@ -1,0 +1,658 @@
+---
+title: "Error Pages"
+description: "Production-ready error pages with beautiful designs for 401, 403, 404, and 500 errors."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+Conductor includes four beautifully designed error pages out of the box. Each page features:
+
+- Modern, responsive design with gradient backgrounds
+- Clear error messaging with status codes
+- Actionable buttons (Home, Back, Sign In, Try Again)
+- SEO-friendly meta tags (noindex, nofollow)
+- Support for custom messages and dynamic content
+- Consistent styling with smooth animations
+
+All error pages are built using the `html` operation with Liquid templates and embedded CSS, making them easy to customize without external dependencies.
+
+## Available Error Pages
+
+### 401 - Unauthorized
+
+**Route**: `/errors/401`
+
+Displayed when authentication is required. Features a lock icon and amber gradient.
+
+**Custom Parameters**:
+- `message` - Override default message
+
+**Example Usage**:
+```yaml
+flow:
+  - name: check-auth
+    operation: code
+    handler: ./check-auth.ts
+
+  - name: unauthorized
+    condition: ${!check-auth.output.authenticated}
+    operation: http
+    config:
+      url: /errors/401?message=${encodeURIComponent('Please log in to continue')}
+      method: GET
+```
+
+**Actions**:
+- Sign In button (redirects to `/login`)
+- Go Home button (redirects to `/`)
+
+---
+
+### 403 - Forbidden
+
+**Route**: `/errors/403`
+
+Displayed when access is denied due to insufficient permissions. Features red gradient.
+
+**Custom Parameters**:
+- `message` - Override default message
+- `contactEmail` - Display support contact information
+
+**Example Usage**:
+```yaml
+flow:
+  - name: check-permission
+    operation: code
+    handler: ./check-permission.ts
+
+  - name: forbidden
+    condition: ${!check-permission.output.authorized}
+    operation: http
+    config:
+      url: /errors/403?message=Admin%20access%20required&contactEmail=support@example.com
+      method: GET
+```
+
+**Actions**:
+- Go Home button
+- Log In button (redirects to `/login`)
+- Optional support email link
+
+---
+
+### 404 - Not Found
+
+**Route**: `/errors/404`
+
+Displayed when a page or resource doesn't exist. Features purple gradient.
+
+**Custom Parameters**:
+- `message` - Override default message
+- `searchEnabled` - Show search form (boolean)
+- `helpfulLinks` - Array of helpful navigation links
+
+**Default Helpful Links**:
+```yaml
+helpfulLinks:
+  - title: Home
+    url: /
+  - title: Documentation
+    url: /docs
+  - title: Contact Support
+    url: /support
+```
+
+**Example Usage**:
+```yaml
+output:
+  - when: ${not-found}
+    redirect:
+      url: /errors/404?searchEnabled=true
+      status: 302
+```
+
+**Actions**:
+- Go Home button
+- Go Back button (browser history)
+- Optional search form (when `searchEnabled=true`)
+- Customizable helpful links list
+
+---
+
+### 500 - Internal Server Error
+
+**Route**: `/errors/500`
+
+Displayed when server errors occur. Features pink-to-blue gradient.
+
+**Custom Parameters**:
+- `message` - Override default message
+- `errorId` - Unique error identifier for support tracking
+- `errorStack` - Stack trace (only shown when `dev=true`)
+- `dev` - Enable development mode to show error details
+- `supportEmail` - Display support contact
+
+**Example Usage**:
+```yaml
+flow:
+  - name: process-data
+    operation: code
+    handler: ./process.ts
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+
+  - name: server-error
+    condition: ${process-data.failed}
+    operation: http
+    config:
+      url: /errors/500?errorId=${generateId()}&supportEmail=support@example.com
+      method: GET
+```
+
+**Actions**:
+- Go Home button
+- Try Again button (reloads page)
+- Error ID display (for support reference)
+- Optional error details panel (dev mode only)
+- Optional support email link
+
+## Customization
+
+### Changing Styles
+
+Error pages use inline CSS for zero dependencies. To customize the look:
+
+1. **Locate the error page YAML**:
+```bash
+ensembles/system/errors/404.yaml
+```
+
+2. **Edit the `styles` section** in the agent config:
+```yaml
+agents:
+  - name: render-404
+    operation: html
+    config:
+      styles: |
+        body {
+          background: linear-gradient(135deg, #your-color 0%, #your-color-2 100%);
+        }
+        .error-code {
+          font-size: 8rem;  /* Make code bigger */
+        }
+```
+
+3. **Deploy changes**:
+```bash
+conductor deploy
+```
+
+### Adding Search
+
+Enable search on the 404 page by passing `searchEnabled=true`:
+
+```yaml
+output:
+  - when: ${page-not-found}
+    redirect:
+      url: /errors/404?searchEnabled=true
+      status: 302
+```
+
+**Customize search endpoint**:
+```yaml
+# In ensembles/system/errors/404.yaml
+template: |
+  <form action="/your-search-endpoint" method="get">
+    <input type="text" name="q" placeholder="Search..." />
+    <button type="submit">Search</button>
+  </form>
+```
+
+### Customizing Helpful Links
+
+Pass custom links to the 404 page:
+
+```yaml
+input:
+  helpfulLinks:
+    - title: API Documentation
+      url: /api/docs
+    - title: Status Page
+      url: https://status.example.com
+    - title: Community Forum
+      url: https://forum.example.com
+```
+
+### Adding Brand Logo
+
+Add your logo to any error page:
+
+```yaml
+template: |
+  <div class="error-page">
+    <div class="error-content">
+      <img src="/logo.png" alt="Logo" class="error-logo" />
+      <div class="error-code">404</div>
+      <!-- rest of template -->
+```
+
+Add corresponding CSS:
+```yaml
+styles: |
+  .error-logo {
+    width: 120px;
+    margin-bottom: 2rem;
+  }
+```
+
+## Integration
+
+### How Errors Are Triggered
+
+Error pages are automatically displayed in several scenarios:
+
+#### 1. Ensemble Output Redirects
+
+Redirect to an error page based on conditions:
+
+```yaml
+output:
+  # Not found
+  - when: ${!lookup.output.found}
+    redirect:
+      url: /errors/404
+      status: 302
+
+  # Unauthorized
+  - when: ${!auth.output.authenticated}
+    redirect:
+      url: /errors/401
+      status: 302
+
+  # Forbidden
+  - when: ${!auth.output.authorized}
+    redirect:
+      url: /errors/403
+      status: 302
+```
+
+#### 2. Conditional HTTP Responses
+
+Return error page content directly:
+
+```yaml
+flow:
+  - name: fetch-error-page
+    condition: ${validation.failed}
+    operation: http
+    config:
+      url: /errors/400?message=Invalid%20input
+      method: GET
+
+output:
+  status: ${validation.failed ? 400 : 200}
+  body: ${validation.failed ? fetch-error-page.output : data.output}
+```
+
+#### 3. Agent Failure Handling
+
+Handle agent failures gracefully:
+
+```yaml
+flow:
+  - name: call-external-api
+    operation: http
+    config:
+      url: https://api.example.com/data
+      method: GET
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+
+  - name: handle-failure
+    condition: ${call-external-api.failed}
+    operation: http
+    config:
+      url: /errors/500?errorId=${generateId()}
+      method: GET
+
+output:
+  - when: ${call-external-api.success}
+    status: 200
+    body: ${call-external-api.output}
+
+  - when: ${call-external-api.failed}
+    status: 500
+    body: ${handle-failure.output}
+```
+
+#### 4. Custom Error Handling in Code Operations
+
+Trigger errors from TypeScript handlers:
+
+```typescript
+// agents/user/my-handler/handler.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handler(ctx: AgentExecutionContext) {
+  const { userId } = ctx.input
+
+  // Not found
+  if (!userId) {
+    return ctx.redirect('/errors/404?message=User%20not%20found')
+  }
+
+  // Check permissions
+  const hasPermission = await checkPermission(userId)
+  if (!hasPermission) {
+    return ctx.redirect('/errors/403?message=Insufficient%20permissions')
+  }
+
+  try {
+    const data = await fetchData(userId)
+    return { data }
+  } catch (error) {
+    // Server error
+    const errorId = generateErrorId()
+    await logError(errorId, error)
+    return ctx.redirect(`/errors/500?errorId=${errorId}`)
+  }
+}
+```
+
+### Error Tracking
+
+Log errors before redirecting for monitoring:
+
+```yaml
+flow:
+  - name: process-request
+    operation: code
+    handler: ./process.ts
+
+  - name: log-error
+    condition: ${process-request.failed}
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: |
+        INSERT INTO error_logs (error_id, timestamp, message, stack)
+        VALUES (?, ?, ?, ?)
+      params:
+        - ${generateId()}
+        - ${Date.now()}
+        - ${process-request.error.message}
+        - ${process-request.error.stack}
+
+  - name: show-error
+    condition: ${process-request.failed}
+    operation: http
+    config:
+      url: /errors/500?errorId=${log-error.output.insertId}
+      method: GET
+```
+
+## Full 404 Page Reference
+
+Here's the complete YAML for the 404 error page:
+
+```yaml
+name: error-404
+description: 404 Not Found error page
+
+trigger:
+  - type: http
+    path: /errors/404
+    methods: [GET]
+    public: true
+    responses:
+      html:
+        enabled: true
+      json:
+        enabled: true
+
+agents:
+  - name: render-404
+    operation: html
+    config:
+      templateEngine: liquid
+      template: |
+        <div class="error-page">
+          <div class="error-content">
+            <div class="error-code">404</div>
+            <h1>Page Not Found</h1>
+            <p class="error-message">
+              {% if message %}
+              {{message}}
+              {% else %}
+              The page you're looking for doesn't exist or has been moved.
+              {% endif %}
+            </p>
+
+            <div class="error-actions">
+              <a href="/" class="btn-primary">Go Home</a>
+              <a href="javascript:history.back()" class="btn-secondary">Go Back</a>
+            </div>
+
+            {% if searchEnabled %}
+            <div class="error-search">
+              <form action="/search" method="get">
+                <input type="text" name="q" placeholder="Search for what you need..." />
+                <button type="submit">Search</button>
+              </form>
+            </div>
+            {% endif %}
+
+            {% if helpfulLinks %}
+            <div class="helpful-links">
+              <h2>Helpful Links</h2>
+              <ul>
+                {% for link in helpfulLinks %}
+                <li><a href="{{link.url}}">{{link.title}}</a></li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      styles: |
+        body {
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          margin: 0;
+          padding: 0;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: #333;
+        }
+        .error-page {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2rem;
+        }
+        .error-content {
+          background: white;
+          border-radius: 16px;
+          padding: 3rem;
+          max-width: 600px;
+          width: 100%;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .error-code {
+          font-size: 6rem;
+          font-weight: 900;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          margin-bottom: 1rem;
+          line-height: 1;
+        }
+        h1 {
+          font-size: 2rem;
+          margin: 0 0 1rem 0;
+          color: #2d3748;
+        }
+        .error-message {
+          font-size: 1.125rem;
+          color: #718096;
+          margin-bottom: 2rem;
+          line-height: 1.6;
+        }
+        .error-actions {
+          display: flex;
+          gap: 1rem;
+          justify-content: center;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+        }
+        .btn-primary, .btn-secondary {
+          padding: 0.875rem 2rem;
+          border-radius: 8px;
+          text-decoration: none;
+          font-weight: 600;
+          transition: all 0.3s;
+          display: inline-block;
+        }
+        .btn-primary {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+        }
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+          background: #f7fafc;
+          color: #667eea;
+          border: 2px solid #667eea;
+        }
+        .btn-secondary:hover {
+          background: #edf2f7;
+        }
+        .error-search {
+          margin: 2rem 0;
+          padding: 2rem 0;
+          border-top: 1px solid #e2e8f0;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .error-search form {
+          display: flex;
+          gap: 0.5rem;
+          max-width: 400px;
+          margin: 0 auto;
+        }
+        .error-search input {
+          flex: 1;
+          padding: 0.75rem;
+          border: 2px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 1rem;
+        }
+        .error-search button {
+          padding: 0.75rem 1.5rem;
+          background: #667eea;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+        }
+        .helpful-links {
+          text-align: left;
+          margin-top: 2rem;
+        }
+        .helpful-links h2 {
+          font-size: 1.25rem;
+          margin-bottom: 1rem;
+          color: #2d3748;
+        }
+        .helpful-links ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+        .helpful-links li {
+          margin-bottom: 0.75rem;
+        }
+        .helpful-links a {
+          color: #667eea;
+          text-decoration: none;
+          font-weight: 500;
+        }
+        .helpful-links a:hover {
+          text-decoration: underline;
+        }
+      seo:
+        title: "404 - Page Not Found"
+        description: "The page you're looking for could not be found"
+        robots: noindex, nofollow
+      meta:
+        - name: viewport
+          content: width=device-width, initial-scale=1
+        - http-equiv: status
+          content: "404"
+    input:
+      message: $input.message
+      searchEnabled: $input.searchEnabled
+      helpfulLinks: $input.helpfulLinks
+
+input:
+  message: null
+  searchEnabled: false
+  helpfulLinks:
+    - title: Home
+      url: /
+    - title: Documentation
+      url: /docs
+    - title: Contact Support
+      url: /support
+
+output:
+  html: ${render-404.output}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card
+    title="Health Check"
+    icon="heart-pulse"
+    href="/conductor/starter-kit/health-check"
+  >
+    Monitor application health and status
+  </Card>
+
+  <Card
+    title="Starter Kit Overview"
+    icon="rocket"
+    href="/conductor/starter-kit/overview"
+  >
+    Explore all starter kit features
+  </Card>
+
+  <Card
+    title="HTML Operation"
+    icon="code"
+    href="/conductor/operations/html"
+  >
+    Learn about HTML rendering with Liquid templates
+  </Card>
+
+  <Card
+    title="Flow Control"
+    icon="diagram-project"
+    href="/conductor/core-concepts/flow-control"
+  >
+    Master conditional logic and error handling
+  </Card>
+</CardGroup>

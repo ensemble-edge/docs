@@ -144,6 +144,7 @@
         "conductor/core-concepts/agents",
         "conductor/core-concepts/ensembles",
         "conductor/core-concepts/triggers",
+        "conductor/core-concepts/notifications",
         "conductor/core-concepts/components",
         "conductor/core-concepts/auto-discovery",
         "conductor/core-concepts/flow-control",
@@ -208,15 +209,48 @@
       ]
     },
     {
-      "group": "Pre-built Agents Reference",
+      "group": "Starter Kit",
       "pages": [
-        "conductor/agents/overview",
-        "conductor/agents/scraper",
-        "conductor/agents/validator",
-        "conductor/agents/rag",
-        "conductor/agents/hitl",
-        "conductor/agents/fetcher",
-        "conductor/agents/transformer"
+        "conductor/starter-kit/overview",
+        {
+          "group": "Features",
+          "pages": [
+            "conductor/starter-kit/redirects",
+            "conductor/starter-kit/documentation",
+            "conductor/starter-kit/error-pages",
+            "conductor/starter-kit/health-check",
+            "conductor/starter-kit/robots",
+            "conductor/starter-kit/sitemap"
+          ]
+        },
+        {
+          "group": "Utility Agents",
+          "pages": [
+            "conductor/starter-kit/fetch",
+            "conductor/starter-kit/validate",
+            "conductor/starter-kit/scrape",
+            "conductor/starter-kit/slug",
+            "conductor/starter-kit/tools",
+            "conductor/starter-kit/queries",
+            "conductor/starter-kit/autorag"
+          ]
+        },
+        {
+          "group": "Debug Utilities",
+          "pages": [
+            "conductor/starter-kit/debug/overview",
+            "conductor/starter-kit/debug/agents",
+            "conductor/starter-kit/debug/ensembles"
+          ]
+        },
+        {
+          "group": "Built-in Agents",
+          "pages": [
+            "conductor/starter-kit/built-in/overview",
+            "conductor/starter-kit/built-in/rag",
+            "conductor/starter-kit/built-in/hitl"
+          ]
+        }
       ]
     },
     {

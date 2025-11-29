@@ -1,50 +1,68 @@
 ---
-title: "Using Pre-built Agents"
-description: "Don't reinvent the wheel. Conductor includes 8 production-ready, tested agents for common tasks."
+title: "Using Starter Kit Agents"
+description: "Don't reinvent the wheel. Conductor includes production-ready, tested agents for common tasks."
 ---
 
 ## Available Agents
 
+### Starter Kit Utility Agents
+
+These agents ship with your project—you own the source and can customize them.
+
 <CardGroup cols={2}>
-  <Card title="scraper" icon="spider-web" href="/conductor/agents/scraper">
+  <Card title="scrape" icon="spider-web" href="/conductor/starter-kit/scrape">
     Web scraping with fallbacks
   </Card>
 
-  <Card title="validator" icon="check-circle" href="/conductor/agents/validator">
+  <Card title="validate" icon="check-circle" href="/conductor/starter-kit/validate">
     Data validation against schemas
   </Card>
 
-  <Card title="rag" icon="magnifying-glass" href="/conductor/agents/rag">
-    Retrieval-augmented generation
+  <Card title="fetch" icon="download" href="/conductor/starter-kit/fetch">
+    Smart HTTP fetching with caching
   </Card>
 
-  <Card title="hitl" icon="user" href="/conductor/agents/hitl">
+  <Card title="slug" icon="link" href="/conductor/starter-kit/slug">
+    URL-safe slug generation
+  </Card>
+
+  <Card title="tools" icon="wrench" href="/conductor/starter-kit/tools">
+    MCP tools integration
+  </Card>
+
+  <Card title="queries" icon="database" href="/conductor/starter-kit/queries">
+    SQL query execution
+  </Card>
+
+  <Card title="autorag" icon="robot" href="/conductor/starter-kit/autorag">
+    Cloudflare AutoRAG (managed)
+  </Card>
+</CardGroup>
+
+### Built-in Framework Agents
+
+Framework-level agents you configure but don't modify.
+
+<CardGroup cols={2}>
+  <Card title="rag" icon="magnifying-glass" href="/conductor/starter-kit/built-in/rag">
+    Manual RAG with Vectorize
+  </Card>
+
+  <Card title="hitl" icon="user" href="/conductor/starter-kit/built-in/hitl">
     Human-in-the-loop approvals
-  </Card>
-
-  <Card title="fetcher" icon="download" href="/conductor/agents/fetcher">
-    Smart HTTP fetching
-  </Card>
-
-  <Card title="transformer" icon="shuffle" href="/conductor/agents/transformer">
-    Data transformation
-  </Card>
-
-  <Card title="scheduler" icon="clock" href="/conductor/agents/scheduler">
-    Task scheduling
   </Card>
 </CardGroup>
 
 ## Quick Usage
 
-### Scraper Agent
+### Scrape Agent
 
 ```yaml
 ensemble: scrape-and-analyze
 
 agents:
   - name: scrape
-    agent: scraper
+    agent: scrape
     inputs:
       url: ${input.url}
       extract:
@@ -64,14 +82,14 @@ output:
   analysis: ${analyze.output}
 ```
 
-### Validator Agent
+### Validate Agent
 
 ```yaml
 ensemble: validate-and-store
 
 agents:
   - name: validate
-    agent: validator
+    agent: validate
     inputs:
       data: ${input.user_data}
       schema:
@@ -160,7 +178,7 @@ output:
   feedback: ${approval.output.feedback}
 ```
 
-## Combining Pre-built Agents
+## Combining Starter Kit Agents
 
 ### Scrape + Validate + Transform
 
@@ -169,32 +187,41 @@ ensemble: scrape-validate-transform
 
 agents:
   - name: scrape
-    agent: scraper
+    agent: scrape
     inputs:
       url: ${input.url}
 
   - name: validate
-    agent: validator
+    agent: validate
     inputs:
       data: ${scrape.output}
       schema: product-schema
 
   - name: transform
     condition: ${validate.output.valid}
-    agent: transformer
-    inputs:
+    operation: code
+    config:
+      script: scripts/transform-product
+    input:
       data: ${scrape.output}
-      transformations:
-        - type: rename
-          from: price_text
-          to: price
-        - type: convert
-          field: price
-          to: number
 
 output:
   product: ${transform.output}
   valid: ${validate.output.valid}
+```
+
+```typescript
+// scripts/transform-product.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function transformProduct(ctx: AgentExecutionContext) {
+  const { data } = ctx.input
+  return {
+    ...data,
+    price: parseFloat(data.price_text?.replace(/[^0-9.]/g, '') || '0'),
+    transformed_at: Date.now()
+  }
+}
 ```
 
 ### RAG + HITL
@@ -225,16 +252,16 @@ output:
   sources: ${rag.output.sources}
 ```
 
-## Customizing Pre-built Agents
+## Customizing Starter Kit Agents
 
-Pre-built agents accept configuration:
+Starter Kit agents accept configuration:
 
-### Scraper with Retry
+### Scrape with Retry
 
 ```yaml
 agents:
   - name: scrape
-    agent: scraper
+    agent: scrape
     inputs:
       url: ${input.url}
       timeout: 10000
@@ -245,12 +272,12 @@ agents:
         User-Agent: MyApp/1.0
 ```
 
-### Validator with Custom Rules
+### Validate with Custom Rules
 
 ```yaml
 agents:
   - name: validate
-    agent: validator
+    agent: validate
     inputs:
       data: ${input.data}
       schema:
@@ -277,9 +304,9 @@ agents:
       score_threshold: 0.7
 ```
 
-## When to Use Pre-built vs Custom
+## When to Use Starter Kit vs Custom
 
-### Use Pre-built When:
+### Use Starter Kit When:
 - Common use case (scraping, validation, RAG)
 - Need production-tested solution
 - Want to ship quickly
@@ -291,9 +318,9 @@ agents:
 - Performance critical paths
 - Domain-specific requirements
 
-## Extending Pre-built Agents
+## Extending Starter Kit Agents
 
-Wrap pre-built agents for custom behavior:
+Wrap Starter Kit agents for custom behavior:
 
 ```yaml
 # agents/custom-scraper/agent.yaml
@@ -304,7 +331,7 @@ inputs:
   url: string
 
 operations:
-  # Use pre-built scraper
+  # Use Starter Kit scraper
   - name: scrape
     agent: scraper
     inputs:
@@ -366,19 +393,19 @@ outputs:
 
 ## Best Practices
 
-1. **Start with Pre-built** - Try pre-built agents first
+1. **Start with Starter Kit** - Try Starter Kit agents first
 2. **Configure Don't Customize** - Use inputs before building custom
-3. **Wrap for Extensions** - Create custom agents that wrap pre-built
+3. **Wrap for Extensions** - Create custom agents that wrap Starter Kit agents
 4. **Version Independently** - Version custom wrappers separately
 5. **Test Thoroughly** - Test custom integrations
-6. **Document Usage** - Document how you use pre-built agents
-7. **Monitor Performance** - Track pre-built agent performance
+6. **Document Usage** - Document how you use Starter Kit agents
+7. **Monitor Performance** - Track Starter Kit agent performance
 8. **Report Issues** - Report bugs to Conductor team
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Pre-built Agents Reference" icon="box" href="/conductor/agents/overview">
+  <Card title="Starter Kit Reference" icon="box" href="/conductor/starter-kit/overview">
     Detailed docs for each agent
   </Card>
 

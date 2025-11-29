@@ -72,7 +72,7 @@ export default function chunkDocuments(context: AgentExecutionContext) {
 
   # 2. Embed chunks (parallel)
   - name: embed
-    agent: rag
+    operation: rag
     config:
       action: embed
       text: ${chunk.output.chunks.map(c => c.text)}
@@ -122,7 +122,7 @@ inputs:
 agents:
   # 1. Search relevant chunks
   - name: search
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${input.question}
@@ -179,7 +179,7 @@ const ragQA = createEnsemble('rag-qa')
   // 1. Search relevant chunks
   .addStep(
     step('search')
-      .agent('rag')
+      .operation('rag')
       .config({
         action: 'search',
         query: '${input.question}',
@@ -264,7 +264,7 @@ ensemble: rag-qa-hybrid
 agents:
   # Vector search
   - name: vector-search
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${input.question}
@@ -364,21 +364,21 @@ agents:
 
   # Search with each query
   - name: search-1
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${generate-queries.output[0]}
       topK: 5
 
   - name: search-2
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${generate-queries.output[1]}
       topK: 5
 
   - name: search-3
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${generate-queries.output[2]}
@@ -444,7 +444,7 @@ agents:
 
   # Search
   - name: search
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${contextualize.output}
@@ -496,7 +496,7 @@ export default function returnUpdatedStatus(context: AgentExecutionContext) {
 ```yaml
 agents:
   - name: search
-    agent: rag
+    operation: rag
     retry:
       maxAttempts: 3
       backoff: exponential
@@ -515,7 +515,7 @@ agents:
 ```yaml
 agents:
   - name: search
-    agent: rag
+    operation: rag
     cache:
       ttl: 3600
       key: rag-search-${hash(input.question)}
@@ -642,8 +642,8 @@ describe('RAG Pipeline', () => {
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="rag Agent" icon="database" href="/conductor/agents/rag">
-    RAG agent reference
+  <Card title="RAG Operation" icon="database" href="/conductor/starter-kit/built-in/rag">
+    RAG operation reference
   </Card>
   <Card title="Vectorize" icon="vector-square" href="/conductor/operations/storage">
     Vector storage

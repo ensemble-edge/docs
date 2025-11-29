@@ -36,7 +36,7 @@ agents:
 
 **Types:**
 - **Custom agents** - Defined by you using operations
-- **Pre-built agents** - Ships with Conductor (scraper, validator, RAG, etc.)
+- **Starter Kit agents** - Ships with Conductor (scraper, validator, RAG, etc.)
 
 **Capabilities:**
 - Use components
@@ -398,18 +398,18 @@ agents:
 
 ### Catalog
 
-**What:** Pre-built components and agents that ship with Conductor
+**What:** Starter Kit components and agents that ship with Conductor
 
 **Location:** `catalog/` directory in Conductor repository
 
 **Includes:**
-- Pre-built agents (scraper, validator, RAG, etc.)
+- Starter Kit agents (scraper, validator, RAG, etc.)
 - Example components (prompts, queries, configs)
 - Example ensembles
 
 ---
 
-### Pre-built Agent
+### Starter Kit Agent
 
 **What:** Production-ready agents that ship with Conductor
 
@@ -426,7 +426,7 @@ agents:
 ```yaml
 agents:
   - name: scraper
-    agent: scraper  # Reference pre-built
+    agent: scraper  # Reference starter kit agent
     config:
       url: https://example.com
 ```
@@ -632,7 +632,7 @@ A: Operations are primitives (think, code, http). Agents use operations to do wo
 **Q: Can I version scripts?**
 A: Yes. Scripts are components and can be versioned with Edgit.
 
-**Q: What's a pre-built agent?**
+**Q: What's a starter kit agent?**
 A: Production-ready agents that ship with Conductor (scraper, validator, RAG, etc.)
 
 **Q: Can agents call other agents?**
@@ -655,7 +655,7 @@ A: Yes. Agents can call both other agents and ensembles.
     All available operations
   </Card>
 
-  <Card title="Pre-built Agents" icon="robot" href="/conductor/agents/overview">
+  <Card title="Starter Kit" icon="robot" href="/conductor/starter-kit/overview">
     Ready-to-use agents
   </Card>
 </CardGroup>

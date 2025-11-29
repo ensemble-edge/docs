@@ -1,0 +1,494 @@
+---
+title: "Health Check"
+description: "Monitor your application with a built-in health check endpoint for load balancers and monitoring systems"
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The health check ensemble provides a simple `/health` endpoint that returns the status of your Conductor application. This endpoint is designed for:
+
+- **Load balancers**: Health checks for traffic routing decisions
+- **Monitoring systems**: Uptime monitoring and alerting
+- **Container orchestration**: Kubernetes liveness/readiness probes
+- **Status pages**: Real-time service availability
+
+The endpoint is intentionally lightweight and always returns fresh status without caching.
+
+## Endpoint Details
+
+| Property | Value |
+|----------|-------|
+| **Path** | `/health` |
+| **Method** | `GET` |
+| **Public** | Yes (no authentication required) |
+| **Cache** | Disabled (`noCache: true`, `noStore: true`) |
+| **Response Format** | JSON only (HTML disabled) |
+
+### Why No Cache?
+
+Health checks should always reflect the current state of your application. Caching health check responses can mask issues and prevent load balancers from detecting failures quickly.
+
+## Response Format
+
+### Success Response
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-11-29T12:34:56.789Z",
+  "version": "1.0.0",
+  "uptime": 3600
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `string` | Health status: `healthy` or `unhealthy` |
+| `timestamp` | `string` | ISO 8601 timestamp of the check |
+| `version` | `string` | Application version |
+| `uptime` | `number` | Seconds since application started |
+
+### HTTP Status Codes
+
+- `200 OK`: Application is healthy
+- `503 Service Unavailable`: Application is unhealthy (modify script to return this)
+
+## Full Ensemble Definition
+
+```yaml
+name: health
+description: Health check endpoint for monitoring and load balancers
+
+trigger:
+  - type: http
+    path: /health
+    methods: [GET]
+    public: true
+    # Health checks should not be cached - always return fresh status
+    httpCache:
+      noCache: true
+      noStore: true
+    responses:
+      html:
+        enabled: false
+      json:
+        enabled: true
+
+agents:
+  - name: check-health
+    operation: code
+    config:
+      script: scripts/examples/health-check
+
+flow:
+  - agent: check-health
+
+output:
+  status: ${check-health.output.status}
+  timestamp: ${check-health.output.timestamp}
+  version: ${check-health.output.version}
+  uptime: ${check-health.output.uptime}
+```
+
+## Customization
+
+### Adding Database Health Checks
+
+Extend the health check to verify database connectivity:
+
+```yaml
+name: health
+description: Health check with database verification
+
+trigger:
+  - type: http
+    path: /health
+    methods: [GET]
+    public: true
+    httpCache:
+      noCache: true
+      noStore: true
+
+agents:
+  - name: check-health
+    operation: code
+    config:
+      script: scripts/system/health-check
+
+  - name: check-database
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      query: "SELECT 1 as health"
+    condition: ${check-health.output.status === 'healthy'}
+
+flow:
+  - agent: check-health
+  - agent: check-database
+
+output:
+  status: ${check-database.failed ? 'unhealthy' : check-health.output.status}
+  timestamp: ${check-health.output.timestamp}
+  version: ${check-health.output.version}
+  uptime: ${check-health.output.uptime}
+  checks:
+    application: ${check-health.output.status}
+    database: ${check-database.failed ? 'unhealthy' : 'healthy'}
+```
+
+### Adding External Service Checks
+
+Verify connectivity to external APIs or services:
+
+```yaml
+name: health
+description: Health check with external service verification
+
+trigger:
+  - type: http
+    path: /health
+    methods: [GET]
+    public: true
+    httpCache:
+      noCache: true
+      noStore: true
+
+agents:
+  - name: check-health
+    operation: code
+    config:
+      script: scripts/system/health-check
+
+  - name: check-api
+    operation: http
+    config:
+      url: "https://api.example.com/status"
+      method: GET
+      timeout: 5000
+    condition: ${check-health.output.status === 'healthy'}
+
+  - name: check-storage
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: "health-check-test"
+    condition: ${check-health.output.status === 'healthy'}
+
+flow:
+  - agent: check-health
+  - agent: check-api
+  - agent: check-storage
+
+output:
+  - when: ${check-api.failed || check-storage.failed}
+    status: 503
+    body:
+      status: unhealthy
+      timestamp: ${check-health.output.timestamp}
+      version: ${check-health.output.version}
+      checks:
+        application: ${check-health.output.status}
+        api: ${check-api.failed ? 'unhealthy' : 'healthy'}
+        storage: ${check-storage.failed ? 'unhealthy' : 'healthy'}
+
+  - status: 200
+    body:
+      status: healthy
+      timestamp: ${check-health.output.timestamp}
+      version: ${check-health.output.version}
+      uptime: ${check-health.output.uptime}
+      checks:
+        application: healthy
+        api: healthy
+        storage: healthy
+```
+
+### Custom Health Check Logic
+
+Create a custom handler with your own health checks:
+
+**`scripts/system/custom-health-check.ts`**
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handler(ctx: AgentExecutionContext) {
+  const startTime = Date.now()
+  const checks = {
+    memory: checkMemory(),
+    cache: await checkCache(ctx),
+    config: await checkConfig(ctx)
+  }
+
+  const allHealthy = Object.values(checks).every(c => c.healthy)
+
+  return {
+    status: allHealthy ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    version: ctx.config.version || '1.0.0',
+    uptime: getUptime(),
+    duration: Date.now() - startTime,
+    checks
+  }
+}
+
+function checkMemory() {
+  // Add memory checks if available
+  return { healthy: true, message: 'Memory usage normal' }
+}
+
+async function checkCache(ctx: AgentExecutionContext) {
+  try {
+    // Test KV read/write
+    const testKey = 'health-check-probe'
+    await ctx.env.KV?.put(testKey, Date.now().toString(), { expirationTtl: 60 })
+    const value = await ctx.env.KV?.get(testKey)
+    return { healthy: !!value, message: 'Cache operational' }
+  } catch (error) {
+    return { healthy: false, message: 'Cache unavailable' }
+  }
+}
+
+async function checkConfig(ctx: AgentExecutionContext) {
+  // Verify critical configuration
+  const required = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY']
+  const missing = required.filter(key => !ctx.env[key])
+
+  return {
+    healthy: missing.length === 0,
+    message: missing.length > 0 ? `Missing: ${missing.join(', ')}` : 'Config complete'
+  }
+}
+
+function getUptime() {
+  // In Workers, uptime is per-isolate (limited usefulness)
+  // Consider storing startup time in KV for cross-request tracking
+  return Math.floor(performance.now() / 1000)
+}
+```
+
+Then reference it in your ensemble:
+
+```yaml
+agents:
+  - name: check-health
+    operation: code
+    config:
+      script: scripts/system/custom-health-check
+```
+
+## Load Balancer Integration
+
+### Cloudflare Load Balancer
+
+Configure your Cloudflare Load Balancer to use the health check:
+
+1. Navigate to **Traffic** > **Load Balancing** in Cloudflare dashboard
+2. Edit your origin pool
+3. Configure health check:
+   - **Path**: `/health`
+   - **Type**: `HTTPS`
+   - **Method**: `GET`
+   - **Interval**: `60` seconds
+   - **Timeout**: `5` seconds
+   - **Retries**: `2`
+   - **Expected codes**: `200`
+
+### Kubernetes Probes
+
+Use the health check for liveness and readiness probes:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: conductor-app
+spec:
+  containers:
+  - name: conductor
+    image: your-conductor-image:latest
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 2
+```
+
+### AWS Application Load Balancer
+
+Configure ALB health checks:
+
+1. Navigate to **Target Groups** in AWS console
+2. Edit health check settings:
+   - **Protocol**: `HTTPS`
+   - **Path**: `/health`
+   - **Port**: `443`
+   - **Healthy threshold**: `2`
+   - **Unhealthy threshold**: `3`
+   - **Timeout**: `5` seconds
+   - **Interval**: `30` seconds
+   - **Success codes**: `200`
+
+### GCP Load Balancer
+
+Configure health check for GCP backend services:
+
+```bash
+gcloud compute health-checks create https conductor-health \
+  --request-path="/health" \
+  --port=443 \
+  --check-interval=30s \
+  --timeout=5s \
+  --unhealthy-threshold=3 \
+  --healthy-threshold=2
+```
+
+## Best Practices
+
+### Keep It Fast
+
+Health checks should complete quickly (under 500ms). Avoid:
+- Complex database queries
+- External API calls with long timeouts
+- Heavy computations
+- Multiple sequential checks
+
+Instead:
+- Use simple `SELECT 1` queries for database checks
+- Set short timeouts (2-5 seconds) for external calls
+- Run checks in parallel when possible
+- Cache expensive checks with short TTLs
+
+### Differentiate Liveness vs Readiness
+
+Consider creating two endpoints:
+
+**`/health/live`** - Is the application running?
+- Basic health check
+- Fast response
+- Rarely fails
+
+**`/health/ready`** - Is the application ready to serve traffic?
+- Includes database checks
+- Verifies dependencies
+- May fail during startup
+
+```yaml
+trigger:
+  - type: http
+    paths:
+      - path: /health/live
+        methods: [GET]
+      - path: /health/ready
+        methods: [GET]
+    public: true
+```
+
+### Security Considerations
+
+While health checks are typically public, you may want to:
+
+1. **Rate limit**: Prevent health check abuse
+   ```yaml
+   trigger:
+     - type: http
+       path: /health
+       rateLimit:
+         limit: 100
+         window: 60
+   ```
+
+2. **Add authentication**: For sensitive information
+   ```yaml
+   trigger:
+     - type: http
+       path: /health/detailed
+       auth:
+         type: bearer
+         required: true
+   ```
+
+3. **Limit response details**: In production, avoid exposing internal details
+
+## Testing
+
+Test your health check locally:
+
+```bash
+# Basic check
+curl http://localhost:8787/health
+
+# With headers
+curl -i http://localhost:8787/health
+
+# Check response time
+curl -w "\nTime: %{time_total}s\n" http://localhost:8787/health
+```
+
+## Monitoring
+
+### Uptime Monitoring
+
+Integrate with monitoring services:
+
+- **Pingdom**: Create HTTP check for `/health`
+- **UptimeRobot**: Monitor every 5 minutes
+- **Better Uptime**: Set up status page
+- **Datadog**: Create synthetic test
+- **New Relic**: Configure availability monitoring
+
+### Alerting
+
+Set up alerts for:
+- Health check returning `unhealthy` status
+- Response time exceeding threshold (e.g., > 1s)
+- Multiple consecutive failures
+- Specific component failures (database, cache, API)
+
+<CardGroup cols={2}>
+  <Card
+    title="System Ensembles"
+    icon="gear"
+    href="/conductor/starter-kit/overview"
+  >
+    Explore other system ensembles
+  </Card>
+  <Card
+    title="Triggers"
+    icon="bolt"
+    href="/conductor/core-concepts/triggers"
+  >
+    Learn about HTTP triggers
+  </Card>
+  <Card
+    title="Operations"
+    icon="code"
+    href="/conductor/operations/overview"
+  >
+    Understand code operations
+  </Card>
+  <Card
+    title="Testing & Observability"
+    icon="chart-line"
+    href="/conductor/building/testing-observability"
+  >
+    Set up monitoring and alerts
+  </Card>
+</CardGroup>

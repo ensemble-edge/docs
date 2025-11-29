@@ -1,7 +1,95 @@
 ---
-title: "hitl Agent"
+title: "HITL Agent"
 description: "Human approval workflows. Pause execution until someone approves."
 ---
+
+<Note type="warning">
+**Built-in** - Framework-level agent. Configure only - cannot modify source.
+</Note>
+
+## Overview
+
+The HITL (Human-in-the-Loop) agent suspends workflow execution for manual approval. It leverages **Cloudflare Durable Objects** for stateful, reliable state persistence across workflow suspensions and resumptions, enabling truly durable human-in-the-loop workflows that can pause for hours or days without losing state.
+
+**Features:**
+- **Durable Object storage** for reliable state persistence across suspensions
+- **Stateful workflow resumption** - workflows pause and resume seamlessly
+- **Multiple notifications**: Slack, Email (via MailChannels), Webhook
+- **Configurable timeouts** with auto-expiry
+- **Approval/rejection with comments**
+
+## Required Bindings
+
+Add this to your `wrangler.toml`:
+
+```toml
+# Required: Durable Object for HITL state
+[[durable_objects.bindings]]
+name = "HITL_STATE"
+class_name = "HITLState"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["HITLState"]
+```
+
+## Actions
+
+The HITL agent supports two primary actions for controlling workflow execution:
+
+### suspend
+
+Pauses workflow execution and waits for human approval. The workflow state is persisted to a Durable Object, allowing it to resume from the exact same point later.
+
+```yaml
+agents:
+  - name: await-approval
+    agent: hitl
+    config:
+      action: suspend
+      timeout: 86400000  # 24 hours in ms
+      notificationChannel: slack
+      notificationConfig:
+        webhookUrl: "$env.SLACK_WEBHOOK_URL"
+        baseUrl: "https://my-worker.workers.dev"
+    input:
+      approvalData:
+        content: ${generate-content.output}
+        author: ${input.author}
+```
+
+### resume
+
+Resumes a suspended workflow with approval/rejection data. This is typically called via the callback URL mechanism.
+
+```yaml
+# Resume happens automatically via callback POST
+POST /callback/:token
+Body: {
+  approved: true/false,
+  feedback?: string,
+  reason?: string,
+  approver?: string
+}
+```
+
+## Durable Objects Integration
+
+The HITL agent uses Cloudflare Durable Objects to provide stateful human-in-the-loop workflows:
+
+**Why Durable Objects?**
+- **State persistence** - Workflow state survives across Worker invocations
+- **Global consistency** - Each workflow gets a unique Durable Object instance
+- **Long-lived workflows** - Support for approvals that take hours or days
+- **Automatic cleanup** - State is removed after approval/rejection or timeout
+
+**How it works:**
+1. When `suspend` is called, workflow state is serialized to a Durable Object
+2. A unique token is generated for resumption
+3. Notifications are sent with callback URLs containing the token
+4. When the callback URL is invoked, the Durable Object state is retrieved
+5. Workflow resumes from the exact point where it was suspended
+6. State is cleaned up after resumption or timeout
 
 ## Basic Usage
 
@@ -324,37 +412,85 @@ export default function runTests(context: AgentExecutionContext) {
 }
 ```
 
-## Approval UI
+## Notification Channels
 
-Approvers receive an email with:
+The HITL agent supports three notification channels to alert approvers:
 
-1. **Review prompt**
-2. **Data to review** (formatted)
-3. **Metadata** (if provided)
-4. **Approve/Reject buttons**
-5. **Feedback form**
+### Slack Notifications
 
-Example email:
+```yaml
+agents:
+  - name: await-approval
+    agent: hitl
+    config:
+      action: suspend
+      timeout: 86400000  # 24 hours in ms
+      notificationChannel: slack
+      notificationConfig:
+        webhookUrl: "$env.SLACK_WEBHOOK_URL"
+        baseUrl: "https://my-worker.workers.dev"
+    input:
+      approvalData:
+        content: ${generate-content.output}
+        author: ${input.author}
 ```
-Subject: Approval Required: Review this blog post
 
-[Your ensemble requested your approval]
+Slack notifications include:
+- Formatted approval request with emoji
+- Execution ID and approval data
+- Approve/Reject buttons as URLs
+- Expiration countdown
 
-Prompt:
-Review this blog post for accuracy, tone, and brand guidelines.
+### Email Notifications (via MailChannels)
 
-Data:
-[Formatted content preview]
+```yaml
+agents:
+  - name: await-approval
+    agent: hitl
+    config:
+      action: suspend
+      notificationChannel: email
+      notificationConfig:
+        to: "approver@example.com"
+        from: "noreply@yourdomain.com"
+        subject: "Approval Required"  # Optional
+        baseUrl: "https://my-worker.workers.dev"
+    input:
+      approvalData:
+        content: ${generate-content.output}
+```
 
-Metadata:
-- Topic: AI trends
-- Author: content-bot
-- Word count: 1,200
+<Note>
+Email notifications use the **MailChannels API** which is free for Cloudflare Workers. The sender email must be from a domain you control.
+</Note>
 
-[Approve] [Reject]
+### Webhook Notifications
 
-Optional feedback:
-[Text area]
+```yaml
+agents:
+  - name: await-approval
+    agent: hitl
+    config:
+      action: suspend
+      notificationChannel: webhook
+      notificationConfig:
+        webhookUrl: "https://your-system.com/approval-webhook"
+        baseUrl: "https://my-worker.workers.dev"
+    input:
+      approvalData:
+        content: ${generate-content.output}
+```
+
+Webhook payload:
+```json
+{
+  "executionId": "hitl_abc123...",
+  "approvalData": { ... },
+  "callbackUrl": "https://my-worker.workers.dev/callback/hitl_abc123",
+  "approveUrl": "https://my-worker.workers.dev/callback/hitl_abc123?action=approve",
+  "rejectUrl": "https://my-worker.workers.dev/callback/hitl_abc123?action=reject",
+  "expiresAt": 1732924800000
+}
 ```
 
 ## Callback URLs
@@ -533,24 +669,18 @@ agents:
 
 ## Limitations
 
-- **Max approvers**: 10 per request
-- **Max timeout**: 7 days
-- **Email only**: No Slack/Teams integration (yet)
+- **Max timeout**: 7 days (default: 24 hours)
+- **Notification channels**: Slack, Email, Webhook (no Teams yet)
 - **No delegation**: Approvers can't delegate to others
+- **Single state per token**: Each suspension creates a unique token
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="HITL Approval Flow" icon="user-check" href="/conductor/playbooks/hitl-approval-flow">
-    Complete workflow playbook
+  <Card title="RAG Agent" icon="book" href="/conductor/starter-kit/built-in/rag">
+    Retrieval-augmented generation
   </Card>
-  <Card title="email" icon="envelope" href="/conductor/operations/email">
-    Email operation
-  </Card>
-  <Card title="State Management" icon="database" href="/conductor/core-concepts/state-management">
-    Track approval state
-  </Card>
-  <Card title="Agents Overview" icon="layer-group" href="/conductor/agents/overview">
-    All pre-built agents
+  <Card title="Built-in Overview" icon="layer-group" href="/conductor/starter-kit/built-in/overview">
+    All built-in agents
   </Card>
 </CardGroup>

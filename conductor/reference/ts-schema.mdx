@@ -598,12 +598,30 @@ const analyzer = versionedAgent('sentiment-analyzer', '1.0.0')
 
 // Convert to Edgit Git tag format
 console.log(analyzer.toGitTag())
-// Output: agents/sentiment-analyzer/1.0.0
+// Output: agents/sentiment-analyzer/v1.0.0
 
 const pipeline = versionedEnsemble('data-pipeline', '2.0.0')
 console.log(pipeline.toGitTag())
-// Output: ensembles/data-pipeline/2.0.0
+// Output: ensembles/data-pipeline/v2.0.0
 ```
+
+### Type-Specific Namespaces
+
+Both Edgit (Git tags) and Conductor (KV storage) use type-specific namespaces:
+
+| Component Type | Git Tag Namespace | KV Key Prefix |
+|----------------|------------------|---------------|
+| `prompt` | `prompts/` | `prompts:` |
+| `schema` | `schemas/` | `schemas:` |
+| `config` | `configs/` | `configs:` |
+| `script` | `scripts/` | `scripts:` |
+| `query` | `queries/` | `queries:` |
+| `template` | `templates/` | `templates:` |
+| `tool` | `tools/` | `tools:` |
+| `agent` | `agents/` | `agents:` |
+| `ensemble` | `ensembles/` | `ensembles:` |
+
+This alignment ensures Git tags created by Edgit map directly to KV keys used by Conductor at runtime.
 
 ---
 

@@ -455,19 +455,29 @@ Returns immediately with execution ID:
 
 ## MCP Triggers
 
-Expose ensembles as Model Context Protocol tools for AI assistants.
+Expose ensembles as Model Context Protocol tools for AI assistants. Conductor automatically generates MCP tool schemas from your ensemble's `inputs` definition.
 
 ### Basic MCP Tool
 
 ```yaml
 name: search-docs
+description: "Search documentation for answers"
+
+inputs:
+  query:
+    type: string
+    description: "Search query"
+    required: true
+  limit:
+    type: number
+    description: "Max results to return"
+    optional: true
 
 trigger:
   - type: mcp
-    public: false
     auth:
       type: bearer
-      secret: ${env.MCP_TOKEN}
+      secret: ${env.MCP_TOKEN}  # Supports $env.VAR_NAME syntax
 
 flow:
   - agent: search
@@ -480,22 +490,86 @@ agents:
       binding: DOCS_INDEX
       operation: query
       vector: ${input.query}
-      topK: 5
+      topK: ${input.limit || 5}
 
 outputs:
   results: ${search.output}
 ```
 
-The ensemble becomes available as an MCP tool:
+**MCP Endpoints:**
+- `GET /mcp/tools` - List all ensembles exposed as MCP tools (with auto-generated input schemas)
+- `POST /mcp/tools/{name}` - Invoke an ensemble via MCP protocol
+
+The ensemble becomes available as an MCP tool with auto-generated schema:
 
 ```typescript
 // AI assistants can call via MCP
 {
   "tool": "search-docs",
   "parameters": {
-    "query": "how to configure webhooks"
+    "query": "how to configure webhooks",
+    "limit": 10
   }
 }
+```
+
+### Input Schema Generation
+
+Conductor automatically converts your `inputs` block to MCP's JSON Schema format:
+
+```yaml
+# Your ensemble inputs
+inputs:
+  code:
+    type: string
+    description: "Code to analyze"
+    required: true
+  language:
+    type: string
+    description: "Programming language"
+    optional: true
+```
+
+Becomes:
+
+```json
+{
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "Code to analyze"
+      },
+      "language": {
+        "type": "string",
+        "description": "Programming language"
+      }
+    },
+    "required": ["code"]
+  }
+}
+```
+
+### Authentication Options
+
+**Bearer Token (simple or JWT):**
+```yaml
+trigger:
+  - type: mcp
+    auth:
+      type: bearer
+      secret: $env.MCP_TOKEN  # Simple token comparison
+```
+
+If `JWT_SECRET` is configured in your environment, bearer tokens are validated as JWTs.
+
+**OAuth (coming soon):**
+```yaml
+trigger:
+  - type: mcp
+    auth:
+      type: oauth  # Validates JWT format, full OAuth requires external provider
 ```
 
 ### Public MCP Tool
@@ -510,7 +584,7 @@ See [MCP Integration](/conductor/building/tools-mcp-integration) for complete gu
 
 ## Email Triggers
 
-Trigger ensembles via Cloudflare Email Routing.
+Trigger ensembles via Cloudflare Email Routing. Conductor fully parses RFC822 emails including MIME multipart content and attachments.
 
 ### Basic Email Trigger
 
@@ -519,9 +593,11 @@ name: support-ticket-router
 
 trigger:
   - type: email
-    addresses:
-      - support@example.com
-      - help@example.com
+    to: "support@*"  # Wildcard matching for address patterns
+    # Or use specific addresses:
+    # addresses:
+    #   - support@example.com
+    #   - help@example.com
     public: false
     auth:
       from:
@@ -561,14 +637,46 @@ outputs:
 
 Configure Cloudflare Email Routing to forward to your Worker.
 
-### Email Input Fields
+### Email Input Fields (RFC822 Parsed)
 
-Ensembles receive:
-- `input.from` - Sender email address
-- `input.to` - Recipient email address
-- `input.subject` - Email subject
-- `input.body` - Email body (text or HTML)
-- `input.headers` - All email headers
+Conductor parses RFC822 emails and provides structured data to your ensemble:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input.from` | `string` | Sender email address |
+| `input.to` | `string` | Recipient email address |
+| `input.subject` | `string` | Email subject line |
+| `input.body` | `string` | Plain text body |
+| `input.html` | `string \| null` | HTML body (if present) |
+| `input.headers` | `Record<string, string>` | All email headers as key-value pairs |
+| `input.attachments` | `Array<Attachment>` | File attachments (see below) |
+
+**Attachment format:**
+```typescript
+{
+  filename: string;      // Original filename
+  contentType: string;   // MIME type (e.g., "application/pdf")
+  content: string;       // Base64-encoded content
+}
+```
+
+**Example: Processing attachments**
+```yaml
+agents:
+  - name: process-invoice
+    operation: code
+    config:
+      handler: |
+        const { attachments } = context.input
+        const pdfAttachment = attachments.find(a => a.contentType === 'application/pdf')
+        if (pdfAttachment) {
+          // Process PDF content (base64 encoded)
+          return { hasPdf: true, filename: pdfAttachment.filename }
+        }
+        return { hasPdf: false }
+    input:
+      attachments: ${input.attachments}
+```
 
 ### Reply with Output
 

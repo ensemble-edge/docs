@@ -1,0 +1,74 @@
+---
+title: "Debug Utilities"
+description: "Development and testing tools for debugging agents and ensembles"
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The Starter Kit includes a collection of debug utilities designed to help you develop, test, and troubleshoot your Conductor applications. These utilities provide simple, predictable endpoints that help you verify routing, test middleware, inspect request context, and measure performance characteristics.
+
+Debug utilities are separated into two categories:
+- **Debug Agents**: Simple agents for testing agent-specific functionality
+- **Debug Ensembles**: Ensemble endpoints for testing routing, headers, and request handling
+
+## Debug Agents
+
+The following debug agents are included in the starter kit:
+
+### Echo Agent
+Returns the input message back to the caller, useful for verifying agent communication and message passing.
+
+### Delay Agent
+Introduces a configurable delay before responding, helpful for testing timeouts, async behavior, and loading states.
+
+### Inspect Context Agent
+Returns detailed information about the request context, including headers, parameters, and environment data. Essential for debugging context propagation.
+
+## Debug Ensembles
+
+The following debug ensemble endpoints are available:
+
+### Ping
+A minimal endpoint that returns a simple success response, perfect for health checks and connectivity testing.
+
+### Echo
+Returns the request body back to the caller, useful for verifying request serialization and deserialization.
+
+### Headers
+Returns all request headers, helpful for debugging authentication, CORS, and custom header handling.
+
+### Info
+Provides detailed information about the request including method, path, headers, and query parameters.
+
+### Slow
+Introduces artificial delays to simulate slow network conditions or long-running operations.
+
+## When to Use
+
+Debug utilities are intended for **development and testing environments only**. They provide valuable insights during development:
+
+- Verify routing and middleware configuration
+- Test error handling and timeout behavior
+- Inspect request/response flow
+- Debug context propagation issues
+- Measure performance characteristics
+- Validate authentication and authorization
+
+<Warning>
+**Production Warning**: Debug endpoints expose internal application details and should never be deployed to production environments. Always disable or remove debug utilities before deploying to production, or restrict access using proper authentication and IP allowlisting.
+</Warning>
+
+## Learn More
+
+<CardGroup cols={2}>
+  <Card title="Debug Agents" icon="bug" href="/conductor/starter-kit/debug/agents">
+    Explore debug agents for testing agent functionality
+  </Card>
+  <Card title="Debug Ensembles" icon="network-wired" href="/conductor/starter-kit/debug/ensembles">
+    Learn about debug ensemble endpoints
+  </Card>
+</CardGroup>

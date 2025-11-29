@@ -1,14 +1,16 @@
 ---
-title: "fetcher Agent"
+title: "Fetch Agent"
 description: "HTTP requests done right. Caching, retries, and error handling built in."
 ---
+
+<Note>**Starter Kit** - Ships with your template. You own it - modify freely.</Note>
 
 ## Basic Usage
 
 ```yaml
 agents:
   - name: fetch
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/data
 ```
@@ -16,10 +18,13 @@ agents:
 Output:
 ```json
 {
+  "success": true,
   "status": 200,
+  "statusText": "OK",
   "headers": {...},
   "body": {...},
-  "cached": false
+  "duration": 150,
+  "attempt": 1
 }
 ```
 
@@ -29,40 +34,57 @@ Output:
 inputs:
   url:
     type: string
+    format: uri
     required: true
     description: URL to fetch
 
+  body:
+    type: any
+    description: Request body (for POST, PUT, PATCH)
+
+  headers:
+    type: object
+    description: Additional request headers
+```
+
+## Configuration
+
+```yaml
+config:
   method:
     type: string
+    enum: [GET, POST, PUT, DELETE, PATCH]
     default: GET
     description: HTTP method
 
   headers:
     type: object
-    description: Request headers
+    description: Default headers for all requests
 
-  body:
-    type: any
-    description: Request body
+  retry:
+    type: integer
+    default: 3
+    description: Number of retry attempts
 
   timeout:
-    type: number
+    type: integer
     default: 30000
-    description: Request timeout (ms)
+    description: Request timeout in milliseconds
 
-  cacheTTL:
-    type: number
-    description: Cache duration (seconds)
+  retryDelay:
+    type: integer
+    default: 1000
+    description: Initial delay for exponential backoff (ms)
 ```
 
-## Configuration
+## Examples
 
 ### GET Request
 
 ```yaml
 agents:
   - name: fetch
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/users/${input.user_id}
 ```
@@ -72,27 +94,16 @@ agents:
 ```yaml
 agents:
   - name: create
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/users
-      method: POST
-      headers:
-        Content-Type: application/json
-        Authorization: Bearer ${env.API_KEY}
       body:
         name: ${input.name}
         email: ${input.email}
-```
-
-### With Caching
-
-```yaml
-agents:
-  - name: fetch
-    agent: fetcher
-    inputs:
-      url: https://api.example.com/data
-      cacheTTL: 3600  # Cache for 1 hour
+      headers:
+        Authorization: Bearer ${env.API_KEY}
+    config:
+      method: POST
 ```
 
 ### With Retries
@@ -100,13 +111,24 @@ agents:
 ```yaml
 agents:
   - name: fetch
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/data
-    retry:
-      maxAttempts: 5
-      backoff: exponential
-      retryOn: [500, 502, 503, 504]
+    config:
+      retry: 5
+      retryDelay: 1000
+```
+
+### With Timeout
+
+```yaml
+agents:
+  - name: fetch
+    agent: fetch
+    inputs:
+      url: https://api.example.com/slow-endpoint
+    config:
+      timeout: 5000  # 5 seconds
 ```
 
 ## Advanced Patterns
@@ -117,17 +139,17 @@ agents:
 agents:
   # Fetch in parallel
   - name: fetch-users
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/users
 
   - name: fetch-posts
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/posts
 
   - name: fetch-comments
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/comments
 
@@ -140,6 +162,7 @@ agents:
       users: ${fetch-users.output.body}
       posts: ${fetch-posts.output.body}
       comments: ${fetch-comments.output.body}
+```
 
 ```typescript
 // scripts/combine-api-results.ts
@@ -161,15 +184,15 @@ export default function combineApiResults(context: AgentExecutionContext) {
 ```yaml
 agents:
   - name: fetch-primary
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://primary-api.example.com/data
-    retry:
-      maxAttempts: 2
+    config:
+      retry: 2
 
   - name: fetch-secondary
     condition: ${fetch-primary.failed}
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://secondary-api.example.com/data
 
@@ -180,6 +203,7 @@ agents:
     input:
       primary_output: ${fetch-primary.output}
       secondary_output: ${fetch-secondary.output}
+```
 
 ```typescript
 // scripts/select-fetch-result.ts
@@ -196,19 +220,19 @@ export default function selectFetchResult(context: AgentExecutionContext) {
 ```yaml
 agents:
   - name: fetch-page-1
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/items?page=1
 
   - name: fetch-page-2
     condition: ${fetch-page-1.output.body.hasMore}
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/items?page=2
 
   - name: fetch-page-3
     condition: ${fetch-page-2.output.body.hasMore}
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/items?page=3
 
@@ -220,6 +244,7 @@ agents:
       page1_items: ${fetch-page-1.output.body.items}
       page2_items: ${fetch-page-2.output.body.items || []}
       page3_items: ${fetch-page-3.output.body.items || []}
+```
 
 ```typescript
 // scripts/combine-paginated-results.ts
@@ -244,20 +269,21 @@ export default function combinePaginatedResults(context: AgentExecutionContext) 
 agents:
   # Get auth token
   - name: auth
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://auth.example.com/token
-      method: POST
       body:
         client_id: ${env.CLIENT_ID}
         client_secret: ${env.CLIENT_SECRET}
+    config:
+      method: POST
     cache:
       ttl: 3600
       key: auth-token
 
   # Use token
   - name: fetch-data
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/data
       headers:
@@ -277,7 +303,7 @@ agents:
 
   - name: fetch-if-stale
     condition: ${!check-cache.output}
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/data/${input.id}
 
@@ -296,12 +322,13 @@ agents:
 
 ```typescript
 {
-  status: number;       // HTTP status code
-  headers: object;      // Response headers
-  body: any;           // Response body (parsed JSON or text)
-  cached: boolean;     // Whether response was cached
-  took: number;        // Request duration (ms)
-  url: string;         // Final URL (after redirects)
+  success: boolean;        // Whether request succeeded
+  status: number;          // HTTP status code
+  statusText: string;      // HTTP status text
+  headers: object;         // Response headers
+  body: any;              // Response body (parsed JSON if applicable)
+  duration: number;       // Total request time in ms
+  attempt: number;        // Which retry attempt succeeded (1-based)
 }
 ```
 
@@ -310,7 +337,7 @@ agents:
 ```yaml
 agents:
   - name: fetch
-    agent: fetcher
+    agent: fetch
     inputs:
       url: ${input.url}
 
@@ -321,6 +348,7 @@ agents:
       script: scripts/handle-fetch-error
     input:
       error: ${fetch.error}
+```
 
 ```typescript
 // scripts/handle-fetch-error.ts
@@ -343,46 +371,48 @@ export default function handleFetchError(context: AgentExecutionContext) {
 
 ## Best Practices
 
-**1. Use Caching for Slow APIs**
+**1. Set Appropriate Timeouts**
 ```yaml
-inputs:
-  cacheTTL: 3600  # 1 hour for slow/rate-limited APIs
+config:
+  timeout: 5000   # 5s for fast APIs
+  timeout: 30000  # 30s for slow APIs (default)
+  timeout: 60000  # 60s for webhooks
 ```
 
-**2. Set Appropriate Timeouts**
+**2. Configure Retries with Backoff**
 ```yaml
-timeout: 5000   # 5s for fast APIs
-timeout: 30000  # 30s for slow APIs
-timeout: 60000  # 60s for webhooks
+config:
+  retry: 5
+  retryDelay: 1000  # Exponential backoff starting at 1s
 ```
 
-**3. Handle Rate Limits**
-```yaml
-retry:
-  maxAttempts: 5
-  backoff: exponential
-  initialDelay: 1000
-  maxDelay: 30000
-  retryOn: [429, 500, 502, 503]
-```
-
-**4. Secure API Keys**
+**3. Secure API Keys**
 ```yaml
 headers:
   Authorization: Bearer ${env.API_KEY}  # Use env vars
 ```
 
-**5. Validate Responses**
+**4. Validate Responses**
 ```yaml
 agents:
   - name: fetch
-    agent: fetcher
+    agent: fetch
 
   - name: validate
-    agent: validator
+    agent: validate
     inputs:
       data: ${fetch.output.body}
       schema: ${component.response-schema@v1.0.0}
+```
+
+**5. Use Cache for Expensive Requests**
+```yaml
+agents:
+  - name: fetch
+    agent: fetch
+    cache:
+      ttl: 3600  # 1 hour
+      key: api-${input.endpoint}
 ```
 
 ## Common Use Cases
@@ -392,12 +422,13 @@ agents:
 ```yaml
 agents:
   - name: fetch-weather
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.weather.com/v1/current
       headers:
         X-API-Key: ${env.WEATHER_API_KEY}
-      cacheTTL: 1800  # 30 minutes
+    cache:
+      ttl: 1800  # 30 minutes
 ```
 
 ### Webhook Proxy
@@ -407,18 +438,19 @@ ensemble: webhook-proxy
 
 agents:
   - name: validate
-    agent: validator
+    agent: validate
     inputs:
       data: ${input}
       schema: ${component.webhook-schema@v1.0.0}
 
   - name: forward
     condition: ${validate.output.valid}
-    agent: fetcher
+    agent: fetch
     inputs:
       url: ${env.WEBHOOK_TARGET}
-      method: POST
       body: ${validate.output.data}
+    config:
+      method: POST
       timeout: 60000
 ```
 
@@ -430,17 +462,17 @@ ensemble: aggregate-data
 agents:
   # Fetch from multiple sources
   - name: fetch-source-1
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api1.example.com/data
 
   - name: fetch-source-2
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api2.example.com/data
 
   - name: fetch-source-3
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api3.example.com/data
 
@@ -453,6 +485,7 @@ agents:
       source1: ${fetch-source-1.output.body}
       source2: ${fetch-source-2.output.body}
       source3: ${fetch-source-3.output.body}
+```
 
 ```typescript
 // scripts/merge-api-sources.ts
@@ -476,12 +509,9 @@ export default function mergeApiSources(context: AgentExecutionContext) {
 ```yaml
 agents:
   - name: query
-    agent: fetcher
+    agent: fetch
     inputs:
       url: https://api.example.com/graphql
-      method: POST
-      headers:
-        Content-Type: application/json
       body:
         query: |
           query GetUser($id: ID!) {
@@ -496,13 +526,17 @@ agents:
           }
         variables:
           id: ${input.user_id}
+      headers:
+        Content-Type: application/json
+    config:
+      method: POST
 ```
 
 ## vs http Operation
 
-**Use `fetcher` agent for:**
-- Automatic caching
-- Built-in retries
+**Use `fetch` agent for:**
+- Built-in retry logic with exponential backoff
+- Automatic error handling
 - Common patterns
 
 **Use `http` operation for:**
@@ -512,23 +546,23 @@ agents:
 
 Example comparison:
 ```yaml
-# fetcher (higher level)
+# fetch agent (higher level)
 agents:
   - name: fetch
-    agent: fetcher
+    agent: fetch
     inputs:
       url: ${url}
-      cacheTTL: 3600
+    config:
+      retry: 3
+      timeout: 5000
 
-# http (lower level)
+# http operation (lower level)
 agents:
   - name: fetch
     operation: http
     config:
       url: ${url}
-    cache:
-      ttl: 3600
-      key: fetch-${hash(url)}
+      timeout: 5000
     retry:
       maxAttempts: 3
 ```
@@ -539,13 +573,13 @@ agents:
   <Card title="http" icon="globe" href="/conductor/operations/http">
     HTTP operation reference
   </Card>
-  <Card title="scraper" icon="spider-web" href="/conductor/agents/scraper">
+  <Card title="scrape" icon="spider-web" href="/conductor/starter-kit/scrape">
     Web scraping
   </Card>
-  <Card title="API Orchestration" icon="network-wired" href="/conductor/playbooks/api-orchestration">
-    Complete API playbook
+  <Card title="validate" icon="check-circle" href="/conductor/starter-kit/validate">
+    Data validation
   </Card>
-  <Card title="Agents Overview" icon="layer-group" href="/conductor/agents/overview">
-    All pre-built agents
+  <Card title="Starter Kit Overview" icon="layer-group" href="/conductor/starter-kit/overview">
+    All starter kit agents
   </Card>
 </CardGroup>

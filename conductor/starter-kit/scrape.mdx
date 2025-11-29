@@ -1,0 +1,572 @@
+---
+title: "Scrape Agent"
+description: "3-tier web scraping with bot protection detection and fallback strategies."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Basic Usage
+
+```yaml
+agents:
+  - name: scrape-page
+    agent: scrape
+    inputs:
+      url: https://example.com/data
+```
+
+Output:
+```json
+{
+  "success": true,
+  "url": "https://example.com/data",
+  "markdown": "# Example Domain\n\nThis domain is for...",
+  "html": "<html>...</html>",
+  "text": "extracted text content",
+  "title": "Example Domain",
+  "tier": 1,
+  "duration": 350,
+  "botProtectionDetected": false,
+  "contentLength": 1256
+}
+```
+
+## Inputs
+
+```yaml
+inputs:
+  url:
+    type: string
+    format: uri
+    required: true
+    description: URL to scrape
+```
+
+## Configuration
+
+```yaml
+config:
+  strategy:
+    type: string
+    enum: [fast, balanced, aggressive]
+    default: balanced
+    description: |
+      fast: Only Tier 1, return fallback on failure
+      balanced: Tier 1 + Tier 2, then fallback
+      aggressive: All 3 tiers
+
+  returnFormat:
+    type: string
+    enum: [markdown, html, text]
+    default: markdown
+    description: Format for the returned content
+
+  blockResources:
+    type: boolean
+    default: true
+    description: Block images, fonts, etc. for faster scraping
+
+  userAgent:
+    type: string
+    description: Custom user agent string
+
+  timeout:
+    type: integer
+    default: 30000
+    description: Request timeout in milliseconds
+```
+
+## Scraping Strategies
+
+The scrape agent uses a 3-tier approach with automatic fallback:
+
+### Tier 1: Fast Browser Rendering (~350ms)
+- Uses `domcontentloaded` wait strategy
+- Fastest scraping method
+- Best for simple static pages
+
+### Tier 2: Slow Browser Rendering (~2s)
+- Uses `networkidle2` wait strategy
+- Waits for network activity to settle
+- Good for JavaScript-heavy pages
+
+### Tier 3: HTML Parsing Fallback (~1.5s)
+- Pure HTML parsing without browser
+- Used when bot protection is detected
+- Most reliable but least feature-rich
+
+### Strategy Options
+
+**Fast Strategy**
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    config:
+      strategy: fast
+      returnFormat: text
+```
+
+**Balanced Strategy** (Default)
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    config:
+      strategy: balanced
+      returnFormat: markdown
+```
+
+**Aggressive Strategy**
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    config:
+      strategy: aggressive
+      returnFormat: html
+```
+
+## Return Formats
+
+### Markdown Format (Default)
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: https://example.com
+    config:
+      returnFormat: markdown
+```
+
+Output includes clean markdown conversion of the page content.
+
+### HTML Format
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: https://example.com
+    config:
+      returnFormat: html
+```
+
+Output includes raw HTML for further processing.
+
+### Text Format
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: https://example.com
+    config:
+      returnFormat: text
+```
+
+Output includes plain text extraction (no tags).
+
+## Advanced Patterns
+
+### With Caching
+
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    cache:
+      ttl: 3600  # 1 hour
+      key: scrape-${input.url}
+```
+
+### With Retries
+
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    retry:
+      maxAttempts: 5
+      backoff: exponential
+```
+
+### Multiple URLs with Fallback
+
+```yaml
+agents:
+  - name: scrape-primary
+    agent: scrape
+    inputs:
+      url: https://primary.example.com/data
+    retry:
+      maxAttempts: 2
+
+  - name: scrape-backup
+    condition: ${scrape-primary.failed}
+    agent: scrape
+    inputs:
+      url: https://backup.example.com/data
+```
+
+### Rate-Limited Scraping
+
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    config:
+      timeout: 60000
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+      initialDelay: 1000
+      maxDelay: 10000
+```
+
+### Extract Specific Content
+
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    config:
+      returnFormat: html
+
+  - name: extract
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Extract product information from this HTML:
+        ${scrape.output.html}
+
+        Return JSON with: name, price, description, availability
+```
+
+### Scrape + Validate
+
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+
+  - name: validate
+    agent: validate
+    inputs:
+      data: ${scrape.output}
+      schema:
+        success: boolean
+        url: string
+        markdown: string
+```
+
+## Output Schema
+
+```typescript
+{
+  success: boolean;           // Whether scraping succeeded
+  url: string;                // Final URL (after redirects)
+  markdown?: string;          // Content as markdown (if returnFormat: markdown)
+  html?: string;              // Full HTML content (if returnFormat: html)
+  text?: string;              // Plain text extraction (if returnFormat: text)
+  title: string;              // Page title
+  tier: 1 | 2 | 3;           // Which tier successfully scraped
+  duration: number;           // Total scrape time in ms
+  botProtectionDetected: boolean;  // Whether bot protection was detected
+  contentLength: number;      // Content length in bytes
+}
+```
+
+## Error Handling
+
+The scrape agent handles:
+
+- **Network timeouts**: Automatic retry with exponential backoff
+- **Bot protection**: Automatic fallback to HTML parsing
+- **JavaScript rendering**: Multi-tier strategy with progressive enhancement
+- **Redirect loops**: Follows redirects up to configured limit
+- **Invalid URLs**: Immediate failure with descriptive error
+
+Access error details:
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+
+  - name: handle-error
+    condition: ${scrape.failed}
+    operation: code
+    config:
+      script: scripts/handle-scrape-error
+    input:
+      error_message: ${scrape.error.message}
+      tier_reached: ${scrape.output.tier}
+      bot_detected: ${scrape.output.botProtectionDetected}
+```
+
+```typescript
+// scripts/handle-scrape-error.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleScrapeError(context: AgentExecutionContext) {
+  const { error_message, tier_reached, bot_detected } = context.input
+
+  if (bot_detected) {
+    return {
+      error: 'Bot protection detected',
+      recommendation: 'Consider using a different scraping approach'
+    }
+  }
+
+  return {
+    error: error_message,
+    tier: tier_reached,
+    retry: true
+  }
+}
+```
+
+## Best Practices
+
+**1. Choose the Right Strategy**
+```yaml
+config:
+  strategy: fast      # For simple, static pages
+  strategy: balanced  # For most use cases (default)
+  strategy: aggressive # For complex, bot-protected sites
+```
+
+**2. Use Caching for Static Content**
+```yaml
+cache:
+  ttl: 86400  # 24 hours for slow-changing content
+```
+
+**3. Set Appropriate Timeouts**
+```yaml
+config:
+  timeout: 30000  # 30 seconds (default)
+  timeout: 60000  # 60 seconds for slower sites
+```
+
+**4. Respect robots.txt**
+```yaml
+config:
+  userAgent: "YourBot/1.0 (+https://yoursite.com/bot)"
+```
+
+**5. Handle Failures Gracefully**
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+  - name: fallback
+    condition: ${scrape.failed}
+    operation: code
+    config:
+      script: scripts/return-cached-response
+```
+
+```typescript
+// scripts/return-cached-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function returnCachedResponse(context: AgentExecutionContext) {
+  return { cached: true, content: 'Fallback content' }
+}
+```
+
+**6. Rate Limit Proactively**
+```yaml
+retry:
+  maxAttempts: 3
+  initialDelay: 1000
+  maxDelay: 5000
+```
+
+**7. Monitor Scraping Performance**
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+
+  - name: log-metrics
+    operation: code
+    config:
+      script: scripts/log-scrape-metrics
+    input:
+      duration: ${scrape.output.duration}
+      tier: ${scrape.output.tier}
+      bot_detected: ${scrape.output.botProtectionDetected}
+```
+
+## Common Use Cases
+
+**Company Research**
+```yaml
+agents:
+  - name: scrape-homepage
+    agent: scrape
+    inputs:
+      url: https://${input.company_domain}
+    config:
+      returnFormat: text
+
+  - name: extract-info
+    operation: think
+    config:
+      prompt: Extract company info from: ${scrape-homepage.output.text}
+```
+
+**Price Monitoring**
+```yaml
+agents:
+  - name: scrape-product
+    agent: scrape
+    inputs:
+      url: ${input.product_url}
+    config:
+      returnFormat: html
+    cache:
+      ttl: 3600
+
+  - name: extract-price
+    operation: code
+    config:
+      script: scripts/extract-price-from-html
+    input:
+      html: ${scrape-product.output.html}
+```
+
+```typescript
+// scripts/extract-price-from-html.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function extractPriceFromHtml(context: AgentExecutionContext) {
+  const { html } = context.input
+  const match = html.match(/\$(\d+\.\d{2})/)
+
+  if (!match) {
+    throw new Error('Price not found in HTML')
+  }
+
+  return { price: parseFloat(match[1]) }
+}
+```
+
+**Content Aggregation**
+```yaml
+agents:
+  - name: scrape-sources
+    agent: scrape
+    inputs:
+      url: ${input.sources}  # Array of URLs
+    config:
+      returnFormat: markdown
+
+  - name: combine
+    operation: code
+    config:
+      script: scripts/combine-scraped-content
+    input:
+      scraped_results: ${scrape-sources.output}
+```
+
+```typescript
+// scripts/combine-scraped-content.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineScrapedContent(context: AgentExecutionContext) {
+  const { scraped_results } = context.input
+
+  return {
+    content: scraped_results.map((r: any) => r.markdown).join('\n\n')
+  }
+}
+```
+
+**SEO Analysis**
+```yaml
+agents:
+  - name: scrape-page
+    agent: scrape
+    inputs:
+      url: ${input.url}
+    config:
+      returnFormat: html
+
+  - name: analyze-seo
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: |
+        Analyze the SEO of this page:
+        Title: ${scrape-page.output.title}
+        HTML: ${scrape-page.output.html}
+
+        Check for:
+        - Meta descriptions
+        - Header hierarchy
+        - Alt text on images
+        - Internal linking
+        - Page speed considerations
+```
+
+## Performance Characteristics
+
+| Tier | Speed | Success Rate | Use Case |
+|------|-------|--------------|----------|
+| Tier 1 | ~350ms | 70% | Static pages |
+| Tier 2 | ~2s | 90% | JavaScript-heavy pages |
+| Tier 3 | ~1.5s | 95% | Bot-protected sites |
+
+## Limitations
+
+- **CAPTCHA**: Cannot bypass (requires manual intervention)
+- **Authentication**: Basic authentication supported via headers
+- **File downloads**: Binary content handling depends on returnFormat
+- **Rate limiting**: Respect target site's rate limits
+- **Legal compliance**: Ensure scraping is allowed per site's terms of service
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Validate Agent" icon="check-circle" href="/conductor/starter-kit/validate">
+    Validate scraped data
+  </Card>
+  <Card title="HTTP Operation" icon="globe" href="/conductor/operations/http">
+    Custom HTTP requests
+  </Card>
+  <Card title="RAG Pipeline" icon="book" href="/conductor/playbooks/rag-pipeline">
+    Scrape + embed workflow
+  </Card>
+  <Card title="Starter Kit Overview" icon="layer-group" href="/conductor/starter-kit/overview">
+    All starter kit agents
+  </Card>
+</CardGroup>

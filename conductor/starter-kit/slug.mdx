@@ -1,0 +1,310 @@
+---
+title: "Slug Agent"
+description: "Generate unique URL-safe slugs using various strategies including nanoid, UUID, base62, and timestamp-based generation"
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The Slug Agent generates unique URL-safe slugs using multiple generation strategies. Perfect for creating short links, unique identifiers, or custom URLs for your application.
+
+**Key Features:**
+- Multiple generation strategies (nanoid, UUID, base62, timestamp)
+- Configurable length and custom alphabets
+- Optional prefix support
+- Fast edge-native generation
+
+**Location:** `agents/system/slug/`
+
+## Quick Start
+
+Generate a basic slug using the default nanoid strategy:
+
+```yaml
+flow:
+  - name: generate-slug
+    agent: slug
+    input: {}
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "slug": "xK9mPq2",
+  "strategy": "nanoid"
+}
+```
+
+## Input Schema
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `strategy` | `string` | No | `nanoid` | Slug generation strategy. Must be one of: `nanoid`, `uuid`, `base62`, `timestamp` |
+| `length` | `integer` | No | `7` | Length of generated slug. Minimum: 4, Maximum: 32 |
+| `alphabet` | `string` | No | - | Custom alphabet for nanoid/base62 generation |
+| `prefix` | `string` | No | - | Prefix to prepend to the generated slug |
+
+## Output Schema
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | `boolean` | Whether slug generation succeeded |
+| `slug` | `string` | The generated URL-safe slug |
+| `strategy` | `string` | The strategy that was used for generation |
+
+## Configuration
+
+The agent supports these configuration options:
+
+```yaml
+config:
+  schema:
+    type: object
+    properties:
+      defaultLength:
+        type: integer
+        default: 7
+      defaultAlphabet:
+        type: string
+        default: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+```
+
+## Strategies
+
+### nanoid (Default)
+
+Generates compact, URL-safe IDs using a custom alphabet. Fast and collision-resistant.
+
+**Characteristics:**
+- Length: 7 characters (configurable)
+- Alphabet: 0-9, a-z, A-Z (62 characters)
+- Collision probability: ~1 billion years to have 1% probability of collision
+
+**Example:**
+```yaml
+flow:
+  - name: generate
+    agent: slug
+    input:
+      strategy: nanoid
+      length: 8
+```
+
+**Output:** `xK9mPq2A`
+
+### uuid
+
+Generates standard UUID v4 identifiers. Best for systems requiring universally unique identifiers.
+
+**Characteristics:**
+- Length: 36 characters (fixed)
+- Format: `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`
+- Collision probability: Virtually impossible
+
+**Example:**
+```yaml
+flow:
+  - name: generate
+    agent: slug
+    input:
+      strategy: uuid
+```
+
+**Output:** `550e8400-e29b-41d4-a716-446655440000`
+
+### base62
+
+Generates numeric IDs encoded in base62. Useful for sequential or counter-based systems.
+
+**Characteristics:**
+- Length: Configurable
+- Alphabet: 0-9, a-z, A-Z
+- Compact numeric representation
+
+**Example:**
+```yaml
+flow:
+  - name: generate
+    agent: slug
+    input:
+      strategy: base62
+      length: 10
+```
+
+### timestamp
+
+Generates slugs based on current timestamp. Useful for time-ordered identifiers.
+
+**Characteristics:**
+- Length: Configurable
+- Format: Base62-encoded timestamp
+- Naturally sortable by creation time
+
+**Example:**
+```yaml
+flow:
+  - name: generate
+    agent: slug
+    input:
+      strategy: timestamp
+      length: 12
+```
+
+## Examples
+
+### Basic Slug Generation
+
+Generate a simple 7-character slug:
+
+```yaml
+flow:
+  - name: basic-slug
+    agent: slug
+    input: {}
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "slug": "xK9mPq2",
+  "strategy": "nanoid"
+}
+```
+
+### Prefixed Slug
+
+Generate a slug with a custom prefix:
+
+```yaml
+flow:
+  - name: prefixed-slug
+    agent: slug
+    input:
+      prefix: "m_"
+      length: 8
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "slug": "m_a8Kp3xQ2",
+  "strategy": "nanoid"
+}
+```
+
+### UUID Generation
+
+Generate a standard UUID:
+
+```yaml
+flow:
+  - name: uuid-slug
+    agent: slug
+    input:
+      strategy: uuid
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "slug": "550e8400-e29b-41d4-a716-446655440000",
+  "strategy": "uuid"
+}
+```
+
+### Custom Length
+
+Generate a longer slug for increased uniqueness:
+
+```yaml
+flow:
+  - name: long-slug
+    agent: slug
+    input:
+      strategy: nanoid
+      length: 16
+```
+
+### Custom Alphabet
+
+Generate a slug with a custom character set:
+
+```yaml
+flow:
+  - name: custom-slug
+    agent: slug
+    input:
+      strategy: nanoid
+      length: 10
+      alphabet: "0123456789ABCDEF"  # Hexadecimal only
+```
+
+### URL Shortener Pattern
+
+Combine slug generation with storage:
+
+```yaml
+flow:
+  - name: generate-short-id
+    agent: slug
+    input:
+      strategy: nanoid
+      length: 6
+
+  - name: store-mapping
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: "url:${generate-short-id.output.slug}"
+      value: ${input.longUrl}
+
+output:
+  shortUrl: "https://yourdomain.com/${generate-short-id.output.slug}"
+  slug: ${generate-short-id.output.slug}
+```
+
+### Unique Content ID Pattern
+
+Generate a prefixed content identifier:
+
+```yaml
+flow:
+  - name: create-content-id
+    agent: slug
+    input:
+      prefix: "post_"
+      strategy: nanoid
+      length: 12
+
+output:
+  contentId: ${create-content-id.output.slug}
+  timestamp: ${Date.now()}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card
+    title="Redirects Agent"
+    icon="arrow-right-arrow-left"
+    href="/conductor/starter-kit/redirects"
+  >
+    Manage URL redirects and short links
+  </Card>
+
+  <Card
+    title="Starter Kit Overview"
+    icon="grid-2"
+    href="/conductor/starter-kit/overview"
+  >
+    Explore all starter kit agents
+  </Card>
+</CardGroup>

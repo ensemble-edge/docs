@@ -1,0 +1,419 @@
+---
+title: "Notifications"
+description: "Send outbound notifications via webhooks, email, SMS, and push when events occur during ensemble execution"
+---
+
+## Overview
+
+Conductor supports multiple notification channels to alert external systems and users when events occur during ensemble execution. Notifications are **outbound**—they push information out from your ensembles to external destinations.
+
+<CardGroup cols={2}>
+  <Card title="Webhook Notifications" icon="bell">
+    HTTP callbacks to your endpoints when executions complete, fail, or update
+  </Card>
+  <Card title="Email Notifications" icon="envelope">
+    Send email alerts via Cloudflare Email, Resend, or SMTP
+  </Card>
+  <Card title="SMS Notifications" icon="message">
+    Send text messages via Twilio, Vonage, or AWS SNS
+  </Card>
+  <Card title="Push Notifications" icon="mobile">
+    Mobile and web push notifications (coming soon)
+  </Card>
+</CardGroup>
+
+## Notification Types
+
+### Webhook Notifications
+
+Send HTTP callbacks when ensemble events occur. Configure webhooks in your ensemble YAML:
+
+```yaml
+name: user-onboarding
+
+notifications:
+  - type: webhook
+    url: https://your-api.example.com/webhooks/conductor
+    events:
+      - execution.started
+      - execution.completed
+      - execution.failed
+    secret: ${env.WEBHOOK_SECRET}
+    retries: 3
+    timeout: 5000
+
+flow:
+  - agent: onboard-user
+
+outputs:
+  userId: ${onboard-user.output.userId}
+```
+
+**Available Events:**
+
+| Event | Description |
+|-------|-------------|
+| `execution.started` | Triggered when ensemble execution begins |
+| `execution.completed` | Triggered when execution completes successfully |
+| `execution.failed` | Triggered when execution fails with an error |
+| `execution.timeout` | Triggered when execution exceeds timeout |
+| `agent.completed` | Triggered when an individual agent completes |
+| `state.updated` | Triggered when ensemble state changes |
+
+**Webhook Payload Example:**
+
+```json
+{
+  "event": "execution.completed",
+  "timestamp": "2024-01-15T10:30:15Z",
+  "data": {
+    "id": "exec-abc123...",
+    "ensemble": "user-onboarding",
+    "status": "completed",
+    "output": {
+      "userId": "user_xyz789"
+    },
+    "duration": 1234
+  }
+}
+```
+
+**Security:**
+
+Webhook notifications include HMAC signatures for verification:
+
+```http
+X-Conductor-Signature: sha256=abc123def456...
+X-Conductor-Timestamp: 1705315200
+X-Conductor-Event: execution.completed
+X-Conductor-Delivery-Attempt: 1
+```
+
+<Card title="Webhook Reference" icon="webhook" href="/api/http/webhooks">
+  Complete webhook configuration and signature verification
+</Card>
+
+### Email Notifications
+
+Send email alerts when specific events occur. Email notifications are configured alongside webhook notifications:
+
+```yaml
+name: critical-workflow
+
+notifications:
+  # Webhook for integrations
+  - type: webhook
+    url: https://api.example.com/webhooks
+    events: [execution.completed]
+    secret: ${env.WEBHOOK_SECRET}
+
+  # Email for human alerts
+  - type: email
+    to:
+      - oncall@example.com
+      - devops@example.com
+    from: conductor@example.com
+    subject: "[${event}] ${ensemble.name}"
+    events:
+      - execution.failed
+      - execution.timeout
+
+flow:
+  - agent: critical-task
+
+outputs:
+  result: ${critical-task.output}
+```
+
+**Subject Template Variables:**
+
+- `${event}` - Event type (e.g., "execution.failed")
+- `${ensemble.name}` - Ensemble name
+- `${timestamp}` - Event timestamp
+
+**Email Content:**
+
+Notification emails include both plain text and HTML versions:
+- **Plain Text**: JSON-formatted event data
+- **HTML**: Styled template with color-coded event types
+  - 🟢 Green: `execution.completed`
+  - 🔴 Red: `execution.failed`, `execution.timeout`
+  - 🔵 Blue: Other events
+
+<Note>
+For sending emails as part of your workflow logic (transactional emails, newsletters, etc.), use the email operation instead of notifications.
+</Note>
+
+<Card title="Email Operation" icon="envelope" href="/conductor/operations/email">
+  Send transactional emails within workflows
+</Card>
+
+### SMS Notifications
+
+For urgent alerts that require immediate attention, use SMS notifications within your workflow:
+
+```yaml
+name: server-health-check
+
+flow:
+  - agent: check-health
+
+  # Alert on critical failure
+  - name: alert-oncall
+    condition: ${check-health.output.status == 'critical'}
+    operation: sms
+    config:
+      provider: twilio
+      accountSid: ${env.TWILIO_ACCOUNT_SID}
+      authToken: ${env.TWILIO_AUTH_TOKEN}
+      from: ${env.TWILIO_PHONE_NUMBER}
+      to: ${env.ONCALL_PHONE}
+      body: |
+        [CRITICAL] ${ensemble.name}
+        Status: ${check-health.output.status}
+        Message: ${check-health.output.message}
+
+outputs:
+  status: ${check-health.output.status}
+  alerted: ${alert-oncall.executed}
+```
+
+**When to Use SMS:**
+
+| Use Case | SMS | Email | Webhook |
+|----------|-----|-------|---------|
+| OTP/Verification | ✅ | ⚠️ | ❌ |
+| Critical Alerts | ✅ | ✅ | ✅ |
+| Execution Reports | ❌ | ✅ | ✅ |
+| System Integration | ❌ | ❌ | ✅ |
+| Marketing/Newsletter | ❌ | ✅ | ❌ |
+
+<Card title="SMS Operation" icon="message" href="/conductor/operations/sms">
+  Send SMS messages within workflows
+</Card>
+
+### Push Notifications (Coming Soon)
+
+Native mobile and web push notifications for real-time user alerts:
+
+```yaml
+# Future API (subject to change)
+notifications:
+  - type: push
+    provider: firebase
+    topic: ${input.userId}
+    title: "Order Shipped!"
+    body: "Your order #${input.orderId} is on its way."
+    events:
+      - execution.completed
+```
+
+**Planned Features:**
+- Firebase Cloud Messaging (FCM)
+- Apple Push Notification Service (APNS)
+- Web Push (PWA)
+- Rich notifications with images and actions
+
+## Combining Notification Channels
+
+Use multiple notification channels for different audiences and urgency levels:
+
+```yaml
+name: payment-processing
+
+notifications:
+  # Webhook for internal systems
+  - type: webhook
+    url: https://internal.example.com/events
+    events:
+      - execution.completed
+      - execution.failed
+    secret: ${env.INTERNAL_WEBHOOK_SECRET}
+
+  # Webhook for analytics
+  - type: webhook
+    url: https://analytics.example.com/track
+    events:
+      - execution.completed
+    secret: ${env.ANALYTICS_WEBHOOK_SECRET}
+
+  # Email for finance team (all completions)
+  - type: email
+    to: [finance@example.com]
+    from: payments@example.com
+    subject: "Payment ${event}: ${data.orderId}"
+    events:
+      - execution.completed
+      - execution.failed
+
+  # Email for DevOps (failures only)
+  - type: email
+    to: [oncall@example.com]
+    from: alerts@example.com
+    subject: "[ALERT] Payment Failed"
+    events:
+      - execution.failed
+      - execution.timeout
+
+flow:
+  - agent: process-payment
+
+outputs:
+  transactionId: ${process-payment.output.transactionId}
+```
+
+## Notification Reliability
+
+### Retry Logic
+
+Conductor retries failed webhook notifications with exponential backoff:
+
+1. **1 second** - First retry
+2. **5 seconds** - Second retry
+3. **30 seconds** - Third retry
+4. **2 minutes** - Fourth retry
+5. **5 minutes** - Final retry
+
+**Retry Triggers:**
+- `5xx` - Server errors
+- `408` - Request Timeout
+- Connection errors / timeouts
+
+**No Retry:**
+- `2xx`, `3xx` - Success
+- `4xx` - Client errors (except 408)
+
+### Idempotency
+
+Handle duplicate notifications with idempotent processing:
+
+```javascript
+// Store processed notification IDs
+const processed = await db.notifications.findOne({
+  id: data.id,
+  event: event
+});
+
+if (processed) {
+  return res.status(200).json({ received: true });
+}
+
+// Process and store
+await processNotification(event, data);
+await db.notifications.insert({
+  id: data.id,
+  event,
+  processedAt: new Date()
+});
+```
+
+### Monitoring
+
+Track notification delivery status:
+
+```javascript
+const attempt = parseInt(req.headers['x-conductor-delivery-attempt']);
+if (attempt > 1) {
+  console.warn(`Retry attempt ${attempt} for ${event}`);
+}
+
+// Alert on persistent failures
+if (recentFailures > 3) {
+  await alerts.notify('Webhook failures detected', {
+    event,
+    failures: recentFailures
+  });
+}
+```
+
+## Best Practices
+
+### 1. Use Secrets for Webhooks
+
+```yaml
+# ✅ Good: Secret for signature verification
+notifications:
+  - type: webhook
+    url: https://api.example.com/webhooks
+    secret: ${env.WEBHOOK_SECRET}
+
+# ❌ Bad: No secret
+notifications:
+  - type: webhook
+    url: https://api.example.com/webhooks
+```
+
+### 2. Respond Quickly to Webhooks
+
+```javascript
+// ✅ Good: Respond first, process async
+app.post('/webhooks', (req, res) => {
+  verifySignature(req, secret);
+  res.status(200).json({ received: true });
+
+  // Process asynchronously
+  queue.add('webhook', req.body);
+});
+
+// ❌ Bad: Long processing before response
+app.post('/webhooks', async (req, res) => {
+  verifySignature(req, secret);
+  await longRunningProcess(req.body);  // May timeout
+  res.status(200).json({ received: true });
+});
+```
+
+### 3. Filter Events Appropriately
+
+```yaml
+# ✅ Good: Only subscribe to needed events
+notifications:
+  - type: email
+    events: [execution.failed]  # Only failures
+
+# ❌ Bad: Subscribe to everything
+notifications:
+  - type: email
+    events: [execution.started, execution.completed, execution.failed, agent.completed, state.updated]
+```
+
+### 4. Use Different Channels for Different Urgency
+
+```yaml
+notifications:
+  # Low urgency: async webhook
+  - type: webhook
+    url: https://analytics.example.com/track
+    events: [execution.completed]
+
+  # Medium urgency: email
+  - type: email
+    to: [team@example.com]
+    events: [execution.failed]
+
+# High urgency: SMS in workflow
+flow:
+  - name: alert-critical
+    condition: ${previous.output.severity == 'critical'}
+    operation: sms
+    config:
+      to: ${env.ONCALL_PHONE}
+      body: "CRITICAL: ${previous.output.message}"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/api/http/webhooks">
+    Complete webhook configuration guide
+  </Card>
+  <Card title="Email Operation" icon="envelope" href="/conductor/operations/email">
+    Send transactional emails
+  </Card>
+  <Card title="SMS Operation" icon="message" href="/conductor/operations/sms">
+    Send SMS notifications
+  </Card>
+  <Card title="Security" icon="shield" href="/conductor/building/security-authentication">
+    Secure your notifications
+  </Card>
+</CardGroup>

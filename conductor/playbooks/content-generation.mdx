@@ -11,7 +11,7 @@ ensemble: generate-content
 agents:
   # 1. Research
   - name: research
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${input.topic}
@@ -34,7 +34,7 @@ agents:
 
   # 4. Approve
   - name: approve
-    agent: hitl
+    operation: hitl
     inputs:
       data: ${refine.output}
       prompt: "Review content"
@@ -63,14 +63,14 @@ inputs:
 agents:
   # Research phase
   - name: research-topic
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${input.topic}
       topK: 10
 
   - name: research-keywords
-    agent: scraper
+    operation: scrape
     inputs:
       url: https://www.google.com/search?q=${input.keywords.join('+')}
 
@@ -176,7 +176,7 @@ agents:
 
   # Review and approve
   - name: approve
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         title: ${assemble.output.title}
@@ -635,7 +635,7 @@ config:
 **3. Always Review**
 ```yaml
 - name: approve
-  agent: hitl
+  operation: hitl
   inputs:
     prompt: "Review content for quality and brand voice"
 ```

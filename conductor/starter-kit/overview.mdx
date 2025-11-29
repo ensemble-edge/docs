@@ -1,0 +1,203 @@
+---
+title: "Starter Kit"
+description: "Production-ready agents, ensembles, and resources that ship with your Conductor template. You own them - modify, copy, or delete freely."
+---
+
+<Note>
+**Starter Kit** - Everything here ships with your template. You own the code - modify, extend, or delete as needed.
+</Note>
+
+## What's Included
+
+When you create a new Conductor project, you get a complete starter kit of production-ready components:
+
+| Category | Count | Description |
+|----------|-------|-------------|
+| [System Agents](#system-agents) | 9 | Reusable agents for common tasks |
+| [System Ensembles](#system-ensembles) | 6 | Ready-to-deploy workflows |
+| [Built-in Agents](#built-in-agents) | 2 | Framework-level agents (configure only) |
+| [Debug Tools](#debug-tools) | 8 | Development and testing utilities |
+
+<Tip>
+Looking for prompts, schemas, scripts, or templates? See [Components](/conductor/components/prompts) for documentation on creating and versioning these resources.
+</Tip>
+
+## System Agents
+
+Standalone agents you can use as building blocks in your ensembles:
+
+<CardGroup cols={2}>
+  <Card title="fetch" icon="download" href="/conductor/starter-kit/fetch">
+    HTTP client with retries and exponential backoff
+  </Card>
+  <Card title="validate" icon="check-circle" href="/conductor/starter-kit/validate">
+    Multi-evaluator validation (rules, LLM judge, NLP, embeddings)
+  </Card>
+  <Card title="scrape" icon="spider-web" href="/conductor/starter-kit/scrape">
+    3-tier web scraping with bot detection
+  </Card>
+  <Card title="slug" icon="hashtag" href="/conductor/starter-kit/slug">
+    URL-safe slug generation (nanoid, UUID, base62)
+  </Card>
+  <Card title="tools" icon="wrench" href="/conductor/starter-kit/tools">
+    MCP (Model Context Protocol) tool invocation
+  </Card>
+  <Card title="queries" icon="database" href="/conductor/starter-kit/queries">
+    SQL query execution via Hyperdrive/D1
+  </Card>
+  <Card title="autorag" icon="magnifying-glass" href="/conductor/starter-kit/autorag">
+    Cloudflare AutoRAG - fully managed RAG service
+  </Card>
+  <Card title="redirect" icon="arrow-turn-up" href="/conductor/starter-kit/redirects">
+    URL redirect operations (permanent, expiring, magic links)
+  </Card>
+  <Card title="docs" icon="book" href="/conductor/starter-kit/documentation">
+    Documentation generation and serving
+  </Card>
+</CardGroup>
+
+## System Ensembles
+
+Complete workflows ready to deploy:
+
+### Infrastructure
+
+<CardGroup cols={2}>
+  <Card title="Redirects" icon="arrow-turn-up" href="/conductor/starter-kit/redirects">
+    URL shortening with resolve + management API
+  </Card>
+  <Card title="Documentation" icon="book" href="/conductor/starter-kit/documentation">
+    Auto-generated docs with OpenAPI support
+  </Card>
+  <Card title="Health Check" icon="heart-pulse" href="/conductor/starter-kit/health-check">
+    `/health` endpoint for monitoring
+  </Card>
+  <Card title="Error Pages" icon="triangle-exclamation" href="/conductor/starter-kit/error-pages">
+    Styled 401, 403, 404, 500 pages
+  </Card>
+</CardGroup>
+
+### SEO
+
+<CardGroup cols={2}>
+  <Card title="Robots.txt" icon="robot" href="/conductor/starter-kit/robots">
+    Dynamic robots.txt generation
+  </Card>
+  <Card title="Sitemap" icon="sitemap" href="/conductor/starter-kit/sitemap">
+    XML sitemap generation
+  </Card>
+</CardGroup>
+
+## Built-in Agents
+
+<Note type="warning">
+**Built-in** - Framework-level agents. Configure only - source is not editable.
+</Note>
+
+These agents require deep platform integration (Durable Objects, Vectorize, Cloudflare AI) and are maintained by the Conductor team:
+
+<CardGroup cols={2}>
+  <Card title="rag" icon="database" href="/conductor/starter-kit/built-in/rag">
+    Manual RAG with Cloudflare AI & Vectorize
+  </Card>
+  <Card title="hitl" icon="user-check" href="/conductor/starter-kit/built-in/hitl">
+    Human-in-the-loop approval workflows
+  </Card>
+</CardGroup>
+
+For zero-config RAG, see [autorag](/conductor/starter-kit/autorag) (starter kit, fully managed).
+
+## Debug Tools
+
+Development utilities for testing and troubleshooting:
+
+<CardGroup cols={2}>
+  <Card title="Debug Agents" icon="bug" href="/conductor/starter-kit/debug/agents">
+    echo, delay, inspect-context
+  </Card>
+  <Card title="Debug Ensembles" icon="flask" href="/conductor/starter-kit/debug/ensembles">
+    ping, echo, headers, info, slow
+  </Card>
+</CardGroup>
+
+## Directory Structure
+
+```
+your-project/
+├── agents/
+│   ├── system/           # System agents (fetch, validate, scrape, etc.)
+│   ├── debug/            # Debug agents (echo, delay, inspect-context)
+│   ├── examples/         # Example agents for reference
+│   └── user/             # Your custom agents go here
+│
+├── ensembles/
+│   ├── system/           # System ensembles (health, robots, errors, etc.)
+│   ├── debug/            # Debug ensembles (ping, headers, info, etc.)
+│   ├── examples/         # Example ensembles for reference
+│   └── user/             # Your custom ensembles go here
+│
+├── prompts/              # Prompt templates
+├── schemas/              # JSON schemas
+├── queries/              # SQL queries
+├── scripts/              # TypeScript scripts
+├── templates/            # Email/HTML/PDF templates
+└── configs/              # Configuration files
+```
+
+## Customization Philosophy
+
+**You own everything in the starter kit.** Unlike [built-in agents](/conductor/starter-kit/built-in/overview) which are framework-level and configure-only, starter kit components are:
+
+1. **Fully editable** - Modify the source code directly
+2. **Deletable** - Remove what you don't need
+3. **Copyable** - Duplicate and customize for variants
+4. **Versionable** - Track changes in Git like any other code
+
+### Example: Customizing the Redirect Agent
+
+```yaml
+# agents/system/redirect/redirect.yaml
+name: redirect
+version: 1.0.0  # Bump when you modify
+
+# Add your custom config options
+config:
+  schema:
+    properties:
+      kvBinding:
+        default: MY_CUSTOM_KV  # Change the default
+      slugLength:
+        default: 10            # Longer slugs
+```
+
+## When to Use What
+
+| Need | Use |
+|------|-----|
+| URL shortening | [Redirects](/conductor/starter-kit/redirects) |
+| API documentation | [Documentation](/conductor/starter-kit/documentation) |
+| Data validation | [validate agent](/conductor/starter-kit/validate) |
+| External API calls | [fetch agent](/conductor/starter-kit/fetch) |
+| Web scraping | [scrape agent](/conductor/starter-kit/scrape) |
+| Vector search (managed) | [autorag agent](/conductor/starter-kit/autorag) |
+| Vector search (custom) | [rag built-in](/conductor/starter-kit/built-in/rag) |
+| Human approval | [hitl built-in](/conductor/starter-kit/built-in/hitl) |
+| MCP tools | [tools agent](/conductor/starter-kit/tools) |
+| Database queries | [queries agent](/conductor/starter-kit/queries) |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Built-in Agents" icon="cube" href="/conductor/starter-kit/built-in/overview">
+    Framework-level agents (RAG, HITL)
+  </Card>
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Build your own agents
+  </Card>
+  <Card title="Writing Ensembles" icon="diagram-project" href="/conductor/building/writing-ensembles">
+    Compose workflows
+  </Card>
+  <Card title="Operations" icon="gears" href="/conductor/operations/overview">
+    Available operations reference
+  </Card>
+</CardGroup>

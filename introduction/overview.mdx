@@ -99,7 +99,7 @@ agents:
       data: ${fetch-data.output}
 
   - name: score
-    agent: validator         # Use pre-built agent
+    agent: validator         # Use starter kit agent
     input:
       content: ${analyze.output}
 ```
@@ -216,7 +216,7 @@ Edge Execution (200+ locations)
 
   <Accordion icon="magnifying-glass" title="RAG System">
     Index documents and perform semantic search and generate contextualized answers.
-    Agents: RAG (pre-built) + Think (generation) + vectorize
+    Agents: RAG (starter kit) + Think (generation) + vectorize
   </Accordion>
 
   <Accordion icon="chart-line" title="A/B Testing">

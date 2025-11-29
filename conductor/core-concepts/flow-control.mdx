@@ -559,7 +559,9 @@ agents:
 
   - name: transform
     condition: ${validate-schema.output.valid}
-    agent: transformer
+    operation: code
+    config:
+      script: scripts/transform-data
     inputs:
       data: ${fetch-data.output}
 

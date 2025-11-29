@@ -1,0 +1,451 @@
+---
+title: "Tools Agent"
+description: "Invoke external MCP (Model Context Protocol) tools over HTTP for seamless tool integration"
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The **Tools Agent** enables seamless integration with external tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). MCP is an open standard for connecting AI systems with external tools, databases, and services.
+
+### What is MCP?
+
+MCP (Model Context Protocol) provides:
+- **Standardized tool interface** - Unified protocol for tool discovery and invocation
+- **HTTP-only transport** - Simple REST API, no stdio complexity
+- **Tool discovery** - Automatic detection of available tools
+- **Authentication** - Built-in support for Bearer and OAuth
+- **Type safety** - Schema validation for inputs and outputs
+
+### Features
+
+- **HTTP-only transport** - No process management or stdio complexity
+- **Tool discovery with caching** - Automatic detection and caching of available tools
+- **Bearer and OAuth authentication** - Secure access to external services
+- **Configurable timeouts** - Fine-grained control over request timeouts
+- **Type-safe** - Schema validation for inputs and outputs
+
+### Use Cases
+
+- Integrate with external APIs (GitHub, Slack, Notion)
+- Query databases and knowledge bases
+- Execute custom tools from MCP servers
+- Build AI agents with access to external tools
+
+---
+
+## Quick Start
+
+### Basic Example
+
+```yaml
+flow:
+  - name: get-weather
+    agent: tools
+    input:
+      query: "What is the weather in San Francisco?"
+    config:
+      mcp: "weather-server"
+      tool: "get_weather"
+      timeout: 5000
+```
+
+### Configure MCP Server
+
+In your `conductor.config.ts`:
+
+```typescript
+export default {
+  mcp: {
+    servers: {
+      "weather-server": {
+        url: "https://weather-api.example.com/mcp",
+        auth: {
+          type: "bearer",
+          token: process.env.WEATHER_API_KEY
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Input Schema
+
+The tools agent accepts **any input** - arguments are passed directly to the MCP tool:
+
+```typescript
+{
+  [key: string]: any  // Tool arguments (passed directly to MCP tool)
+}
+```
+
+### Example Inputs
+
+**Simple query:**
+```yaml
+input:
+  query: "What is the weather in San Francisco?"
+```
+
+**Complex parameters:**
+```yaml
+input:
+  query: "conductor yaml"
+  limit: 10
+  sort: "stars"
+  filter: "language:typescript"
+```
+
+**Nested data:**
+```yaml
+input:
+  user:
+    name: "John Doe"
+    email: "john@example.com"
+  action: "create"
+```
+
+---
+
+## Output Schema
+
+The tools agent returns a structured response:
+
+```typescript
+{
+  tool: string        // Tool name that was invoked
+  server: string      // MCP server name
+  content: Array<{    // Tool result content
+    type: "text" | "image" | "resource"
+    text?: string     // For type: text
+    data?: string     // For type: image (base64)
+    mimeType?: string // For type: image
+  }>
+  duration: number    // Execution time in milliseconds
+  cached?: boolean    // True if result from cache
+  isError: boolean    // True if tool execution failed
+}
+```
+
+### Example Output
+
+**Success response:**
+```json
+{
+  "tool": "get_weather",
+  "server": "weather-server",
+  "content": [
+    {
+      "type": "text",
+      "text": "Current weather in San Francisco: 65F, partly cloudy"
+    }
+  ],
+  "duration": 350,
+  "isError": false
+}
+```
+
+**Error response:**
+```json
+{
+  "tool": "get_weather",
+  "server": "weather-server",
+  "content": [
+    {
+      "type": "text",
+      "text": "Error: API key invalid"
+    }
+  ],
+  "duration": 120,
+  "isError": true
+}
+```
+
+---
+
+## Configuration
+
+Configure the tools agent using the `config` block:
+
+```yaml
+config:
+  mcp: string          # Required: MCP server name
+  tool: string         # Required: Tool name to invoke
+  timeout: number      # Optional: Request timeout (ms)
+  cacheDiscovery: boolean  # Optional: Cache tool discovery (default: true)
+  cacheTTL: number     # Optional: Cache TTL in seconds (default: 3600)
+```
+
+### Configuration Options
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `mcp` | string | Yes | - | MCP server name (from conductor.config.ts) |
+| `tool` | string | Yes | - | Tool name to invoke |
+| `timeout` | number | No | - | Request timeout override in milliseconds |
+| `cacheDiscovery` | boolean | No | true | Cache tool discovery results |
+| `cacheTTL` | number | No | 3600 | Cache TTL in seconds (1 hour) |
+
+### Example Configuration
+
+```yaml
+config:
+  mcp: "github"
+  tool: "search_repositories"
+  timeout: 10000          # 10 second timeout
+  cacheDiscovery: true    # Cache tool metadata
+  cacheTTL: 7200          # Cache for 2 hours
+```
+
+---
+
+## Authentication
+
+The tools agent supports two authentication methods:
+
+### Bearer Token
+
+```typescript
+// conductor.config.ts
+export default {
+  mcp: {
+    servers: {
+      "my-api": {
+        url: "https://api.example.com/mcp",
+        auth: {
+          type: "bearer",
+          token: process.env.API_TOKEN
+        }
+      }
+    }
+  }
+}
+```
+
+### OAuth
+
+```typescript
+// conductor.config.ts
+export default {
+  mcp: {
+    servers: {
+      "github": {
+        url: "https://api.github.com/mcp",
+        auth: {
+          type: "oauth",
+          clientId: process.env.GITHUB_CLIENT_ID,
+          clientSecret: process.env.GITHUB_CLIENT_SECRET,
+          tokenUrl: "https://github.com/login/oauth/access_token"
+        }
+      }
+    }
+  }
+}
+```
+
+### Environment Variables
+
+Store secrets in environment variables:
+
+```bash
+# .dev.vars (local)
+WEATHER_API_KEY=your-key-here
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+```
+
+```bash
+# Production (Cloudflare Workers)
+wrangler secret put WEATHER_API_KEY
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+---
+
+## Examples
+
+### Example 1: Weather Query
+
+Invoke a weather tool to get current conditions:
+
+```yaml
+flow:
+  - name: get-weather
+    agent: tools
+    input:
+      query: "What is the weather in San Francisco?"
+    config:
+      mcp: "weather-server"
+      tool: "get_weather"
+      timeout: 5000
+
+output:
+  weather: ${get-weather.output.content[0].text}
+  duration: ${get-weather.output.duration}
+```
+
+**Expected Output:**
+```json
+{
+  "tool": "get_weather",
+  "server": "weather-server",
+  "content": [
+    {
+      "type": "text",
+      "text": "Current weather in San Francisco: 65F, partly cloudy"
+    }
+  ],
+  "duration": 350,
+  "isError": false
+}
+```
+
+### Example 2: GitHub Repository Search
+
+Search GitHub repositories using MCP:
+
+```yaml
+flow:
+  - name: search-repos
+    agent: tools
+    input:
+      query: "conductor yaml"
+      limit: 10
+    config:
+      mcp: "github"
+      tool: "search_repositories"
+
+output:
+  results: ${search-repos.output.content[0].text}
+  cached: ${search-repos.output.cached}
+```
+
+**Expected Output:**
+```json
+{
+  "tool": "search_repositories",
+  "server": "github",
+  "content": [
+    {
+      "type": "text",
+      "text": "Found 5 repositories matching 'conductor yaml'"
+    }
+  ],
+  "duration": 1200
+}
+```
+
+### Example 3: Error Handling
+
+Handle tool errors gracefully:
+
+```yaml
+flow:
+  - name: invoke-tool
+    agent: tools
+    input:
+      query: "test query"
+    config:
+      mcp: "external-api"
+      tool: "process"
+      timeout: 5000
+
+  - name: handle-error
+    condition: ${invoke-tool.output.isError}
+    agent: logger
+    input:
+      message: "Tool failed: ${invoke-tool.output.content[0].text}"
+
+output:
+  - when: ${invoke-tool.output.isError}
+    status: 500
+    body:
+      error: ${invoke-tool.output.content[0].text}
+
+  - status: 200
+    body:
+      result: ${invoke-tool.output.content[0].text}
+```
+
+### Example 4: Parallel Tool Invocation
+
+Invoke multiple tools in parallel:
+
+```yaml
+flow:
+  - name: get-weather
+    agent: tools
+    input:
+      location: "San Francisco"
+    config:
+      mcp: "weather-server"
+      tool: "get_weather"
+
+  - name: get-news
+    agent: tools
+    input:
+      topic: "San Francisco"
+    config:
+      mcp: "news-server"
+      tool: "get_headlines"
+
+  - name: combine-results
+    agent: combiner
+    input:
+      weather: ${get-weather.output.content[0].text}
+      news: ${get-news.output.content[0].text}
+```
+
+### Example 5: Tool Discovery Caching
+
+Optimize performance with discovery caching:
+
+```yaml
+flow:
+  - name: list-tools
+    agent: tools
+    input:
+      action: "discover"
+    config:
+      mcp: "my-server"
+      tool: "list_tools"
+      cacheDiscovery: true    # Cache for 1 hour
+      cacheTTL: 3600
+
+  - name: invoke-cached
+    agent: tools
+    input:
+      query: "test"
+    config:
+      mcp: "my-server"
+      tool: "process"
+      cacheDiscovery: true    # Reuse cached discovery
+```
+
+---
+
+## Learn More
+
+<CardGroup cols={2}>
+  <Card
+    title="Tools & MCP Integration"
+    icon="plug"
+    href="/conductor/building/tools-mcp-integration"
+  >
+    Learn how to integrate external tools via MCP
+  </Card>
+  <Card
+    title="Starter Kit Overview"
+    icon="rocket"
+    href="/conductor/starter-kit/overview"
+  >
+    Explore other starter kit agents
+  </Card>
+</CardGroup>

@@ -1,0 +1,98 @@
+---
+title: "Built-in Agents"
+description: "Framework-level agents with deep platform integration. Configure only - cannot modify source."
+---
+
+<Note type="warning">
+**Built-in** - These agents are part of the Conductor framework itself. You can configure them, but cannot modify their source code.
+</Note>
+
+## What Are Built-in Agents?
+
+Built-in agents are framework-level components that require deep integration with Cloudflare's platform:
+
+- **Durable Objects** for stateful operations
+- **Cloudflare AI** for embeddings and inference
+- **Vectorize** for vector storage and search
+
+Unlike [starter kit agents](/conductor/starter-kit/overview) which you own and can modify, built-in agents are maintained by the Conductor team and updated with framework releases.
+
+## Available Built-in Agents
+
+<CardGroup cols={2}>
+  <Card title="rag" icon="database" href="/conductor/starter-kit/built-in/rag">
+    Vector search + LLM using Cloudflare AI & Vectorize
+  </Card>
+  <Card title="hitl" icon="user-check" href="/conductor/starter-kit/built-in/hitl">
+    Human-in-the-loop approval flows using Durable Objects
+  </Card>
+</CardGroup>
+
+## Built-in vs Starter Kit
+
+| Aspect | Built-in Agents | Starter Kit Agents |
+|--------|-----------------|-------------------|
+| **Source code** | Framework (not editable) | Your project (fully editable) |
+| **Updates** | With Conductor releases | You control |
+| **Platform deps** | Deep (DO, AI, Vectorize) | Minimal |
+| **Customization** | Config only | Full code access |
+| **Examples** | rag, hitl | fetch, validate, scrape, etc. |
+
+## When to Use Built-in Agents
+
+**Use `rag` when you need:**
+- Manual control over document indexing
+- Custom chunking strategies
+- Hybrid search (vector + keyword)
+- Fine-tuned retrieval parameters
+
+**Use `hitl` when you need:**
+- Human approval workflows
+- Asynchronous task completion
+- Audit trails for decisions
+- Multi-step approval chains
+
+## Configuration Pattern
+
+Built-in agents are configured, not coded:
+
+```yaml
+agents:
+  - name: search-docs
+    agent: rag
+    config:
+      vectorBinding: DOCS_VECTORS
+      aiBinding: AI
+      model: '@cf/baai/bge-base-en-v1.5'
+      topK: 5
+    input:
+      query: ${input.question}
+      operation: search
+```
+
+## Starter Kit Alternatives
+
+For simpler use cases, consider starter kit agents:
+
+| Need | Built-in | Starter Kit Alternative |
+|------|----------|------------------------|
+| RAG with zero config | - | [autorag](/conductor/starter-kit/autorag) |
+| Simple validation | - | [validate](/conductor/starter-kit/validate) |
+| HTTP requests | - | [fetch](/conductor/starter-kit/fetch) |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="RAG Agent" icon="database" href="/conductor/starter-kit/built-in/rag">
+    Vector search + LLM
+  </Card>
+  <Card title="HITL Agent" icon="user-check" href="/conductor/starter-kit/built-in/hitl">
+    Human approval flows
+  </Card>
+  <Card title="Utility Agents" icon="wrench" href="/conductor/starter-kit/fetch">
+    Editable agents you own
+  </Card>
+  <Card title="AutoRAG" icon="magnifying-glass" href="/conductor/starter-kit/autorag">
+    Zero-config managed RAG
+  </Card>
+</CardGroup>

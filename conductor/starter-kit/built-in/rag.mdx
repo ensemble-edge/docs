@@ -1,0 +1,607 @@
+---
+title: "RAG Agent"
+description: "Manual RAG with Cloudflare AI & Vectorize. Index documents and search with vector embeddings."
+---
+
+<Note type="warning">
+**Built-in** - Framework-level agent. Configure only - cannot modify source.
+</Note>
+
+## Overview
+
+The RAG agent provides **manual** Retrieval-Augmented Generation using **Cloudflare AI** for embeddings and **Cloudflare Vectorize** for vector storage. This is a low-level agent for building custom RAG pipelines where you control indexing and search operations.
+
+<Note>
+For fully managed RAG with automatic document processing, see [AutoRAG](/conductor/starter-kit/autorag) in the Starter Kit.
+</Note>
+
+**Key Features:**
+- **Manual control** over indexing and search operations
+- **Cloudflare AI embeddings** using `@cf/baai/bge-base-en-v1.5` (default)
+- **Automatic chunking** with semantic, fixed, or recursive strategies
+- **Optional reranking** with cross-encoder models for better relevance
+- **Multi-tenant isolation** via namespaces
+- **Batch processing** for efficient large-scale indexing (100 texts per embedding batch, 1000 vectors per upsert)
+
+## Required Bindings
+
+Add these to your `wrangler.toml`:
+
+```toml
+# Required: Cloudflare AI binding
+[ai]
+binding = "AI"
+
+# Required: Vectorize index binding
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "my-rag-index"
+```
+
+Create the Vectorize index:
+
+```bash
+wrangler vectorize create my-rag-index --dimensions 768 --metric cosine
+```
+
+<Note>
+The default embedding model `@cf/baai/bge-base-en-v1.5` produces 768-dimensional vectors. Match your index dimensions accordingly.
+</Note>
+
+## Operations
+
+The RAG agent supports two primary operations:
+
+### 1. Index Operation
+
+Index documents into the vector store with automatic chunking and embedding.
+
+```yaml
+agents:
+  - name: index-doc
+    agent: rag
+    config:
+      operation: index
+      embeddingModel: "@cf/baai/bge-base-en-v1.5"
+      chunkStrategy: semantic
+      chunkSize: 512
+      overlap: 50
+    input:
+      content: ${input.document}
+      id: ${input.documentId}
+      metadata:
+        source: ${input.source}
+        timestamp: ${input.timestamp}
+```
+
+**Configuration:**
+```yaml
+config:
+  operation: index
+  embeddingModel: string    # Model (default: @cf/baai/bge-base-en-v1.5)
+  chunkStrategy: string     # "semantic" | "fixed" | "recursive" (default: semantic)
+  chunkSize: number         # Target chunk size in characters (default: 512)
+  overlap: number           # Overlap between chunks (default: 50)
+  namespace: string         # Optional namespace for multi-tenant isolation
+
+input:
+  content: string           # Text to index (required)
+  id: string               # Document ID (required)
+  source: string           # Optional source identifier
+  metadata: object         # Additional metadata to store
+```
+
+**Output:**
+```typescript
+{
+  indexed: number;           // Number of documents indexed
+  chunks: number;            // Number of chunks created
+  embeddingModel: string;    // Model used for embeddings
+  chunkStrategy: string;     // Strategy used for chunking
+}
+```
+
+### 2. Search Operation
+
+Search the vector store using semantic similarity.
+
+```yaml
+agents:
+  - name: search
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+      rerank: true
+      rerankModel: "@cf/baai/bge-reranker-base"
+    input:
+      query: ${input.question}
+```
+
+**Configuration:**
+```yaml
+config:
+  operation: search
+  embeddingModel: string    # Model (default: @cf/baai/bge-base-en-v1.5)
+  topK: number             # Number of results (default: 5)
+  rerank: boolean          # Enable cross-encoder reranking (default: false)
+  rerankModel: string      # Reranker model (default: @cf/baai/bge-reranker-base)
+  namespace: string        # Optional namespace filter
+
+input:
+  query: string            # Search query (required)
+  filter: object           # Metadata filters
+  topK: number            # Override default topK
+  rerank: boolean         # Override default rerank setting
+```
+
+**Output:**
+```typescript
+{
+  results: Array<{
+    id: string;              // Vector ID
+    score: number;           // Similarity score (0-1)
+    content: string;         // Original content chunk
+    metadata: object;        // Stored metadata
+  }>;
+  count: number;             // Total number of results
+  reranked: boolean;         // Whether results were reranked
+}
+```
+
+## Complete RAG Pipeline
+
+Build a complete question-answering system with manual RAG:
+
+```yaml
+ensemble: rag-qa
+
+agents:
+  # 1. Search for relevant docs
+  - name: search
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+      rerank: true
+      filter:
+        source: documentation
+    input:
+      query: ${input.question}
+
+  # 2. Generate answer using context
+  - name: answer
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: |
+        Answer this question using ONLY the following context.
+        If the answer isn't in the context, say "I don't know."
+
+        Context:
+        ${search.output.results.map(r => r.content).join('\n\n')}
+
+        Question: ${input.question}
+
+  # 3. Format response with sources
+  - name: format-response
+    operation: code
+    config:
+      script: scripts/format-response
+    input:
+      answer: ${answer.output}
+      results: ${search.output.results}
+
+output:
+  response: ${format-response.output}
+```
+
+```typescript
+// scripts/format-response.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function formatResponse(context: AgentExecutionContext) {
+  const { answer, results } = context.input
+  return {
+    answer: answer,
+    sources: results.map((r: any) => ({
+      text: r.content.substring(0, 200),
+      metadata: r.metadata,
+      score: r.score
+    }))
+  }
+}
+```
+
+## Advanced Patterns
+
+### Hybrid Search
+
+Combine vector search with keyword search for better results:
+
+```yaml
+agents:
+  # Vector search
+  - name: vector-search
+    agent: rag
+    config:
+      operation: search
+      topK: 10
+    input:
+      query: ${input.question}
+
+  # Keyword search (D1)
+  - name: keyword-search
+    operation: data
+    config:
+      backend: d1
+      binding: DB
+      operation: query
+      sql: |
+        SELECT * FROM documents
+        WHERE content LIKE ?
+        LIMIT 10
+      params: ['%${input.question}%']
+
+  # Combine and rerank results
+  - name: combine
+    operation: code
+    config:
+      script: scripts/combine-results
+    input:
+      vectorResults: ${vector-search.output.results}
+      keywordResults: ${keyword-search.output}
+```
+
+### Multi-Query RAG
+
+Generate multiple search queries for better coverage:
+
+```yaml
+agents:
+  # Generate multiple search queries
+  - name: generate-queries
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: |
+        Generate 3 different search queries for: ${input.question}
+        Return as JSON array.
+
+  # Search with each query
+  - name: search-1
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+    input:
+      query: ${generate-queries.output[0]}
+
+  - name: search-2
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+    input:
+      query: ${generate-queries.output[1]}
+
+  - name: search-3
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+    input:
+      query: ${generate-queries.output[2]}
+
+  # Deduplicate and combine
+  - name: combine
+    operation: code
+    config:
+      script: scripts/combine-search-results
+    input:
+      results1: ${search-1.output.results}
+      results2: ${search-2.output.results}
+      results3: ${search-3.output.results}
+```
+
+```typescript
+// scripts/combine-search-results.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function combineSearchResults(context: AgentExecutionContext) {
+  const { results1, results2, results3 } = context.input
+  const all = [...results1, ...results2, ...results3]
+
+  // Deduplicate by ID
+  const unique = [...new Map(all.map((r: any) => [r.id, r])).values()]
+
+  return { results: unique.slice(0, 10) }
+}
+```
+
+### Filtered Search with Metadata
+
+Use metadata filters to narrow search scope:
+
+```yaml
+agents:
+  - name: search
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+      namespace: production
+    input:
+      query: ${input.question}
+      filter:
+        category: ${input.category}
+        published_after: ${input.date}
+        author: ${input.author}
+```
+
+### Incremental Indexing
+
+Index documents in batches with custom chunking:
+
+```yaml
+agents:
+  - name: chunk
+    operation: code
+    config:
+      script: scripts/chunk-document
+    input:
+      document: ${input.document}
+      chunkSize: 1000
+
+  - name: index-chunks
+    agent: rag
+    config:
+      operation: index
+      namespace: ${input.tenant_id}
+    input:
+      content: ${chunk.output.chunks}
+      id: ${input.document_id}
+      metadata:
+        document_id: ${input.document_id}
+        chunk_index: ${chunk.output.chunks.index}
+```
+
+```typescript
+// scripts/chunk-document.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function chunkDocument(context: AgentExecutionContext) {
+  const { document, chunkSize } = context.input
+  const chunks = []
+
+  for (let i = 0; i < document.length; i += chunkSize) {
+    chunks.push({
+      text: document.substring(i, i + chunkSize),
+      index: i / chunkSize
+    })
+  }
+
+  return { chunks }
+}
+```
+
+## Best Practices
+
+### 1. Chunk Documents Intelligently
+
+```yaml
+# Good: Semantic chunks with overlap
+chunkStrategy: semantic
+chunkSize: 512
+overlap: 50
+
+# Avoid: Large chunks without overlap
+chunkStrategy: fixed
+chunkSize: 5000
+overlap: 0
+```
+
+### 2. Add Rich Metadata
+
+```yaml
+metadata:
+  source: url or file path
+  title: document title
+  author: content creator
+  published: ISO date string
+  category: classification
+  tags: [tag1, tag2]
+```
+
+### 3. Use Namespaces for Isolation
+
+```yaml
+# Separate by tenant, version, or document type
+namespace: tenant-${input.tenant_id}
+namespace: docs-v2
+namespace: support-tickets
+```
+
+### 4. Enable Reranking for Quality
+
+```yaml
+config:
+  topK: 10              # Get more initial results
+  rerank: true          # Re-score with cross-encoder
+  rerankModel: "@cf/baai/bge-reranker-base"
+```
+
+### 5. Cache Search Results
+
+```yaml
+agents:
+  - name: search
+    agent: rag
+    cache:
+      ttl: 3600
+      key: search-${hash(input.query)}
+```
+
+## Common Use Cases
+
+### Documentation Q&A
+
+```yaml
+ensemble: docs-qa
+
+agents:
+  - name: search-docs
+    agent: rag
+    config:
+      operation: search
+      namespace: documentation
+      topK: 3
+      rerank: true
+    input:
+      query: ${input.question}
+
+  - name: answer
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: |
+        Answer using these docs:
+        ${search-docs.output.results.map(r => r.content).join('\n\n')}
+
+        Question: ${input.question}
+```
+
+### Customer Support Assistant
+
+```yaml
+ensemble: support-assistant
+
+agents:
+  - name: search-tickets
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+      namespace: support-tickets
+    input:
+      query: ${input.issue}
+      filter:
+        status: resolved
+        sentiment: positive
+
+  - name: suggest-solution
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-sonnet-4
+      prompt: |
+        Suggest a solution based on these similar resolved tickets:
+        ${search-tickets.output.results.map(r => r.content).join('\n\n')}
+
+        Current issue: ${input.issue}
+```
+
+### Content Recommendations
+
+```yaml
+ensemble: recommend-articles
+
+agents:
+  - name: search-similar
+    agent: rag
+    config:
+      operation: search
+      topK: 5
+    input:
+      query: ${input.current_article}
+      filter:
+        category: ${input.category}
+
+  - name: format
+    operation: code
+    config:
+      script: scripts/format-recommendations
+    input:
+      results: ${search-similar.output.results}
+```
+
+```typescript
+// scripts/format-recommendations.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function formatRecommendations(context: AgentExecutionContext) {
+  const { results } = context.input
+  return {
+    recommendations: results.map((r: any) => ({
+      title: r.metadata.title,
+      url: r.metadata.url,
+      relevance: r.score
+    }))
+  }
+}
+```
+
+## Performance Tips
+
+**Limit topK for Speed**
+```yaml
+topK: 5  # Usually sufficient for most use cases
+```
+
+**Use Metadata Filters**
+```yaml
+# Reduce search space dramatically
+filter:
+  category: ${input.category}
+  published_after: "2024-01-01"
+```
+
+**Partition with Namespaces**
+```yaml
+# Smaller search space = faster queries
+namespace: ${input.tenant_id}
+```
+
+**Cache Aggressively**
+```yaml
+cache:
+  ttl: 3600
+  key: search-${hash(input.query)}-${input.namespace}
+```
+
+## Limitations
+
+- **Max document size**: 8000 tokens per chunk
+- **Max topK**: 100 results
+- **Metadata size**: 10KB per document
+- **Namespace limit**: 1000 per account
+- **Embedding model**: Currently limited to Cloudflare AI models
+
+## Manual RAG vs AutoRAG
+
+| Feature | Manual RAG (This Agent) | AutoRAG (Starter Kit) |
+|---------|------------------------|----------------------|
+| Control | Full control over indexing & search | Fully managed |
+| Document Processing | Manual chunking & indexing | Automatic file processing |
+| Use Case | Custom pipelines | Quick deployment |
+| Configuration | Low-level operations | High-level automation |
+| Best For | Advanced users | Getting started |
+
+For most use cases, consider starting with [AutoRAG](/conductor/starter-kit/autorag) and migrate to manual RAG when you need fine-grained control.
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="AutoRAG" icon="wand-magic-sparkles" href="/conductor/starter-kit/autorag">
+    Managed RAG with automatic document processing
+  </Card>
+  <Card title="HITL Agent" icon="user" href="/conductor/starter-kit/built-in/hitl">
+    Human-in-the-Loop for RAG verification
+  </Card>
+  <Card title="Built-in Overview" icon="layer-group" href="/conductor/starter-kit/built-in/overview">
+    All framework-level agents
+  </Card>
+</CardGroup>

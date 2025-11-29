@@ -89,7 +89,9 @@ auth:
   secret: ${env.JWT_SECRET}
 ```
 
-### API Key
+### API Key (Recommended Default)
+
+The simplest authentication method uses API keys stored in Cloudflare KV:
 
 ```bash
 curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/my-workflow \
@@ -98,11 +100,41 @@ curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/my-workflow
   -d '{"input": {}}'
 ```
 
-API keys can be generated using the CLI (see below) or managed via Unkey.
+**Setup:**
 
-### Unkey Integration
+1. Create a KV namespace for API keys:
+```bash
+wrangler kv:namespace create "API_KEYS"
+```
 
-For production deployments, we recommend [Unkey](https://unkey.dev) for advanced API key management:
+2. Add to `wrangler.toml`:
+```toml
+[[kv_namespaces]]
+binding = "API_KEYS"
+id = "your-kv-namespace-id"
+```
+
+3. Configure in your trigger:
+```yaml
+trigger:
+  - type: http
+    path: /api/data
+    auth:
+      type: apiKey  # Uses API_KEYS KV namespace
+```
+
+4. Generate keys with the CLI:
+```bash
+conductor keys generate --name "my-service" --permissions "ensemble:*:execute"
+```
+
+### Unkey Integration (Advanced)
+
+For advanced API key management with built-in rate limiting, usage analytics, and key rotation, you can optionally use [Unkey](https://unkey.dev):
+
+<Note>
+**Unkey requires installing a plugin** and an Unkey account. For most use cases, the simple `apiKey` method above is sufficient and recommended.
+</Note>
 
 ```typescript
 // conductor.config.ts
@@ -114,11 +146,19 @@ export default {
 }
 ```
 
-Unkey provides:
-- Rate limiting per key
-- Usage analytics
-- Key expiration
-- Automatic key rotation
+**Comparison:**
+
+| Feature | Simple apiKey (Default) | Unkey (Advanced) |
+|---------|------------------------|------------------|
+| Setup | Just KV binding | Plugin + API key |
+| Storage | Cloudflare KV | Unkey service |
+| Rate limiting | Manual | Built-in |
+| Key rotation | Manual | Built-in |
+| Usage analytics | Manual | Built-in |
+| Cost | Free (KV included) | Unkey pricing |
+| Dependencies | None | `@unkey/api` package |
+
+> **Recommendation**: Start with simple `apiKey`. Only switch to Unkey if you need its advanced features like built-in rate limiting or usage analytics.
 
 ## Permission System
 

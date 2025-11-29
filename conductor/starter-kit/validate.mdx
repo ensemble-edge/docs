@@ -1,0 +1,653 @@
+---
+title: "Validate Agent"
+description: "Validate data and content using rules, LLM judges, NLP metrics, or embeddings."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Basic Usage
+
+```yaml
+agents:
+  - name: validate
+    agent: validate
+    inputs:
+      content: ${input.text}
+    config:
+      evalType: rule
+      threshold: 0.7
+      rules:
+        - name: min_length
+          check: "content.length >= 50"
+          weight: 1
+```
+
+Output (success):
+```json
+{
+  "passed": true,
+  "score": 1.0,
+  "scores": {
+    "min_length": 1.0
+  },
+  "evalType": "rule"
+}
+```
+
+Output (failure):
+```json
+{
+  "passed": false,
+  "score": 0.4,
+  "scores": {
+    "min_length": 0.4
+  },
+  "details": {
+    "min_length": "Content too short"
+  },
+  "evalType": "rule"
+}
+```
+
+## Inputs
+
+```yaml
+inputs:
+  content:
+    type: string
+    required: true
+    description: Content to validate
+
+  reference:
+    type: string
+    required: false
+    description: Reference text for comparison (NLP/embedding evaluators)
+
+  expected:
+    type: any
+    required: false
+    description: Expected value for exact comparison
+```
+
+## Configuration
+
+```yaml
+config:
+  evalType:
+    type: string
+    enum: [rule, judge, nlp, embedding]
+    default: rule
+    description: Type of evaluator to use
+
+  threshold:
+    type: number
+    default: 0.7
+    minimum: 0
+    maximum: 1
+    description: Minimum score to pass
+
+  rules:
+    type: array
+    description: Rules for rule evaluator (required if evalType=rule)
+
+  criteria:
+    type: array
+    description: Criteria for judge evaluator (required if evalType=judge)
+
+  metrics:
+    type: array
+    default: [bleu, rouge]
+    description: NLP metrics to calculate (for evalType=nlp)
+
+  model:
+    type: string
+    description: Model for judge/embedding evaluators
+```
+
+## Evaluator Types
+
+### Rule-Based Validation
+
+Validate using JavaScript expressions:
+
+```yaml
+agents:
+  - name: validate
+    agent: validate
+    inputs:
+      content: ${input.text}
+    config:
+      evalType: rule
+      threshold: 0.7
+      rules:
+        - name: min_length
+          check: "content.length >= 50"
+          weight: 1
+          description: "Content must be at least 50 characters"
+
+        - name: has_keyword
+          check: "content.toLowerCase().includes('important')"
+          weight: 0.5
+          description: "Must mention 'important'"
+
+        - name: no_profanity
+          check: "!/(bad|word|list)/i.test(content)"
+          weight: 2
+          description: "No profanity allowed"
+```
+
+**Available Variables:**
+- `content` - Input content
+- `reference` - Reference text (if provided)
+- `expected` - Expected value (if provided)
+
+### Judge Evaluation (LLM)
+
+Use AI to assess quality against criteria:
+
+```yaml
+agents:
+  - name: validate
+    agent: validate
+    inputs:
+      content: ${input.essay}
+    config:
+      evalType: judge
+      threshold: 0.8
+      model: claude-3-5-sonnet-20241022
+      criteria:
+        - name: clarity
+          description: "Is the writing clear and easy to understand?"
+          weight: 1
+
+        - name: structure
+          description: "Does it have proper introduction, body, and conclusion?"
+          weight: 1
+
+        - name: grammar
+          description: "Is grammar and spelling correct?"
+          weight: 0.5
+```
+
+**Requires:** AI binding configured in your project
+
+### NLP Metrics
+
+Compare content to reference using statistical metrics:
+
+```yaml
+agents:
+  - name: validate
+    agent: validate
+    inputs:
+      content: ${input.translation}
+      reference: ${input.source_text}
+    config:
+      evalType: nlp
+      threshold: 0.6
+      metrics: [bleu, rouge, length-ratio]
+```
+
+**Metrics:**
+- `bleu` - Precision-based similarity (0-1)
+- `rouge` - Recall-based similarity (0-1)
+- `length-ratio` - Length comparison (0-1)
+
+### Embedding Similarity
+
+Semantic similarity via embeddings:
+
+```yaml
+agents:
+  - name: validate
+    agent: validate
+    inputs:
+      content: ${input.response}
+      reference: ${input.expected_response}
+    config:
+      evalType: embedding
+      threshold: 0.85
+      model: text-embedding-3-small
+```
+
+**Requires:** AI binding with embedding support
+
+## Configuration Examples
+
+### Basic Text Validation
+
+```yaml
+agents:
+  - name: validate-input
+    agent: validate
+    inputs:
+      content: ${input.message}
+    config:
+      evalType: rule
+      threshold: 0.6
+      rules:
+        - name: not_empty
+          check: "content.trim().length > 0"
+          weight: 1
+        - name: max_length
+          check: "content.length <= 1000"
+          weight: 1
+```
+
+### With Error Handling
+
+```yaml
+agents:
+  - name: validate
+    agent: validate
+    inputs:
+      content: ${input.data}
+    config:
+      evalType: rule
+      threshold: 0.8
+      rules:
+        - name: valid_format
+          check: "/^[A-Z0-9-]+$/i.test(content)"
+          weight: 1
+
+  - name: handle-invalid
+    condition: ${!validate.output.passed}
+    operation: code
+    config:
+      script: scripts/handle-validation-errors
+    input:
+      errors: ${validate.output.details}
+```
+
+```typescript
+// scripts/handle-validation-errors.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function handleValidationErrors(context: AgentExecutionContext) {
+  const { errors } = context.input
+
+  return {
+    status: 400,
+    message: 'Validation failed',
+    errors
+  }
+}
+```
+
+### Multi-Criteria Quality Check
+
+```yaml
+agents:
+  - name: validate-quality
+    agent: validate
+    inputs:
+      content: ${scrape.output.text}
+    config:
+      evalType: judge
+      threshold: 0.75
+      model: claude-3-5-sonnet-20241022
+      criteria:
+        - name: relevance
+          description: "Is the content relevant to the topic?"
+          weight: 2
+
+        - name: accuracy
+          description: "Are the facts accurate and verifiable?"
+          weight: 2
+
+        - name: completeness
+          description: "Does it cover all important aspects?"
+          weight: 1
+
+        - name: readability
+          description: "Is it well-written and easy to read?"
+          weight: 1
+```
+
+### NLP Comparison
+
+```yaml
+agents:
+  - name: translate
+    operation: think
+    config:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+      prompt: "Translate this to French: ${input.text}"
+
+  - name: validate-translation
+    agent: validate
+    inputs:
+      content: ${translate.output}
+      reference: ${input.expected_translation}
+    config:
+      evalType: nlp
+      threshold: 0.7
+      metrics: [bleu, rouge]
+```
+
+## Advanced Patterns
+
+### Multi-Step Validation
+
+```yaml
+agents:
+  - name: validate-structure
+    agent: validate
+    inputs:
+      content: ${input.document}
+    config:
+      evalType: rule
+      threshold: 1.0
+      rules:
+        - name: has_title
+          check: "/^#\\s+.+/m.test(content)"
+          weight: 1
+
+  - name: validate-quality
+    condition: ${validate-structure.output.passed}
+    agent: validate
+    inputs:
+      content: ${input.document}
+    config:
+      evalType: judge
+      threshold: 0.7
+      criteria:
+        - name: clarity
+          description: "Is the content clear?"
+          weight: 1
+```
+
+### Conditional Validation
+
+```yaml
+agents:
+  - name: validate-basic
+    agent: validate
+    inputs:
+      content: ${input.text}
+    config:
+      evalType: rule
+      threshold: 0.5
+      rules:
+        - name: min_length
+          check: "content.length >= 10"
+          weight: 1
+
+  - name: validate-premium
+    condition: ${input.tier === 'premium'}
+    agent: validate
+    inputs:
+      content: ${input.text}
+    config:
+      evalType: judge
+      threshold: 0.8
+      model: claude-3-5-sonnet-20241022
+      criteria:
+        - name: quality
+          description: "High quality content"
+          weight: 1
+```
+
+### Validate Scraped Content
+
+```yaml
+agents:
+  - name: scrape
+    agent: scrape
+    inputs:
+      url: ${input.url}
+      selector: article
+
+  - name: validate-content
+    agent: validate
+    inputs:
+      content: ${scrape.output.text}
+    config:
+      evalType: rule
+      threshold: 0.7
+      rules:
+        - name: sufficient_length
+          check: "content.length >= 200"
+          weight: 1
+          description: "Article must have at least 200 characters"
+
+        - name: has_paragraphs
+          check: "content.split('\\n\\n').length >= 3"
+          weight: 0.5
+          description: "Must have multiple paragraphs"
+```
+
+### Batch Validation
+
+```yaml
+agents:
+  - name: validate-batch
+    operation: code
+    config:
+      script: scripts/validate-batch
+    input:
+      items: ${input.items}
+```
+
+```typescript
+// scripts/validate-batch.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function validateBatch(context: AgentExecutionContext) {
+  const { items } = context.input
+
+  const results = await Promise.all(
+    items.map((item: any) =>
+      context.conductor.executeAgent('validate', {
+        content: item.text,
+      }, {
+        evalType: 'rule',
+        threshold: 0.7,
+        rules: [
+          {
+            name: 'valid',
+            check: 'content.length > 0',
+            weight: 1
+          }
+        ]
+      })
+    )
+  )
+
+  return {
+    passed: results.every((r: any) => r.passed),
+    results: results.map((r: any, i: number) => ({
+      item: items[i],
+      passed: r.passed,
+      score: r.score
+    }))
+  }
+}
+```
+
+## Output Schema
+
+```typescript
+{
+  passed: boolean;          // Whether content passed threshold
+  score: number;            // Average score (0-1)
+  scores: {                 // Individual scores by criterion
+    [name: string]: number;
+  };
+  details?: {               // Additional details per criterion
+    [name: string]: string;
+  };
+  evalType: 'rule' | 'judge' | 'nlp' | 'embedding';
+}
+```
+
+## Best Practices
+
+**1. Use Appropriate Evaluator Type**
+```yaml
+# Structural checks → rule
+evalType: rule
+rules:
+  - name: format
+    check: "/^\\d{3}-\\d{3}-\\d{4}$/.test(content)"
+    weight: 1
+
+# Quality assessment → judge
+evalType: judge
+criteria:
+  - name: quality
+    description: "Is this well-written?"
+    weight: 1
+
+# Similarity comparison → nlp or embedding
+evalType: nlp
+metrics: [bleu, rouge]
+```
+
+**2. Weight Important Rules Higher**
+```yaml
+rules:
+  - name: critical_field
+    check: "content.includes('required')"
+    weight: 3  # 3x more important
+
+  - name: optional_field
+    check: "content.includes('optional')"
+    weight: 1
+```
+
+**3. Set Reasonable Thresholds**
+```yaml
+# Strict validation (must pass all rules)
+threshold: 1.0
+
+# Lenient validation (most rules pass)
+threshold: 0.6
+
+# Balanced validation
+threshold: 0.7
+```
+
+**4. Fail Fast**
+```yaml
+agents:
+  - name: validate
+    agent: validate
+
+  - name: process
+    condition: ${validate.output.passed}
+    operation: code
+```
+
+**5. Provide Clear Descriptions**
+```yaml
+rules:
+  - name: email_format
+    check: "/@/.test(content)"
+    weight: 1
+    description: "Must be a valid email address"  # Helps debugging
+```
+
+## Common Validation Schemas
+
+### Email Validation
+
+```yaml
+config:
+  evalType: rule
+  threshold: 1.0
+  rules:
+    - name: has_at
+      check: "content.includes('@')"
+      weight: 1
+      description: "Must contain @ symbol"
+
+    - name: has_domain
+      check: "/\\.[a-z]{2,}$/i.test(content)"
+      weight: 1
+      description: "Must have valid domain extension"
+
+    - name: format
+      check: "/^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$/i.test(content)"
+      weight: 1
+      description: "Must match email format"
+```
+
+### URL Validation
+
+```yaml
+config:
+  evalType: rule
+  threshold: 1.0
+  rules:
+    - name: protocol
+      check: "/^https?:\\/\\//i.test(content)"
+      weight: 1
+      description: "Must start with http:// or https://"
+
+    - name: domain
+      check: "/[a-z0-9.-]+\\.[a-z]{2,}/i.test(content)"
+      weight: 1
+      description: "Must have valid domain"
+```
+
+### Content Quality
+
+```yaml
+config:
+  evalType: judge
+  threshold: 0.75
+  model: claude-3-5-sonnet-20241022
+  criteria:
+    - name: grammar
+      description: "Correct grammar and spelling"
+      weight: 1
+
+    - name: coherence
+      description: "Logical flow and structure"
+      weight: 1
+
+    - name: tone
+      description: "Professional and appropriate tone"
+      weight: 0.5
+```
+
+### API Response
+
+```yaml
+config:
+  evalType: rule
+  threshold: 1.0
+  rules:
+    - name: has_id
+      check: "content.id !== undefined"
+      weight: 1
+
+    - name: has_data
+      check: "content.data !== null"
+      weight: 1
+
+    - name: valid_status
+      check: "['success', 'error'].includes(content.status)"
+      weight: 1
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Scrape Agent" icon="spider-web" href="/conductor/starter-kit/scrape">
+    Scrape then validate
+  </Card>
+  <Card title="Starter Kit Overview" icon="layer-group" href="/conductor/starter-kit/overview">
+    All starter kit agents
+  </Card>
+  <Card title="Creating Agents" icon="hammer" href="/conductor/building/creating-agents">
+    Build custom validators
+  </Card>
+  <Card title="YAML Schema" icon="file-code" href="/conductor/reference/yaml-schema">
+    Full schema reference
+  </Card>
+</CardGroup>

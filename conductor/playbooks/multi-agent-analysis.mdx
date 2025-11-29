@@ -443,17 +443,17 @@ ensemble: market-research
 agents:
   # Scrape multiple sources in parallel
   - name: scrape-competitor-1
-    agent: scraper
+    operation: scrape
     inputs:
       url: ${input.competitor_1_url}
 
   - name: scrape-competitor-2
-    agent: scraper
+    operation: scrape
     inputs:
       url: ${input.competitor_2_url}
 
   - name: scrape-competitor-3
-    agent: scraper
+    operation: scrape
     inputs:
       url: ${input.competitor_3_url}
 
@@ -519,17 +519,17 @@ ensemble: comprehensive-analysis
 agents:
   # Run multiple ensembles in parallel
   - name: content-check
-    agent: moderate-content
+    ensemble: moderate-content
     inputs:
       content: ${input.content}
 
   - name: sentiment-check
-    agent: analyze-sentiment
+    ensemble: analyze-sentiment
     inputs:
       text: ${input.content}
 
   - name: quality-check
-    agent: check-quality
+    ensemble: check-quality
     inputs:
       text: ${input.content}
 

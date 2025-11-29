@@ -1,0 +1,464 @@
+---
+title: "AutoRAG Agent"
+description: "Cloudflare's fully managed zero-config RAG service with automatic R2 ingestion, chunking, and indexing"
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+AutoRAG is Cloudflare's completely managed RAG (Retrieval-Augmented Generation) service that provides zero-configuration document retrieval with automatic R2 bucket integration.
+
+Unlike the built-in RAG agent which requires manual vector operations, AutoRAG handles everything automatically:
+
+- **Automatic document ingestion** from R2 buckets
+- **Automatic chunking** with configurable size and overlap
+- **Automatic embedding generation** via Workers AI
+- **Automatic indexing** in Vectorize
+- **Continuous monitoring and updates**
+- **Multi-format support**: PDFs, images, text, HTML, CSV, and more
+
+This is the easiest way to do RAG on Cloudflare - just point to an R2 bucket and start querying!
+
+## AutoRAG vs Built-in RAG
+
+| Feature | AutoRAG | Built-in RAG |
+|---------|---------|--------------|
+| **Setup** | Zero-config (point to R2) | Manual vector operations |
+| **Ingestion** | Automatic from R2 | Manual via API |
+| **Chunking** | Automatic | Manual |
+| **Embeddings** | Automatic | Manual generation |
+| **Monitoring** | Built-in | DIY |
+| **Updates** | Continuous | Manual re-indexing |
+| **Use Case** | Document libraries, knowledge bases | Custom workflows, fine-grained control |
+| **Configuration** | Instance name only | Full vector operations |
+
+**Choose AutoRAG when:**
+- You want zero-config RAG
+- Documents are in R2 buckets
+- You need automatic updates
+- Simplicity is priority
+
+**Choose Built-in RAG when:**
+- You need custom vector operations
+- You want fine-grained control
+- Documents come from multiple sources
+- You need custom chunking logic
+
+## Prerequisites
+
+Before using the AutoRAG agent, you must set up an AutoRAG instance in the Cloudflare dashboard:
+
+1. Go to Cloudflare Dashboard → Workers & Pages → AutoRAG
+2. Create a new AutoRAG instance
+3. Connect it to your R2 bucket
+4. Configure chunking settings (optional)
+5. Add the instance to your `wrangler.toml`:
+
+```toml
+[[autorag]]
+binding = "MY_AUTORAG"
+instance_name = "my-autorag-instance"
+```
+
+## Quick Start
+
+### Basic Usage (Answer Mode)
+
+```yaml
+flow:
+  - name: search-docs
+    agent: autorag
+    input:
+      query: "What is the refund policy?"
+    config:
+      instance: "my-autorag"
+      mode: answer
+      topK: 5
+```
+
+### Search-Only Mode
+
+```yaml
+flow:
+  - name: search-docs
+    agent: autorag
+    input:
+      query: "pricing information"
+    config:
+      instance: "my-autorag"
+      mode: results
+      topK: 10
+```
+
+## Input Schema
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | `string` | Yes | Query text to search for |
+| `topK` | `integer` | No | Override number of results (optional) |
+
+### Example Input
+
+```json
+{
+  "query": "What are the system requirements?",
+  "topK": 5
+}
+```
+
+## Output Schema
+
+The output format depends on the `mode` configuration:
+
+### Answer Mode (`mode: answer`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `answer` | `string` | AI-generated answer grounded in documents |
+| `sources` | `array` | Source documents used for answer |
+| `sources[].content` | `string` | Document content |
+| `sources[].score` | `number` | Relevance score (0-1) |
+| `sources[].metadata` | `object` | Document metadata |
+| `sources[].id` | `string` | Document ID |
+| `query` | `string` | Original query |
+| `count` | `integer` | Number of sources |
+
+### Results Mode (`mode: results`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `results` | `array` | Raw search results |
+| `results[].content` | `string` | Document content |
+| `results[].score` | `number` | Relevance score (0-1) |
+| `results[].metadata` | `object` | Document metadata |
+| `results[].id` | `string` | Document ID |
+| `context` | `string` | Combined context string for LLM use |
+| `count` | `integer` | Number of results |
+| `query` | `string` | Original query |
+
+## Configuration
+
+### Required Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `instance` | `string` | Yes | AutoRAG instance name (configured in wrangler.toml) |
+
+### Optional Configuration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `mode` | `string` | `answer` | Return format: `answer` (AI-generated) or `results` (raw search) |
+| `topK` | `integer` | - | Number of results to retrieve |
+| `rewriteQuery` | `boolean` | `false` | Enable query rewriting for better retrieval |
+
+### Mode Options
+
+**`answer` mode:**
+- Returns AI-generated response grounded in documents
+- Best for end-user Q&A
+- Includes source citations
+- Uses LLM to synthesize answer
+
+**`results` mode:**
+- Returns raw search results without generation
+- Best for custom processing
+- Includes context string for LLM pipelines
+- No LLM cost for retrieval
+
+### Configuration Example
+
+```yaml
+config:
+  instance: "my-autorag"
+  mode: answer
+  topK: 5
+  rewriteQuery: true
+```
+
+## Examples
+
+### Example 1: AI-Generated Answer
+
+Get an AI-generated answer grounded in your documents.
+
+```yaml
+flow:
+  - name: answer-question
+    agent: autorag
+    input:
+      query: "What is the company's refund policy?"
+    config:
+      instance: "my-autorag"
+      mode: answer
+      topK: 5
+```
+
+**Output:**
+
+```json
+{
+  "answer": "Based on the documentation, the refund policy allows returns within 30 days of purchase for a full refund. Items must be in original condition with tags attached. Refunds are processed within 5-7 business days.",
+  "sources": [
+    {
+      "content": "Refund Policy: Customers may return items within 30 days...",
+      "score": 0.92,
+      "id": "doc-123",
+      "metadata": {
+        "file": "policies.pdf",
+        "page": 5
+      }
+    }
+  ],
+  "query": "What is the company's refund policy?",
+  "count": 1
+}
+```
+
+### Example 2: Raw Search Results
+
+Get raw search results for custom processing.
+
+```yaml
+flow:
+  - name: search-pricing
+    agent: autorag
+    input:
+      query: "pricing tiers"
+    config:
+      instance: "my-autorag"
+      mode: results
+      topK: 10
+
+  - name: custom-processing
+    agent: process-results
+    input:
+      results: ${search-pricing.output.results}
+```
+
+**Output:**
+
+```json
+{
+  "results": [
+    {
+      "content": "Enterprise tier: $500/month for unlimited users...",
+      "score": 0.88,
+      "id": "pricing-doc",
+      "metadata": {
+        "file": "pricing.pdf"
+      }
+    }
+  ],
+  "context": "[1] Source: pricing-doc\nEnterprise tier: $500/month...",
+  "count": 10,
+  "query": "pricing tiers"
+}
+```
+
+### Example 3: Query Rewriting
+
+Enable query rewriting for better retrieval with conversational queries.
+
+```yaml
+flow:
+  - name: search-with-rewrite
+    agent: autorag
+    input:
+      query: "how much does it cost?"
+    config:
+      instance: "my-autorag"
+      mode: answer
+      topK: 5
+      rewriteQuery: true
+```
+
+AutoRAG will rewrite "how much does it cost?" to "pricing information" for better document matching.
+
+### Example 4: Dynamic Top-K
+
+Override the number of results at runtime.
+
+```yaml
+flow:
+  - name: flexible-search
+    agent: autorag
+    input:
+      query: ${input.query}
+      topK: ${input.resultCount}
+    config:
+      instance: "my-autorag"
+      mode: results
+```
+
+### Example 5: RAG Pipeline with Custom Response
+
+Combine AutoRAG results with custom LLM processing.
+
+```yaml
+flow:
+  - name: retrieve-context
+    agent: autorag
+    input:
+      query: ${input.question}
+    config:
+      instance: "my-autorag"
+      mode: results
+      topK: 5
+
+  - name: generate-answer
+    agent: custom-llm
+    input:
+      question: ${input.question}
+      context: ${retrieve-context.output.context}
+      sources: ${retrieve-context.output.results}
+```
+
+### Example 6: Fallback Chain
+
+Try AutoRAG first, fall back to web search if no results.
+
+```yaml
+flow:
+  - name: search-docs
+    agent: autorag
+    input:
+      query: ${input.query}
+    config:
+      instance: "my-autorag"
+      mode: answer
+      topK: 3
+
+  - name: web-search
+    condition: ${search-docs.output.count === 0}
+    agent: web-search
+    input:
+      query: ${input.query}
+
+output:
+  answer: ${search-docs.output.count > 0 ? search-docs.output.answer : web-search.output.answer}
+  source: ${search-docs.output.count > 0 ? 'internal' : 'web'}
+```
+
+## Best Practices
+
+### 1. Choose the Right Mode
+
+- Use `answer` mode for end-user Q&A
+- Use `results` mode when building custom pipelines
+- Use `results` mode to save LLM costs if you don't need generation
+
+### 2. Optimize Top-K
+
+- Start with `topK: 5` for most use cases
+- Increase to 10-20 for comprehensive searches
+- Decrease to 1-3 for precise answers
+- Remember: More results = higher latency + cost
+
+### 3. Enable Query Rewriting Strategically
+
+- Enable for conversational queries ("how do I...", "what is...")
+- Disable for precise searches (product IDs, exact terms)
+- Adds slight latency but improves recall
+
+### 4. Monitor Source Quality
+
+```yaml
+flow:
+  - name: search
+    agent: autorag
+    input:
+      query: ${input.query}
+    config:
+      instance: "my-autorag"
+      mode: answer
+
+  - name: check-quality
+    condition: ${search.output.sources[0].score < 0.7}
+    agent: log-low-quality
+    input:
+      query: ${input.query}
+      score: ${search.output.sources[0].score}
+```
+
+### 5. Cache Results
+
+AutoRAG queries can be expensive. Cache when possible:
+
+```yaml
+flow:
+  - name: search
+    agent: autorag
+    input:
+      query: ${input.query}
+    config:
+      instance: "my-autorag"
+      mode: answer
+    cache:
+      ttl: 3600
+      key: "autorag-${input.query}"
+```
+
+## Troubleshooting
+
+### No Results Returned
+
+**Problem:** `count: 0` in output
+
+**Solutions:**
+- Check if R2 bucket has documents
+- Verify AutoRAG instance is processing documents
+- Try broader query terms
+- Enable `rewriteQuery: true`
+
+### Low Relevance Scores
+
+**Problem:** `score < 0.5` for all results
+
+**Solutions:**
+- Improve document quality and formatting
+- Adjust chunking settings in Cloudflare dashboard
+- Rephrase query to match document language
+- Increase `topK` to get more candidates
+
+### Instance Not Found
+
+**Problem:** "AutoRAG instance not found"
+
+**Solutions:**
+- Verify instance name in `wrangler.toml`
+- Check binding name matches config
+- Ensure AutoRAG instance is deployed
+
+### Slow Queries
+
+**Problem:** High latency on queries
+
+**Solutions:**
+- Reduce `topK` value
+- Disable `rewriteQuery` if not needed
+- Use `mode: results` instead of `answer`
+- Add caching for common queries
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card
+    title="Built-in RAG Agent"
+    icon="magnifying-glass"
+    href="/conductor/starter-kit/built-in/rag"
+  >
+    Manual RAG with full vector control
+  </Card>
+
+  <Card
+    title="Starter Kit Overview"
+    icon="rocket"
+    href="/conductor/starter-kit/overview"
+  >
+    All starter kit agents
+  </Card>
+</CardGroup>

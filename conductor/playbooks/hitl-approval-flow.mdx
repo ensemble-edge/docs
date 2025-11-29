@@ -24,7 +24,7 @@ agents:
 
   # 2. Request approval
   - name: approve
-    agent: hitl
+    operation: hitl
     inputs:
       data: ${process.output}
       prompt: "Review and approve"
@@ -63,7 +63,7 @@ agents:
   # Human review for flagged content
   - name: human-review
     condition: ${!auto-moderate.output.moderation.safe}
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         content: ${input.content}
@@ -131,7 +131,7 @@ agents:
   # Require approval for medium risk
   - name: manager-approval
     condition: ${JSON.parse(assess-risk.output).risk_score >= 0.3 && JSON.parse(assess-risk.output).risk_score < 0.7}
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         amount: ${input.amount}
@@ -147,7 +147,7 @@ agents:
   # Require multiple approvals for high risk
   - name: senior-approval
     condition: ${JSON.parse(assess-risk.output).risk_score >= 0.7}
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         amount: ${input.amount}
@@ -234,7 +234,7 @@ export default function runSecurityScan(context: AgentExecutionContext) {
   # Request production approval
   - name: production-approval
     condition: ${deploy-staging.success}
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         commit: ${input.commit_sha}
@@ -299,7 +299,7 @@ agents:
   # Require approval if PII detected
   - name: pii-approval
     condition: ${JSON.parse(check-pii.output).contains_pii}
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         query: ${input.query}
@@ -368,7 +368,7 @@ agents:
   # Level 2: Manager for medium amounts
   - name: manager-approval
     condition: ${input.amount >= 1000 && input.amount < 10000}
-    agent: hitl
+    operation: hitl
     inputs:
       data: ${input}
       prompt: "Manager approval required"
@@ -377,7 +377,7 @@ agents:
   # Level 3: Director for large amounts
   - name: director-approval
     condition: ${input.amount >= 10000 && input.amount < 100000}
-    agent: hitl
+    operation: hitl
     inputs:
       data: ${input}
       prompt: "Director approval required"
@@ -386,7 +386,7 @@ agents:
   # Level 4: Executive for very large amounts
   - name: executive-approval
     condition: ${input.amount >= 100000}
-    agent: hitl
+    operation: hitl
     inputs:
       data: ${input}
       prompt: "Executive approval required (2 approvals)"
@@ -419,7 +419,7 @@ export default function returnAutoApprovalWithLevel(context: AgentExecutionConte
 ```yaml
 agents:
   - name: approve
-    agent: hitl
+    operation: hitl
     inputs:
       timeout: 3600  # 1 hour
 
@@ -438,7 +438,7 @@ agents:
   # Retry with different approvers
   - name: retry-approval
     condition: ${approve.output.status === 'timeout'}
-    agent: hitl
+    operation: hitl
     inputs:
       data: ${approve.input.data}
       prompt: "URGENT: ${approve.input.prompt}"
@@ -503,8 +503,8 @@ timeout: 300     # 5 minutes for critical
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="hitl Agent" icon="user-check" href="/conductor/agents/hitl">
-    HITL agent reference
+  <Card title="HITL Operation" icon="user-check" href="/conductor/starter-kit/built-in/hitl">
+    HITL operation reference
   </Card>
   <Card title="State Management" icon="database" href="/conductor/core-concepts/state-management">
     Track approval state

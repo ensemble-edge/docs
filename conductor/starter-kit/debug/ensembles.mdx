@@ -1,0 +1,212 @@
+---
+title: "Debug Ensembles"
+description: "Debug and diagnostic ensembles for testing connectivity, inspecting requests, and troubleshooting workflows"
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+Debug ensembles provide essential tools for testing and troubleshooting your Conductor deployment. These lightweight workflows help verify connectivity, inspect requests, and test timeout handling.
+
+## Ping
+
+**Endpoint**: `GET /debug/ping` or `HEAD /debug/ping`
+
+**File**: `ensembles/debug/ping.yaml`
+
+Minimal ping endpoint that returns "pong" immediately. Ideal for verifying basic routing and connectivity.
+
+**Response**:
+```json
+{
+  "pong": true,
+  "timestamp": 1701234567890,
+  "message": "Conductor is running"
+}
+```
+
+**Use Cases**:
+- Health checks and uptime monitoring
+- Verifying worker deployment and routing
+- Testing basic HTTP connectivity
+- CI/CD pipeline validation
+
+## Echo
+
+**Endpoint**: `GET|POST|PUT|PATCH|DELETE /debug/echo`
+
+**File**: `ensembles/debug/echo.yaml`
+
+Echoes back the complete request including method, path, query parameters, headers, and body.
+
+**Response**:
+```json
+{
+  "echo": {
+    "request": {
+      "method": "POST",
+      "path": "/debug/echo",
+      "query": { "param": "value" },
+      "headers": { "content-type": "application/json" },
+      "body": { "test": "data" }
+    },
+    "echoed_at": "2024-01-15T10:30:45.123Z"
+  }
+}
+```
+
+**Use Cases**:
+- Testing webhook integrations
+- Debugging API client implementations
+- Verifying request formatting
+- Inspecting proxy/CDN modifications
+
+## Headers
+
+**Endpoint**: `GET /debug/headers`
+
+**File**: `ensembles/debug/headers.yaml`
+
+Inspects and categorizes all request headers by type (Cloudflare, authentication, standard, custom).
+
+**Response**:
+```json
+{
+  "headers": {
+    "cloudflare": {
+      "CF-Ray": "...",
+      "CF-IPCountry": "US"
+    },
+    "auth": {
+      "Authorization": "[REDACTED]"
+    },
+    "standard": {
+      "Host": "example.com",
+      "User-Agent": "...",
+      "Accept": "application/json"
+    },
+    "custom": {
+      "X-Custom-Header": "value"
+    },
+    "total": 12
+  }
+}
+```
+
+**Security**: Automatically redacts `Authorization` and `X-Api-*` headers to prevent credential leakage in logs.
+
+**Use Cases**:
+- Debugging CORS configuration
+- Verifying auth header propagation
+- Inspecting CDN/proxy header injection
+- Testing custom header handling
+
+## Info
+
+**Endpoint**: `GET /debug/info`
+
+**File**: `ensembles/debug/info.yaml`
+
+<Warning>
+**Protected Endpoint** - Requires authentication via Bearer token or API key. Do NOT expose publicly in production.
+</Warning>
+
+Returns system information including Conductor configuration, available bindings, runtime details, and environment variables.
+
+**Authentication Required**:
+- Bearer token: `Authorization: Bearer <token>`
+- API key: `X-API-Key: <key>`
+
+**Response**:
+```json
+{
+  "conductor": {
+    "name": "Ensemble-Edge Conductor",
+    "version": "0.4.x"
+  },
+  "runtime": {
+    "env": { "NODE_ENV": "production" },
+    "bindings": ["KV", "R2", "D1"],
+    "auth": { "method": "bearer", "verified": true },
+    "headers": { "..." }
+  }
+}
+```
+
+**Use Cases**:
+- Debugging environment configuration
+- Verifying binding availability
+- Inspecting runtime state
+- Troubleshooting authentication
+- Internal diagnostics
+
+**Security Best Practices**:
+- Never set `public: true` on this endpoint
+- Use strong API keys in production
+- Rotate credentials regularly
+- Monitor access logs
+- Disable in production if not actively debugging
+
+## Slow
+
+**Endpoint**: `GET /debug/slow?ms=2000`
+
+**File**: `ensembles/debug/slow.yaml`
+
+Responds after a configurable delay (defaults to 1000ms). Useful for testing timeout handling and loading states.
+
+**Query Parameters**:
+- `ms` (optional): Delay in milliseconds (default: 1000)
+
+**Example**: `GET /debug/slow?ms=5000` (delays 5 seconds)
+
+**Response**:
+```json
+{
+  "delayed": true,
+  "requestedMs": 5000,
+  "actualMs": 5001,
+  "note": "Delay may vary on free tier (scheduler.wait unavailable)"
+}
+```
+
+**Use Cases**:
+- Testing timeout configurations
+- Simulating slow API responses
+- Testing loading states in UI
+- Debugging retry logic
+- Performance testing
+
+**Notes**:
+- Cloudflare Workers free tier may have limited `scheduler.wait()` support
+- Actual delay may vary slightly from requested delay
+- Maximum delay depends on Worker timeout limits
+
+## Quick Reference
+
+| Ensemble | Path | Methods | Auth | Purpose |
+|----------|------|---------|------|---------|
+| ping | `/debug/ping` | GET, HEAD | Public | Connectivity test |
+| echo | `/debug/echo` | All | Public | Request inspection |
+| headers | `/debug/headers` | GET | Public | Header debugging |
+| info | `/debug/info` | GET | Required | System diagnostics |
+| slow | `/debug/slow` | GET | Public | Timeout testing |
+
+<CardGroup cols={2}>
+  <Card title="Ping" icon="satellite-dish" href="#ping">
+    Quick connectivity verification
+  </Card>
+  <Card title="Echo" icon="repeat" href="#echo">
+    Mirror complete request details
+  </Card>
+  <Card title="Headers" icon="list" href="#headers">
+    Inspect categorized headers
+  </Card>
+  <Card title="Info" icon="circle-info" href="#info">
+    System diagnostics (protected)
+  </Card>
+  <Card title="Slow" icon="clock" href="#slow">
+    Configurable delay testing
+  </Card>
+</CardGroup>

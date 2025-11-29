@@ -1,0 +1,846 @@
+---
+title: "Documentation"
+description: "Auto-generated API documentation with OpenAPI support, interactive UI viewers, and markdown pages. Ships with your template - modify freely."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The documentation feature provides a complete, self-hosted documentation system for your Conductor project. It automatically generates:
+
+- **Landing page** - Overview with project statistics
+- **Agent documentation** - Browse all agents with schemas and examples
+- **Ensemble documentation** - Explore workflows with triggers and flow steps
+- **OpenAPI specification** - Auto-generated API reference from your agents and ensembles
+- **Interactive API viewer** - Choose from 5 different UI renderers
+- **Custom markdown pages** - Add your own documentation pages
+
+All documentation is served at `/docs` and updates automatically as you add or modify agents and ensembles.
+
+### Key Features
+
+- Zero configuration required - works out of the box
+- Multiple OpenAPI UI options (Stoplight, Redoc, Swagger, Scalar, RapiDoc)
+- Build-time generation for static deployments
+- CLI commands for docs generation
+- Customizable themes and branding
+- Folder-based API organization
+
+## Quick Start
+
+The documentation system is pre-configured and ready to use:
+
+1. **Start your Conductor dev server:**
+   ```bash
+   conductor dev
+   ```
+
+2. **Visit the docs:**
+   ```
+   http://localhost:8787/docs
+   ```
+
+3. **Explore the sections:**
+   - `/docs` - Landing page with overview
+   - `/docs/agents` - List of all agents
+   - `/docs/agents/{name}` - Agent detail pages
+   - `/docs/ensembles` - List of all ensembles
+   - `/docs/ensembles/{name}` - Ensemble detail pages
+   - `/docs/api` - Interactive OpenAPI viewer
+   - `/docs/openapi.json` - OpenAPI spec (JSON)
+   - `/docs/openapi.yaml` - OpenAPI spec (YAML)
+
+## Ensembles
+
+The documentation feature consists of two ensembles:
+
+### Serve Ensemble
+
+**File:** `ensembles/system/docs/serve.yaml`
+
+Serves documentation pages via HTTP. Handles all `/docs/*` routes.
+
+```yaml
+name: docs-serve
+version: 1.0.0
+description: |
+  Serve documentation pages via HTTP.
+  Provides landing page, markdown pages, agent/ensemble docs, and OpenAPI UI.
+
+trigger:
+  - type: http
+    paths:
+      # Landing page
+      - path: /docs
+        methods: [GET]
+      # Reserved routes
+      - path: /docs/agents
+        methods: [GET]
+      - path: /docs/agents/:name
+        methods: [GET]
+      - path: /docs/ensembles
+        methods: [GET]
+      - path: /docs/ensembles/:name
+        methods: [GET]
+      - path: /docs/api
+        methods: [GET]
+      - path: /docs/openapi.json
+        methods: [GET]
+      - path: /docs/openapi.yaml
+        methods: [GET]
+      # Markdown pages (catch-all)
+      - path: /docs/:slug
+        methods: [GET]
+    public: true
+
+flow:
+  - name: render
+    agent: docs
+    input:
+      action: ${{
+        input.path == '/docs' ? 'render-landing' :
+        input.path == '/docs/agents' ? 'render-agents' :
+        input.path == '/docs/ensembles' ? 'render-ensembles' :
+        input.path == '/docs/api' ? 'render-api' :
+        input.path == '/docs/openapi.json' ? 'generate-openapi' :
+        input.path == '/docs/openapi.yaml' ? 'generate-openapi' :
+        input.params.name && input.path.includes('/agents/') ? 'render-agent-detail' :
+        input.params.name && input.path.includes('/ensembles/') ? 'render-ensemble-detail' :
+        'render-page'
+      }}
+      slug: ${{ input.params.slug }}
+      name: ${{ input.params.name }}
+      format: ${{ input.path.endsWith('.yaml') ? 'yaml' : 'json' }}
+    config:
+      title: API Documentation
+      basePath: /docs
+      ui: stoplight
+      theme:
+        primaryColor: '#3b82f6'
+        darkMode: false
+      nav:
+        showReserved:
+          agents: true
+          ensembles: true
+          api: true
+
+output:
+  # HTML responses
+  - when: ${{ flow.render.output.contentType == 'text/html' }}
+    status: 200
+    headers:
+      Content-Type: text/html
+      Cache-Control: public, max-age=300
+    rawBody: ${{ flow.render.output.html }}
+
+  # JSON responses (OpenAPI)
+  - when: ${{ flow.render.output.specJson }}
+    status: 200
+    headers:
+      Content-Type: application/json
+    body: ${{ flow.render.output.spec }}
+
+  # YAML responses (OpenAPI)
+  - when: ${{ flow.render.output.specYaml }}
+    status: 200
+    headers:
+      Content-Type: text/yaml
+    rawBody: ${{ flow.render.output.specYaml }}
+
+  # Not found
+  - when: ${{ flow.render.output.error == 'not_found' }}
+    status: 404
+    body:
+      success: false
+      error: not_found
+      message: ${{ flow.render.output.errorMessage }}
+
+  # Error fallback
+  - when: ${{ !flow.render.output.success }}
+    status: 500
+    body:
+      success: false
+      error: ${{ flow.render.output.error }}
+      message: ${{ flow.render.output.errorMessage }}
+```
+
+**Key Features:**
+- Multi-path HTTP trigger for all documentation routes
+- Conditional output blocks for HTML, JSON, YAML
+- Caching headers for performance
+- Public access (no authentication required)
+
+### Generate Ensemble
+
+**File:** `ensembles/system/docs/generate.yaml`
+
+Generates static documentation artifacts (OpenAPI specs, HTML pages).
+
+```yaml
+name: docs-generate
+version: 1.0.0
+description: |
+  Generate documentation artifacts (OpenAPI spec, static pages).
+  Can be triggered at build time, via CLI, or on a schedule.
+
+trigger:
+  # Build-time trigger - runs during `conductor build` or deploy
+  - type: build
+    enabled: true
+    output: ./dist/docs
+
+  # CLI trigger - run via `conductor run docs-generate`
+  - type: cli
+    command: docs-generate
+    description: Generate OpenAPI documentation
+    options:
+      - name: format
+        type: string
+        default: yaml
+        description: Output format (json or yaml)
+      - name: output
+        type: string
+        description: Output directory path
+
+  # Scheduled trigger - regenerate docs periodically (disabled by default)
+  - type: cron
+    cron: "0 0 * * *"
+    enabled: false
+    metadata:
+      description: Daily docs regeneration at midnight
+
+flow:
+  - name: generate
+    agent: docs
+    input:
+      action: generate-openapi
+      format: ${{ trigger.options.format || 'yaml' }}
+    config:
+      title: API Documentation
+      description: Auto-generated API documentation
+
+output:
+  success: ${{ flow.generate.output.success }}
+  spec: ${{ flow.generate.output.spec }}
+  specYaml: ${{ flow.generate.output.specYaml }}
+  specJson: ${{ flow.generate.output.specJson }}
+  message: ${{
+    trigger.type == 'build' ? 'OpenAPI spec generated for build' :
+    trigger.type == 'cron' ? 'Scheduled docs regeneration complete' :
+    'Documentation generated successfully'
+  }}
+```
+
+**Key Features:**
+- Build trigger for static site generation
+- CLI trigger for manual generation
+- Cron trigger for scheduled updates
+- Multiple output format support
+
+**Usage Examples:**
+
+```bash
+# Generate docs via CLI (default YAML format)
+conductor run docs-generate
+
+# Generate JSON format
+conductor run docs-generate --format json
+
+# Specify output directory
+conductor run docs-generate --output ./docs-export
+
+# Enable scheduled generation (edit YAML)
+# Set cron trigger enabled: true
+```
+
+## Agent Reference
+
+### Docs Agent
+
+**File:** `agents/system/docs/docs.ts`
+
+The core documentation generation agent. Handles all rendering and OpenAPI generation logic.
+
+**Operation:** `code`
+
+**Actions:**
+
+| Action | Description | Input |
+|--------|-------------|-------|
+| `render-landing` | Render landing page with project stats | - |
+| `render-page` | Render custom markdown page | `slug`, `pages` |
+| `render-agents` | List all agents | - |
+| `render-agent-detail` | Agent detail page | `name` |
+| `render-ensembles` | List all ensembles | - |
+| `render-ensemble-detail` | Ensemble detail page | `name` |
+| `render-api` | OpenAPI interactive viewer | - |
+| `generate-openapi` | Generate OpenAPI spec | `format` (json/yaml) |
+| `list-pages` | List available markdown pages | `pages` |
+
+**Input Schema:**
+
+```typescript
+interface DocsInput {
+  action: DocsAction
+  slug?: string        // For render-page
+  name?: string        // For render-agent-detail / render-ensemble-detail
+  format?: 'json' | 'yaml'  // For generate-openapi
+  pages?: DocsPage[]   // For render-page / list-pages
+}
+```
+
+**Output Schema:**
+
+```typescript
+interface DocsOutput {
+  success: boolean
+  html?: string
+  contentType?: string
+  spec?: Record<string, unknown>
+  specYaml?: string
+  specJson?: string
+  pages?: Array<{ slug: string; title: string; order: number }>
+  error?: string
+  errorMessage?: string
+}
+```
+
+**Configuration:**
+
+```typescript
+interface DocsConfig {
+  title: string                    // Site title
+  description?: string             // Site description
+  logo?: string                    // Logo URL
+  favicon?: string                 // Favicon URL
+  ui: 'stoplight' | 'redoc' | 'swagger' | 'scalar' | 'rapidoc'
+  theme: {
+    primaryColor: string           // Hex color (e.g., '#3b82f6')
+    darkMode: boolean              // Enable dark mode
+    customCss?: string             // Custom CSS injection
+  }
+  nav: {
+    order?: string[]               // Navigation order
+    hide?: string[]                // Hidden nav items
+    showReserved?: {
+      agents?: boolean             // Show agents section
+      ensembles?: boolean          // Show ensembles section
+      api?: boolean                // Show API reference
+    }
+  }
+  basePath: string                 // Base path (e.g., '/docs')
+  cache: {
+    enabled: boolean
+    ttl: number                    // Cache TTL in seconds
+  }
+}
+```
+
+**Default Configuration:**
+
+```yaml
+config:
+  title: API Documentation
+  ui: stoplight
+  theme:
+    primaryColor: '#3b82f6'
+    darkMode: false
+  nav:
+    showReserved:
+      agents: true
+      ensembles: true
+      api: true
+  basePath: /docs
+  cache:
+    enabled: true
+    ttl: 300
+```
+
+## OpenAPI Generation
+
+The docs agent automatically generates OpenAPI 3.1.0 specifications by introspecting your agents and ensembles.
+
+### Generated Endpoints
+
+**Ensemble Execution:**
+```
+POST /api/v1/execute/ensemble/{name}
+```
+
+**Agent Execution:**
+```
+POST /api/v1/execute/agent/{name}
+```
+
+**Discovery:**
+```
+GET /api/v1/agents
+GET /api/v1/ensembles
+```
+
+### Folder-Based Organization
+
+The OpenAPI spec automatically organizes endpoints by folder structure:
+
+```
+agents/
+├── system/
+│   ├── fetch/          → Tag: "Agents/system"
+│   └── validate/       → Tag: "Agents/system"
+└── user/
+    └── my-agent/       → Tag: "Agents/user"
+```
+
+This creates a clean sidebar structure in the API viewer.
+
+### Security Schemes
+
+Two authentication methods are documented:
+
+```yaml
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+```
+
+### Example OpenAPI Output
+
+```yaml
+openapi: 3.1.0
+info:
+  title: API Documentation
+  version: 1.0.0
+  description: Auto-generated API documentation for your Conductor project.
+servers:
+  - url: /
+    description: Current server
+tags:
+  - name: Discovery
+    description: Agent and ensemble discovery endpoints
+  - name: Agents/system
+    description: Agents in system/
+  - name: Ensembles/system
+    description: Ensembles in system/
+paths:
+  /api/v1/execute/agent/fetch:
+    post:
+      summary: Execute fetch agent
+      operationId: execute_agent_fetch
+      tags: [Agents/system]
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [input]
+              properties:
+                input:
+                  type: object
+                config:
+                  type: object
+```
+
+## UI Options
+
+The docs agent supports 5 different OpenAPI UI renderers. Configure via the `ui` config option:
+
+### Stoplight Elements (Default)
+
+Modern, clean UI with sidebar navigation.
+
+```yaml
+config:
+  ui: stoplight
+```
+
+**Features:**
+- Sidebar navigation
+- Interactive try-it console
+- Code samples in multiple languages
+- Responsive design
+
+**CDN:** `@stoplight/elements`
+
+### Redoc
+
+Documentation-focused renderer with beautiful typography.
+
+```yaml
+config:
+  ui: redoc
+```
+
+**Features:**
+- Three-column layout
+- Deep linking
+- Search functionality
+- Print-friendly
+
+**CDN:** `cdn.redoc.ly/redoc`
+
+### Swagger UI
+
+Classic, battle-tested API explorer.
+
+```yaml
+config:
+  ui: swagger
+```
+
+**Features:**
+- Interactive API testing
+- Authorization support
+- Model schema viewer
+- Request validation
+
+**CDN:** `unpkg.com/swagger-ui-dist`
+
+### Scalar
+
+Modern, minimalist UI with dark mode.
+
+```yaml
+config:
+  ui: scalar
+```
+
+**Features:**
+- Beautiful design
+- Dark mode support
+- Fast rendering
+- Code generation
+
+**CDN:** `cdn.jsdelivr.net/npm/@scalar/api-reference`
+
+### RapiDoc
+
+Lightweight, customizable renderer.
+
+```yaml
+config:
+  ui: rapidoc
+```
+
+**Features:**
+- Highly customizable
+- Three render styles
+- Theme support
+- Small bundle size
+
+**CDN:** `unpkg.com/rapidoc`
+
+## Customization
+
+### Change UI Renderer
+
+Edit the `serve.yaml` ensemble:
+
+```yaml
+flow:
+  - name: render
+    agent: docs
+    config:
+      ui: redoc  # Change to: stoplight, redoc, swagger, scalar, rapidoc
+```
+
+### Customize Theme
+
+```yaml
+config:
+  theme:
+    primaryColor: '#10b981'  # Green
+    darkMode: true
+    customCss: |
+      .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+      .card { box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+```
+
+### Hide Navigation Items
+
+```yaml
+config:
+  nav:
+    showReserved:
+      agents: false      # Hide agents section
+      ensembles: true
+      api: true
+```
+
+### Change Base Path
+
+```yaml
+config:
+  basePath: /api-docs  # Serve at /api-docs instead of /docs
+```
+
+Then update the trigger paths:
+
+```yaml
+trigger:
+  - type: http
+    paths:
+      - path: /api-docs
+        methods: [GET]
+      # ... update all paths
+```
+
+### Add Custom Pages
+
+Create markdown files and pass them to the agent:
+
+```yaml
+flow:
+  - name: load-pages
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: docs-pages
+
+  - name: render
+    agent: docs
+    input:
+      action: render-page
+      slug: getting-started
+      pages: ${{ load-pages.output.value }}
+```
+
+**Page Format:**
+
+```typescript
+interface DocsPage {
+  slug: string         // URL slug
+  title: string        // Page title
+  content: string      // Markdown content
+  order: number        // Display order
+  frontmatter?: Record<string, unknown>
+}
+```
+
+### Customize Agent Metadata
+
+The docs agent reads schemas from your agent YAML files:
+
+```yaml
+# agents/user/my-agent/agent.yaml
+name: my-agent
+description: Does something amazing  # Shows in docs
+
+schema:
+  input:
+    query:
+      type: string
+      description: Search query  # Shows in OpenAPI
+  output:
+    results:
+      type: array
+```
+
+### Brand Your Docs
+
+```yaml
+config:
+  title: Acme Corp API
+  description: Official API documentation
+  logo: https://example.com/logo.png
+  favicon: https://example.com/favicon.ico
+```
+
+### Disable Caching
+
+```yaml
+config:
+  cache:
+    enabled: false
+```
+
+Or adjust TTL:
+
+```yaml
+config:
+  cache:
+    enabled: true
+    ttl: 600  # 10 minutes
+```
+
+### Authentication
+
+By default, docs are public. To add authentication:
+
+```yaml
+trigger:
+  - type: http
+    paths:
+      - path: /docs
+        methods: [GET]
+    public: false  # Require auth
+    auth:
+      type: jwt
+      secret: ${env.JWT_SECRET}
+```
+
+## Advanced Usage
+
+### Build-Time Generation
+
+Generate static OpenAPI specs during build:
+
+```bash
+# Runs automatically during deploy
+conductor build
+
+# Output: ./dist/docs/openapi.yaml
+```
+
+Then serve the static file:
+
+```yaml
+# In a CDN or static host
+/docs/openapi.yaml → ./dist/docs/openapi.yaml
+```
+
+### Scheduled Regeneration
+
+Enable the cron trigger for periodic updates:
+
+```yaml
+trigger:
+  - type: cron
+    cron: "0 */6 * * *"  # Every 6 hours
+    enabled: true
+```
+
+### Export OpenAPI Spec
+
+```bash
+# Generate and save
+conductor run docs-generate --format yaml > api-spec.yaml
+conductor run docs-generate --format json > api-spec.json
+```
+
+### Programmatic Access
+
+```bash
+# Get OpenAPI spec via HTTP
+curl http://localhost:8787/docs/openapi.json
+
+# Get agent list
+curl http://localhost:8787/api/v1/agents
+
+# Get ensemble list
+curl http://localhost:8787/api/v1/ensembles
+```
+
+### Integrate with External Tools
+
+Use the generated OpenAPI spec with:
+
+- **Postman** - Import collections
+- **Insomnia** - API testing
+- **API Gateway** - Validation rules
+- **Code Generators** - Client SDKs
+- **Mock Servers** - Testing
+
+### Custom Agent Implementation
+
+Fork the docs agent for custom logic:
+
+```bash
+# Copy to user agents
+cp -r agents/system/docs agents/user/my-docs
+
+# Edit agents/user/my-docs/docs.ts
+# Add custom rendering logic
+
+# Update ensemble
+flow:
+  - agent: my-docs  # Use your custom version
+```
+
+## Troubleshooting
+
+### Docs not loading
+
+Check that the ensemble is enabled:
+
+```bash
+conductor validate ensembles/system/docs/serve.yaml
+```
+
+Verify the trigger is registered:
+
+```bash
+conductor dev --verbose
+# Look for: "Registered HTTP trigger: /docs"
+```
+
+### OpenAPI spec is empty
+
+Ensure agents have proper schemas:
+
+```yaml
+# agents/user/my-agent/agent.yaml
+schema:
+  input:
+    field: string  # Required for OpenAPI generation
+  output:
+    result: string
+```
+
+### UI not rendering
+
+Check browser console for CDN errors. The UIs load from external CDNs:
+
+- Stoplight: `unpkg.com/@stoplight/elements`
+- Redoc: `cdn.redoc.ly/redoc`
+- Swagger: `unpkg.com/swagger-ui-dist`
+- Scalar: `cdn.jsdelivr.net/npm/@scalar/api-reference`
+- RapiDoc: `unpkg.com/rapidoc`
+
+Ensure your environment can reach these CDNs.
+
+### 404 on agent/ensemble pages
+
+Agent/ensemble names must match exactly:
+
+```
+/docs/agents/fetch ✓
+/docs/agents/system/fetch ✗ (if name is "fetch", not "system/fetch")
+```
+
+Check agent registration:
+
+```bash
+curl http://localhost:8787/api/v1/agents
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Redirects" icon="arrow-turn-up" href="/conductor/starter-kit/redirects">
+    URL shortening and redirect management
+  </Card>
+  <Card title="Health Check" icon="heart-pulse" href="/conductor/starter-kit/health-check">
+    System health monitoring endpoint
+  </Card>
+  <Card title="HTTP Operation" icon="globe" href="/conductor/operations/http">
+    Making external HTTP requests
+  </Card>
+  <Card title="Storage Operation" icon="database" href="/conductor/operations/storage">
+    KV and R2 storage access
+  </Card>
+</CardGroup>

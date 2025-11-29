@@ -1,0 +1,492 @@
+---
+title: "Queries Agent"
+description: "Execute SQL queries across Hyperdrive-connected databases with parameter binding, caching, and column transformation"
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The `queries` agent executes SQL queries across Hyperdrive-connected databases with built-in safety, performance, and transformation features.
+
+**Key Features:**
+- Support for named queries from catalog (coming soon)
+- Inline SQL queries with parameter binding
+- Named and positional parameters
+- Column name transformation (camelCase/snake_case)
+- Read-only mode for safety
+- Configurable row limits and timeouts
+- Query result caching
+
+**Location:** `/agents/system/queries/queries.yaml`
+
+## Quick Start
+
+### Inline SQL with Positional Parameters
+
+```yaml
+flow:
+  - name: fetch-users
+    agent: queries
+    input:
+      sql: "SELECT * FROM users WHERE active = ?"
+      input: [true]
+      database: "DB"
+    config:
+      defaultDatabase: DB
+```
+
+### Inline SQL with Named Parameters
+
+```yaml
+flow:
+  - name: search-products
+    agent: queries
+    input:
+      sql: "SELECT * FROM products WHERE category = :category AND price < :maxPrice"
+      input:
+        category: "electronics"
+        maxPrice: 500
+    config:
+      defaultDatabase: DB
+      transform: camelCase
+```
+
+## Input Schema
+
+The queries agent accepts two mutually exclusive modes for specifying queries:
+
+### Option 1: Inline SQL (`sql`)
+
+```yaml
+input:
+  sql: string              # Inline SQL query (mutually exclusive with queryName)
+  input: object | array    # Query parameters (named object or positional array)
+  database: string         # Database alias (overrides defaultDatabase config)
+```
+
+### Option 2: Named Query (`queryName`)
+
+```yaml
+input:
+  queryName: string        # Query name from catalog (coming soon - mutually exclusive with sql)
+  input: object | array    # Query parameters
+  database: string         # Database alias (overrides defaultDatabase config)
+```
+
+## Output Schema
+
+```yaml
+output:
+  rows: array              # Query results (array of objects)
+  count: integer           # Number of rows returned
+  metadata:
+    columns: string[]      # Column names
+    executionTime: number  # Execution time in milliseconds
+    cached: boolean        # Whether result was from cache
+    database: string       # Database binding used
+    query: string          # Executed query (if includeMetadata is true)
+```
+
+### Example Output
+
+```json
+{
+  "rows": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "active": true
+    },
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "active": true
+    }
+  ],
+  "count": 2,
+  "metadata": {
+    "columns": ["id", "name", "active"],
+    "executionTime": 15,
+    "cached": false,
+    "database": "DB"
+  }
+}
+```
+
+## Configuration
+
+Configure the queries agent behavior using the `config` block:
+
+```yaml
+config:
+  defaultDatabase: string    # Default database binding name
+  cacheTTL: integer         # Cache TTL for query results (seconds)
+  maxRows: integer          # Maximum rows to return
+  timeout: integer          # Query timeout (milliseconds)
+  readOnly: boolean         # Prevent write operations (default: false)
+  transform: string         # Transform column names: none|camelCase|snakeCase (default: none)
+  includeMetadata: boolean  # Include metadata in output (default: true)
+```
+
+### Configuration Examples
+
+**Read-only with row limit:**
+```yaml
+config:
+  defaultDatabase: DB
+  readOnly: true
+  maxRows: 100
+```
+
+**With caching and transformation:**
+```yaml
+config:
+  defaultDatabase: DB
+  cacheTTL: 3600
+  transform: camelCase
+```
+
+**With timeout:**
+```yaml
+config:
+  defaultDatabase: DB
+  timeout: 5000  # 5 seconds
+```
+
+## Parameter Binding
+
+### Positional Parameters
+
+Use `?` placeholders in your SQL and provide values as an array:
+
+```yaml
+input:
+  sql: "SELECT * FROM users WHERE active = ? AND role = ?"
+  input: [true, "admin"]
+```
+
+**SQL with positional parameters:**
+```sql
+SELECT * FROM orders
+WHERE user_id = ?
+  AND status = ?
+  AND created_at > ?
+ORDER BY created_at DESC
+LIMIT ?
+```
+
+**Parameters:**
+```yaml
+input: [123, "completed", "2024-01-01", 50]
+```
+
+### Named Parameters
+
+Use `:paramName` placeholders in your SQL and provide values as an object:
+
+```yaml
+input:
+  sql: "SELECT * FROM products WHERE category = :category AND price BETWEEN :minPrice AND :maxPrice"
+  input:
+    category: "electronics"
+    minPrice: 100
+    maxPrice: 1000
+```
+
+**SQL with named parameters:**
+```sql
+SELECT * FROM orders
+WHERE user_id = :userId
+  AND status = :status
+  AND created_at > :startDate
+ORDER BY created_at DESC
+LIMIT :limit
+```
+
+**Parameters:**
+```yaml
+input:
+  userId: 123
+  status: "completed"
+  startDate: "2024-01-01"
+  limit: 50
+```
+
+### Optional Parameters
+
+Use `OR :param IS NULL` patterns for optional filtering:
+
+```sql
+SELECT * FROM users
+WHERE
+  (email = :email OR :email IS NULL)
+  AND (status = :status OR :status IS NULL)
+```
+
+```yaml
+input:
+  email: "user@example.com"
+  status: null  # This filter will be ignored
+```
+
+## Example Queries
+
+The starter kit includes example SQL queries in `/queries/examples/`:
+
+### User Lookup (`user-lookup.sql`)
+
+Find users by email or ID with optional filtering:
+
+```sql
+SELECT
+  id,
+  email,
+  name,
+  status,
+  created_at,
+  last_login
+FROM users
+WHERE
+  (email = :email OR :email IS NULL)
+  AND (id = :userId OR :userId IS NULL)
+  AND (status = :status OR :status IS NULL)
+ORDER BY created_at DESC
+LIMIT 100;
+```
+
+**Usage:**
+```yaml
+flow:
+  - name: lookup-user
+    agent: queries
+    input:
+      sql: ${queries.getSql('user-lookup')}
+      input:
+        email: ${input.email}
+        userId: null
+        status: "active"
+```
+
+### Product Search (`product-search.sql`)
+
+Full-text search with filtering and pagination:
+
+```sql
+SELECT
+  id,
+  name,
+  description,
+  price,
+  category,
+  inventory_count,
+  rating,
+  review_count,
+  image_url
+FROM products
+WHERE
+  (name LIKE '%' || :searchTerm || '%' OR description LIKE '%' || :searchTerm || '%')
+  AND (category = :category OR :category IS NULL)
+  AND (price >= :minPrice OR :minPrice IS NULL)
+  AND (price <= :maxPrice OR :maxPrice IS NULL)
+  AND (inventory_count > 0 OR :inStock = FALSE)
+ORDER BY
+  rating DESC,
+  review_count DESC
+LIMIT :limit
+OFFSET :offset;
+```
+
+**Usage:**
+```yaml
+flow:
+  - name: search-products
+    agent: queries
+    input:
+      sql: ${queries.getSql('product-search')}
+      input:
+        searchTerm: ${input.query}
+        category: ${input.category}
+        minPrice: ${input.priceRange.min}
+        maxPrice: ${input.priceRange.max}
+        inStock: true
+        limit: 20
+        offset: ${input.page * 20}
+    config:
+      transform: camelCase
+```
+
+### Analytics Summary (`analytics-summary.sql`)
+
+Aggregate metrics for a date range:
+
+```sql
+SELECT
+  DATE(event_time) as date,
+  event_type,
+  COUNT(*) as event_count,
+  COUNT(DISTINCT user_id) as unique_users,
+  AVG(value) as avg_value,
+  SUM(value) as total_value
+FROM events
+WHERE
+  event_time >= :startDate
+  AND event_time <= :endDate
+GROUP BY
+  DATE(event_time),
+  event_type
+ORDER BY
+  date DESC,
+  event_count DESC;
+```
+
+**Usage:**
+```yaml
+flow:
+  - name: get-analytics
+    agent: queries
+    input:
+      sql: ${queries.getSql('analytics-summary')}
+      input:
+        startDate: ${input.startDate}
+        endDate: ${input.endDate}
+      database: ANALYTICS_DB
+```
+
+## Best Practices
+
+### 1. Use Named Parameters for Readability
+
+**Good:**
+```yaml
+sql: "SELECT * FROM users WHERE email = :email AND status = :status"
+input:
+  email: "user@example.com"
+  status: "active"
+```
+
+**Avoid:**
+```yaml
+sql: "SELECT * FROM users WHERE email = ? AND status = ?"
+input: ["user@example.com", "active"]
+```
+
+### 2. Enable Read-Only Mode in Production
+
+```yaml
+config:
+  readOnly: true  # Prevents accidental DELETE/UPDATE/DROP
+```
+
+### 3. Set Row Limits
+
+```yaml
+config:
+  maxRows: 1000  # Prevent unbounded result sets
+```
+
+### 4. Cache Expensive Queries
+
+```yaml
+config:
+  cacheTTL: 3600  # Cache for 1 hour
+```
+
+### 5. Use Column Transformation Consistently
+
+```yaml
+config:
+  transform: camelCase  # Converts snake_case to camelCase
+```
+
+**Result:**
+```json
+{
+  "userId": 123,
+  "firstName": "John",
+  "createdAt": "2024-01-01"
+}
+```
+
+### 6. Handle Optional Filters Properly
+
+```sql
+-- Use OR :param IS NULL pattern
+WHERE (category = :category OR :category IS NULL)
+```
+
+### 7. Use Separate Databases for Different Workloads
+
+```yaml
+input:
+  database: ANALYTICS_DB  # Use read replica for analytics
+```
+
+### 8. Set Appropriate Timeouts
+
+```yaml
+config:
+  timeout: 10000  # 10 seconds for complex queries
+```
+
+### 9. Validate Input Parameters
+
+```yaml
+flow:
+  - name: validate
+    agent: validate
+    input:
+      data: ${input}
+      schema: query-params
+
+  - name: query
+    condition: ${validate.success}
+    agent: queries
+    input:
+      sql: ${sql}
+      input: ${input}
+```
+
+### 10. Monitor Query Performance
+
+Use the metadata in the output to track performance:
+
+```yaml
+flow:
+  - name: query
+    agent: queries
+    input:
+      sql: ${sql}
+    config:
+      includeMetadata: true
+
+  - name: log-slow-queries
+    condition: ${query.output.metadata.executionTime > 1000}
+    agent: log
+    input:
+      level: warn
+      message: "Slow query detected"
+      metadata: ${query.output.metadata}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card
+    title="Data Operations"
+    icon="database"
+    href="/conductor/operations/data"
+  >
+    Learn about D1, Hyperdrive, and Vectorize operations
+  </Card>
+
+  <Card
+    title="Starter Kit Overview"
+    icon="rocket"
+    href="/conductor/starter-kit/overview"
+  >
+    Explore other agents in the starter kit
+  </Card>
+</CardGroup>

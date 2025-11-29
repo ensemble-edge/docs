@@ -67,7 +67,7 @@ state:
 agents:
   # Search knowledge base
   - name: search
-    agent: rag
+    operation: rag
     config:
       action: search
       query: ${input.message}
@@ -386,7 +386,7 @@ agents:
   # Hand off to human if not confident
   - name: handoff
     condition: ${JSON.parse(check-confidence.output).confidence <= 0.7}
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         user_message: ${input.message}

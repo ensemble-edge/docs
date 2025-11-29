@@ -52,7 +52,7 @@ agents:
 
   # Validate extracted data
   - name: validate
-    agent: validator
+    operation: validate
     inputs:
       data: ${extract-invoice.output}
       schema: ${component.invoice-schema@v1.0.0}
@@ -134,7 +134,7 @@ export default function validateInvoiceMath(context: AgentExecutionContext) {
   # Require approval for new vendors
   - name: approve-vendor
     condition: ${check-vendor.output.length === 0}
-    agent: hitl
+    operation: hitl
     inputs:
       data: ${JSON.parse(extract.output)}
       prompt: "New vendor - approve invoice?"
@@ -310,7 +310,7 @@ agents:
   # Legal review for high-risk
   - name: legal-review
     condition: ${JSON.parse(identify-risks.output).risks.some(r => r.severity === 'high')}
-    agent: hitl
+    operation: hitl
     inputs:
       data:
         terms: ${extract-terms.output}
@@ -406,7 +406,7 @@ prompt: |
 **3. Validation**
 ```yaml
 - name: validate
-  agent: validator
+  operation: validate
   inputs:
     schema: ${component.schema@v1.0.0}
 ```
@@ -415,7 +415,7 @@ prompt: |
 ```yaml
 - name: review
   condition: ${confidence < 0.8 || high_value}
-  agent: hitl
+  operation: hitl
 ```
 
 **5. Audit Trail**
@@ -435,7 +435,7 @@ prompt: |
   <Card title="think Operation" icon="brain" href="/conductor/operations/think">
     Vision models
   </Card>
-  <Card title="validator Agent" icon="check-circle" href="/conductor/agents/validator">
+  <Card title="Validate Operation" icon="check-circle" href="/conductor/starter-kit/validate">
     Data validation
   </Card>
   <Card title="HITL Approval" icon="user-check" href="/conductor/playbooks/hitl-approval-flow">

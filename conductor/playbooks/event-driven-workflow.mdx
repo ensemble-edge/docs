@@ -25,7 +25,7 @@ agents:
   # Validate payload schema
   - name: validate-schema
     condition: ${validate-signature.output.valid}
-    agent: validator
+    operation: validate
     input:
       data: ${input.body}
       schema: ${component.webhook-schema@v1.0.0}
@@ -1017,7 +1017,7 @@ agents:
     Webhook and API patterns
   </Card>
 
-  <Card title="scheduler Agent" icon="clock" href="/conductor/agents/scheduler">
+  <Card title="Triggers" icon="clock" href="/conductor/core-concepts/triggers">
     Cron and delayed execution
   </Card>
 
@@ -1025,7 +1025,7 @@ agents:
     Set up Cloudflare Queues
   </Card>
 
-  <Card title="Error Handling" icon="triangle-exclamation" href="/conductor/building/error-handling">
+  <Card title="Flow Control" icon="triangle-exclamation" href="/conductor/core-concepts/flow-control">
     Robust error handling
   </Card>
 </CardGroup>

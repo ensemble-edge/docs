@@ -1,0 +1,373 @@
+---
+title: "Robots.txt"
+description: "Control search engine crawler access with a dynamic robots.txt generator that supports custom disallow rules, crawl delays, and sitemap references."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The Robots.txt ensemble generates a standards-compliant `robots.txt` file for controlling search engine crawler behavior. It provides a flexible, configurable approach to managing bot access with support for:
+
+- Block all crawlers or allow with exceptions
+- Custom path restrictions (e.g., `/api/*`, `/admin/*`)
+- Crawl delay configuration
+- Sitemap reference
+- CDN/browser caching (24-hour cache by default)
+
+The ensemble serves `robots.txt` at the `/robots.txt` endpoint with proper HTTP cache headers for optimal performance.
+
+## Endpoint
+
+```
+GET /robots.txt
+```
+
+**Response Type:** `text/plain`
+
+**Cache Headers:**
+- `Cache-Control: public, max-age=86400, stale-while-revalidate=3600`
+- 24-hour cache duration
+- 1-hour stale-while-revalidate window
+
+## Configuration Options
+
+### `disallowAll`
+
+**Type:** `boolean`
+**Default:** `false`
+**Description:** When `true`, blocks all search engine crawlers from accessing any part of your site.
+
+```yaml
+input:
+  disallowAll: true
+```
+
+**Generated Output:**
+```
+User-agent: *
+Disallow: /
+```
+
+### `disallowPaths`
+
+**Type:** `array` of strings
+**Default:** `["/api/*", "/admin/*", "/_*"]`
+**Description:** List of path patterns to disallow. Supports wildcards (`*`). Only applied when `disallowAll` is `false`.
+
+```yaml
+input:
+  disallowPaths:
+    - /api/*
+    - /admin/*
+    - /private/*
+    - /_*
+```
+
+**Generated Output:**
+```
+User-agent: *
+Allow: /
+Disallow: /api/*
+Disallow: /admin/*
+Disallow: /private/*
+Disallow: /_*
+```
+
+### `crawlDelay`
+
+**Type:** `number` (seconds)
+**Default:** `null` (no delay)
+**Description:** Requests crawlers to wait this many seconds between successive requests. Helps reduce server load.
+
+```yaml
+input:
+  crawlDelay: 10
+```
+
+**Generated Output:**
+```
+User-agent: *
+Allow: /
+Crawl-delay: 10
+```
+
+### `sitemap`
+
+**Type:** `string` (URL)
+**Default:** `https://example.com/sitemap.xml`
+**Description:** URL to your XML sitemap. Search engines use this to discover all pages on your site.
+
+```yaml
+input:
+  sitemap: https://mysite.com/sitemap.xml
+```
+
+**Generated Output:**
+```
+User-agent: *
+Allow: /
+Sitemap: https://mysite.com/sitemap.xml
+```
+
+## Customization Examples
+
+### Example 1: Development Site (Block All)
+
+Block all crawlers during development or staging:
+
+```yaml
+name: robots
+description: Robots.txt for search engine crawlers
+
+trigger:
+  - type: http
+    path: /robots.txt
+    methods: [GET]
+    public: true
+    httpCache:
+      public: true
+      maxAge: 86400
+      staleWhileRevalidate: 3600
+
+agents:
+  - name: generate-robots
+    operation: html
+    config:
+      templateEngine: liquid
+      contentType: text/plain
+      template: |
+        User-agent: *
+        Disallow: /
+
+flow:
+  - agent: generate-robots
+    input:
+      disallowAll: true  # Block everything
+
+input:
+  disallowAll:
+    type: boolean
+    required: false
+    default: true  # Changed to true
+```
+
+### Example 2: Production Site with Protected Paths
+
+Allow crawlers but protect sensitive paths:
+
+```yaml
+input:
+  disallowAll:
+    type: boolean
+    required: false
+    default: false
+  disallowPaths:
+    type: array
+    required: false
+    default:
+      - /api/*
+      - /admin/*
+      - /dashboard/*
+      - /auth/*
+      - /_*
+  crawlDelay:
+    type: number
+    required: false
+    default: 2  # 2 second delay
+  sitemap:
+    type: string
+    required: false
+    default: https://yoursite.com/sitemap.xml
+```
+
+### Example 3: Public Site with Minimal Restrictions
+
+Allow most content, only block internal paths:
+
+```yaml
+input:
+  disallowAll:
+    type: boolean
+    required: false
+    default: false
+  disallowPaths:
+    type: array
+    required: false
+    default:
+      - /_*  # Only block internal paths
+  crawlDelay:
+    type: number
+    required: false
+    default: null  # No delay
+  sitemap:
+    type: string
+    required: false
+    default: https://yoursite.com/sitemap.xml
+```
+
+### Example 4: Aggressive Crawler Throttling
+
+Slow down aggressive bots:
+
+```yaml
+input:
+  disallowAll:
+    type: boolean
+    required: false
+    default: false
+  disallowPaths:
+    type: array
+    required: false
+    default:
+      - /api/*
+      - /admin/*
+  crawlDelay:
+    type: number
+    required: false
+    default: 30  # 30 second delay between requests
+  sitemap:
+    type: string
+    required: false
+    default: https://yoursite.com/sitemap.xml
+```
+
+## Full Ensemble YAML
+
+```yaml
+name: robots
+description: Robots.txt for search engine crawlers
+
+trigger:
+  - type: http
+    path: /robots.txt
+    methods: [GET]
+    public: true
+    # HTTP cache headers for CDN/browser caching
+    # robots.txt rarely changes - cache for 24 hours
+    httpCache:
+      public: true
+      maxAge: 86400  # 24 hours
+      staleWhileRevalidate: 3600  # Serve stale for 1 hour while revalidating
+    responses:
+      html:
+        enabled: false
+      json:
+        enabled: false
+
+agents:
+  - name: generate-robots
+    operation: html
+    config:
+      templateEngine: liquid
+      contentType: text/plain
+      template: |
+        User-agent: *
+        {% if disallowAll %}
+        Disallow: /
+        {% else %}
+        Allow: /
+        {% if disallowPaths %}
+        {% for path in disallowPaths %}
+        Disallow: {{path}}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+
+        {% if crawlDelay %}
+        Crawl-delay: {{crawlDelay}}
+        {% endif %}
+
+        {% if sitemap %}
+        Sitemap: {{sitemap}}
+        {% endif %}
+
+flow:
+  - agent: generate-robots
+    input:
+      disallowAll: ${input.disallowAll}
+      disallowPaths: ${input.disallowPaths}
+      crawlDelay: ${input.crawlDelay}
+      sitemap: ${input.sitemap}
+
+# Default configuration
+input:
+  disallowAll:
+    type: boolean
+    required: false
+    default: false
+  disallowPaths:
+    type: array
+    required: false
+    default:
+      - /api/*
+      - /admin/*
+      - /_*
+  crawlDelay:
+    type: number
+    required: false
+    default: null
+  sitemap:
+    type: string
+    required: false
+    default: https://example.com/sitemap.xml
+
+output:
+  robots: ${generate-robots.output}
+```
+
+## Testing Your Configuration
+
+### Test Locally
+
+```bash
+# Start local dev server
+conductor dev
+
+# Visit http://localhost:8787/robots.txt
+curl http://localhost:8787/robots.txt
+```
+
+### Validate with Google
+
+After deploying, use [Google's Robots Testing Tool](https://www.google.com/webmasters/tools/robots-testing-tool) to validate your robots.txt configuration.
+
+### Common Scenarios
+
+**Scenario 1: Verify API paths are blocked**
+```bash
+curl https://yoursite.com/robots.txt | grep "Disallow: /api/"
+```
+
+**Scenario 2: Check sitemap reference**
+```bash
+curl https://yoursite.com/robots.txt | grep "Sitemap:"
+```
+
+**Scenario 3: Verify cache headers**
+```bash
+curl -I https://yoursite.com/robots.txt | grep -i cache-control
+```
+
+## Best Practices
+
+1. **Update the sitemap URL**: Replace `https://example.com/sitemap.xml` with your actual sitemap URL
+2. **Review default disallow paths**: Customize the `disallowPaths` array to match your site structure
+3. **Consider crawl delay**: Set `crawlDelay` only if experiencing high bot traffic
+4. **Test before deploying**: Always test changes locally first
+5. **Monitor crawler behavior**: Use Google Search Console to track how bots interact with your site
+6. **Keep it simple**: Only disallow what's necessary; over-blocking can hurt SEO
+
+## Related Resources
+
+<CardGroup cols={1}>
+  <Card
+    title="Sitemap Generator"
+    icon="sitemap"
+    href="/conductor/starter-kit/sitemap"
+  >
+    Generate XML sitemaps for search engines to discover your content
+  </Card>
+</CardGroup>

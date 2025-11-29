@@ -55,19 +55,48 @@ edgit tag create extraction-prompt v2.0.0  # New approach
 
 ### Git Tag Format
 
-Edgit uses namespaced Git tags:
+Edgit uses **type-specific namespaced** Git tags. Each component type has its own namespace:
 
 ```bash
-components/extraction-prompt/v1.0.0
-components/extraction-prompt/v1.1.0
-components/extraction-prompt/v2.0.0
-components/extraction-prompt/prod      # Deployment tag
-components/extraction-prompt/staging   # Deployment tag
+# Prompts use prompts/ namespace
+prompts/extraction-prompt/v1.0.0
+prompts/extraction-prompt/v1.1.0
+prompts/extraction-prompt/prod      # Deployment tag
+
+# Schemas use schemas/ namespace
+schemas/user-schema/v1.0.0
+schemas/user-schema/staging         # Deployment tag
+
+# Configs use configs/ namespace
+configs/api-config/v1.0.0
+
+# Scripts use scripts/ namespace
+scripts/transform/v1.0.0
+
+# Queries use queries/ namespace
+queries/analytics-query/v1.0.0
+
+# Templates use templates/ namespace
+templates/email-header/v1.0.0
 ```
+
+**Type-to-Namespace Mapping:**
+
+| Component Type | Tag Namespace |
+|----------------|---------------|
+| `prompt` | `prompts/` |
+| `schema` | `schemas/` |
+| `config` | `configs/` |
+| `script` | `scripts/` |
+| `query` | `queries/` |
+| `template` | `templates/` |
+| `tool` | `tools/` |
+| `agent` | `agents/` |
+| `ensemble` | `ensembles/` |
 
 View them:
 ```bash
-git tag | grep "components/extraction-prompt"
+git tag | grep "prompts/extraction-prompt"
 ```
 
 ### Semantic Versioning
@@ -166,7 +195,7 @@ edgit tag create scraper v2.0.0 --type=agent
 
 ### Git Tag Format for Agents
 
-Agents use a separate namespace:
+Agents use the `agents/` namespace:
 
 ```bash
 agents/scraper/v1.0.0
@@ -176,10 +205,11 @@ agents/scraper/prod      # Deployment tag
 agents/scraper/staging   # Deployment tag
 ```
 
-**Why separate namespaces?**
-- Clear distinction between components and agents
-- No naming collisions
+**Why type-specific namespaces?**
+- Clear distinction between component types
+- No naming collisions (you can have a prompt and agent with the same name)
 - Better organization in Git
+- Aligns with Conductor's KV storage namespaces
 
 ### Reference Agent Versions
 
@@ -243,7 +273,7 @@ edgit tag create scraping-workflow v1.5.0 --type=ensemble
 
 ### Git Tag Format for Ensembles
 
-Ensembles use their own namespace:
+Ensembles use the `ensembles/` namespace:
 
 ```bash
 ensembles/data-pipeline/v1.0.0
@@ -253,10 +283,7 @@ ensembles/data-pipeline/prod      # Deployment tag
 ensembles/data-pipeline/staging   # Deployment tag
 ```
 
-**Why separate namespaces?**
-- Clear distinction between components, agents, and ensembles
-- No naming collisions
-- Better organization in Git
+This follows the same type-specific namespace pattern as all other component types.
 
 ### TypeScript vs YAML Ensembles
 
@@ -611,16 +638,17 @@ git tag -d components/my-prompt/v1.0.0  # Delete old versions
 ### Version Not Found
 
 ```bash
-# Error: components/my-prompt/v1.0.0 not found
+# Error: prompts/my-prompt/v1.0.0 not found
 
-# Check if tag exists
-git tag | grep my-prompt
+# Check if tag exists (note: use the correct namespace)
+git tag | grep "prompts/my-prompt"
 
 # List all versions
 edgit tag list my-prompt
 
-# Tag might use different name
+# Check your component type - namespace depends on type
 edgit components list
+# prompts/ for prompts, schemas/ for schemas, agents/ for agents, etc.
 ```
 
 ### Version Conflicts
@@ -628,8 +656,8 @@ edgit components list
 ```bash
 # Error: Tag already exists
 
-# Check existing tag
-git show components/my-prompt/v1.0.0
+# Check existing tag (use correct namespace)
+git show prompts/my-prompt/v1.0.0
 
 # Use force to overwrite (careful!)
 edgit tag create my-prompt v1.0.0 --force

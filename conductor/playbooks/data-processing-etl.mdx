@@ -19,14 +19,14 @@ agents:
 
   # Transform
   - name: transform
-    agent: transformer
+    operation: code
     inputs:
       data: ${extract.output.body}
       template: ${component.transform-template@v1.0.0}
 
   # Validate
   - name: validate
-    agent: validator
+    operation: validate
     inputs:
       data: ${transform.output}
       schema: ${component.target-schema@v1.0.0}
@@ -57,7 +57,7 @@ const etlPipeline = createEnsemble('etl-pipeline')
   // Transform
   .addStep(
     step('transform')
-      .agent('transformer')
+      .operation('code')
       .input({
         data: '${extract.output.body}',
         template: '${component.transform-template@v1.0.0}'
@@ -66,7 +66,7 @@ const etlPipeline = createEnsemble('etl-pipeline')
   // Validate
   .addStep(
     step('validate')
-      .agent('validator')
+      .operation('validate')
       .input({
         data: '${transform.output}',
         schema: '${component.target-schema@v1.0.0}'
@@ -118,7 +118,7 @@ agents:
 
   # Transform each record
   - name: transform
-    agent: transformer
+    operation: code
     inputs:
       data: ${extract.output}
       template:
@@ -136,7 +136,7 @@ agents:
 
   # Validate transformed data
   - name: validate
-    agent: validator
+    operation: validate
     inputs:
       data: ${transform.output}
       schema:
@@ -200,26 +200,26 @@ ensemble: api-to-warehouse
 agents:
   # Extract from multiple API endpoints (parallel)
   - name: fetch-users
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.example.com/users
       cacheTTL: 300
 
   - name: fetch-orders
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.example.com/orders
       cacheTTL: 300
 
   - name: fetch-products
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.example.com/products
       cacheTTL: 300
 
   # Transform users
   - name: transform-users
-    agent: transformer
+    operation: code
     inputs:
       data: ${fetch-users.output.body}
       template:
@@ -231,7 +231,7 @@ agents:
 
   # Transform orders
   - name: transform-orders
-    agent: transformer
+    operation: code
     inputs:
       data: ${fetch-orders.output.body}
       template:
@@ -244,7 +244,7 @@ agents:
 
   # Transform products
   - name: transform-products
-    agent: transformer
+    operation: code
     inputs:
       data: ${fetch-products.output.body}
       template:
@@ -325,7 +325,7 @@ agents:
 
   # Validate each record
   - name: validate
-    agent: validator
+    operation: validate
     inputs:
       data: ${parse.output.records}
       schema:
@@ -495,7 +495,7 @@ agents:
   # Transform
   - name: transform
     condition: ${extract.output.length > 0}
-    agent: transformer
+    operation: code
     inputs:
       data: ${extract.output}
       template: ${component.transform-template@v1.0.0}
@@ -536,7 +536,7 @@ ensemble: streaming-etl
 agents:
   # Receive event
   - name: validate-event
-    agent: validator
+    operation: validate
     inputs:
       data: ${input.event}
       schema: ${component.event-schema@v1.0.0}
@@ -551,7 +551,7 @@ agents:
 
   # Transform
   - name: transform
-    agent: transformer
+    operation: code
     inputs:
       data:
         event: ${validate-event.output.data}
@@ -606,7 +606,7 @@ agents:
 # Always handle failures
 agents:
   - name: transform
-    agent: transformer
+    operation: code
 
   - name: log-error
     condition: ${transform.failed}
@@ -649,10 +649,10 @@ agents:
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="transformer Agent" icon="wand-magic-sparkles" href="/conductor/agents/transformer">
+  <Card title="Code Operation" icon="wand-magic-sparkles" href="/conductor/operations/code">
     Data transformation
   </Card>
-  <Card title="validator Agent" icon="check-circle" href="/conductor/agents/validator">
+  <Card title="Validate Operation" icon="check-circle" href="/conductor/starter-kit/validate">
     Data validation
   </Card>
   <Card title="storage Operation" icon="database" href="/conductor/operations/storage">

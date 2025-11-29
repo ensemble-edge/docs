@@ -1,0 +1,386 @@
+---
+title: "Sitemap"
+description: "Generate XML sitemaps for search engines with static or dynamic URL generation from your database."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The sitemap ensemble generates XML sitemaps that help search engines discover and index your content. It serves a standards-compliant XML sitemap at `/sitemap.xml` that includes URL locations, last modification dates, change frequencies, and priority values.
+
+The ensemble uses the Liquid template engine to render the sitemap XML, making it easy to customize the output format while maintaining XML standards compliance.
+
+## Endpoint
+
+```
+GET /sitemap.xml
+```
+
+The sitemap is publicly accessible and returns XML content with the proper `application/xml` content type. Both HTML and JSON response formats are disabled since sitemaps must be served as XML.
+
+## URL Configuration
+
+Each URL in the sitemap supports the following fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `loc` | string | Yes | Full URL of the page (must include protocol and domain) |
+| `lastmod` | string | No | Last modification date in ISO 8601 format (YYYY-MM-DD) |
+| `changefreq` | string | No | How frequently the page changes: `always`, `hourly`, `daily`, `weekly`, `monthly`, `yearly`, `never` |
+| `priority` | number | No | Priority of this URL relative to other URLs (0.0 to 1.0) |
+
+## Full Ensemble YAML
+
+```yaml
+name: sitemap
+description: XML sitemap for search engines
+
+trigger:
+  - type: http
+    path: /sitemap.xml
+    methods: [GET]
+    public: true
+    responses:
+      html:
+        enabled: false
+      json:
+        enabled: false
+
+agents:
+  - name: generate-sitemap
+    operation: html
+    config:
+      templateEngine: liquid
+      contentType: application/xml
+      template: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          {% for url in urls %}
+          <url>
+            <loc>{{url.loc}}</loc>
+            {% if url.lastmod %}
+            <lastmod>{{url.lastmod}}</lastmod>
+            {% endif %}
+            {% if url.changefreq %}
+            <changefreq>{{url.changefreq}}</changefreq>
+            {% endif %}
+            {% if url.priority %}
+            <priority>{{url.priority}}</priority>
+            {% endif %}
+          </url>
+          {% endfor %}
+        </urlset>
+
+flow:
+  - agent: generate-sitemap
+    input:
+      urls: ${input.urls}
+
+# Default URLs - typically generated dynamically from your pages/content
+# In a real application, you would use a Data agent to query your content
+# and map results to sitemap URL format
+input:
+  urls:
+    type: array
+    required: false
+    default:
+      - loc: https://example.com/
+        lastmod: "2024-01-01"
+        changefreq: daily
+        priority: 1.0
+      - loc: https://example.com/docs
+        lastmod: "2024-01-01"
+        changefreq: weekly
+        priority: 0.8
+      - loc: https://example.com/about
+        changefreq: monthly
+        priority: 0.5
+
+output:
+  sitemap: ${generate-sitemap.output}
+```
+
+## Static URLs Example
+
+The default configuration includes static URLs as examples. To customize for your site:
+
+```yaml
+input:
+  urls:
+    type: array
+    required: false
+    default:
+      - loc: https://yoursite.com/
+        lastmod: "2024-01-01"
+        changefreq: daily
+        priority: 1.0
+      - loc: https://yoursite.com/products
+        lastmod: "2024-01-15"
+        changefreq: daily
+        priority: 0.9
+      - loc: https://yoursite.com/blog
+        lastmod: "2024-02-01"
+        changefreq: weekly
+        priority: 0.8
+      - loc: https://yoursite.com/about
+        changefreq: monthly
+        priority: 0.5
+```
+
+Replace `https://yoursite.com` with your actual domain and add all your important pages.
+
+## Dynamic Generation from D1 Database
+
+For applications with dynamic content (blog posts, products, documentation), generate the sitemap from your database:
+
+```yaml
+name: sitemap
+description: XML sitemap generated from database content
+
+trigger:
+  - type: http
+    path: /sitemap.xml
+    methods: [GET]
+    public: true
+    responses:
+      html:
+        enabled: false
+      json:
+        enabled: false
+
+agents:
+  - name: fetch-pages
+    operation: data
+    config:
+      database: d1
+      binding: DB
+      query: |
+        SELECT
+          slug,
+          updated_at,
+          priority
+        FROM pages
+        WHERE published = true
+        ORDER BY priority DESC
+
+  - name: generate-sitemap
+    operation: html
+    config:
+      templateEngine: liquid
+      contentType: application/xml
+      template: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          {% for page in pages %}
+          <url>
+            <loc>{{baseUrl}}/{{page.slug}}</loc>
+            <lastmod>{{page.updated_at}}</lastmod>
+            <priority>{{page.priority}}</priority>
+          </url>
+          {% endfor %}
+        </urlset>
+    input:
+      baseUrl: https://example.com
+      pages: ${fetch-pages.output.rows}
+
+flow:
+  - agent: fetch-pages
+  - agent: generate-sitemap
+    input:
+      baseUrl: https://example.com
+      pages: ${fetch-pages.output.rows}
+
+output:
+  sitemap: ${generate-sitemap.output}
+```
+
+### Database Schema
+
+Your D1 database should have a table with at least these columns:
+
+```sql
+CREATE TABLE pages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL,
+  updated_at TEXT NOT NULL,  -- ISO 8601 format
+  priority REAL DEFAULT 0.5,
+  published BOOLEAN DEFAULT 0,
+  changefreq TEXT DEFAULT 'weekly'
+);
+```
+
+Example records:
+
+```sql
+INSERT INTO pages (slug, updated_at, priority, published, changefreq) VALUES
+  ('', '2024-01-01', 1.0, 1, 'daily'),           -- Homepage
+  ('products', '2024-02-15', 0.9, 1, 'daily'),   -- Product listing
+  ('blog', '2024-02-20', 0.8, 1, 'weekly'),      -- Blog index
+  ('about', '2024-01-01', 0.5, 1, 'monthly');    -- About page
+```
+
+## Customization
+
+### Add Change Frequency from Database
+
+Include `changefreq` in your query and template:
+
+```yaml
+agents:
+  - name: fetch-pages
+    operation: data
+    config:
+      database: d1
+      binding: DB
+      query: |
+        SELECT
+          slug,
+          updated_at,
+          priority,
+          changefreq
+        FROM pages
+        WHERE published = true
+
+  - name: generate-sitemap
+    operation: html
+    config:
+      templateEngine: liquid
+      contentType: application/xml
+      template: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          {% for page in pages %}
+          <url>
+            <loc>{{baseUrl}}/{{page.slug}}</loc>
+            <lastmod>{{page.updated_at}}</lastmod>
+            <changefreq>{{page.changefreq}}</changefreq>
+            <priority>{{page.priority}}</priority>
+          </url>
+          {% endfor %}
+        </urlset>
+```
+
+### Multiple Content Types
+
+Combine different content types (pages, blog posts, products):
+
+```yaml
+agents:
+  - name: fetch-pages
+    operation: data
+    config:
+      database: d1
+      binding: DB
+      query: |
+        SELECT slug, updated_at, 0.8 as priority
+        FROM pages
+        WHERE published = true
+
+  - name: fetch-blog-posts
+    operation: data
+    config:
+      database: d1
+      binding: DB
+      query: |
+        SELECT slug, published_at as updated_at, 0.6 as priority
+        FROM blog_posts
+        WHERE published = true
+
+  - name: fetch-products
+    operation: data
+    config:
+      database: d1
+      binding: DB
+      query: |
+        SELECT slug, updated_at, 0.9 as priority
+        FROM products
+        WHERE active = true
+
+  - name: generate-sitemap
+    operation: code
+    handler: ./handlers/combine-sitemap.ts
+    input:
+      baseUrl: https://example.com
+      pages: ${fetch-pages.output.rows}
+      posts: ${fetch-blog-posts.output.rows}
+      products: ${fetch-products.output.rows}
+
+flow:
+  - agent: fetch-pages
+  - agent: fetch-blog-posts
+  - agent: fetch-products
+  - agent: generate-sitemap
+```
+
+Handler file `handlers/combine-sitemap.ts`:
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handler(ctx: AgentExecutionContext) {
+  const { baseUrl, pages, posts, products } = ctx.input
+
+  const urls = [
+    ...pages.map(p => ({
+      loc: `${baseUrl}/${p.slug}`,
+      lastmod: p.updated_at,
+      priority: p.priority,
+      changefreq: 'weekly'
+    })),
+    ...posts.map(p => ({
+      loc: `${baseUrl}/blog/${p.slug}`,
+      lastmod: p.updated_at,
+      priority: p.priority,
+      changefreq: 'weekly'
+    })),
+    ...products.map(p => ({
+      loc: `${baseUrl}/products/${p.slug}`,
+      lastmod: p.updated_at,
+      priority: p.priority,
+      changefreq: 'daily'
+    }))
+  ]
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map(url => `  <url>
+    <loc>${url.loc}</loc>
+    <lastmod>${url.lastmod}</lastmod>
+    <changefreq>${url.changefreq}</changefreq>
+    <priority>${url.priority}</priority>
+  </url>`).join('\n')}
+</urlset>`
+
+  return { xml }
+}
+```
+
+### Cache the Sitemap
+
+Add caching to reduce database queries:
+
+```yaml
+flow:
+  - agent: fetch-pages
+    cache:
+      ttl: 3600  # Cache for 1 hour
+      key: "sitemap-pages"
+
+  - agent: generate-sitemap
+    input:
+      baseUrl: https://example.com
+      pages: ${fetch-pages.output.rows}
+```
+
+<CardGroup cols={1}>
+  <Card
+    title="Robots.txt"
+    icon="robot"
+    href="/conductor/starter-kit/robots"
+  >
+    Configure robots.txt to reference your sitemap
+  </Card>
+</CardGroup>

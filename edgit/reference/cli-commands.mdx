@@ -50,7 +50,7 @@ edgit components add <type> <name> <path> [options]
 ```
 
 **Arguments:**
-- `type` - Component type (prompt, config, query, script, template, docs, agent, ensemble)
+- `type` - Component type (prompt, config, query, script, template, docs, agent, ensemble, tool, schema)
 - `name` - Unique component name
 - `path` - File path relative to repo root
 
@@ -145,6 +145,24 @@ edgit components remove <name>
 
 ## Versioning
 
+### Type-Specific Tag Namespaces
+
+Edgit uses type-specific namespaces for Git tags. Each component type gets its own namespace:
+
+| Component Type | Tag Namespace | Example Tag |
+|----------------|---------------|-------------|
+| `prompt` | `prompts/` | `prompts/extraction-prompt/v1.0.0` |
+| `schema` | `schemas/` | `schemas/user-schema/v1.0.0` |
+| `config` | `configs/` | `configs/api-config/v1.0.0` |
+| `script` | `scripts/` | `scripts/transform/v1.0.0` |
+| `query` | `queries/` | `queries/analytics-query/v1.0.0` |
+| `template` | `templates/` | `templates/email-header/v1.0.0` |
+| `tool` | `tools/` | `tools/calculator/v1.0.0` |
+| `agent` | `agents/` | `agents/scraper/v1.0.0` |
+| `ensemble` | `ensembles/` | `ensembles/data-pipeline/v1.0.0` |
+
+This allows components of different types to have the same name without conflicts.
+
 ### `edgit tag create`
 
 Create a version tag:
@@ -195,6 +213,7 @@ edgit tag list <name> [options]
 
 **Options:**
 - `--with-dates` - Include creation dates
+- `--format <type>` - Output format (`text`, `json`). Default: `text`
 
 **Examples:**
 
@@ -212,6 +231,58 @@ edgit tag list extraction-prompt --with-dates
 # v1.0.0 (2024-10-15)
 # v1.0.1 (2024-10-18)
 # v1.1.0 (2024-10-25)
+
+# JSON output (useful for scripting and CI/CD)
+edgit tag list extraction-prompt --format json
+# Output:
+# {
+#   "name": "extraction-prompt",
+#   "type": "prompt",
+#   "namespace": "prompts",
+#   "versions": [
+#     {"version": "v1.0.0", "date": "2024-10-15T10:30:00Z"},
+#     {"version": "v1.0.1", "date": "2024-10-18T14:22:00Z"},
+#     {"version": "v1.1.0", "date": "2024-10-25T09:15:00Z"}
+#   ]
+# }
+```
+
+### `edgit tag show`
+
+Show details of a specific version:
+
+```bash
+edgit tag show <name>@<version> [options]
+```
+
+**Options:**
+- `--format <type>` - Output format (`text`, `json`). Default: `text`
+
+**Examples:**
+
+```bash
+# Show version details
+edgit tag show extraction-prompt@v1.0.0
+# Output:
+# Tag: prompts/extraction-prompt/v1.0.0
+# Date: 2024-10-15T10:30:00Z
+# Author: John Doe <john@example.com>
+# Message: Initial stable release
+
+# JSON output (useful for CI/CD pipelines)
+edgit tag show extraction-prompt@v1.0.0 --format json
+# Output:
+# {
+#   "name": "extraction-prompt",
+#   "version": "v1.0.0",
+#   "type": "prompt",
+#   "namespace": "prompts",
+#   "tag": "prompts/extraction-prompt/v1.0.0",
+#   "sha": "abc123...",
+#   "date": "2024-10-15T10:30:00Z",
+#   "author": "John Doe <john@example.com>",
+#   "message": "Initial stable release"
+# }
 ```
 
 ### `edgit tag delete`
@@ -365,6 +436,41 @@ edgit discover detect ensembles/data-pipeline.ts
 # Get just the name
 edgit discover detect src/transform.ts --name-only
 # Output: transform
+```
+
+### `edgit discover patterns list`
+
+List component detection patterns:
+
+```bash
+edgit discover patterns list [options]
+```
+
+**Options:**
+- `--format <type>` - Output format (`text`, `json`). Default: `text`
+
+**Examples:**
+
+```bash
+# List detection patterns
+edgit discover patterns list
+# Output:
+# prompt: *.md in prompts/, components/prompts/
+# config: *.json, *.yaml in configs/, components/configs/
+# schema: *.json in schemas/, components/schemas/
+# ...
+
+# JSON output (useful for scripting and tooling)
+edgit discover patterns list --format json
+# Output:
+# {
+#   "patterns": [
+#     {"type": "prompt", "extensions": [".md"], "directories": ["prompts/", "components/prompts/"]},
+#     {"type": "config", "extensions": [".json", ".yaml"], "directories": ["configs/", "components/configs/"]},
+#     {"type": "schema", "extensions": [".json"], "directories": ["schemas/", "components/schemas/"]},
+#     ...
+#   ]
+# }
 ```
 
 ## History

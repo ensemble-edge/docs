@@ -265,7 +265,7 @@ agents:
   - parallel:
       # Official company website
       - name: scrape-website
-        agent: scraper
+        operation: scrape
         config:
           url: ${input.domain}
           output: markdown

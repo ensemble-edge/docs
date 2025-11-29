@@ -213,7 +213,30 @@ conductor validate [path] [options]
 **Supported File Types:**
 
 - `.yaml`, `.yml` - YAML ensemble and agent definitions
-- `.ts` - TypeScript ensembles using `createEnsemble()`
+- `.ts` - TypeScript agents and ensembles
+
+**TypeScript Agent Validation:**
+
+The validate command checks TypeScript agent files for:
+- **Default export** - Must export a default handler function
+- **Function signature** - Should accept `AgentExecutionContext`
+- **Return type** - Should return a value or Promise
+
+```bash
+# Validate a TypeScript agent
+conductor validate agents/my-agent/index.ts
+```
+
+Example output for common issues:
+
+```
+✗ agents/my-agent/index.ts
+  No default export found. TypeScript agents must export a default function:
+
+  export default async function(context: AgentExecutionContext) {
+    // your code here
+  }
+```
 
 **Examples:**
 
@@ -223,7 +246,7 @@ conductor validate
 
 # Validate specific file
 conductor validate ensembles/workflow.yaml
-conductor validate ensembles/workflow.ts
+conductor validate agents/custom-agent/index.ts
 
 # Validate with auto-fix
 conductor validate --fix

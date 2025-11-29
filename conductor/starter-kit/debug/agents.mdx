@@ -1,0 +1,643 @@
+---
+title: "Debug Agents"
+description: "Debugging and testing agents included in your Conductor starter kit. Use these to inspect flow behavior, test timeouts, and validate data transformations."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+Debug agents are utility agents designed to help you test, inspect, and debug your Conductor workflows. These agents are particularly useful during development to understand data flow, test error handling, and validate transformations.
+
+## Echo Agent
+
+The echo agent returns its input unchanged, making it perfect for debugging data transformations and inspecting what data reaches an agent after flowing through your ensemble.
+
+### Description
+
+Returns input unchanged - useful for debugging flows and inspecting what data reaches an agent after transformations.
+
+### Source
+
+`agents/debug/echo/echo.yaml`
+
+### Input Schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "data": {
+      "description": "Any data to echo back"
+    }
+  }
+}
+```
+
+The `data` field accepts any type - objects, strings, arrays, numbers, etc.
+
+### Output Schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "echo": {
+      "description": "The input data unchanged"
+    },
+    "receivedAt": {
+      "type": "string",
+      "description": "ISO timestamp when data was received"
+    },
+    "inputType": {
+      "type": "string",
+      "description": "JavaScript typeof the input data"
+    }
+  }
+}
+```
+
+### Configuration
+
+```yaml
+name: echo
+version: 1.0.0
+operation: code
+handler: ./echo.ts
+tags:
+  - debug
+  - utility
+```
+
+### Examples
+
+#### Echo an Object
+
+```yaml
+flow:
+  - name: inspect-data
+    agent: echo
+    input:
+      data: { name: "test", value: 123 }
+```
+
+**Output:**
+```json
+{
+  "echo": { "name": "test", "value": 123 },
+  "receivedAt": "2025-01-15T10:30:00Z",
+  "inputType": "object"
+}
+```
+
+#### Echo a String
+
+```yaml
+flow:
+  - name: inspect-message
+    agent: echo
+    input:
+      data: "Hello, World!"
+```
+
+**Output:**
+```json
+{
+  "echo": "Hello, World!",
+  "receivedAt": "2025-01-15T10:30:00Z",
+  "inputType": "string"
+}
+```
+
+#### Debug Data Transformation
+
+```yaml
+flow:
+  - name: transform
+    agent: data-processor
+    input: { raw: ${input.data} }
+
+  - name: inspect-transformation
+    agent: echo
+    input:
+      data: ${transform.output}
+```
+
+### Use Cases
+
+- **Inspect Transformations**: See exactly what data looks like after processing
+- **Validate Flow Logic**: Confirm data reaches agents as expected
+- **Debug Type Issues**: Check the JavaScript type of data
+- **Test Conditional Logic**: Verify data before conditions evaluate
+
+---
+
+## Delay Agent
+
+The delay agent introduces artificial delays before returning, making it essential for testing timeout handling, loading states, concurrent execution, and rate limiting behavior.
+
+### Description
+
+Adds artificial delay before returning. Useful for testing timeout handling, loading states in UI, concurrent flow behavior, and rate limiting responses.
+
+### Source
+
+`agents/debug/delay/delay.yaml`
+
+### Input Schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "ms": {
+      "type": "number",
+      "description": "Delay in milliseconds (max 10000)",
+      "default": 1000,
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "passthrough": {
+      "description": "Data to return after delay"
+    }
+  }
+}
+```
+
+### Output Schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "delayed": {
+      "type": "boolean",
+      "description": "Whether delay was applied"
+    },
+    "actualDelayMs": {
+      "type": "number",
+      "description": "Actual delay time in milliseconds"
+    },
+    "passthrough": {
+      "description": "The passthrough data unchanged"
+    }
+  }
+}
+```
+
+### Configuration
+
+```yaml
+name: delay
+version: 1.0.0
+operation: code
+handler: ./delay.ts
+tags:
+  - debug
+  - utility
+  - testing
+```
+
+### Examples
+
+#### Simple Delay
+
+```yaml
+flow:
+  - name: wait
+    agent: delay
+    input:
+      ms: 500
+```
+
+**Output:**
+```json
+{
+  "delayed": true,
+  "actualDelayMs": 500
+}
+```
+
+#### Delay with Data Passthrough
+
+```yaml
+flow:
+  - name: simulate-slow-api
+    agent: delay
+    input:
+      ms: 1000
+      passthrough: { userId: "123", action: "test" }
+```
+
+**Output:**
+```json
+{
+  "delayed": true,
+  "actualDelayMs": 1000,
+  "passthrough": { "userId": "123", "action": "test" }
+}
+```
+
+#### Test Timeout Handling
+
+```yaml
+flow:
+  - name: slow-operation
+    agent: delay
+    input:
+      ms: 5000
+    timeout: 3000  # Will timeout after 3 seconds
+
+  - name: handle-timeout
+    condition: ${slow-operation.failed}
+    agent: fallback-handler
+```
+
+#### Test Concurrent Execution
+
+```yaml
+flow:
+  # These run in parallel - observe timing
+  - name: task-a
+    agent: delay
+    input: { ms: 1000, passthrough: { task: "A" } }
+
+  - name: task-b
+    agent: delay
+    input: { ms: 500, passthrough: { task: "B" } }
+
+  - name: task-c
+    agent: delay
+    input: { ms: 1500, passthrough: { task: "C" } }
+
+  # This waits for all above to complete
+  - name: collect-results
+    agent: aggregator
+    input:
+      results:
+        - ${task-a.output}
+        - ${task-b.output}
+        - ${task-c.output}
+```
+
+### Use Cases
+
+- **Test Timeouts**: Verify timeout configuration works correctly
+- **Simulate Slow APIs**: Test how your ensemble handles slow external services
+- **Loading State Testing**: Test UI loading indicators
+- **Rate Limiting**: Test behavior when services are rate-limited
+- **Concurrent Flow Testing**: Understand parallel execution timing
+- **Retry Logic**: Test backoff strategies with artificial delays
+
+---
+
+## Inspect Context Agent
+
+The inspect-context agent returns information about the current execution context, including auth state, headers, environment variables, and Cloudflare bindings.
+
+<Warning>
+**Security Critical**: Do NOT expose this agent on public endpoints in production. It may reveal internal state, configuration, environment variables, authentication details, and system bindings that should remain private.
+</Warning>
+
+### Description
+
+Inspects and returns information about the current execution context. Useful for debugging auth propagation, headers, and environment variables.
+
+### Source
+
+`agents/debug/inspect-context/inspect-context.yaml`
+
+### Input Schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "includeEnv": {
+      "type": "boolean",
+      "default": false,
+      "description": "Include env var keys (values redacted)"
+    },
+    "includeAuth": {
+      "type": "boolean",
+      "default": true,
+      "description": "Include auth context"
+    },
+    "includeHeaders": {
+      "type": "boolean",
+      "default": true,
+      "description": "Include request headers (auth headers redacted)"
+    },
+    "includeBindings": {
+      "type": "boolean",
+      "default": false,
+      "description": "Include available Cloudflare bindings"
+    }
+  }
+}
+```
+
+### Output Schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "context": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string"
+        },
+        "executionId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "object"
+        },
+        "headers": {
+          "type": "object"
+        },
+        "bindings": {
+          "type": "array"
+        },
+        "env": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}
+```
+
+### Configuration
+
+```yaml
+name: inspect-context
+version: 1.0.0
+operation: code
+handler: ./inspect-context.ts
+tags:
+  - debug
+  - diagnostic
+  - security-sensitive
+```
+
+### Examples
+
+#### Basic Context Inspection
+
+```yaml
+flow:
+  - name: check-context
+    agent: inspect-context
+    input: {}
+```
+
+**Output:**
+```json
+{
+  "context": {
+    "timestamp": "2025-01-15T10:30:00Z",
+    "executionId": "exec_abc123",
+    "auth": {
+      "authenticated": true,
+      "userId": "user_123"
+    },
+    "headers": {
+      "content-type": "application/json",
+      "user-agent": "Mozilla/5.0..."
+    }
+  }
+}
+```
+
+#### Full Inspection (Development Only)
+
+```yaml
+flow:
+  - name: full-diagnostic
+    agent: inspect-context
+    input:
+      includeEnv: true
+      includeAuth: true
+      includeHeaders: true
+      includeBindings: true
+```
+
+#### Debug Auth Propagation
+
+```yaml
+flow:
+  - name: verify-auth
+    agent: inspect-context
+    input:
+      includeAuth: true
+      includeHeaders: true
+
+  - name: check-authenticated
+    condition: ${verify-auth.output.context.auth.authenticated}
+    agent: protected-operation
+```
+
+#### Safe Development Ensemble
+
+```yaml
+name: dev-diagnostics
+description: Development-only diagnostic ensemble
+
+trigger:
+  - type: http
+    path: /dev/diagnostics
+    methods: [GET]
+    public: false  # Require authentication
+    # Add additional auth checks in production
+
+flow:
+  - name: check-environment
+    condition: ${env.ENVIRONMENT === 'development'}
+    agent: inspect-context
+    input:
+      includeEnv: true
+      includeAuth: true
+      includeHeaders: true
+      includeBindings: true
+
+  - name: block-production
+    condition: ${env.ENVIRONMENT !== 'development'}
+    operation: code
+    handler: |
+      return {
+        error: "Diagnostics disabled in production",
+        status: 403
+      }
+
+output:
+  - when: ${check-environment.executed}
+    status: 200
+    body: ${check-environment.output}
+
+  - when: ${block-production.executed}
+    status: 403
+    body: ${block-production.output}
+```
+
+### Use Cases
+
+- **Debug Authentication**: Verify auth tokens are propagated correctly
+- **Inspect Headers**: Check what headers reach your ensemble
+- **Environment Validation**: Confirm environment variables are set
+- **Binding Discovery**: See what Cloudflare bindings are available
+- **Request Debugging**: Understand the complete request context
+- **Integration Testing**: Validate external service auth headers
+
+### Security Considerations
+
+<Warning>
+**Production Security Checklist**:
+
+- Never expose inspect-context on public endpoints
+- Always require authentication for diagnostic endpoints
+- Use environment checks to disable in production
+- Redact sensitive values before logging
+- Consider removing or disabling in production builds
+- Review output before sharing logs or screenshots
+- Use conditional execution based on environment
+- Implement IP whitelisting for diagnostic endpoints
+- Add audit logging when context inspection occurs
+- Consider time-based access tokens for debug endpoints
+</Warning>
+
+#### Recommended Protection Pattern
+
+```yaml
+flow:
+  # Always check environment first
+  - name: verify-dev-environment
+    operation: code
+    handler: |
+      if (env.ENVIRONMENT !== 'development') {
+        throw new Error('Diagnostics disabled');
+      }
+      return { allowed: true };
+
+  - name: inspect
+    condition: ${verify-dev-environment.success}
+    agent: inspect-context
+    input:
+      includeEnv: false  # Keep false by default
+      includeAuth: true
+      includeHeaders: true
+      includeBindings: false  # Keep false by default
+```
+
+---
+
+## Common Debug Patterns
+
+### Pipeline Inspection
+
+Insert echo agents between pipeline stages to inspect data transformations:
+
+```yaml
+flow:
+  - name: fetch-data
+    agent: api-fetcher
+    input: { url: ${input.apiUrl} }
+
+  - name: inspect-raw
+    agent: echo
+    input: { data: ${fetch-data.output} }
+
+  - name: transform
+    agent: data-transformer
+    input: { raw: ${fetch-data.output} }
+
+  - name: inspect-transformed
+    agent: echo
+    input: { data: ${transform.output} }
+
+  - name: save
+    agent: storage-writer
+    input: { data: ${transform.output} }
+```
+
+### Timeout Testing
+
+Test different timeout scenarios systematically:
+
+```yaml
+flow:
+  - name: test-fast
+    agent: delay
+    input: { ms: 100 }
+    timeout: 1000
+
+  - name: test-medium
+    agent: delay
+    input: { ms: 500 }
+    timeout: 1000
+
+  - name: test-slow
+    agent: delay
+    input: { ms: 2000 }
+    timeout: 1000  # Will timeout
+
+  - name: handle-timeout
+    condition: ${test-slow.failed}
+    agent: timeout-handler
+```
+
+### Context Validation
+
+Verify execution context before sensitive operations:
+
+```yaml
+flow:
+  - name: verify-context
+    agent: inspect-context
+    input:
+      includeAuth: true
+      includeHeaders: true
+
+  - name: check-permissions
+    operation: code
+    handler: |
+      const ctx = ${verify-context.output.context};
+      if (!ctx.auth.authenticated) {
+        throw new Error('Not authenticated');
+      }
+      if (!ctx.auth.permissions.includes('admin')) {
+        throw new Error('Insufficient permissions');
+      }
+      return { authorized: true };
+
+  - name: admin-operation
+    condition: ${check-permissions.success}
+    agent: sensitive-operation
+```
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Operations Reference" icon="code" href="/conductor/operations/overview">
+    Learn about all available operations
+  </Card>
+
+  <Card title="Flow Control" icon="brackets-curly" href="/conductor/core-concepts/flow-control">
+    Master conditions and flow patterns
+  </Card>
+
+  <Card title="Writing Ensembles" icon="triangle-exclamation" href="/conductor/building/writing-ensembles">
+    Handle failures and implement fallbacks
+  </Card>
+
+  <Card title="Testing & Observability" icon="flask" href="/conductor/building/testing-observability">
+    Write tests for your workflows
+  </Card>
+</CardGroup>

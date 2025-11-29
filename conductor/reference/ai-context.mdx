@@ -90,7 +90,7 @@ Built-in capabilities ship as catalog templates (real agents/ensembles):
 - catalog/ensembles/system/docs/ → ensembles/system/docs/
 No magic. Framework must support all use cases.
 
-## Operations (14 types)
+## Operations (13 types)
 
 | Operation | Purpose | Config Keys |
 |-----------|---------|-------------|
@@ -104,7 +104,6 @@ No magic. Framework must support all use cases.
 | sms | Send SMS | to, from, body |
 | html | Render HTML | template, data |
 | pdf | Generate PDF | html, filename, format |
-| page | Full-stack page | component, props |
 | form | Generate forms | fields, csrf |
 | queue | Queue messages | action: send|consume, queue, body |
 | docs | API docs | OpenAPI generation |
@@ -131,17 +130,28 @@ No magic. Framework must support all use cases.
 | afterExecute | After agent completes | Metrics, cleanup |
 | onError | On agent failure | Error reporting, fallback |
 
-## Pre-built Agents (7 types)
+## Built-in Agents (2 types)
+
+Framework-level agents requiring platform integration. Configure only.
 
 | Agent | Purpose | Key Inputs |
 |-------|---------|------------|
-| scraper | Web scraping with retries | url |
-| validator | Data validation | data, schema |
-| rag | Vector search + LLM | query, action: embed|search |
-| hitl | Human approval flow | prompt, context |
-| fetcher | HTTP with caching | url |
-| transformer | Data transformation | data, template |
-| scheduler | Cron execution | cron, task |
+| rag | Vector search + LLM (Cloudflare AI & Vectorize) | query, operation: index|search |
+| hitl | Human approval flow (Durable Objects) | approvalData, action: suspend|resume |
+
+## Starter Kit Agents
+
+Template agents you can modify or delete. Located in `agents/system/`:
+
+| Agent | Purpose |
+|-------|---------|
+| scrape | Web scraping with bot detection |
+| fetch | HTTP requests with caching |
+| validate | Data validation with multiple evaluators |
+| redirect | URL redirection service |
+| docs | API documentation generation |
+| tools | MCP tool integration |
+| autorag | Automated RAG indexing |
 
 ## Triggers (8 types)
 
@@ -597,7 +607,7 @@ When you run `conductor init`, these are copied to your project. You can:
 
 ## Primitives Reference
 
-### Operations (14 types)
+### Operations (13 types)
 
 | Operation | Purpose | Config Keys |
 |-----------|---------|-------------|
@@ -611,7 +621,6 @@ When you run `conductor init`, these are copied to your project. You can:
 | `sms` | Send SMS | `to`, `from`, `body` |
 | `html` | Render HTML | `template`, `data` |
 | `pdf` | Generate PDF | `html`, `filename`, `format` |
-| `page` | Full-stack page | `component`, `props` |
 | `form` | Generate forms | `fields`, `csrf` |
 | `queue` | Queue messages | `action: send\|consume`, `queue`, `body` |
 | `docs` | API docs | OpenAPI generation |
@@ -642,19 +651,30 @@ When you run `conductor init`, these are copied to your project. You can:
 
 > [TypeScript API Reference](/conductor/reference/ts-schema)
 
-### Pre-built Agents (7 types)
+### Built-in Agents (2 types)
+
+Framework-level agents requiring platform integration. Configure only.
 
 | Agent | Purpose | Key Inputs |
 |-------|---------|------------|
-| `scraper` | Web scraping with retries | `url` |
-| `validator` | Data validation | `data`, `schema` |
-| `rag` | Vector search + LLM | `query`, `action: embed\|search` |
-| `hitl` | Human approval flow | `prompt`, `context` |
-| `fetcher` | HTTP with caching | `url` |
-| `transformer` | Data transformation | `data`, `template` |
-| `scheduler` | Cron execution | `cron`, `task` |
+| `rag` | Vector search + LLM (Cloudflare AI & Vectorize) | `query`, `operation: index\|search` |
+| `hitl` | Human approval flow (Durable Objects) | `approvalData`, `action: suspend\|resume` |
 
-> [Pre-built Agents](/conductor/agents/overview)
+### Starter Kit Agents
+
+Template agents you can modify or delete. Located in `agents/system/`:
+
+| Agent | Purpose |
+|-------|---------|
+| `scrape` | Web scraping with bot detection |
+| `fetch` | HTTP requests with caching |
+| `validate` | Data validation with multiple evaluators |
+| `redirect` | URL redirection service |
+| `docs` | API documentation generation |
+| `tools` | MCP tool integration |
+| `autorag` | Automated RAG indexing |
+
+> [Starter Kit](/conductor/starter-kit/overview)
 
 ### Triggers (8 types)
 

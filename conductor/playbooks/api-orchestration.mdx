@@ -11,19 +11,19 @@ ensemble: api-workflow
 agents:
   # Call APIs in sequence or parallel
   - name: api-1
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api1.example.com/data
 
   - name: api-2
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api2.example.com/data
       body: ${api-1.output.body}
 
   # Transform and combine
   - name: combine
-    agent: transformer
+    operation: code
     inputs:
       data:
         source1: ${api-1.output.body}
@@ -38,7 +38,7 @@ ensemble: oauth-api-call
 agents:
   # Get access token
   - name: get-token
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://auth.example.com/oauth/token
       method: POST
@@ -52,7 +52,7 @@ agents:
 
   # Use token
   - name: api-call
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.example.com/data
       headers:
@@ -67,17 +67,17 @@ ensemble: aggregate-apis
 agents:
   # Call multiple APIs in parallel
   - name: weather
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.weather.com/current?city=${input.city}
 
   - name: news
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.news.com/local?city=${input.city}
 
   - name: events
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.events.com/upcoming?city=${input.city}
 
@@ -164,7 +164,7 @@ export default function processWebhookData(context: AgentExecutionContext) {
   # Forward to internal API
   - name: forward
     condition: ${process.executed}
-    agent: fetcher
+    operation: fetch
     inputs:
       url: ${env.INTERNAL_API_URL}
       method: POST
@@ -188,7 +188,7 @@ agents:
   # Allow if under limit
   - name: allow
     condition: ${!check-limit.output || check-limit.output.count < 100}
-    agent: fetcher
+    operation: fetch
     inputs:
       url: https://api.example.com/data
 
@@ -248,7 +248,7 @@ agents:
   # Call if circuit closed
   - name: call-api
     condition: ${!check-circuit.output || check-circuit.output.state !== 'open'}
-    agent: fetcher
+    operation: fetch
     inputs:
       url: ${input.url}
     retry:
@@ -289,13 +289,13 @@ export default function circuitBreakerFallback(context: AgentExecutionContext) {
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="fetcher Agent" icon="download" href="/conductor/agents/fetcher">
+  <Card title="Fetch Operation" icon="download" href="/conductor/starter-kit/fetch">
     HTTP requests
   </Card>
   <Card title="http Operation" icon="globe" href="/conductor/operations/http">
     Low-level HTTP
   </Card>
-  <Card title="transformer Agent" icon="wand-magic-sparkles" href="/conductor/agents/transformer">
+  <Card title="Code Operation" icon="wand-magic-sparkles" href="/conductor/operations/code">
     Response transformation
   </Card>
   <Card title="Event-Driven" icon="bolt" href="/conductor/playbooks/event-driven-workflow">

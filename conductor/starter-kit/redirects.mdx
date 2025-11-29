@@ -1,0 +1,1014 @@
+---
+title: "Redirects"
+description: "URL shortening and redirect management with support for permanent, expiring, and single-use magic links. Built on Cloudflare KV."
+---
+
+<Note>
+**Starter Kit** - Ships with your template. You own it - modify freely.
+</Note>
+
+## Overview
+
+The redirect system provides enterprise-grade URL shortening with three link types:
+
+- **Permanent**: Traditional short links that never expire
+- **Expiring**: Time-limited links with automatic cleanup
+- **Single-use**: Magic links for secure one-time access
+
+All redirect data is stored in Cloudflare KV with automatic TTL management.
+
+## Quick Start
+
+### 1. Create a Redirect
+
+```bash
+curl -X POST https://your-app.com/api/v1/redirects \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetUrl": "https://example.com/destination",
+    "type": "permanent"
+  }'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "slug": "abc123",
+    "shortUrl": "https://your-app.com/go/abc123",
+    "targetUrl": "https://example.com/destination",
+    "type": "permanent",
+    "statusCode": 302,
+    "used": false,
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+### 2. Use the Short Link
+
+```bash
+curl https://your-app.com/go/abc123
+# Redirects to: https://example.com/destination
+```
+
+### 3. Manage Redirects
+
+```bash
+# Get redirect details
+curl https://your-app.com/api/v1/redirects/abc123 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# List all redirects
+curl https://your-app.com/api/v1/redirects \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Update redirect
+curl -X PUT https://your-app.com/api/v1/redirects/abc123 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetUrl": "https://example.com/new-destination"
+  }'
+
+# Delete redirect
+curl -X DELETE https://your-app.com/api/v1/redirects/abc123 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Ensembles
+
+The redirect system consists of two ensembles:
+
+### Resolve Ensemble
+
+**File**: `ensembles/system/redirects/resolve.yaml`
+
+Handles public redirect resolution at `/go/:slug`.
+
+```yaml
+name: redirect-resolver
+version: 1.0.0
+description: Resolve short links and redirect to target URL
+
+trigger:
+  - type: http
+    path: /go/:slug
+    methods: [GET, HEAD]
+    public: true
+    priority: -100  # Low priority - checked after explicit routes
+
+agents:
+  - name: lookup
+    agent: redirect
+    input:
+      action: resolve
+      slug: ${{ trigger.params.slug }}
+      markAsUsed: true
+    config:
+      kvBinding: REDIRECTS_KV
+      basePath: /go
+
+output:
+  # Success: HTTP redirect
+  - when: ${{ agents.lookup.output.found == true }}
+    redirect:
+      url: ${{ agents.lookup.output.targetUrl }}
+      status: ${{ agents.lookup.output.statusCode }}
+
+  # Not found
+  - when: ${{ agents.lookup.output.error == 'not_found' }}
+    status: 404
+    body:
+      success: false
+      error: not_found
+      message: "Redirect not found"
+
+  # Expired
+  - when: ${{ agents.lookup.output.error == 'expired' }}
+    status: 410
+    body:
+      success: false
+      error: expired
+      message: "This link has expired"
+
+  # Already used (single-use)
+  - when: ${{ agents.lookup.output.error == 'already_used' }}
+    status: 410
+    body:
+      success: false
+      error: already_used
+      message: "This link has already been used"
+
+  # KV binding not found
+  - when: ${{ agents.lookup.output.error == 'binding_not_found' }}
+    status: 500
+    body:
+      success: false
+      error: configuration_error
+      message: "Redirect service not configured"
+```
+
+**Key Features**:
+- Public access (no authentication)
+- Automatic single-use link marking
+- Comprehensive error handling
+- Low route priority (doesn't override explicit routes)
+
+### API Ensemble
+
+**File**: `ensembles/system/redirects/api.yaml`
+
+Provides authenticated CRUD operations at `/api/v1/redirects`.
+
+```yaml
+name: redirect-api
+version: 1.0.0
+description: Management API for redirects (CRUD operations)
+
+trigger:
+  - type: http
+    paths:
+      - path: /api/v1/redirects
+        methods: [GET, POST]
+      - path: /api/v1/redirects/:slug
+        methods: [GET, PUT, DELETE]
+    auth:
+      requirement: required
+      methods: [bearer, apiKey]
+
+agents:
+  - name: manage
+    agent: redirect
+    input:
+      # Determine action from HTTP method and path
+      action: ${{
+        trigger.method == 'GET' && !trigger.params.slug ? 'list' :
+        trigger.method == 'GET' && trigger.params.slug ? 'get' :
+        trigger.method == 'POST' ? 'create' :
+        trigger.method == 'PUT' ? 'update' :
+        trigger.method == 'DELETE' ? 'delete' : 'get'
+      }}
+
+      # For get/update/delete
+      slug: ${{ trigger.params.slug }}
+
+      # For create/update (from request body)
+      targetUrl: ${{ trigger.body.targetUrl }}
+      type: ${{ trigger.body.type }}
+      statusCode: ${{ trigger.body.statusCode }}
+      expiresIn: ${{ trigger.body.expiresIn }}
+      expiresAt: ${{ trigger.body.expiresAt }}
+      customSlug: ${{ trigger.body.slug }}
+      metadata: ${{ trigger.body.metadata }}
+
+      # For list (from query params)
+      filter:
+        type: ${{ trigger.query.type }}
+        used: ${{ trigger.query.used }}
+        campaign: ${{ trigger.query.campaign }}
+      limit: ${{ trigger.query.limit }}
+      cursor: ${{ trigger.query.cursor }}
+
+    config:
+      kvBinding: REDIRECTS_KV
+      basePath: /go
+      defaultStatusCode: 302
+      defaultType: permanent
+
+output:
+  # Create: 201 Created
+  - when: ${{ agents.manage.output.success && trigger.method == 'POST' }}
+    status: 201
+    body:
+      success: true
+      data: ${{ agents.manage.output.redirect }}
+
+  # Delete: 204 No Content
+  - when: ${{ agents.manage.output.success && trigger.method == 'DELETE' }}
+    status: 204
+
+  # Get/Update: 200 OK with single redirect
+  - when: ${{ agents.manage.output.success && agents.manage.output.redirect }}
+    status: 200
+    body:
+      success: true
+      data: ${{ agents.manage.output.redirect }}
+
+  # List: 200 OK with array
+  - when: ${{ agents.manage.output.success && agents.manage.output.redirects }}
+    status: 200
+    body:
+      success: true
+      data: ${{ agents.manage.output.redirects }}
+      pagination:
+        cursor: ${{ agents.manage.output.cursor }}
+        total: ${{ agents.manage.output.total }}
+
+  # Error cases...
+  - when: ${{ agents.manage.output.error == 'not_found' }}
+    status: 404
+    body:
+      success: false
+      error: not_found
+      message: "Redirect not found"
+```
+
+**Key Features**:
+- RESTful API design
+- Authentication required
+- Supports all CRUD operations
+- Pagination for list endpoint
+- Filter by type, used status, campaign
+
+## Agent Reference
+
+### redirect Agent
+
+**File**: `agents/system/redirect/redirect.yaml`
+
+The core redirect agent that powers both ensembles.
+
+#### Input Schema
+
+```yaml
+action:
+  type: string
+  enum: [resolve, create, get, update, delete, list]
+  required: true
+  description: Operation to perform
+
+# For resolve/get/update/delete
+slug:
+  type: string
+  description: The short code to look up
+
+# For create/update
+targetUrl:
+  type: string
+  format: uri
+  description: Destination URL
+
+type:
+  type: string
+  enum: [permanent, expiring, single-use]
+  default: permanent
+
+statusCode:
+  type: integer
+  enum: [301, 302, 307, 308]
+  default: 302
+
+expiresAt:
+  type: string
+  format: date-time
+  description: Expiration timestamp (ISO 8601)
+
+expiresIn:
+  type: integer
+  description: Seconds until expiration (alternative to expiresAt)
+
+customSlug:
+  type: string
+  description: Custom slug (auto-generates if not provided)
+
+metadata:
+  type: object
+  properties:
+    createdBy:
+      type: string
+    campaign:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+    notes:
+      type: string
+
+# For list
+filter:
+  type: object
+  properties:
+    type:
+      type: string
+      enum: [permanent, expiring, single-use]
+    used:
+      type: boolean
+    campaign:
+      type: string
+
+limit:
+  type: integer
+  default: 50
+
+cursor:
+  type: string
+
+# For resolve
+markAsUsed:
+  type: boolean
+  default: true
+  description: Mark single-use links as used
+```
+
+#### Output Schema
+
+```yaml
+success:
+  type: boolean
+
+found:
+  type: boolean
+
+targetUrl:
+  type: string
+
+statusCode:
+  type: integer
+
+error:
+  type: string
+  enum: [not_found, expired, already_used, slug_taken, invalid_url, binding_not_found]
+
+errorMessage:
+  type: string
+
+redirect:
+  type: object
+  description: Single redirect entry
+
+redirects:
+  type: array
+  description: Array of redirect entries
+
+cursor:
+  type: string
+  description: Pagination cursor
+
+total:
+  type: integer
+  description: Total results count
+```
+
+#### Configuration Schema
+
+```yaml
+kvBinding:
+  type: string
+  default: REDIRECTS_KV
+  description: KV namespace binding name
+
+basePath:
+  type: string
+  default: /go
+  description: Base path for shortUrl computation
+
+defaultStatusCode:
+  type: integer
+  enum: [301, 302, 307, 308]
+  default: 302
+
+defaultType:
+  type: string
+  enum: [permanent, expiring, single-use]
+  default: permanent
+
+slugLength:
+  type: integer
+  default: 7
+  description: Generated slug length
+
+slugAlphabet:
+  type: string
+  default: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  description: Characters for slug generation
+```
+
+## Configuration
+
+### 1. Add KV Binding
+
+Add to your `wrangler.toml`:
+
+```toml
+[[kv_namespaces]]
+binding = "REDIRECTS_KV"
+id = "your-kv-namespace-id"
+```
+
+Create the KV namespace:
+```bash
+wrangler kv:namespace create "REDIRECTS_KV"
+```
+
+### 2. Configure Base Path
+
+The default base path is `/go`. To customize:
+
+```yaml
+# In your ensemble
+agents:
+  - name: redirect-agent
+    agent: redirect
+    config:
+      basePath: /r  # Use /r instead of /go
+```
+
+### 3. Configure Slug Generation
+
+```yaml
+# In your ensemble
+agents:
+  - name: redirect-agent
+    agent: redirect
+    config:
+      slugLength: 10  # Longer slugs
+      slugAlphabet: "0123456789abcdefghijklmnopqrstuvwxyz"  # Lowercase only
+```
+
+### 4. Set Default Redirect Type
+
+```yaml
+# In your ensemble
+agents:
+  - name: redirect-agent
+    agent: redirect
+    config:
+      defaultType: expiring  # Default to expiring links
+      defaultStatusCode: 301  # Use permanent redirect
+```
+
+## Examples
+
+### Permanent Link
+
+```yaml
+agents:
+  - name: create
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://example.com/page"
+      type: permanent
+      customSlug: "mylink"
+    config:
+      kvBinding: REDIRECTS_KV
+```
+
+Output:
+```json
+{
+  "success": true,
+  "redirect": {
+    "slug": "mylink",
+    "shortUrl": "https://your-app.com/go/mylink",
+    "targetUrl": "https://example.com/page",
+    "type": "permanent",
+    "statusCode": 302,
+    "used": false,
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+### Expiring Link (24 hours)
+
+```yaml
+agents:
+  - name: create
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://example.com/promo"
+      type: expiring
+      expiresIn: 86400  # 24 hours in seconds
+      metadata:
+        campaign: "spring-sale"
+    config:
+      kvBinding: REDIRECTS_KV
+```
+
+Output:
+```json
+{
+  "success": true,
+  "redirect": {
+    "slug": "p7xK9mQ",
+    "shortUrl": "https://your-app.com/go/p7xK9mQ",
+    "targetUrl": "https://example.com/promo",
+    "type": "expiring",
+    "expiresAt": "2024-01-16T10:30:00.000Z",
+    "statusCode": 302,
+    "metadata": {
+      "campaign": "spring-sale"
+    }
+  }
+}
+```
+
+### Single-Use Magic Link
+
+```yaml
+agents:
+  - name: create
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://app.com/onboard?token=xyz"
+      type: single-use
+      expiresIn: 3600  # 1 hour
+      metadata:
+        createdBy: "system"
+        campaign: "welcome-email"
+    config:
+      kvBinding: REDIRECTS_KV
+```
+
+Output:
+```json
+{
+  "success": true,
+  "redirect": {
+    "slug": "m7kP2xQ",
+    "shortUrl": "https://your-app.com/go/m7kP2xQ",
+    "targetUrl": "https://app.com/onboard?token=xyz",
+    "type": "single-use",
+    "expiresAt": "2024-01-15T11:30:00.000Z",
+    "statusCode": 302,
+    "used": false,
+    "usedAt": null,
+    "metadata": {
+      "createdBy": "system",
+      "campaign": "welcome-email"
+    }
+  }
+}
+```
+
+### Resolve Without Marking Used
+
+Useful for previewing or analytics:
+
+```yaml
+agents:
+  - name: lookup
+    agent: redirect
+    input:
+      action: resolve
+      slug: "m7kP2xQ"
+      markAsUsed: false  # Don't consume single-use link
+    config:
+      kvBinding: REDIRECTS_KV
+```
+
+### List with Filters
+
+```yaml
+agents:
+  - name: list
+    agent: redirect
+    input:
+      action: list
+      filter:
+        type: single-use
+        used: false
+        campaign: "welcome-email"
+      limit: 100
+    config:
+      kvBinding: REDIRECTS_KV
+```
+
+Output:
+```json
+{
+  "success": true,
+  "redirects": [
+    {
+      "slug": "m7kP2xQ",
+      "shortUrl": "https://your-app.com/go/m7kP2xQ",
+      "targetUrl": "https://app.com/onboard?token=xyz",
+      "type": "single-use",
+      "used": false,
+      "metadata": {
+        "campaign": "welcome-email"
+      }
+    }
+  ],
+  "cursor": "next-page-token",
+  "total": 1
+}
+```
+
+### Update Redirect
+
+```yaml
+agents:
+  - name: update
+    agent: redirect
+    input:
+      action: update
+      slug: "mylink"
+      targetUrl: "https://example.com/new-page"
+      expiresIn: 7200  # Extend expiration
+    config:
+      kvBinding: REDIRECTS_KV
+```
+
+### Delete Redirect
+
+```yaml
+agents:
+  - name: delete
+    agent: redirect
+    input:
+      action: delete
+      slug: "mylink"
+    config:
+      kvBinding: REDIRECTS_KV
+```
+
+## Customization
+
+### Change Slug Algorithm
+
+Edit `agents/system/redirect/redirect.ts`:
+
+```typescript
+function customAlphabet(alphabet: string, size: number): string {
+  // Replace with your preferred algorithm
+  // Options:
+  // - UUID: crypto.randomUUID()
+  // - Base62: Custom base62 encoding
+  // - Hashids: Hash-based IDs
+  // - Sequential: Counter-based
+
+  const array = new Uint8Array(size)
+  crypto.getRandomValues(array)
+  let result = ''
+  for (let i = 0; i < size; i++) {
+    result += alphabet[array[i] % alphabet.length]
+  }
+  return result
+}
+```
+
+### Add Analytics Tracking
+
+Edit `agents/system/redirect/redirect.ts` in the `resolve` function:
+
+```typescript
+async function resolve(
+  kv: KVNamespace,
+  input: RedirectInput,
+  ctx: AgentExecutionContext,
+  config: RedirectConfig
+): Promise<RedirectOutput> {
+  // ... existing code ...
+
+  // Add analytics tracking
+  if (entry) {
+    await logRedirectEvent(ctx, {
+      slug: input.slug,
+      targetUrl: entry.targetUrl,
+      timestamp: new Date().toISOString(),
+      userAgent: ctx.request?.headers.get('user-agent'),
+      referer: ctx.request?.headers.get('referer'),
+    })
+  }
+
+  return {
+    success: true,
+    found: true,
+    targetUrl: entry.targetUrl,
+    statusCode: entry.statusCode,
+  }
+}
+```
+
+### Add Custom Metadata Fields
+
+Edit `agents/system/redirect/redirect.yaml`:
+
+```yaml
+schema:
+  input:
+    properties:
+      metadata:
+        type: object
+        properties:
+          createdBy:
+            type: string
+          campaign:
+            type: string
+          tags:
+            type: array
+          # Add your custom fields
+          department:
+            type: string
+          region:
+            type: string
+          customId:
+            type: string
+```
+
+### Custom Error Pages
+
+Edit `ensembles/system/redirects/resolve.yaml`:
+
+```yaml
+output:
+  # Not found - redirect to custom 404
+  - when: ${{ agents.lookup.output.error == 'not_found' }}
+    redirect:
+      url: /404?slug=${{ trigger.params.slug }}
+      status: 302
+
+  # Expired - show custom page
+  - when: ${{ agents.lookup.output.error == 'expired' }}
+    redirect:
+      url: /expired
+      status: 302
+```
+
+### Add Rate Limiting
+
+```yaml
+trigger:
+  - type: http
+    path: /api/v1/redirects
+    methods: [POST]
+    auth:
+      requirement: required
+    rateLimit:
+      requests: 10
+      window: 60  # 10 requests per minute
+```
+
+### Add Webhook Notifications
+
+```yaml
+agents:
+  - name: create
+    agent: redirect
+    input:
+      action: create
+      targetUrl: ${{ input.targetUrl }}
+      type: ${{ input.type }}
+
+  - name: notify
+    condition: ${{ agents.create.output.success }}
+    operation: http
+    config:
+      url: ${{ env.WEBHOOK_URL }}
+      method: POST
+      body:
+        event: redirect_created
+        data: ${{ agents.create.output.redirect }}
+```
+
+## Common Use Cases
+
+### Email Campaign Links
+
+```yaml
+agents:
+  - name: create-campaign-links
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://example.com/promo"
+      type: expiring
+      expiresIn: 604800  # 7 days
+      metadata:
+        campaign: "summer-2024"
+        channel: "email"
+        createdBy: "marketing-automation"
+```
+
+### Password Reset Links
+
+```yaml
+agents:
+  - name: create-reset-link
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://app.com/reset?token=${{ input.resetToken }}"
+      type: single-use
+      expiresIn: 3600  # 1 hour
+      metadata:
+        userId: "${{ input.userId }}"
+        purpose: "password-reset"
+```
+
+### QR Code Links
+
+```yaml
+agents:
+  - name: create-qr-link
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://example.com/menu"
+      type: permanent
+      customSlug: "menu-table-5"
+      statusCode: 301
+      metadata:
+        location: "restaurant"
+        table: "5"
+```
+
+### A/B Testing
+
+```yaml
+agents:
+  - name: create-variant-a
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://example.com/landing-a"
+      customSlug: "promo"
+      metadata:
+        variant: "a"
+
+  - name: create-variant-b
+    agent: redirect
+    input:
+      action: create
+      targetUrl: "https://example.com/landing-b"
+      customSlug: "promo-b"
+      metadata:
+        variant: "b"
+```
+
+## Best Practices
+
+### 1. Choose the Right Link Type
+
+- **Permanent**: Public links, documentation, long-term campaigns
+- **Expiring**: Time-sensitive promotions, temporary access
+- **Single-use**: Magic links, password resets, secure tokens
+
+### 2. Set Appropriate Expiration Times
+
+```yaml
+expiresIn: 300      # 5 minutes - OTP codes
+expiresIn: 3600     # 1 hour - password resets
+expiresIn: 86400    # 24 hours - daily deals
+expiresIn: 604800   # 7 days - email campaigns
+expiresIn: 2592000  # 30 days - monthly access
+```
+
+### 3. Use Metadata for Organization
+
+```yaml
+metadata:
+  campaign: "spring-sale-2024"
+  channel: "email"
+  segment: "premium-users"
+  createdBy: "marketing-automation"
+  region: "us-west"
+```
+
+### 4. Choose Status Codes Wisely
+
+- **301**: Permanent redirect (cached by browsers)
+- **302**: Temporary redirect (default, allows updates)
+- **307**: Temporary redirect (preserves HTTP method)
+- **308**: Permanent redirect (preserves HTTP method)
+
+### 5. Implement Analytics
+
+Track redirect usage:
+- Click counts
+- Geographic distribution
+- Device types
+- Referrer sources
+- Time-based patterns
+
+### 6. Monitor and Clean Up
+
+- List unused redirects periodically
+- Remove expired redirects manually if needed
+- Archive old campaign data
+- Monitor KV storage usage
+
+### 7. Secure Custom Slugs
+
+```yaml
+# Bad - guessable
+customSlug: "admin"
+customSlug: "reset-password"
+
+# Good - random or namespaced
+customSlug: "admin-x9K2p"
+customSlug: "reset-pwd-m7kP2xQ"
+```
+
+## Error Handling
+
+All errors include descriptive messages:
+
+```typescript
+// Not found
+{
+  "success": true,
+  "found": false,
+  "error": "not_found"
+}
+
+// Expired
+{
+  "success": true,
+  "found": false,
+  "error": "expired"
+}
+
+// Already used
+{
+  "success": true,
+  "found": false,
+  "error": "already_used"
+}
+
+// Slug taken
+{
+  "success": false,
+  "error": "slug_taken",
+  "errorMessage": "Slug \"mylink\" already exists"
+}
+
+// Invalid URL
+{
+  "success": false,
+  "error": "invalid_url",
+  "errorMessage": "Invalid targetUrl format"
+}
+
+// Configuration error
+{
+  "success": false,
+  "error": "binding_not_found",
+  "errorMessage": "KV binding \"REDIRECTS_KV\" not found"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Slug Generator" icon="hashtag" href="/conductor/starter-kit/slug">
+    Generate URL-safe slugs
+  </Card>
+  <Card title="Starter Kit Overview" icon="cube" href="/conductor/starter-kit/overview">
+    Explore other starter kit components
+  </Card>
+  <Card title="KV Storage" icon="database" href="/conductor/operations/storage">
+    Learn about Cloudflare KV
+  </Card>
+  <Card title="Triggers" icon="globe" href="/conductor/core-concepts/triggers">
+    Trigger configuration
+  </Card>
+</CardGroup>
