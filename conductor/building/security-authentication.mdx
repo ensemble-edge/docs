@@ -12,6 +12,7 @@ Conductor is **secure by default**. All API routes require authentication unless
 3. **Permission System** - Fine-grained access control
 4. **API Key Management** - CLI commands for key generation
 5. **Configuration** - Security settings in `conductor.config.ts`
+6. **SSRF Protection** - Built-in protection against server-side request forgery
 
 ## Two Execution Paths
 
@@ -289,6 +290,105 @@ route:
   auth:
     requirement: required
 ```
+
+## SSRF Protection
+
+Conductor includes **built-in SSRF (Server-Side Request Forgery) protection** for all HTTP operations. This prevents attackers from using your agents to probe internal network resources, cloud metadata services, or localhost.
+
+### How It Works
+
+When agents make HTTP requests using user-provided URLs, Conductor automatically validates the URL before making the request:
+
+```typescript
+// This happens automatically in agents that accept user URLs
+import { safeFetch, validateURL } from '@ensemble-edge/conductor'
+
+// safeFetch blocks requests to private IPs
+await safeFetch(userProvidedUrl)  // Throws if URL is unsafe
+
+// You can also validate URLs manually
+validateURL(url)  // Throws if URL points to private/internal address
+```
+
+### Blocked Address Ranges
+
+The following are automatically blocked:
+
+| Range | Description |
+|-------|-------------|
+| `127.0.0.0/8` | Localhost |
+| `10.0.0.0/8` | Private Class A |
+| `172.16.0.0/12` | Private Class B |
+| `192.168.0.0/16` | Private Class C |
+| `169.254.0.0/16` | Link-local (AWS/GCP/Azure metadata service) |
+| `0.0.0.0/8` | Current network |
+| `::1` | IPv6 localhost |
+| `fc00::/7` | IPv6 unique local |
+| `fe80::/10` | IPv6 link-local |
+| `localhost`, `*.local`, `*.internal` | Internal hostnames |
+
+### Bypassing SSRF Protection (Use Carefully)
+
+In rare cases where you need to access internal resources (e.g., internal microservices), you can bypass SSRF protection:
+
+```typescript
+import { safeFetch } from '@ensemble-edge/conductor'
+
+// WARNING: Only use this for trusted, hardcoded URLs
+// Never use allowInternalRequests with user-provided URLs
+const response = await safeFetch(internalServiceUrl, {
+  allowInternalRequests: true,
+})
+```
+
+<Warning>
+  **Never** enable `allowInternalRequests` for user-provided URLs. This completely bypasses SSRF protection and could allow attackers to access internal services, cloud metadata, and sensitive resources.
+</Warning>
+
+### Universal Coverage
+
+SSRF protection is **enabled by default for ALL agents** - both built-in and user-created:
+
+| Agent Type | Coverage |
+|------------|----------|
+| **Built-in agents** (RAG, HITL) | ✅ Automatic |
+| **Template agents** (fetch, scrape, redirect, etc.) | ✅ Automatic |
+| **User-created agents** | ✅ Automatic via `context.fetch` |
+
+When your agent handler receives the `AgentExecutionContext`, it includes a pre-configured `fetch` function with SSRF protection:
+
+```typescript
+// Your custom agent - SSRF protection is automatic
+export default async function(context: AgentExecutionContext) {
+  const { fetch, input } = context
+
+  // This fetch is SSRF-protected - blocks private IPs automatically
+  const response = await fetch(input.userProvidedUrl)
+  return { data: await response.json() }
+}
+```
+
+### Disabling SSRF Protection (Per-Agent)
+
+In rare cases, you can disable SSRF protection for a specific agent:
+
+```yaml
+# agent.yaml
+name: internal-service-proxy
+operation: code
+handler: ./proxy.ts
+security:
+  ssrf: false  # ⚠️ Disables SSRF protection for this agent only
+```
+
+<Warning>
+  Only disable SSRF protection for agents that exclusively make requests to hardcoded, trusted URLs.
+  Never disable for agents that accept user-provided URLs.
+</Warning>
+
+For hardcoded API endpoints (like Twilio, Resend, OpenAI), you can use regular `fetch()` directly since the URLs are trusted.
+
+---
 
 ## Security Best Practices
 
