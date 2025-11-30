@@ -984,6 +984,83 @@ const customSettings = ctx.config.myCustomSection
 
 ## Type Definitions
 
+### EnsembleDefinition
+
+```typescript
+interface EnsembleDefinition {
+  name: string
+  description?: string
+  apiExecutable?: boolean        // Control Execute API access (default: true)
+  trigger?: TriggerConfig[]
+  inputs?: Record<string, InputDefinition>
+  state?: StateConfig
+  agents: AgentStep[]
+  output?: OutputConfig
+}
+```
+
+### AgentDefinition
+
+```typescript
+interface AgentDefinition {
+  name: string
+  description?: string
+  apiExecutable?: boolean        // Control Execute API access (default: true)
+  inputs?: Record<string, InputDefinition>
+  operations: OperationConfig[]
+  outputs?: Record<string, string>
+}
+```
+
+### OutputConfig
+
+```typescript
+interface OutputConfig {
+  status?: number
+  headers?: Record<string, string>
+  format?: OutputFormat | FormatType
+  body?: Record<string, unknown>
+}
+```
+
+### OutputFormat
+
+```typescript
+type FormatType =
+  | 'json'      // application/json
+  | 'text'      // text/plain
+  | 'html'      // text/html
+  | 'xml'       // application/xml
+  | 'csv'       // text/csv
+  | 'markdown'  // text/markdown
+  | 'yaml'      // application/x-yaml
+  | 'ics'       // text/calendar
+  | 'rss'       // application/rss+xml
+  | 'atom'      // application/atom+xml
+
+interface OutputFormat {
+  type: FormatType
+  extract?: string               // Field to extract from body for serialization
+}
+```
+
+### ApiConfig
+
+Project-level configuration for Execute API access control.
+
+```typescript
+interface ApiConfig {
+  execution?: {
+    agents?: {
+      requireExplicit?: boolean  // When true, agents must have apiExecutable: true
+    }
+    ensembles?: {
+      requireExplicit?: boolean  // When true, ensembles must have apiExecutable: true
+    }
+  }
+}
+```
+
 ### RetryOptions
 
 ```typescript

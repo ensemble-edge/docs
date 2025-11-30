@@ -1305,6 +1305,107 @@ trigger:
 | `options[].required` | `boolean` | No | Whether option is required (default: `false`) |
 | `options[].description` | `string` | No | Option description |
 
+## Response Formats
+
+The `format` field in the `output` block controls response serialization and Content-Type headers. Use this for non-JSON responses like CSV, XML, YAML, etc.
+
+### Format Types
+
+| Type | Content-Type | Description |
+|------|--------------|-------------|
+| `json` | `application/json` | JSON serialization (default) |
+| `text` | `text/plain` | Plain text |
+| `html` | `text/html` | HTML content |
+| `xml` | `application/xml` | XML content |
+| `csv` | `text/csv` | CSV serialization from arrays |
+| `markdown` | `text/markdown` | Markdown content |
+| `yaml` | `application/x-yaml` | YAML serialization |
+| `ics` | `text/calendar` | iCalendar format |
+| `rss` | `application/rss+xml` | RSS feed |
+| `atom` | `application/atom+xml` | Atom feed |
+
+### CSV Export Example
+
+```yaml
+name: export-users
+trigger:
+  - type: http
+    path: /export/users.csv
+    methods: [GET]
+    public: true
+
+agents:
+  - name: fetch-users
+    operation: data
+    config:
+      backend: d1
+      query: SELECT id, name, email FROM users
+
+output:
+  status: 200
+  headers:
+    Content-Disposition: attachment; filename="users.csv"
+  format:
+    type: csv
+    extract: users
+  body:
+    users: ${fetch-users.output}
+```
+
+### YAML Config Example
+
+```yaml
+name: app-config
+trigger:
+  - type: http
+    path: /config.yaml
+    methods: [GET]
+    public: true
+
+agents:
+  - name: build-config
+    operation: transform
+    config:
+      expression: |
+        {
+          "version": "1.0",
+          "features": ["auth", "analytics"]
+        }
+
+output:
+  status: 200
+  format:
+    type: yaml
+    extract: config
+  body:
+    config: ${build-config.output}
+```
+
+### iCalendar Event
+
+```yaml
+name: calendar-event
+trigger:
+  - type: http
+    path: /event.ics
+    methods: [GET]
+    public: true
+
+output:
+  status: 200
+  headers:
+    Content-Disposition: attachment; filename="event.ics"
+  format: ics
+  body:
+    calendar: ${generate-event.output}
+```
+
+<Note>
+The `extract` option specifies which field from the body should be serialized. If not specified, the entire body is serialized.
+</Note>
+
+---
+
 ## Triggers vs API Routes
 
 Conductor provides two ways to execute ensembles:
@@ -1336,6 +1437,25 @@ curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/my-workflow
   -d '{"input": {}}'
 ```
 
+**API Execution Control:**
+
+You can control which ensembles are accessible via the Execute API using:
+
+1. **Project-level policy** in `conductor.config.ts`:
+   ```typescript
+   api: {
+     execution: {
+       ensembles: { requireExplicit: true }  // Require opt-in
+     }
+   }
+   ```
+
+2. **Per-ensemble control** via `apiExecutable`:
+   ```yaml
+   name: internal-workflow
+   apiExecutable: false  # Prevent Execute API access
+   ```
+
 **Key Differences:**
 
 | Feature | Triggers | API Routes |
@@ -1344,6 +1464,7 @@ curl -X POST https://your-worker.workers.dev/api/v1/execute/ensemble/my-workflow
 | Default Auth | Requires `public: true` or `auth` | Requires auth (secure by default) |
 | Use Case | Public APIs, webhooks | Service-to-service, internal |
 | Permissions | Per-trigger auth | Permission-based scoping |
+| Access Control | Trigger config | `apiExecutable` flag |
 
 See [Security & Authentication](/conductor/building/security-authentication) for complete auth documentation.
 

@@ -308,8 +308,86 @@ export default {
      */
     autoPermissions: false,
   },
+
+  /**
+   * API execution controls
+   * Controls which agents and ensembles can be executed via the Execute API
+   */
+  api: {
+    execution: {
+      agents: {
+        /**
+         * When true, agents must have apiExecutable: true to be executable via API
+         * When false (default), all agents are executable unless apiExecutable: false
+         */
+        requireExplicit: false,
+      },
+      ensembles: {
+        /**
+         * When true, ensembles must have apiExecutable: true to be executable via API
+         * When false (default), all ensembles are executable unless apiExecutable: false
+         */
+        requireExplicit: false,
+      },
+    },
+  },
 }
 ```
+
+### API Execution Access Control
+
+The `apiExecutable` flag on agents and ensembles controls whether they can be executed via the Execute API (`/api/v1/execute/*`).
+
+**Per-Agent/Ensemble Configuration:**
+
+```yaml
+# Ensemble that cannot be executed via API
+name: internal-workflow
+apiExecutable: false  # Prevents API execution
+
+# Agent that requires explicit opt-in
+agent: sensitive-operation
+apiExecutable: true   # Required when requireExplicit: true
+```
+
+**Behavior Matrix:**
+
+| `requireExplicit` | `apiExecutable` | Result |
+|-------------------|-----------------|--------|
+| `false` (default) | `undefined` | ✅ Allowed |
+| `false` | `true` | ✅ Allowed |
+| `false` | `false` | ❌ Denied |
+| `true` | `undefined` | ❌ Denied |
+| `true` | `true` | ✅ Allowed |
+| `true` | `false` | ❌ Denied |
+
+**Example: Strict Production Setup:**
+
+```typescript
+// conductor.config.ts
+export default {
+  api: {
+    execution: {
+      ensembles: { requireExplicit: true },  // Require opt-in
+      agents: { requireExplicit: true },
+    },
+  },
+}
+```
+
+```yaml
+# This ensemble CAN be executed via API
+name: public-workflow
+apiExecutable: true
+
+# This ensemble CANNOT be executed via API (no apiExecutable)
+name: internal-only
+# apiExecutable defaults to undefined, so blocked when requireExplicit: true
+```
+
+<Note>
+When `requireExplicit: true`, you get an allowlist model - only explicitly marked agents/ensembles are accessible via the Execute API. This is recommended for production environments.
+</Note>
 
 ### Docs Authentication
 

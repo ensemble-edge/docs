@@ -16,6 +16,8 @@ ensemble: string                    # Required: Ensemble name
 
 description: string                 # Optional: Description
 
+apiExecutable: boolean              # Optional: Control Execute API access (default: true)
+
 trigger:                           # Optional: Trigger configuration
   - type: http | webhook | mcp | email | queue | cron | build | cli
     # See Trigger Types section below for type-specific fields
@@ -56,7 +58,14 @@ agents:                            # Required: Agent list
         field: value
 
 output:                            # Optional: Output definition
-  key: value
+  status: number                   # HTTP status code
+  headers:                         # Response headers
+    key: value
+  format:                          # Response format config
+    type: json | text | html | xml | csv | markdown | yaml | ics | rss | atom
+    extract: string                # Field to extract from body
+  body:                            # Response body
+    key: value
 ```
 
 ## Agent Schema
@@ -65,6 +74,8 @@ output:                            # Optional: Output definition
 agent: string                      # Required: Agent name
 
 description: string                # Optional: Description
+
+apiExecutable: boolean             # Optional: Control Execute API access (default: true)
 
 inputs:                            # Optional: Input definitions
   input_name:
@@ -626,6 +637,156 @@ output:
   total: ${items.reduce((sum, item) => sum + item.price, 0)}
   count: ${items.length}
 ```
+
+## Output Format
+
+The `format` field in the output block controls response serialization and Content-Type headers. This is the recommended approach for non-JSON responses.
+
+### Format Types
+
+| Type | Content-Type | Description |
+|------|--------------|-------------|
+| `json` | `application/json` | JSON serialization (default) |
+| `text` | `text/plain` | Plain text |
+| `html` | `text/html` | HTML content |
+| `xml` | `application/xml` | XML content |
+| `csv` | `text/csv` | CSV serialization from arrays |
+| `markdown` | `text/markdown` | Markdown content |
+| `yaml` | `application/x-yaml` | YAML serialization |
+| `ics` | `text/calendar` | iCalendar format |
+| `rss` | `application/rss+xml` | RSS feed |
+| `atom` | `application/atom+xml` | Atom feed |
+
+### Simple Format
+
+```yaml
+output:
+  status: 200
+  format: text
+  body:
+    content: "Hello, World!"
+```
+
+### Format with Extract
+
+Use `extract` to specify which field from the body should be serialized:
+
+```yaml
+output:
+  status: 200
+  format:
+    type: csv
+    extract: users
+  body:
+    users: ${fetch-users.output}
+    metadata: ${meta.output}
+```
+
+### Format Examples
+
+**CSV Export:**
+```yaml
+output:
+  status: 200
+  headers:
+    Content-Disposition: attachment; filename="data.csv"
+  format:
+    type: csv
+    extract: records
+  body:
+    records: ${query.output}
+```
+
+**YAML Config:**
+```yaml
+output:
+  status: 200
+  format:
+    type: yaml
+    extract: config
+  body:
+    config: ${build-config.output}
+```
+
+**iCalendar Event:**
+```yaml
+output:
+  status: 200
+  headers:
+    Content-Disposition: attachment; filename="event.ics"
+  format: ics
+  body:
+    calendar: ${generate-ics.output}
+```
+
+**RSS Feed:**
+```yaml
+output:
+  status: 200
+  format: rss
+  body:
+    feed: ${build-feed.output}
+```
+
+---
+
+## API Execution Configuration
+
+Control which agents and ensembles can be executed via the Execute API (`/api/v1/execute/agent/*` and `/api/v1/execute/ensemble/*`).
+
+### Project-Level Configuration
+
+In `conductor.config.ts`:
+
+```typescript
+const config: ConductorConfig = {
+  api: {
+    execution: {
+      agents: {
+        // When true, agents must have apiExecutable: true to be API executable
+        requireExplicit: false
+      },
+      ensembles: {
+        // When true, ensembles must have apiExecutable: true to be API executable
+        requireExplicit: false
+      }
+    }
+  }
+};
+```
+
+### Agent/Ensemble-Level Configuration
+
+Use `apiExecutable` to control individual agent or ensemble access:
+
+```yaml
+# Explicitly allow API execution
+agent: my-public-agent
+apiExecutable: true
+```
+
+```yaml
+# Explicitly deny API execution
+ensemble: internal-workflow
+apiExecutable: false
+```
+
+### Behavior Matrix
+
+| `requireExplicit` | `apiExecutable` | Result |
+|-------------------|-----------------|--------|
+| `false` (default) | `undefined` | ✅ Allowed |
+| `false` | `true` | ✅ Allowed |
+| `false` | `false` | ❌ Denied |
+| `true` | `undefined` | ❌ Denied |
+| `true` | `true` | ✅ Allowed |
+| `true` | `false` | ❌ Denied |
+
+<Note>
+When `requireExplicit: true`, agents/ensembles must explicitly opt-in to API execution. This is recommended for production environments where you want fine-grained control over which workflows are externally accessible.
+</Note>
+
+---
 
 ## Examples
 

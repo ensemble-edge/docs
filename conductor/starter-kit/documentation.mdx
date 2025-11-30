@@ -132,23 +132,24 @@ output:
   - when: ${{ flow.render.output.contentType == 'text/html' }}
     status: 200
     headers:
-      Content-Type: text/html
       Cache-Control: public, max-age=300
-    rawBody: ${{ flow.render.output.html }}
+    format: html
+    body:
+      content: ${{ flow.render.output.html }}
 
   # JSON responses (OpenAPI)
   - when: ${{ flow.render.output.specJson }}
     status: 200
-    headers:
-      Content-Type: application/json
     body: ${{ flow.render.output.spec }}
 
   # YAML responses (OpenAPI)
   - when: ${{ flow.render.output.specYaml }}
     status: 200
-    headers:
-      Content-Type: text/yaml
-    rawBody: ${{ flow.render.output.specYaml }}
+    format:
+      type: yaml
+      extract: spec
+    body:
+      spec: ${{ flow.render.output.specYaml }}
 
   # Not found
   - when: ${{ flow.render.output.error == 'not_found' }}

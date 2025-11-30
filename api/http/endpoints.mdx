@@ -70,9 +70,27 @@ Authorization: Bearer {token}
 - `200` - Success
 - `400` - Invalid request
 - `401` - Unauthorized
+- `403` - Forbidden (ensemble not executable via API)
 - `404` - Ensemble not found
 - `408` - Timeout
 - `500` - Server error
+
+### Access Control
+
+Ensembles can be configured to allow or deny Execute API access using the `apiExecutable` flag:
+
+```yaml
+# ensemble.yaml
+name: internal-workflow
+apiExecutable: false  # Prevents API execution
+```
+
+**Behavior:**
+- By default, all ensembles are executable via the Execute API
+- Set `apiExecutable: false` to block API execution
+- For stricter control, set `api.execution.ensembles.requireExplicit: true` in `conductor.config.ts` to require explicit opt-in
+
+See [Security & Authentication](/conductor/building/security-authentication#api-execution-access-control) for full configuration options.
 
 ### Example
 
@@ -126,6 +144,33 @@ Authorization: Bearer {token}
   ]
 }
 ```
+
+**Status Codes**:
+- `200` - Success
+- `400` - Invalid request
+- `401` - Unauthorized
+- `403` - Forbidden (agent not executable via API or direct execution disabled)
+- `404` - Agent not found
+- `500` - Server error
+
+### Access Control
+
+Agents can be configured to allow or deny Execute API access using the `apiExecutable` flag:
+
+```yaml
+# agents/sensitive-operation.yaml
+name: sensitive-operation
+operation: code
+handler: ./handler.ts
+apiExecutable: false  # Prevents API execution
+```
+
+**Behavior:**
+- By default, all agents are executable via the Execute API (if direct agent execution is enabled)
+- Set `apiExecutable: false` to block API execution
+- For stricter control, set `api.execution.agents.requireExplicit: true` in `conductor.config.ts` to require explicit opt-in
+
+See [Security & Authentication](/conductor/building/security-authentication#api-execution-access-control) for full configuration options.
 
 ## List Ensembles
 
@@ -422,6 +467,7 @@ All errors follow this format:
 **Error Codes**:
 - `INVALID_INPUT` - Invalid request data
 - `UNAUTHORIZED` - Missing/invalid auth token
+- `FORBIDDEN` - Resource not accessible (e.g., `apiExecutable: false`)
 - `NOT_FOUND` - Resource not found
 - `TIMEOUT` - Execution timeout
 - `RATE_LIMIT_EXCEEDED` - Rate limit hit

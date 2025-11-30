@@ -514,26 +514,45 @@ output:
     body:
       data: ${process.output}
 
-  # YAML response
+  # YAML response using format field
   - when: ${format === 'yaml'}
     status: 200
     headers:
-      Content-Type: text/yaml
       X-Generated-At: ${new Date().toISOString()}
-    rawBody: ${yamlContent}
+    format:
+      type: yaml
+      extract: config
+    body:
+      config: ${yamlContent}
 
-  # CSV download
+  # CSV download using format field
   - when: ${format === 'csv'}
     status: 200
     headers:
-      Content-Type: text/csv
       Content-Disposition: 'attachment; filename="export.csv"'
-    rawBody: ${csvContent}
+    format:
+      type: csv
+      extract: data
+    body:
+      data: ${csvContent}
 ```
 
-### Raw Body Responses
+### Response Formats
 
-Use `rawBody` for non-JSON responses (XML, CSV, plain text, etc.):
+Use the `format` field to automatically serialize responses and set Content-Type headers:
+
+| Type | Content-Type | Description |
+|------|--------------|-------------|
+| `json` | `application/json` | JSON serialization (default) |
+| `text` | `text/plain` | Plain text |
+| `html` | `text/html` | HTML content |
+| `xml` | `application/xml` | XML content |
+| `csv` | `text/csv` | CSV serialization from arrays |
+| `markdown` | `text/markdown` | Markdown content |
+| `yaml` | `application/x-yaml` | YAML serialization |
+| `ics` | `text/calendar` | iCalendar format |
+| `rss` | `application/rss+xml` | RSS feed |
+| `atom` | `application/atom+xml` | Atom feed |
 
 ```yaml
 ensemble: data-export
@@ -547,51 +566,53 @@ agents:
       query: "SELECT * FROM exports WHERE id = ?"
       params: [${input.id}]
 
-  - name: format-data
-    operation: code
-    config:
-      handler: |
-        const { format, data } = context.input
-        if (format === 'xml') {
-          return { xml: `<data>${JSON.stringify(data)}</data>` }
-        } else if (format === 'csv') {
-          return { csv: data.map(row => Object.values(row).join(',')).join('\n') }
-        }
-        return { json: data }
-    input:
-      format: ${input.format}
-      data: ${fetch-data.output}
-
 output:
-  # XML response
-  - when: ${input.format === 'xml'}
-    status: 200
-    headers:
-      Content-Type: application/xml
-    rawBody: ${format-data.output.xml}
-
-  # CSV response
+  # CSV export - auto-serializes array to CSV
   - when: ${input.format === 'csv'}
     status: 200
     headers:
-      Content-Type: text/csv
-    rawBody: ${format-data.output.csv}
+      Content-Disposition: 'attachment; filename="export.csv"'
+    format:
+      type: csv
+      extract: records
+    body:
+      records: ${fetch-data.output}
+
+  # YAML export - auto-serializes object to YAML
+  - when: ${input.format === 'yaml'}
+    status: 200
+    format:
+      type: yaml
+      extract: data
+    body:
+      data: ${fetch-data.output}
 
   # JSON response (default)
   - status: 200
-    headers:
-      Content-Type: application/json
-    body: ${format-data.output.json}
+    body:
+      data: ${fetch-data.output}
 ```
 
-**When to use `rawBody`:**
-- Non-JSON content (XML, CSV, YAML, plain text)
-- Pre-serialized strings
-- Binary data (with proper encoding)
-- Custom content types
+**Format Options:**
 
-**When to use `body`:**
-- JSON responses (auto-serialized)
+```yaml
+# Simple format (just type)
+format: csv
+
+# Format with extraction
+format:
+  type: csv
+  extract: users  # Extract 'users' field from body for serialization
+```
+
+**When to use `format`:**
+- Non-JSON content (XML, CSV, YAML, plain text)
+- File downloads (CSV, iCalendar)
+- API documentation formats (RSS, Atom)
+- Automatic Content-Type handling
+
+**When to use `body` (default JSON):**
+- JSON API responses
 - Object/array data structures
 - Standard REST APIs
 
@@ -697,7 +718,7 @@ output:
 5. **Set proper headers** - Content-Type, Cache-Control, etc.
 6. **Handle authentication** - Return 401/403 for auth failures
 7. **Validate input** - Return 422 for validation errors
-8. **Use rawBody sparingly** - Prefer `body` for JSON APIs
+8. **Use format for non-JSON** - Use the `format` field for CSV, XML, YAML, etc.
 
 ## Real-World Patterns
 
