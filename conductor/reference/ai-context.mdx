@@ -597,10 +597,10 @@ Agents and ensembles have full access to the project configuration:
 // Read config
 const projectName = ctx.config.name
 const docsSettings = ctx.config.docs
-const authConfig = ctx.config.routing?.auth
+const observability = ctx.config.observability
 
 // Config is read-only at runtime
-// To modify settings, use the config component system
+// To modify settings, update conductor.config.ts and rebuild
 ```
 
 ### Eating Our Own Dog Food

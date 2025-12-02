@@ -274,17 +274,7 @@ output:
   _raw: ${render.output}
 ```
 
-Then configure auth rules in `conductor.config.ts`:
-
-```typescript
-export default {
-  auth: {
-    rules: [
-      { path: '/docs/internal/**', auth: 'bearer' },
-    ]
-  }
-};
-```
+The `public: false` setting enforces authentication. Conductor validates Bearer tokens or API keys from request headers automatically.
 
 ## Step 5: Use Handlebars Templating
 

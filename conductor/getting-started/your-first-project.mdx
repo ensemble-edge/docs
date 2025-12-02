@@ -39,7 +39,7 @@ The `init` command creates a complete, ready-to-run project:
 
 ```
 my-conductor-app/
-├── conductor.config.ts    # Main configuration & auth rules
+├── conductor.config.ts    # Project settings & observability
 ├── wrangler.toml         # Cloudflare Workers config
 ├── src/
 │   └── index.ts          # Entry point (custom endpoints)
@@ -339,30 +339,41 @@ watch_dirs = ["src", "agents", "ensembles", "docs"]
 
 ### conductor.config.ts
 
-This file controls routing, authentication, and framework behavior:
+This file controls project settings, observability, and API execution controls:
 
 ```typescript
-export default {
-  auth: {
-    rules: [
-      // Public routes
-      { path: '/examples', auth: 'none' },
-      { path: '/docs/**', auth: 'none' },
+import type { ConductorConfig } from '@ensemble-edge/conductor';
 
-      // Protected routes
-      { path: '/dashboard', auth: 'cookie' },
-      { path: '/api/**', auth: 'bearer' },
-    ]
+const config: ConductorConfig = {
+  name: 'my-conductor-project',
+  version: '1.0.0',
+
+  // Documentation UI settings
+  docs: {
+    ui: 'stoplight',
+    cache: { enabled: true, ttl: 3600 }
   },
 
-  pages: {
-    templateEngine: 'liquid',
-    cacheControl: 'public, max-age=1800'
+  // Observability
+  observability: {
+    logging: { enabled: true, level: 'info' },
+    metrics: { enabled: true }
+  },
+
+  // API execution controls (optional)
+  api: {
+    execution: {
+      // When true, agents/ensembles must have apiExecutable: true
+      agents: { requireExplicit: false },
+      ensembles: { requireExplicit: false }
+    }
   }
 };
+
+export default config;
 ```
 
-See the generated file for more options.
+**Note**: Authentication is configured per-route in each ensemble's `trigger:` config using `public: true/false`. See the examples above.
 
 ## Deploy to Cloudflare
 

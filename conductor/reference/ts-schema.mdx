@@ -972,12 +972,12 @@ Access the full project configuration from any agent:
 const projectName = ctx.config.name
 const version = ctx.config.version
 
-// Routing configuration
-const authConfig = ctx.config.routing?.auth
-const corsSettings = ctx.config.routing?.cors
+// Documentation settings
+const docsUI = ctx.config.docs?.ui
+const docsCache = ctx.config.docs?.cache
 
-// Custom configuration sections
-const customSettings = ctx.config.myCustomSection
+// Observability settings
+const loggingLevel = ctx.config.observability?.logging
 ```
 
 ---

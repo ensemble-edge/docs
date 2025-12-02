@@ -124,19 +124,10 @@ trigger:
 trigger:
   - type: http
     path: /docs/internal
-    public: false       # Requires authentication
+    public: false       # Requires authentication (Bearer token, API key, etc.)
 ```
 
-Then configure auth rules in `conductor.config.ts`:
-```typescript
-export default {
-  auth: {
-    rules: [
-      { path: '/docs/internal/**', auth: 'bearer' },
-    ]
-  }
-};
-```
+The `public: false` setting enforces authentication. Conductor validates Bearer tokens or API keys from request headers automatically.
 
 ### UI Framework
 
