@@ -395,14 +395,21 @@ pnpm run build
 Create `ensembles/greeting-workflow.yaml`:
 
 ```yaml
-ensemble: greeting-workflow
+name: greeting-workflow
 description: Generate personalized greetings
+
+trigger:
+  - type: cli
+    command: greet
 
 agents:
   - name: greet
     operation: code
     config:
       handler: greeter  # Reference your new agent
+
+flow:
+  - agent: greet
 
 output:
   greeting: ${greet.output.greeting}
@@ -494,8 +501,12 @@ schema:
 Create `ensembles/analyze-text.yaml`:
 
 ```yaml
-ensemble: analyze-text
+name: analyze-text
 description: Analyze text with AI
+
+trigger:
+  - type: cli
+    command: analyze
 
 agents:
   - name: analyze
@@ -505,6 +516,9 @@ agents:
       model: claude-3-5-sonnet-20241022
       prompt: |
         Analyze: ${input.text}
+
+flow:
+  - agent: analyze
 
 output:
   analysis: ${analyze.output}
@@ -969,9 +983,10 @@ Once you have YAML agents with TypeScript handlers, you can reference them in Ty
 
 ```typescript
 // ensembles/data-pipeline.ts
-import { createEnsemble, step } from '@anthropic/conductor'
+import { createEnsemble, step } from '@ensemble-edge/conductor'
 
 const dataPipeline = createEnsemble('data-pipeline')
+  .trigger({ type: 'cli', command: 'pipeline' })
   .addStep(
     step('fetch')
       .agent('fetcher')  // References agents/user/fetcher/agent.yaml

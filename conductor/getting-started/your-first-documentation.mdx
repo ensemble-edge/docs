@@ -1,6 +1,6 @@
 ---
 title: Your First Documentation
-description: Set up API documentation using Conductor's docs/ directory
+description: Set up API documentation using Conductor's docs system
 ---
 
 **Estimated Time:** 10-15 minutes
@@ -10,86 +10,44 @@ description: Set up API documentation using Conductor's docs/ directory
 
 By the end of this guide, you'll understand how to:
 
-- 📖 Create a `docs/` directory with auto-generated API documentation
-- ✍️ Write markdown documentation pages with frontmatter
-- 🎨 Customize branding, themes, and navigation
-- 🔐 Control documentation access (public, authenticated, admin)
+- 📖 Create a `docs/` directory with auto-discovered markdown pages
+- ✍️ Write markdown documentation with frontmatter
+- 🎨 Customize themes and navigation via ensemble config
+- 🔐 Control documentation access with triggers
 - 🔄 Use Handlebars templating for dynamic content
 
 ## Understanding Documentation in Conductor
 
 The `docs/` directory is a **first-class component directory** in Conductor, just like `agents/` and `ensembles/`. It provides:
 
-- **Auto-generated OpenAPI docs** from your agents and ensembles
-- **Markdown pages** with YAML frontmatter for custom documentation
+- **Auto-discovered markdown pages** - Just add `.md` files
+- **Built-in docs-serve ensemble** - Handles HTTP routing automatically
 - **Multiple UI frameworks** (Stoplight, Redoc, Swagger, Scalar, RapiDoc)
-- **Built-in navigation** with auto-discovery and manual ordering
+- **Auto-generated navigation** from file structure
 
 ```
 your-project/
 ├── docs/                    # First-class docs directory
-│   ├── docs.yaml            # Configuration (required)
 │   ├── getting-started.md   # Custom page
 │   └── authentication.md    # Another page
+├── ensembles/               # Workflows (docs-serve is built-in)
 ├── agents/                  # Your agents
-├── ensembles/               # Your ensembles
 └── conductor.config.ts
 ```
+
+<Note>
+The `docs-serve` ensemble is included in Conductor's system templates. It automatically handles routing docs to `/docs/*` paths.
+</Note>
 
 ## Step 1: Create the docs/ Directory
 
 ### Initialize Your Docs
 
-Create the docs directory with a configuration file:
+Create the docs directory with your first markdown file:
 
 ```bash
 mkdir -p docs
 ```
-
-Create `docs/docs.yaml`:
-
-```yaml
-# docs/docs.yaml
-name: docs
-description: API Documentation
-
-route:
-  path: /docs
-  auth:
-    requirement: public
-
-title: My API Documentation
-ui: stoplight
-
-theme:
-  primaryColor: '#3B82F6'
-  darkMode: false
-```
-
-### Test It Works
-
-Start your dev server:
-
-```bash
-pnpm run dev
-```
-
-Visit the documentation:
-
-```bash
-curl http://localhost:8787/docs
-
-# Or open in browser:
-open http://localhost:8787/docs
-```
-
-<Note>
-You should see auto-generated documentation of your API endpoints!
-</Note>
-
-## Step 2: Add Documentation Pages
-
-### Create a Getting Started Page
 
 Create `docs/getting-started.md`:
 
@@ -137,6 +95,30 @@ curl -X GET https://api.example.com/v1/users \
 }
 ```
 ```
+
+### Test It Works
+
+Start your dev server:
+
+```bash
+pnpm run build
+pnpm run dev
+```
+
+Visit the documentation:
+
+```bash
+curl http://localhost:8787/docs
+
+# Or open in browser:
+open http://localhost:8787/docs
+```
+
+<Note>
+You should see your markdown pages rendered along with auto-generated API documentation!
+</Note>
+
+## Step 2: Add More Documentation Pages
 
 ### Create an Authentication Page
 
@@ -187,109 +169,63 @@ Each markdown file can have YAML frontmatter:
 | `icon` | string | Icon for navigation (emoji or icon name) |
 | `category` | string | Category for grouping |
 
-## Step 3: Configure Navigation
+## Step 3: Customize Documentation via Ensemble Config
 
-### Simple Ordering
+The `docs-serve` ensemble handles routing and configuration. To customize your documentation, you can create a custom docs ensemble:
 
-Update `docs/docs.yaml` to control page order:
-
-```yaml
-# docs/docs.yaml
-name: docs
-description: API Documentation
-
-route:
-  path: /docs
-  auth:
-    requirement: public
-
-title: My API Documentation
-ui: stoplight
-
-nav:
-  order:
-    - getting-started    # First
-    - authentication     # Second
-    - guides/*           # All pages in guides/ folder
-    - tutorials/**       # Nested pages recursively
-
-  hide:
-    - internal-notes     # Hide specific pages
-    - drafts/*           # Hide entire folders
-```
-
-### Navigation Groups
-
-Organize into collapsible sections:
+Create `ensembles/docs-custom.yaml`:
 
 ```yaml
-nav:
-  groups:
-    - title: Getting Started
-      icon: 🚀
-      items:
-        - getting-started
-        - quickstart
-        - installation
+name: docs-custom
+description: Customized documentation
 
-    - title: Guides
-      icon: 📖
-      items:
-        - guides/*
+trigger:
+  - type: http
+    paths:
+      - path: /docs
+        methods: [GET]
+      - path: /docs/:slug
+        methods: [GET]
+      - path: /docs/openapi.json
+        methods: [GET]
+    public: true
 
-    - title: API Reference
-      icon: 📚
-      items:
-        - api
-        - agents
-        - ensembles
-      collapsed: true  # Collapsed by default
+flow:
+  - name: render
+    agent: docs
+    config:
+      title: My API Documentation
+      basePath: /docs
+      ui: scalar
+      theme:
+        primaryColor: '#1a73e8'
+        darkMode: true
+      nav:
+        showReserved:
+          agents: true
+          ensembles: true
+          api: true
+
+output:
+  _raw: ${render.output}
 ```
-
-### Reserved Sections
-
-Conductor auto-generates sections for your agents and ensembles:
-
-```yaml
-nav:
-  showReserved:
-    agents: true       # Auto-generated agents list
-    ensembles: true    # Auto-generated ensembles list
-    api: true          # OpenAPI reference
-
-  reservedPosition: bottom  # top | bottom
-
-  reservedLabels:
-    agents: "AI Agents"
-    ensembles: "Workflows"
-    api: "API Reference"
-```
-
-## Step 4: Customize Appearance
 
 ### Theme Configuration
 
-```yaml
-# docs/docs.yaml
-title: My API Documentation
-description: Complete API reference
+Configure the appearance via the ensemble's `flow[].config.theme`:
 
-theme:
-  primaryColor: '#1a73e8'  # Your brand color
-  darkMode: true
-  customCss: |
-    body {
-      font-family: 'Inter', sans-serif;
-    }
-    .sidebar {
-      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-    }
+```yaml
+config:
+  theme:
+    primaryColor: '#1a73e8'  # Your brand color
+    darkMode: true
 ```
 
 ### Choose a UI Framework
 
 ```yaml
-ui: stoplight  # Options: stoplight, redoc, swagger, scalar, rapidoc
+config:
+  ui: stoplight  # Options: stoplight, redoc, swagger, scalar, rapidoc
 ```
 
 | UI | Best For |
@@ -300,62 +236,57 @@ ui: stoplight  # Options: stoplight, redoc, swagger, scalar, rapidoc
 | `scalar` | Beautiful, customizable |
 | `rapidoc` | Fast, lightweight |
 
-### Add Logo and Favicon
-
-```yaml
-logo: /static/logo.svg
-favicon: /static/favicon.ico
-```
-
-## Step 5: Control Access
+## Step 4: Control Access
 
 ### Public Documentation
 
+The default `docs-serve` uses `public: true` on the trigger:
+
 ```yaml
-route:
-  path: /docs
-  auth:
-    requirement: public  # Anyone can access
+trigger:
+  - type: http
+    path: /docs
+    methods: [GET]
+    public: true  # Anyone can access
 ```
 
 ### Authenticated Documentation
 
-```yaml
-route:
-  path: /docs
-  auth:
-    requirement: authenticated  # Must be logged in
-```
-
-### Admin-Only Documentation
+For authenticated docs, create a custom ensemble:
 
 ```yaml
-route:
-  path: /docs/admin
-  auth:
-    requirement: admin  # Admin role required
+name: docs-internal
+description: Internal documentation (authenticated)
+
+trigger:
+  - type: http
+    path: /docs/internal
+    methods: [GET]
+    public: false  # Requires authentication
+
+flow:
+  - agent: docs
+    config:
+      title: Internal API Documentation
+      basePath: /docs/internal
+
+output:
+  _raw: ${render.output}
 ```
 
-### Multiple Documentation Sites
+Then configure auth rules in `conductor.config.ts`:
 
-You can have different docs for different audiences by creating multiple config files or using `include`/`exclude`:
-
-```yaml
-# Public docs - filter to public endpoints only
-route:
-  path: /docs/public
-  auth:
-    requirement: public
-
-include:
-  - /api/v1/public/*
-
-exclude:
-  - /api/v1/internal/*
-  - /admin/*
+```typescript
+export default {
+  auth: {
+    rules: [
+      { path: '/docs/internal/**', auth: 'bearer' },
+    ]
+  }
+};
 ```
 
-## Step 6: Use Handlebars Templating
+## Step 5: Use Handlebars Templating
 
 ### Dynamic Content
 
@@ -383,118 +314,57 @@ Check out our new beta features!
 
 ### Variables
 
-Variables come from your configuration and context:
+Variables come from your configuration context. These are passed through the docs agent's config.
+
+## Step 6: Navigation Configuration
+
+### Navigation Groups
+
+Organize into sections via the ensemble config:
 
 ```yaml
-# docs/docs.yaml
-variables:
-  projectName: MyApp
-  version: 2.0.0
-  showBetaFeatures: true
+config:
+  nav:
+    groups:
+      - title: Getting Started
+        icon: 🚀
+        items:
+          - getting-started
+          - quickstart
+          - installation
+
+      - title: Guides
+        icon: 📖
+        items:
+          - guides/*
+
+      - title: API Reference
+        icon: 📚
+        items:
+          - api
+          - agents
+          - ensembles
+        collapsed: true  # Collapsed by default
 ```
 
-## Step 7: Enable Caching
+### Reserved Sections
 
-For better performance in production:
+Conductor auto-generates sections for your agents and ensembles:
 
 ```yaml
-cache:
-  enabled: true
-  ttl: 300  # 5 minutes
-```
+config:
+  nav:
+    showReserved:
+      agents: true       # Auto-generated agents list
+      ensembles: true    # Auto-generated ensembles list
+      api: true          # OpenAPI reference
 
-Requires a KV binding in `wrangler.toml`:
+    reservedPosition: bottom  # top | bottom
 
-```toml
-[[kv_namespaces]]
-binding = "DOCS_CACHE"
-id = "your-kv-namespace-id"
-```
-
-## Step 8: Add AI Enhancement (Optional)
-
-Use AI to improve documentation descriptions:
-
-```yaml
-ai:
-  enabled: true
-  model: '@cf/meta/llama-3.1-8b-instruct'
-  provider: cloudflare
-  temperature: 0.3
-```
-
-Ensure Workers AI is bound in `wrangler.toml`:
-
-```toml
-[ai]
-binding = "AI"
-```
-
-## Complete Example
-
-Here's a full `docs/docs.yaml`:
-
-```yaml
-name: docs
-description: Complete API Documentation
-
-route:
-  path: /docs
-  auth:
-    requirement: public
-  priority: 50
-
-title: MyApp API Documentation
-ui: scalar
-
-theme:
-  primaryColor: '#1a73e8'
-  darkMode: true
-
-nav:
-  groups:
-    - title: Getting Started
-      icon: 🚀
-      items:
-        - getting-started
-        - authentication
-        - quickstart
-
-    - title: Guides
-      icon: 📖
-      items:
-        - guides/*
-
-    - title: Reference
-      icon: 📚
-      items:
-        - api
-        - agents
-        - ensembles
-
-  hide:
-    - internal-notes
-    - drafts/*
-
-  showReserved:
-    agents: true
-    ensembles: true
-    api: true
-  reservedPosition: bottom
-
-servers:
-  - url: https://api.myapp.com/v1
-    description: Production
-  - url: http://localhost:8787
-    description: Development
-
-cache:
-  enabled: true
-  ttl: 600
-
-ai:
-  enabled: true
-  model: '@cf/meta/llama-3.1-8b-instruct'
+    reservedLabels:
+      agents: "AI Agents"
+      ensembles: "Workflows"
+      api: "API Reference"
 ```
 
 ## Accessing Your Documentation
@@ -523,7 +393,6 @@ A well-organized docs directory:
 
 ```
 docs/
-├── docs.yaml              # Configuration
 ├── getting-started.md     # Entry point
 ├── authentication.md      # Auth guide
 ├── guides/
@@ -544,13 +413,12 @@ docs/
 **Problem:** `/docs` returns 404
 
 **Solutions:**
-1. Verify `docs/docs.yaml` exists
-2. Check the route path matches your URL
-3. Rebuild and restart:
+1. Verify `docs/` directory exists with at least one `.md` file
+2. Rebuild to trigger auto-discovery:
    ```bash
    pnpm run build && pnpm run dev
    ```
-4. Check logs for errors:
+3. Check logs for errors:
    ```bash
    npx wrangler tail
    ```
@@ -562,31 +430,30 @@ docs/
 **Solutions:**
 1. Check frontmatter syntax (must start with `---`)
 2. Verify file extension is `.md`
-3. Check `nav.hide` doesn't exclude the page
-4. Ensure `hidden: true` isn't set in frontmatter
+3. Check `hidden: true` isn't set in frontmatter
+4. Rebuild the project
 </Accordion>
 
 <Accordion title="Authentication Issues">
 **Problem:** Can't access authenticated docs
 
 **Solutions:**
-1. Verify auth configuration in `docs.yaml`
-2. Test with correct headers:
+1. Verify trigger has `public: false`
+2. Configure auth rules in `conductor.config.ts`
+3. Test with correct headers:
    ```bash
    curl -H "Authorization: Bearer TOKEN" \
-     http://localhost:8787/docs
+     http://localhost:8787/docs/internal
    ```
-3. Check auth middleware is configured in `conductor.config.ts`
 </Accordion>
 
 <Accordion title="Styling Not Applied">
 **Problem:** Theme colors not showing
 
 **Solutions:**
-1. Verify `theme` section in `docs.yaml`
+1. Verify `theme` section in ensemble config
 2. Check hex colors include `#` prefix
 3. Clear browser cache
-4. Check `customCss` syntax is valid
 </Accordion>
 </AccordionGroup>
 
@@ -609,40 +476,26 @@ docs/
 ### Security
 
 ✅ **Do:**
-- Separate public and internal documentation
-- Use authentication for sensitive endpoints
+- Use separate ensembles for public and internal documentation
+- Configure authentication via triggers
 - Sanitize examples (remove real API keys)
-- Review docs for leaked credentials
 
 ❌ **Don't:**
 - Expose admin endpoints publicly
 - Include real tokens in examples
-- Skip auth on sensitive documentation
-
-### Performance
-
-✅ **Do:**
-- Enable caching in production
-- Keep custom CSS minimal
-- Use CDN for static assets
-
-❌ **Don't:**
-- Generate docs on every request
-- Include massive images without optimization
 
 ## Summary
 
 You've learned how to:
 
-- ✅ Create a `docs/` directory with `docs.yaml`
+- ✅ Create a `docs/` directory with markdown files
 - ✅ Write markdown pages with frontmatter
-- ✅ Configure navigation with ordering and groups
-- ✅ Customize themes and branding
-- ✅ Control access with authentication
+- ✅ Customize themes and navigation via ensemble config
+- ✅ Control access with trigger configuration
 - ✅ Use Handlebars for dynamic content
 
 <Tip>
-The `docs/` directory is a first-class component in Conductor - just add your YAML config and markdown files, and documentation is automatically served!
+The `docs/` directory is a first-class component in Conductor - just add your markdown files and they're automatically discovered and served!
 </Tip>
 
 ## Next Steps

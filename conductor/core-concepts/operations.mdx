@@ -283,16 +283,6 @@ Render content for users.
     filename: report-${input.id}.pdf
 ```
 
-**page** - Full-stack pages:
-```yaml
-- name: dashboard
-  operation: page
-  config:
-    component: Dashboard
-    props:
-      data: ${fetch-data.output}
-```
-
 **form** - Form generation:
 ```yaml
 - name: contact-form

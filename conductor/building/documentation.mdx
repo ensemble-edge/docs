@@ -25,71 +25,117 @@ The `docs/` directory is a first-class component directory in Conductor that ser
 ```
 your-project/
 ├── docs/
-│   ├── docs.yaml           # Configuration file
-│   ├── getting-started.md  # Markdown page
+│   ├── getting-started.md  # Markdown page (auto-discovered)
 │   ├── authentication.md   # Another page
 │   └── guides/
 │       ├── quickstart.md
 │       └── advanced.md
+├── ensembles/              # docs-serve ensemble handles routing
 ├── agents/
-├── ensembles/
 └── conductor.config.ts
 ```
 
-## Basic Configuration
+## How It Works
 
-Create a `docs/docs.yaml` file:
+Documentation is served via the built-in `docs-serve` ensemble which handles HTTP routing automatically. Your markdown files in `docs/` are auto-discovered at build time.
 
-```yaml
-name: docs
-description: API Documentation for MyApp
+### Basic Setup
 
-route:
-  path: /docs           # Where docs are served
-  methods: [GET]
-  auth:
-    requirement: public
-  priority: 50
+1. Create markdown files in `docs/`:
 
-title: My API Documentation
-ui: stoplight
-
-theme:
-  primaryColor: '#3B82F6'
-  darkMode: true
+```bash
+mkdir -p docs
+echo "# Getting Started\n\nWelcome to the API!" > docs/getting-started.md
 ```
 
-Access your docs:
+2. Build and run:
+
+```bash
+pnpm run build && pnpm run dev
+```
+
+3. Access your docs:
+
 ```bash
 curl http://localhost:8787/docs
 ```
 
+## Customizing Documentation
+
+To customize your documentation, create a custom docs ensemble. This is where you configure themes, navigation, and UI framework.
+
+Create `ensembles/docs-custom.yaml`:
+
+```yaml
+name: docs-custom
+description: Customized documentation
+
+trigger:
+  - type: http
+    paths:
+      - path: /docs
+        methods: [GET]
+      - path: /docs/:slug
+        methods: [GET]
+      - path: /docs/openapi.json
+        methods: [GET]
+    public: true
+
+flow:
+  - name: render
+    agent: docs
+    config:
+      title: My API Documentation
+      basePath: /docs
+      ui: stoplight
+      theme:
+        primaryColor: '#3B82F6'
+        darkMode: true
+
+output:
+  _raw: ${render.output}
+```
+
 ## Configuration Reference
+
+All configuration is passed via the ensemble's `flow[].config`:
 
 ### Route Configuration
 
-Control where and how docs are served:
+Control where and how docs are served via the trigger:
 
 ```yaml
-route:
-  path: /docs           # URL path (default: /docs)
-  methods: [GET]        # HTTP methods (default: [GET])
-  auth:
-    requirement: public # public | authenticated | admin
-  priority: 50          # Route priority (default: 50)
+trigger:
+  - type: http
+    path: /docs         # URL path (default: /docs)
+    methods: [GET]
+    public: true        # true = public, false = requires auth
 ```
 
 **Change the path:**
 ```yaml
-route:
-  path: /api/reference  # Now served at /api/reference
+trigger:
+  - type: http
+    path: /api/reference  # Now served at /api/reference
 ```
 
 **Require authentication:**
 ```yaml
-route:
-  auth:
-    requirement: authenticated
+trigger:
+  - type: http
+    path: /docs/internal
+    public: false       # Requires authentication
+```
+
+Then configure auth rules in `conductor.config.ts`:
+```typescript
+export default {
+  auth: {
+    rules: [
+      { path: '/docs/internal/**', auth: 'bearer' },
+    ]
+  }
+};
 ```
 
 ### UI Framework
@@ -309,74 +355,84 @@ These routes are automatically generated:
 | `/docs/openapi.json` | OpenAPI spec in JSON format |
 | `/docs/openapi.yaml` | OpenAPI spec in YAML format |
 
-Control visibility in `docs.yaml`:
+Control visibility in your docs ensemble config:
 
 ```yaml
-nav:
-  showReserved:
-    agents: true
-    ensembles: true
-    api: true
+config:
+  nav:
+    showReserved:
+      agents: true
+      ensembles: true
+      api: true
 ```
 
 ## Complete Example
 
+Create `ensembles/docs-complete.yaml`:
+
 ```yaml
-# docs/docs.yaml
-name: docs
+name: docs-complete
 description: Complete API Documentation
 
-route:
-  path: /docs
-  auth:
-    requirement: public
+trigger:
+  - type: http
+    paths:
+      - path: /docs
+        methods: [GET]
+      - path: /docs/:slug
+        methods: [GET]
+      - path: /docs/openapi.json
+        methods: [GET]
+      - path: /docs/openapi.yaml
+        methods: [GET]
+    public: true
 
-title: MyApp API Documentation
-ui: scalar
+flow:
+  - name: render
+    agent: docs
+    config:
+      title: MyApp API Documentation
+      basePath: /docs
+      ui: scalar
+      theme:
+        primaryColor: '#1a73e8'
+        darkMode: true
+      nav:
+        groups:
+          - title: Getting Started
+            icon: 🚀
+            items:
+              - getting-started
+              - authentication
+              - quickstart
+          - title: Guides
+            icon: 📖
+            items:
+              - guides/*
+          - title: Reference
+            icon: 📚
+            items:
+              - api
+              - agents
+              - ensembles
+            collapsed: true
+        hide:
+          - internal-notes
+          - drafts/*
+      servers:
+        - url: https://api.myapp.com/v1
+          description: Production
+        - url: http://localhost:8787
+          description: Development
+      cache:
+        enabled: true
+        ttl: 600
+      ai:
+        enabled: true
+        model: '@cf/meta/llama-3.1-8b-instruct'
 
-theme:
-  primaryColor: '#1a73e8'
-  darkMode: true
-
-nav:
-  groups:
-    - title: Getting Started
-      icon: 🚀
-      items:
-        - getting-started
-        - authentication
-        - quickstart
-
-    - title: Guides
-      icon: 📖
-      items:
-        - guides/*
-
-    - title: Reference
-      icon: 📚
-      items:
-        - api
-        - agents
-        - ensembles
-      collapsed: true
-
-  hide:
-    - internal-notes
-    - drafts/*
-
-servers:
-  - url: https://api.myapp.com/v1
-    description: Production
-  - url: http://localhost:8787
-    description: Development
-
-cache:
-  enabled: true
-  ttl: 600
-
-ai:
-  enabled: true
-  model: '@cf/meta/llama-3.1-8b-instruct'
+output:
+  _raw: ${render.output}
 ```
 
 ## Global Configuration
@@ -415,7 +471,7 @@ export default defineConfig({
 })
 ```
 
-Settings in `docs/docs.yaml` override global configuration.
+Settings in your custom docs ensemble override global configuration.
 
 ## Accessing Documentation
 
@@ -443,8 +499,7 @@ GET /docs/api
 
 ```
 docs/
-├── docs.yaml              # Configuration
-├── getting-started.md     # Entry point
+├── getting-started.md     # Entry point (auto-discovered)
 ├── authentication.md      # Core concepts
 ├── guides/
 │   ├── quickstart.md
@@ -456,29 +511,37 @@ docs/
 ### Security
 
 1. **Use authentication** for sensitive documentation
-2. **Filter endpoints** with `include`/`exclude`
-3. **Separate docs** for different audiences
+2. **Filter endpoints** with `include`/`exclude` in config
+3. **Separate docs ensembles** for different audiences
 
 ```yaml
-# Public docs
-route:
-  path: /docs/public
-  auth:
-    requirement: public
+# Public docs ensemble
+name: docs-public
+trigger:
+  - type: http
+    path: /docs/public
+    public: true
 
-include:
-  - /api/v1/public/*
+flow:
+  - agent: docs
+    config:
+      include:
+        - /api/v1/public/*
 ```
 
 ```yaml
-# Internal docs
-route:
-  path: /docs/internal
-  auth:
-    requirement: authenticated
+# Internal docs ensemble
+name: docs-internal
+trigger:
+  - type: http
+    path: /docs/internal
+    public: false  # Requires auth
 
-include:
-  - /api/v1/*
+flow:
+  - agent: docs
+    config:
+      include:
+        - /api/v1/*
 ```
 
 ### Performance
@@ -497,8 +560,8 @@ cache:
 
 ### Docs Not Showing
 
-1. Verify `docs/docs.yaml` exists
-2. Check route path is correct
+1. Verify `docs/` directory exists with at least one `.md` file
+2. Rebuild the project: `pnpm run build`
 3. Review logs for errors:
    ```bash
    npx wrangler tail

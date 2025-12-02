@@ -294,39 +294,50 @@ docs: docs/getting-started@v1.2.3
 
 ## Integration with Documentation Directory
 
-The `docs/` directory is a first-class component in Conductor. Configure it with `docs/docs.yaml`:
+The `docs/` directory is a first-class component in Conductor. Markdown files are auto-discovered and served by the built-in `docs-serve` ensemble. To customize configuration, create a custom docs ensemble:
 
 ```yaml
-# docs/docs.yaml
-name: docs
-description: API Documentation
+# ensembles/docs-custom.yaml
+name: docs-custom
+description: Customized API Documentation
 
-route:
-  path: /docs
-  auth:
-    requirement: public
+trigger:
+  - type: http
+    paths:
+      - path: /docs
+        methods: [GET]
+      - path: /docs/:slug
+        methods: [GET]
+      - path: /docs/openapi.json
+        methods: [GET]
+    public: true
 
-title: My API Documentation
-ui: stoplight
+flow:
+  - name: render
+    agent: docs
+    config:
+      title: My API Documentation
+      ui: stoplight
+      basePath: /docs
+      nav:
+        order:
+          - getting-started
+          - authentication
+          - advanced-workflows
+          - guides/*
+        showReserved:
+          agents: true
+          ensembles: true
+          api: true
 
-nav:
-  order:
-    - getting-started
-    - authentication
-    - advanced-workflows
-    - guides/*
-
-  showReserved:
-    agents: true
-    ensembles: true
-    api: true
+output:
+  _raw: ${render.output}
 ```
 
 Place your markdown guides directly in the `docs/` directory:
 
 ```
 docs/
-├── docs.yaml              # Configuration
 ├── getting-started.md     # Custom guide (uses Handlebars)
 ├── authentication.md      # Another guide
 └── advanced-workflows.md  # More documentation

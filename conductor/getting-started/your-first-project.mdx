@@ -43,21 +43,22 @@ my-conductor-app/
 ├── wrangler.toml         # Cloudflare Workers config
 ├── src/
 │   └── index.ts          # Entry point (custom endpoints)
-├── pages/                # 📄 Pages (auto-discovered)
-│   ├── examples/
-│   │   ├── home/             # Static page
-│   │   ├── dashboard/        # Page with handler
-│   │   ├── login/            # Form page
-│   │   └── blog-post/        # Dynamic page example
-│   ├── docs-*/           # Documentation pages
-│   └── error-404/        # Custom 404 page
-├── ensembles/            # 🎭 Workflows (auto-discovered)
-│   └── hello-world.yaml
+├── ensembles/            # 🎭 Workflows & Pages (auto-discovered)
+│   ├── pages/            # HTTP endpoints that render HTML
+│   │   ├── home.yaml         # GET /
+│   │   ├── dashboard.yaml    # GET /dashboard
+│   │   ├── login.yaml        # GET/POST /login
+│   │   └── blog-post.yaml    # GET /blog/:slug
+│   ├── api/              # JSON API endpoints
+│   │   └── users.yaml
+│   └── hello-world.yaml  # CLI workflow example
 ├── agents/               # 🤖 Agents (auto-discovered)
 │   ├── hello/
 │   │   ├── agent.yaml        # Agent configuration
 │   │   └── index.ts          # Agent implementation
 │   └── docs-*/           # Documentation agent examples
+├── docs/                 # 📄 Markdown documentation (auto-discovered)
+│   └── getting-started.md
 └── tests/                # ✅ Test files
     └── basic.test.ts
 ```
@@ -102,34 +103,41 @@ All tests should pass! The template includes examples of:
 
 ## Your First Page
 
-Let's create a simple page.
+Let's create a simple page using an ensemble with an HTTP trigger.
 
-**Step 1: Create the page file**
+**Step 1: Create the ensemble file**
 
-Create `pages/hello/page.yaml`:
+Create `ensembles/hello.yaml`:
 
 ```yaml
-name: hello
-type: Page
-templateEngine: liquid
+name: hello-page
+description: Simple hello world page
 
-route:
-  path: /hello
-  methods: [GET]
-  auth: none
+trigger:
+  - type: http
+    path: /hello
+    methods: [GET]
+    public: true
 
-component: |
-  <!DOCTYPE html>
-  <html>
-    <head>
-      <title>Hello Page</title>
-    </head>
-    <body>
-      <h1>Hello from Conductor!</h1>
-      <p>This page was auto-discovered.</p>
-      <p>Current time: {{ "now" | date: "%Y-%m-%d %H:%M:%S" }}</p>
-    </body>
-  </html>
+flow:
+  - operation: html
+    config:
+      templateEngine: liquid
+      template: |
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Hello Page</title>
+          </head>
+          <body>
+            <h1>Hello from Conductor!</h1>
+            <p>This page was auto-discovered.</p>
+            <p>Current time: {{ "now" | date: "%Y-%m-%d %H:%M:%S" }}</p>
+          </body>
+        </html>
+
+output:
+  _raw: ${html.output}
 ```
 
 **Step 2: Rebuild**
@@ -144,65 +152,82 @@ The dev server will automatically reload.
 
 Open http://localhost:8787/hello
 
-### Add a Handler Function
+### Add Dynamic Data
 
-Make your page dynamic by adding data fetching.
+Make your page dynamic by adding an agent that fetches data.
 
-Create `pages/hello/handler.ts`:
-
-```typescript
-import type { HandlerContext } from '@ensemble-edge/conductor';
-
-export async function handler(context: HandlerContext) {
-  const { params, query, env } = context;
-
-  return {
-    message: 'Hello from the handler!',
-    timestamp: new Date().toISOString(),
-    userAgent: context.request.headers.get('user-agent')
-  };
-}
-```
-
-Update `pages/hello/page.yaml` to use the data:
+Create `ensembles/hello-dynamic.yaml`:
 
 ```yaml
-name: hello
-type: Page
-templateEngine: liquid
+name: hello-dynamic
+description: Hello page with dynamic data
 
-route:
-  path: /hello
-  methods: [GET]
-  auth: none
+trigger:
+  - type: http
+    path: /hello-dynamic
+    methods: [GET]
+    public: true
 
-component: |
-  <!DOCTYPE html>
-  <html>
-    <head>
-      <title>Hello Page</title>
-    </head>
-    <body>
-      <h1>{{ message }}</h1>
-      <p>Timestamp: {{ timestamp }}</p>
-      <p>Your browser: {{ userAgent }}</p>
-    </body>
-  </html>
+agents:
+  - name: get_data
+    operation: code
+    config:
+      handler: |
+        export default async function({ input, ctx }) {
+          return {
+            message: 'Hello from the handler!',
+            timestamp: new Date().toISOString(),
+            userAgent: input.headers?.['user-agent'] || 'Unknown'
+          };
+        }
+
+flow:
+  - agent: get_data
+
+  - operation: html
+    config:
+      templateEngine: liquid
+      template: |
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Hello Page</title>
+          </head>
+          <body>
+            <h1>{{ message }}</h1>
+            <p>Timestamp: {{ timestamp }}</p>
+            <p>Your browser: {{ userAgent }}</p>
+          </body>
+        </html>
+      data:
+        message: ${get_data.output.message}
+        timestamp: ${get_data.output.timestamp}
+        userAgent: ${get_data.output.userAgent}
+
+output:
+  _raw: ${html.output}
 ```
 
-Rebuild and refresh - your handler data now appears in the page!
+Rebuild and refresh - your dynamic data now appears in the page!
 
 ## Your First Workflow
 
 The template includes `ensembles/hello-world.yaml`. Let's explore it:
 
 ```yaml
-ensemble: hello-world
+name: hello-world
 description: Simple greeting workflow
+
+trigger:
+  - type: cli
+    command: hello
 
 agents:
   - name: hello
     operation: code
+
+flow:
+  - agent: hello
 
 output:
   greeting: ${hello.output.message}
@@ -215,8 +240,12 @@ This workflow calls the `hello` agent (from `agents/examples/hello/`) and return
 Create `ensembles/my-workflow.yaml`:
 
 ```yaml
-ensemble: my-workflow
+name: my-workflow
 description: Custom greeting with timestamp
+
+trigger:
+  - type: cli
+    command: greet
 
 agents:
   # Call existing hello agent
@@ -225,6 +254,9 @@ agents:
     config:
       handler: hello  # Reference to agents/examples/hello/
 
+flow:
+  - agent: greeter
+
 output:
   greeting: ${greeter.output.message}
   timestamp: ${Date.now()}
@@ -232,64 +264,56 @@ output:
 
 ### Execute from a Page
 
-Create `pages/workflow/page.yaml`:
+Create an ensemble that renders the workflow result as HTML:
+
+Create `ensembles/workflow-demo.yaml`:
 
 ```yaml
 name: workflow-demo
-type: Page
-templateEngine: liquid
+description: Display workflow result as a page
 
-route:
-  path: /workflow
-  methods: [GET]
-  auth: none
+trigger:
+  - type: http
+    path: /workflow
+    methods: [GET]
+    public: true
 
-component: |
-  <!DOCTYPE html>
-  <html>
-    <head>
-      <title>Workflow Demo</title>
-    </head>
-    <body>
-      <h1>Workflow Result</h1>
-      <p>{{ greeting }}</p>
-      <p>Timestamp: {{ timestamp }}</p>
-    </body>
-  </html>
-```
+agents:
+  - name: greeter
+    operation: code
+    config:
+      handler: |
+        export default async function({ input }) {
+          return {
+            message: 'Hello from the workflow!',
+            timestamp: new Date().toISOString()
+          };
+        }
 
-Create `pages/workflow/handler.ts`:
+flow:
+  - agent: greeter
 
-```typescript
-import type { HandlerContext } from '@ensemble-edge/conductor';
-import { Executor, MemberLoader } from '@ensemble-edge/conductor';
-import { stringify } from 'yaml';
-import myWorkflow from '../../ensembles/my-workflow.yaml';
-import greetConfig from '../../agents/examples/hello/agent.yaml';
-import greetFunction from '../../agents/examples/hello';
+  - operation: html
+    config:
+      templateEngine: liquid
+      template: |
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Workflow Demo</title>
+          </head>
+          <body>
+            <h1>Workflow Result</h1>
+            <p>{{ greeting }}</p>
+            <p>Timestamp: {{ timestamp }}</p>
+          </body>
+        </html>
+      data:
+        greeting: ${greeter.output.message}
+        timestamp: ${greeter.output.timestamp}
 
-export async function handler(context: HandlerContext) {
-  const { env, ctx } = context;
-
-  const executor = new Executor({ env, ctx });
-  const loader = new MemberLoader({ env, ctx });
-
-  // Register hello agent
-  const greeter = loader.registerAgent(greetConfig, greetFunction);
-  executor.registerAgent(greeter);
-
-  // Execute workflow
-  const result = await executor.executeFromYAML(
-    stringify(myWorkflow),
-    { name: 'World' }
-  );
-
-  if (!result.success) {
-    return { error: 'Workflow failed' };
-  }
-
-  return result.value.output;
-}
+output:
+  _raw: ${html.output}
 ```
 
 Visit http://localhost:8787/workflow - your ensemble runs on every page load!
@@ -308,7 +332,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [build]
 command = "pnpm run build"
-watch_dirs = ["src", "pages", "agents", "ensembles"]
+watch_dirs = ["src", "agents", "ensembles", "docs"]
 ```
 
 **Important**: Conductor uses Vite/Rolldown to build your project. The output is `dist/index.mjs`, not `src/index.ts`.
@@ -426,10 +450,10 @@ npx wrangler deployments list
     This properly binds network access for the Workers runtime.
   </Accordion>
 
-  <Accordion title="New pages/agents not showing up">
-    **Problem**: Created a new page or agent but it returns 404
+  <Accordion title="New ensembles/agents not showing up">
+    **Problem**: Created a new ensemble or agent but it returns 404
 
-    **Fix**: Trigger a rebuild. Pages and agents are discovered at build time:
+    **Fix**: Trigger a rebuild. Ensembles and agents are discovered at build time:
 
     ```bash
     pnpm run build
@@ -443,19 +467,22 @@ npx wrangler deployments list
 
     **Status**: Fixed in v1.8.0! Dynamic route parameters now work correctly.
 
-    Make sure your `page.yaml` has the route at root level:
+    Make sure your ensemble has the trigger configured properly:
 
     ```yaml
-    route:
-      path: /blog/:slug  # Correct
-      methods: [GET]
+    trigger:
+      - type: http
+        path: /blog/:slug  # Correct - at root level
+        methods: [GET]
+        public: true
     ```
 
     Not nested in config:
     ```yaml
     config:
-      route:  # Wrong!
-        path: /blog/:slug
+      trigger:  # Wrong! trigger belongs at root level
+        - type: http
+          path: /blog/:slug
     ```
   </Accordion>
 
@@ -471,11 +498,11 @@ npx wrangler deployments list
     ```
   </Accordion>
 
-  <Accordion title="Module 'virtual:conductor-pages' not found">
+  <Accordion title="Module 'virtual:conductor-ensembles' not found">
     **Problem**: Build error about virtual module
 
     **Fix**: This is a Vite virtual module created at build time. Make sure:
-    1. `pages/` directory exists
+    1. `ensembles/` directory exists
     2. Vite config is correct (should be in template)
     3. Clean rebuild: `rm -rf dist && pnpm run build`
   </Accordion>
@@ -486,8 +513,8 @@ npx wrangler deployments list
 The `init` command creates:
 
 ### ✅ Working Examples
-- **10 example pages** showing static, dynamic, forms, and SSR patterns
-- **1 hello-world ensemble** demonstrating workflows
+- **10+ example ensembles** showing static, dynamic, forms, and SSR patterns
+- **Multiple workflow ensembles** demonstrating different trigger types
 - **1 hello agent** showing custom code operations
 - **Multiple doc agents** for various operation types
 
@@ -558,7 +585,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [build]
 command = "pnpm run build"
-watch_dirs = ["src", "pages", "ensembles"]
+watch_dirs = ["src", "ensembles", "agents", "docs"]
 ```
 
 ### Step 4: Add Vite Config
@@ -572,9 +599,9 @@ import { cloudflareWorker } from '@ensemble-edge/conductor/vite';
 export default defineConfig({
   plugins: [
     cloudflareWorker({
-      pagesDir: './pages',
       ensemblesDir: './ensembles',
       agentsDir: './agents',
+      docsDir: './docs',
     }),
   ],
   build: {
@@ -594,7 +621,7 @@ export default defineConfig({
 ### Step 5: Create Directories
 
 ```bash
-mkdir -p pages ensembles agents tests
+mkdir -p ensembles agents docs tests
 ```
 
 ### Step 6: Update package.json
@@ -617,7 +644,7 @@ mkdir -p pages ensembles agents tests
 ## Tips & Best Practices
 
 1. **Always use --local-protocol http** with `wrangler dev` to avoid network binding issues
-2. **Rebuild after adding files** - Pages and agents are discovered at build time
+2. **Rebuild after adding files** - Ensembles and agents are discovered at build time
 3. **Start with examples** - Modify the included hello examples before creating new ones
 4. **Test locally first** - `pnpm test` runs your test suite instantly
 5. **Check logs** - `npx wrangler tail` shows real-time production logs

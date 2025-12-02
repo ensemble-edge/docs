@@ -391,22 +391,53 @@ When `requireExplicit: true`, you get an allowlist model - only explicitly marke
 
 ### Docs Authentication
 
-By default, documentation is protected. Shipped templates explicitly set `public` for convenience:
+By default, documentation follows the same security model as other routes. The built-in `docs-serve` ensemble explicitly sets `public: true` for convenience:
 
 ```yaml
-# docs/docs.yaml
-route:
-  auth:
-    requirement: public  # Explicitly public for docs
+# Default docs-serve ensemble (built-in)
+name: docs-serve
+trigger:
+  - type: http
+    paths:
+      - path: /docs
+        methods: [GET]
+      - path: /docs/:slug
+        methods: [GET]
+    public: true  # Explicitly public for docs
 ```
 
-To require authentication for docs:
+To require authentication for docs, create a custom docs ensemble:
 
 ```yaml
-# docs/docs.yaml
-route:
-  auth:
-    requirement: required
+# ensembles/docs-internal.yaml
+name: docs-internal
+trigger:
+  - type: http
+    path: /docs/internal
+    methods: [GET]
+    public: false  # Requires authentication
+
+flow:
+  - name: render
+    agent: docs
+    config:
+      title: Internal Documentation
+      basePath: /docs/internal
+
+output:
+  _raw: ${render.output}
+```
+
+Then configure auth rules in `conductor.config.ts`:
+
+```typescript
+export default {
+  auth: {
+    rules: [
+      { path: '/docs/internal/**', auth: 'bearer' },
+    ]
+  }
+}
 ```
 
 ## SSRF Protection

@@ -162,10 +162,15 @@ agents:
     config:
       foo: bar
 
-# In pages (via beforeRender)
-name: my-page
-operation: page
-beforeRender:
+# In ensembles (via flow)
+name: my-ensemble
+trigger:
+  - type: http
+    path: /my-page
+    methods: [GET]
+    public: true
+
+flow:
   - name: custom-data
     operation: custom:op
     config:
@@ -244,14 +249,20 @@ export const plasmicPlugin: LifecyclePlugin = {
 }
 ```
 
-**Usage in Pages:**
+**Usage in Ensembles:**
 
 ```yaml
-# pages/home.yaml
+# ensembles/home.yaml
 name: home
-operation: page
+description: Home page with Plasmic hero section
 
-beforeRender:
+trigger:
+  - type: http
+    path: /
+    methods: [GET]
+    public: true
+
+flow:
   - name: render-hero
     operation: plasmic:render
     config:
@@ -260,8 +271,14 @@ beforeRender:
         title: ${input.title}
         subtitle: ${input.subtitle}
 
-component: |
-  <div>{{ render-hero.output }}</div>
+  - name: render-page
+    operation: html
+    config:
+      template: |
+        <div>{{ render-hero.output }}</div>
+
+output:
+  _raw: ${render-page.output}
 ```
 
 ## Creating Your Own Plugin

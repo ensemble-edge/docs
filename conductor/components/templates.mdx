@@ -377,29 +377,29 @@ outputs:
   html: ${render.output}
 ```
 
-### Page Operation with Template
+### HTML Operation with Template
 
 ```yaml
-ensemble: admin-page
+name: admin-page
+description: Admin dashboard page
 
-agents:
+trigger:
+  - type: http
+    path: /admin
+    methods: [GET]
+    public: false
+
+flow:
   - name: render-page
-    operation: page
+    operation: html
     config:
-      component:
-        template: "template://pages/admin@v1"
-      props:
+      template: "template://pages/admin@v1"
+      data:
         user: ${input.user}
         stats: ${input.stats}
 
-inputs:
-  user:
-    type: object
-  stats:
-    type: object
-
-outputs:
-  html: ${render-page.output}
+output:
+  _raw: ${render-page.output}
 ```
 
 ### Email with Template

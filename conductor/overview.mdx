@@ -32,10 +32,10 @@ Just YAML files in Git that deploy to Cloudflare Workers.
 Create `ensembles/company-intel.yaml`:
 
 ```yaml
-ensemble: company-intel
+name: company-intel
 description: Fetch and analyze company data
 
-agents:
+flow:
   # Fetch company data
   - name: fetch
     operation: http
@@ -126,7 +126,7 @@ Agents are executable units that use operations to perform tasks:
 
 **Custom Agents** (you define):
 ```yaml
-agents:
+flow:
   - name: analyzer
     operation: think
     component: prompt@v2.1.0
@@ -136,7 +136,7 @@ agents:
 
 **Starter Kit** (ship with Conductor):
 ```yaml
-agents:
+flow:
   - name: scraper
     agent: scraper  # Use pre-built
     config:
@@ -159,9 +159,9 @@ Available pre-built agents:
 Ensembles are YAML files that coordinate agents into workflows:
 
 ```yaml
-ensemble: my-workflow
+name: my-workflow
 
-agents:
+flow:
   # Sequential by default
   - name: fetch
     operation: http
@@ -200,7 +200,7 @@ state:
     company_data: object
     analyses: array
 
-agents:
+flow:
   - name: fetch
     operation: http
     state:
@@ -218,7 +218,7 @@ agents:
 Three cache layers for optimal performance:
 
 ```yaml
-agents:
+flow:
   - name: fetch
     operation: http
     config:
@@ -239,7 +239,7 @@ Cached request: &lt;10ms
 **Sequential** (default), **parallel**, **conditional**, **loops**, **retry**:
 
 ```yaml
-agents:
+flow:
   # Sequential
   - name: step1
     operation: http
@@ -280,9 +280,9 @@ agents:
 Test multiple variants simultaneously:
 
 ```yaml
-ensemble: ab-test
+name: ab-test
 
-agents:
+flow:
   # Variant A: GPT-4 with conservative prompt
   - name: variant-a
     operation: think
@@ -307,44 +307,50 @@ output:
 
 ## Beyond Workflows: Build Web Applications
 
-Conductor isn't just for backend workflows. It also includes **Pages** (Hono-based routing) for building server-rendered web applications:
+Conductor isn't just for backend workflows. Using ensembles with HTTP triggers, you can build server-rendered web applications:
 
-**Pages Features:**
-- **Hono routing** - Battle-tested, fast HTTP router with middleware support
-- **Conductor operations** - Use any operation in `beforeRender` (Payload CMS, Attio, HTTP, Think, etc.)
-- **Hono middleware** - Full Hono middleware ecosystem (CORS, compression, JWT, etc.)
-- **Template engines** - Handlebars, Liquid, or Simple (same as Email/SMS)
-- **Content negotiation** - HTML or JSON based on Accept header
-- **Auto-discovery** - Pages loaded from `pages/` directory
+**Features:**
+- **HTTP triggers** - Define routes with path parameters and rate limiting
+- **Template rendering** - Handlebars, Liquid, or raw HTML templates
 - **Dynamic routes** - URL parameters like `/blog/:slug`
+- **Content negotiation** - HTML or JSON based on Accept header
+- **Full flow control** - Use any agent operation to fetch data before rendering
 
-**Example with Operations:**
+**Example:**
 ```yaml
-# pages/blog-post.yaml
+# ensembles/blog-post.yaml
 name: blog-post
-operation: page
-templateEngine: handlebars
+description: Render a blog post page
 
-route:
-  path: /blog/:slug
-  methods: [GET]
-  rateLimit:
-    requests: 100
-    window: 60
+trigger:
+  - type: http
+    path: /blog/:slug
+    methods: [GET]
+    public: true
+    rateLimit:
+      requests: 100
+      window: 60
 
-beforeRender:
-  # Use any Conductor operation
+flow:
+  # Fetch post data
   - name: fetch-post
-    operation: payload:findById
+    operation: http
     config:
-      collection: posts
-      id: "${params.slug}"
+      url: https://api.cms.com/posts/${params.slug}
 
-component: |
-  <h1>{{fetch-post.title}}</h1>
-  <div class="content">
-    {{fetch-post.content}}
-  </div>
+  # Render the page
+  - name: render
+    operation: html
+    config:
+      templateEngine: handlebars
+      template: |
+        <h1>{{fetch-post.output.title}}</h1>
+        <div class="content">
+          {{fetch-post.output.content}}
+        </div>
+
+output:
+  _raw: ${render.output}
 ```
 
 [Learn more about Ensembles](/conductor/core-concepts/ensembles)
@@ -367,9 +373,9 @@ Conductor supports component versioning through **Edgit** integration:
 
 **Example with Edgit:**
 ```yaml
-ensemble: versioned-workflow
+name: versioned-workflow
 
-agents:
+flow:
   - name: scraper
     agent: scraper@v1.5.0          # Versioned agent via Edgit
 

@@ -18,20 +18,28 @@ Think of agents as musicians and ensembles as the sheet music that coordinates t
 Your project includes a working ensemble! Let's explore `ensembles/hello-world.yaml`:
 
 ```yaml
-ensemble: hello-world
+name: hello-world
 description: Simple greeting workflow
+
+trigger:
+  - type: cli
+    command: hello
 
 agents:
   - name: hello
     operation: code
+
+flow:
+  - agent: hello
 
 output:
   greeting: ${hello.output.message}
 ```
 
 This ensemble:
-1. Calls the `hello` agent (from `agents/examples/hello/`)
-2. Returns its output as `greeting`
+1. Defines a CLI trigger (`conductor run hello`)
+2. Calls the `hello` agent (from `agents/examples/hello/`)
+3. Returns its output as `greeting`
 
 ### Run It
 
@@ -73,13 +81,20 @@ Ensembles use `${}` for variable interpolation:
 ### Access Input
 
 ```yaml
-ensemble: my-workflow
+name: my-workflow
+
+trigger:
+  - type: cli
+    command: process
 
 agents:
   - name: processor
     operation: code
     input:
       user_name: ${input.name}  # Pass ensemble input to agent
+
+flow:
+  - agent: processor
 ```
 
 ### Access Agent Outputs
@@ -234,8 +249,12 @@ Let's build a simple two-step workflow.
 Create `ensembles/greeting-workflow.yaml`:
 
 ```yaml
-ensemble: greeting-workflow
+name: greeting-workflow
 description: Generate and log a greeting
+
+trigger:
+  - type: cli
+    command: greet-and-log
 
 agents:
   # Generate greeting
@@ -251,26 +270,18 @@ agents:
   - name: logger
     operation: code
     config:
-      script: scripts/log-greeting
+      handler: |
+        export default function({ input }) {
+          console.log("Generated greeting:", input.greeting);
+          return { logged: true, timestamp: Date.now() };
+        }
     input:
       greeting: ${greeter.output.message}
-```
 
-```typescript
-// scripts/log-greeting.ts
-import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+flow:
+  - agent: greeter
+  - agent: logger
 
-export default function logGreeting(context: AgentExecutionContext) {
-  const { greeting } = context.input
-  console.log("Generated greeting:", greeting)
-  return {
-    logged: true,
-    timestamp: Date.now()
-  }
-}
-```
-
-```yaml
 output:
   greeting: ${greeter.output.message}
   logged_at: ${logger.output.timestamp}
@@ -327,14 +338,22 @@ Just create a YAML file in `ensembles/` - no imports or registration needed!
 **Step 1**: Create `ensembles/my-workflow.yaml`
 
 ```yaml
-ensemble: my-workflow
+name: my-workflow
 description: My automated workflow
+
+trigger:
+  - type: cli
+    command: my-workflow
 
 agents:
   - name: step1
     operation: code
   - name: step2
     operation: think
+
+flow:
+  - agent: step1
+  - agent: step2
 
 output:
   result: ${step2.output}
@@ -672,8 +691,14 @@ output:
 Let's build a complete content moderation pipeline:
 
 ```yaml
-ensemble: content-moderation
+name: content-moderation
 description: Multi-stage content safety checking
+
+trigger:
+  - type: http
+    path: /api/moderate
+    methods: [POST]
+    public: false  # Require auth
 
 agents:
   # Quick regex-based filters (fast, free)
@@ -738,6 +763,11 @@ export default function quickFilterText(context: AgentExecutionContext) {
         - ${quick-filter.output.reason || ai-check.output.issues}
         - ${Date.now()}
 
+flow:
+  - agent: quick-filter
+  - agent: ai-check
+  - agent: log-decision
+
 output:
   safe: ${!quick-filter.output.blocked && ai-check.output.safe}
   reason: ${quick-filter.output.reason || ai-check.output.issues}
@@ -750,37 +780,45 @@ output:
 - AI only runs on remaining 20% (costs money)
 - Result: 80% cost reduction!
 
-## Execute from Pages
+## Execute from Other Ensembles
 
-You can run ensembles from page handlers:
+You can call one ensemble from another using the HTTP operation:
 
-Create `pages/moderate/handler.ts`:
+```yaml
+name: moderation-with-notification
+description: Moderate content and notify on violations
 
-```typescript
-import type { HandlerContext } from '@ensemble-edge/conductor';
-import { Executor, MemberLoader } from '@ensemble-edge/conductor';
-import { stringify } from 'yaml';
-import contentMod from '../../ensembles/content-moderation.yaml';
+trigger:
+  - type: http
+    path: /api/moderate-notify
+    methods: [POST]
 
-export async function handler(context: HandlerContext) {
-  const { request, env, ctx } = context;
+agents:
+  - name: moderate
+    operation: http
+    config:
+      url: ${env.BASE_URL}/api/moderate
+      method: POST
+      body:
+        text: ${input.text}
 
-  // Get text from request
-  const { text } = await request.json();
+  - name: notify
+    operation: http
+    condition: ${!moderate.output.safe}
+    config:
+      url: https://slack.example.com/webhook
+      method: POST
+      body:
+        text: "Content violation detected: ${moderate.output.reason}"
 
-  const executor = new Executor({ env, ctx });
-  // Register any needed agents...
+flow:
+  - agent: moderate
+  - agent: notify
 
-  const result = await executor.executeFromYAML(
-    stringify(contentMod),
-    { text }
-  );
-
-  return {
-    safe: result.value.output.safe,
-    reason: result.value.output.reason
-  };
-}
+output:
+  moderated: true
+  safe: ${moderate.output.safe}
+  reason: ${moderate.output.reason}
 ```
 
 ## Best Practices
