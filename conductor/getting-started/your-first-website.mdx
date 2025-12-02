@@ -42,8 +42,9 @@ flow:
         </body>
         </html>
 
-outputs:
-  html: ${html.output}
+output:
+  format: html
+  rawBody: ${html.output}
 ```
 
 Run: `pnpm run build && pnpm run dev`
@@ -135,8 +136,9 @@ flow:
       data:
         fetch-posts: ${fetch-posts}
 
-outputs:
-  html: ${html.output}
+output:
+  format: html
+  rawBody: ${html.output}
 ```
 
 Visit: `http://localhost:8787/`
@@ -190,8 +192,9 @@ flow:
       data:
         fetch-post: ${fetch-post}
 
-outputs:
-  html: ${html.output}
+output:
+  format: html
+  rawBody: ${html.output}
 ```
 
 Visit: `http://localhost:8787/blog/my-first-post`
@@ -295,8 +298,9 @@ flow:
         </body>
         </html>
 
-outputs:
-  html: ${html.output}
+output:
+  format: html
+  rawBody: ${html.output}
 ```
 
 **★ Insight ─────────────────────────────────────**
@@ -328,7 +332,7 @@ flow:
       query: "SELECT id, name, email, created_at FROM users WHERE id = ?"
       params: [${input.params.id}]
 
-outputs:
+output:
   user: ${fetch-user[0]}
   found: ${fetch-user.length > 0}
 ```
@@ -380,8 +384,9 @@ Disallow: /admin/
 Sitemap: https://yourdomain.com/sitemap.xml`
         }
 
-outputs:
-  content: ${code.output}
+output:
+  format: text
+  rawBody: ${code.output}
 ```
 
 ### sitemap.xml (Dynamic from Database)
@@ -432,8 +437,9 @@ ${urls}
 </urlset>`
         }
 
-outputs:
-  xml: ${code.output}
+output:
+  format: xml
+  rawBody: ${code.output}
 ```
 
 **★ Insight ─────────────────────────────────────**

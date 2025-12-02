@@ -827,7 +827,7 @@ output:
 
 ```yaml
 # Start with this
-ensemble: my-workflow
+name: my-workflow
 agents:
   - name: step1
     operation: code
@@ -848,7 +848,7 @@ output:
 ### 3. Document Your Ensembles
 
 ```yaml
-ensemble: complex-workflow
+name: complex-workflow
 description: |
   This workflow:
   1. Fetches user data from API
@@ -1078,22 +1078,22 @@ export default multiSourceFetch
   </Tab>
   <Tab title="YAML">
 ```yaml
-ensemble: multi-source-fetch
+name: multi-source-fetch
 
 agents:
   - name: api-a
     agent: fetcher
-    inputs:
+    input:
       url: ${input.urlA}
 
   - name: api-b
     agent: fetcher
-    inputs:
+    input:
       url: ${input.urlB}
 
   - name: api-c
     agent: fetcher
-    inputs:
+    input:
       url: ${input.urlC}
 
   - name: merge

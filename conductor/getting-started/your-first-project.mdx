@@ -137,7 +137,8 @@ flow:
         </html>
 
 output:
-  _raw: ${html.output}
+  format: html
+  rawBody: ${html.output}
 ```
 
 **Step 2: Rebuild**
@@ -205,7 +206,8 @@ flow:
         userAgent: ${get_data.output.userAgent}
 
 output:
-  _raw: ${html.output}
+  format: html
+  rawBody: ${html.output}
 ```
 
 Rebuild and refresh - your dynamic data now appears in the page!
@@ -313,7 +315,8 @@ flow:
         timestamp: ${greeter.output.timestamp}
 
 output:
-  _raw: ${html.output}
+  format: html
+  rawBody: ${html.output}
 ```
 
 Visit http://localhost:8787/workflow - your ensemble runs on every page load!

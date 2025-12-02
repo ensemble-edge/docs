@@ -207,7 +207,8 @@ flow:
           api: true
 
 output:
-  _raw: ${render.output}
+  format: html
+  rawBody: ${render.output}
 ```
 
 ### Theme Configuration
@@ -271,7 +272,8 @@ flow:
       basePath: /docs/internal
 
 output:
-  _raw: ${render.output}
+  format: html
+  rawBody: ${render.output}
 ```
 
 The `public: false` setting enforces authentication. Conductor validates Bearer tokens or API keys from request headers automatically.
