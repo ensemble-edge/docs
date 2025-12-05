@@ -1,11 +1,11 @@
 ---
 title: "Ensemble Edge"
-description: "Version control meets edge orchestration for AI systems"
+description: "AI orchestration, edge-native — built exclusively for Cloudflare"
 ---
 
-**Version control meets edge orchestration for AI systems.**
+**AI orchestration, edge-native — built exclusively for Cloudflare.**
 
-Build AI workflows that you actually control. No proprietary platforms, no vendor lock-in, no serverless sprawl, no duct tape and bailing wire "workflow automation." Just Git, YAML, and Cloudflare Workers.
+Build AI workflows that you actually control. No proprietary platforms, no vendor lock-in, no serverless sprawl. Just Git, YAML, and Cloudflare Workers—with zero cold starts across 300+ global locations.
 
 You're an engineer. You deserve tools that treat you like one.
 
@@ -64,7 +64,7 @@ All version data lives in Git tags. Your CI/CD deploys to Cloudflare KV. Every v
 
 ## Conductor: YAML-Driven Edge Orchestration
 
-Define AI workflows in YAML. Execute at 200+ global locations. Sub-50ms cold starts. No DAG builders, no UI-driven workflows, no central orchestrator bottleneck.
+Define AI workflows in YAML. Execute at 300+ global locations on Cloudflare Workers. Zero cold starts via V8 isolates. No DAG builders, no UI-driven workflows, no central orchestrator bottleneck.
 
 ```yaml
 # ensembles/company-intelligence.yaml
@@ -149,7 +149,7 @@ Then orchestrates them at the edge where they execute fast and scale infinitely.
 
 <AccordionGroup>
   <Accordion icon="globe" title="Edge-First">
-    Cloudflare Workers + KV + D1 + R2 and AI Gateway are the primitives. No centralized compute. No single point of failure.
+    Purpose-built for Cloudflare's edge infrastructure: Workers, Workers AI, KV, D1, R2, Durable Objects, Queues, and Vectorize. No centralized compute. No single point of failure.
   </Accordion>
 
   <Accordion icon="git-alt" title="Git-Native">
@@ -176,24 +176,24 @@ Then orchestrates them at the edge where they execute fast and scale infinitely.
 ## Quick Start
 
 <CardGroup cols={2}>
-  <Card title="Install Ensemble CLI" icon="download" href="/introduction/ensemble-cli">
+  <Card title="Get Started" icon="download" href="/introduction/ensemble-cli">
     ```bash
-    pnpm add -g @ensemble-edge/ensemble
-    ensemble conductor init my-project
+    npx @ensemble-edge/ensemble
+    # Or: npx @ensemble-edge/ensemble conductor init my-project
     ```
   </Card>
 
   <Card title="Version Components" icon="tags" href="/edgit/guides/versioning-components-agents">
     ```bash
-    ensemble edgit tag create my-prompt v1.0.0
-    ensemble edgit deploy set my-prompt v1.0.0 --to prod
+    npx @ensemble-edge/edgit tag create my-prompt v1.0.0
+    npx @ensemble-edge/edgit deploy set my-prompt v1.0.0 --to prod
     ```
   </Card>
 
   <Card title="Deploy to Edge" icon="rocket" href="/conductor/getting-started/your-first-deployment">
     ```bash
-    pnpm run build
-    ensemble wrangler deploy
+    npm run build
+    npx wrangler deploy
     # Live at https://your-worker.workers.dev
     ```
   </Card>

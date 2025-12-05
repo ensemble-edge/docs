@@ -23,26 +23,24 @@ Running on Cloudflare Workers at 200+ locations globally.
 # That's it.
 ```
 
-## Step 1: Install the Ensemble CLI
+## Step 1: Create a Project
 
 ```bash
-# Install the unified CLI (recommended)
-pnpm add -g @ensemble-edge/ensemble
+# One command to get started - launches the wizard
+npx @ensemble-edge/ensemble
 
-# Verify installation
-ensemble --version
+# Or create a Conductor project directly
+npx @ensemble-edge/ensemble conductor init my-ai-workflow
+cd my-ai-workflow
 ```
 
 <Note>
-The Ensemble CLI provides access to all tools: Conductor (orchestration), Edgit (versioning), and Cloud (managed platform).
+The Ensemble CLI provides access to all tools: Conductor (orchestration), Edgit (versioning), and Cloud (managed platform). No installation needed - just use `npx`.
 </Note>
 
-## Step 2: Create a Project
-
-```bash
-ensemble conductor init my-ai-workflow
-cd my-ai-workflow
-```
+<Tip>
+For CI/CD pipelines, use `npx @ensemble-edge/conductor init my-project -y` to skip interactive prompts.
+</Tip>
 
 The init command will:
 1. Check your Wrangler authentication (prompts to login if needed)

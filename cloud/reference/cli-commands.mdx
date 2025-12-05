@@ -15,15 +15,15 @@ ensemble cloud <command> [options]
 **Ensemble Cloud is currently in private beta.** [Join the waitlist](/cloud/join-waitlist) to get early access.
 </Note>
 
-## Installation
+## Getting Started
 
-The cloud commands are included with the Ensemble CLI:
+No installation needed - use `npx` to run the CLI:
 
 ```bash
-# Install the unified CLI
-pnpm add -g @ensemble-edge/ensemble
+# Run cloud commands via npx (no installation required)
+npx @ensemble-edge/ensemble cloud --help
 
-# Verify installation
+# Or if you have ensemble installed
 ensemble cloud --help
 ```
 
@@ -416,11 +416,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install CLI
-        run: npm install -g @ensemble-edge/ensemble
-
       - name: Deploy
-        run: ensemble cloud deploy --wait
+        run: npx @ensemble-edge/ensemble cloud deploy --wait
         env:
           ENSEMBLE_CLOUD_TOKEN: ${{ secrets.ENSEMBLE_CLOUD_TOKEN }}
 ```

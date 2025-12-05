@@ -3,34 +3,26 @@ title: "CLI Commands"
 description: "Complete Edgit command reference with examples"
 ---
 
-## Installation
+## Getting Started
 
-The recommended way to use Edgit is through the unified Ensemble CLI:
-
-```bash
-# Recommended: Unified CLI (includes all tools)
-pnpm add -g @ensemble-edge/ensemble
-
-# Alternative: Direct installation
-pnpm add -g @ensemble-edge/edgit
-```
-
-## Usage
-
-Commands can be run through either the unified CLI or directly:
+No installation needed - use `npx` to run Edgit:
 
 ```bash
-# Via unified CLI (recommended)
-ensemble edgit init
-ensemble edgit tag create my-prompt v1.0.0
+# Via Ensemble CLI (recommended)
+npx @ensemble-edge/ensemble edgit init
+npx @ensemble-edge/ensemble edgit tag create my-prompt v1.0.0
 
-# Direct (alternative)
+# Or direct
+npx @ensemble-edge/edgit init
+edgit tag create my-prompt v1.0.0
+
+# Or if edgit is installed
 edgit init
 edgit tag create my-prompt v1.0.0
 ```
 
 <Note>
-All examples below show the direct `edgit` command. Prefix with `ensemble` when using the unified CLI.
+For CI/CD pipelines, use `npx @ensemble-edge/edgit init -y` to skip interactive prompts.
 </Note>
 
 ## Global
@@ -540,10 +532,10 @@ edgit history extraction-prompt --format json
 
 ## Git Pass-Through
 
-**All `git` commands work with `edgit`:**
+**All `git` commands work with Edgit:**
 
 ```bash
-# Standard git commands
+# Standard git commands via edgit
 edgit add .
 edgit commit -m "message"
 edgit push
@@ -556,6 +548,10 @@ edgit diff
 
 # Edgit passes through to git
 ```
+
+<Note>
+For standard git operations, you can also use `git` directly. The pass-through is convenient when you're already working with edgit commands.
+</Note>
 
 ## Version Helpers
 
@@ -681,12 +677,10 @@ edgit tag create analysis-prompt v1.0.0
 
 ### Aliases
 
-Add to your `.bashrc` or `.zshrc`:
+Add to your `.bashrc` or `.zshrc` for convenience:
 
 ```bash
-alias e='edgit'
-alias ec='edgit commit'
-alias ep='edgit push'
+alias edgit='npx @ensemble-edge/edgit'
 alias et='edgit tag create'
 alias ed='edgit deploy set'
 ```

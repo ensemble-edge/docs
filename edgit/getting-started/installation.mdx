@@ -15,23 +15,16 @@ node --version  # Should be 18+
 git --version   # Should be 2.30+
 ```
 
-## Install
+## Getting Started
 
-**Recommended: Via Ensemble CLI**
-
-```bash
-# Install the unified CLI (includes Edgit)
-pnpm add -g @ensemble-edge/ensemble
-
-# Verify
-ensemble edgit --version
-```
-
-**Alternative: Direct Installation**
+No installation needed - use `npx` to run Edgit:
 
 ```bash
-npm install -g @ensemble-edge/edgit
-edgit --version
+# Via Ensemble CLI (recommended)
+npx @ensemble-edge/ensemble edgit --version
+
+# Or direct
+npx @ensemble-edge/edgit --version
 ```
 
 **That's it.** You're ready to version components.
@@ -40,8 +33,7 @@ edgit --version
 
 ```bash
 cd your-project
-ensemble edgit init
-# or: edgit init
+npx @ensemble-edge/edgit init
 ```
 
 This creates `.edgit/components.json`:
@@ -54,8 +46,8 @@ This creates `.edgit/components.json`:
 
 Commit it:
 ```bash
-ensemble edgit add .edgit/
-ensemble edgit commit -m "chore: initialize edgit"
+git add .edgit/
+git commit -m "chore: initialize edgit"
 ```
 
 ## Optional: AI-Powered Commits
@@ -71,8 +63,8 @@ Test it:
 ```bash
 # Make a change
 echo "export const test = () => 'hello'" > src/test.ts
-ensemble edgit add .
-ensemble edgit commit  # AI generates: "feat(test): add test function"
+git add .
+npx @ensemble-edge/edgit commit  # AI generates: "feat(test): add test function"
 ```
 
 ## Troubleshooting
@@ -97,17 +89,15 @@ ensemble edgit commit  # AI generates: "feat(test): add test function"
   <Accordion title="Permission errors (EACCES)">
     Don't have permission to install globally.
 
-    Fix (recommended): Use nvm
+    Fix (recommended): Use `npx` instead of global install:
+    ```bash
+    npx @ensemble-edge/edgit --version
+    ```
+
+    Or use nvm to manage Node.js:
     ```bash
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
     nvm install 18
-    npm install -g @ensemble-edge/edgit
-    ```
-
-    Fix (alternative): Install locally per project
-    ```bash
-    npm install --save-dev @ensemble-edge/edgit
-    npx edgit --version
     ```
   </Accordion>
 

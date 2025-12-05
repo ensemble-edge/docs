@@ -3,6 +3,25 @@ title: "CI/CD Integration"
 description: "Automate component versioning and deployment in your pipeline. No manual tagging, no human error."
 ---
 
+## Installation Options
+
+You have three ways to use Edgit in CI/CD pipelines:
+
+```bash
+# Option 1: Direct (recommended for CI/CD - faster, fewer dependencies)
+npx @ensemble-edge/edgit <command>
+
+# Option 2: Via Ensemble CLI (same functionality, includes all tools)
+npx @ensemble-edge/ensemble edgit <command>
+
+# Option 3: Via Conductor CLI (if you're already using Conductor)
+npx @ensemble-edge/conductor edgit <command>
+```
+
+<Tip>
+**For CI/CD pipelines, we recommend Option 1** (`npx @ensemble-edge/edgit`) for faster execution and smaller download size. The unified Ensemble CLI is better for interactive development where you want access to all tools.
+</Tip>
+
 ## The Pattern
 
 ```yaml
@@ -23,19 +42,16 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install Ensemble CLI
-        run: npm install -g @ensemble-edge/ensemble
-
       - name: Auto-version changed components
         run: |
           # Discover components in changed files since last commit
-          CHANGED=$(ensemble edgit discover scan --changed --output simple | awk '{print $2}' | sort -u)
+          CHANGED=$(npx @ensemble-edge/edgit discover scan --changed --output simple | awk '{print $2}' | sort -u)
 
           # Auto-increment versions for each changed component
           for component in $CHANGED; do
-            LATEST=$(ensemble edgit tag list $component 2>/dev/null | tail -1 || echo "v0.0.0")
-            NEW_VERSION=$(ensemble edgit version bump $LATEST patch)
-            ensemble edgit tag create $component $NEW_VERSION
+            LATEST=$(npx @ensemble-edge/edgit tag list $component 2>/dev/null | tail -1 || echo "v0.0.0")
+            NEW_VERSION=$(npx @ensemble-edge/edgit version bump $LATEST patch)
+            npx @ensemble-edge/edgit tag create $component $NEW_VERSION
             echo "✓ Versioned $component: $LATEST → $NEW_VERSION"
           done
 
@@ -69,9 +85,6 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install Ensemble CLI
-        run: npm install -g @ensemble-edge/ensemble
-
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
@@ -84,11 +97,11 @@ jobs:
 
           # Version each changed component
           for file in $CHANGED_FILES; do
-            COMPONENT=$(ensemble edgit discover detect $file --name-only)
+            COMPONENT=$(npx @ensemble-edge/edgit discover detect $file --name-only)
             if [ ! -z "$COMPONENT" ]; then
-              LATEST=$(ensemble edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
-              NEW=$(ensemble edgit version bump $LATEST patch)
-              ensemble edgit tag create $COMPONENT $NEW
+              LATEST=$(npx @ensemble-edge/edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
+              NEW=$(npx @ensemble-edge/edgit version bump $LATEST patch)
+              npx @ensemble-edge/edgit tag create $COMPONENT $NEW
               echo " Versioned $COMPONENT: $LATEST  $NEW"
             fi
           done
@@ -119,18 +132,15 @@ jobs:
 
       - uses: actions/setup-node@v4
 
-      - name: Install Ensemble CLI
-        run: npm install -g @ensemble-edge/ensemble
-
       - name: Deploy to Staging
         run: |
           # Get all components
-          COMPONENTS=$(ensemble edgit components list --format json | jq -r '.[] | .name')
+          COMPONENTS=$(npx @ensemble-edge/edgit components list --format json | jq -r '.[] | .name')
 
           # Deploy latest version of each to staging
           for component in $COMPONENTS; do
-            LATEST=$(ensemble edgit tag list $component | tail -1)
-            ensemble edgit deploy set $component $LATEST --to staging
+            LATEST=$(npx @ensemble-edge/edgit tag list $component | tail -1)
+            npx @ensemble-edge/edgit deploy set $component $LATEST --to staging
           done
 
       - name: Push Deployment Tags
@@ -161,23 +171,20 @@ jobs:
 
       - uses: actions/setup-node@v4
 
-      - name: Install Ensemble CLI
-        run: npm install -g @ensemble-edge/ensemble
-
       - name: Promote to Production
         run: |
           if [ "${{ github.event.inputs.components }}" == "all" ]; then
-            COMPONENTS=$(ensemble edgit components list --format json | jq -r '.[] | .name')
+            COMPONENTS=$(npx @ensemble-edge/edgit components list --format json | jq -r '.[] | .name')
           else
             COMPONENTS=$(echo "${{ github.event.inputs.components }}" | tr ',' ' ')
           fi
 
           for component in $COMPONENTS; do
             # Get staging version
-            STAGING_VERSION=$(ensemble edgit deploy get $component --from staging)
+            STAGING_VERSION=$(npx @ensemble-edge/edgit deploy get $component --from staging)
 
             # Deploy to production
-            ensemble edgit deploy set $component $STAGING_VERSION --to prod
+            npx @ensemble-edge/edgit deploy set $component $STAGING_VERSION --to prod
 
             echo " Promoted $component: $STAGING_VERSION  prod"
           done
@@ -203,7 +210,6 @@ version:components:
   only:
     - main
   script:
-    - npm install -g @ensemble-edge/ensemble
     - |
       # Configure git
       git config user.name "GitLab CI"
@@ -212,11 +218,11 @@ version:components:
       # Version changed components
       CHANGED=$(git diff --name-only HEAD~1 HEAD)
       for file in $CHANGED; do
-        COMPONENT=$(ensemble edgit discover detect $file --name-only)
+        COMPONENT=$(npx @ensemble-edge/edgit discover detect $file --name-only)
         if [ ! -z "$COMPONENT" ]; then
-          LATEST=$(ensemble edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
-          NEW=$(ensemble edgit version bump $LATEST patch)
-          ensemble edgit tag create $COMPONENT $NEW
+          LATEST=$(npx @ensemble-edge/edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
+          NEW=$(npx @ensemble-edge/edgit version bump $LATEST patch)
+          npx @ensemble-edge/edgit tag create $COMPONENT $NEW
         fi
       done
 
@@ -229,13 +235,12 @@ deploy:staging:
   only:
     - main
   script:
-    - npm install -g @ensemble-edge/ensemble
     - |
       # Deploy to staging
-      COMPONENTS=$(ensemble edgit components list --format json | jq -r '.[] | .name')
+      COMPONENTS=$(npx @ensemble-edge/edgit components list --format json | jq -r '.[] | .name')
       for component in $COMPONENTS; do
-        LATEST=$(ensemble edgit tag list $component | tail -1)
-        ensemble edgit deploy set $component $LATEST --to staging
+        LATEST=$(npx @ensemble-edge/edgit tag list $component | tail -1)
+        npx @ensemble-edge/edgit deploy set $component $LATEST --to staging
       done
       git push https://oauth2:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git --tags
 ```
@@ -253,9 +258,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Ensemble CLI
-          command: npm install -g @ensemble-edge/ensemble
-      - run:
           name: Version Components
           command: |
             git config user.name "CircleCI"
@@ -263,11 +265,11 @@ jobs:
 
             CHANGED=$(git diff --name-only HEAD~1 HEAD)
             for file in $CHANGED; do
-              COMPONENT=$(ensemble edgit discover detect $file --name-only)
+              COMPONENT=$(npx @ensemble-edge/edgit discover detect $file --name-only)
               if [ ! -z "$COMPONENT" ]; then
-                LATEST=$(ensemble edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
-                NEW=$(ensemble edgit version bump $LATEST patch)
-                ensemble edgit tag create $COMPONENT $NEW
+                LATEST=$(npx @ensemble-edge/edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
+                NEW=$(npx @ensemble-edge/edgit version bump $LATEST patch)
+                npx @ensemble-edge/edgit tag create $COMPONENT $NEW
               fi
             done
       - run:
@@ -292,23 +294,23 @@ Auto-increment based on commit messages:
 # scripts/auto-version.sh
 
 COMPONENT=$1
-LATEST=$(ensemble edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
+LATEST=$(npx @ensemble-edge/edgit tag list $COMPONENT | tail -1 || echo "v0.0.0")
 
 # Parse commit messages since last tag
 COMMITS=$(git log --format=%s $(git describe --tags --abbrev=0)..HEAD -- components/$COMPONENT/)
 
 if echo "$COMMITS" | grep -q "BREAKING CHANGE\|breaking:"; then
   # Major version bump
-  NEW=$(ensemble edgit version bump $LATEST major)
+  NEW=$(npx @ensemble-edge/edgit version bump $LATEST major)
 elif echo "$COMMITS" | grep -q "feat:"; then
   # Minor version bump
-  NEW=$(ensemble edgit version bump $LATEST minor)
+  NEW=$(npx @ensemble-edge/edgit version bump $LATEST minor)
 else
   # Patch version bump
-  NEW=$(ensemble edgit version bump $LATEST patch)
+  NEW=$(npx @ensemble-edge/edgit version bump $LATEST patch)
 fi
 
-ensemble edgit tag create $COMPONENT $NEW
+npx @ensemble-edge/edgit tag create $COMPONENT $NEW
 echo "Versioned $COMPONENT: $LATEST  $NEW"
 ```
 
@@ -318,7 +320,7 @@ Use in CI:
 - name: Auto Version
   run: |
     # Discover changed components using Edgit's built-in --changed flag
-    CHANGED=$(ensemble edgit discover scan --changed --output simple | awk '{print $2}' | sort -u)
+    CHANGED=$(npx @ensemble-edge/edgit discover scan --changed --output simple | awk '{print $2}' | sort -u)
     for component in $CHANGED; do
       ./scripts/auto-version.sh $component
     done
@@ -347,13 +349,10 @@ jobs:
 
       - uses: actions/setup-node@v4
 
-      - name: Install Ensemble CLI
-        run: npm install -g @ensemble-edge/ensemble
-
       - name: Export Version Data
         run: |
           # Export all component versions to JSON
-          ensemble edgit components list --format json > versions.json
+          npx @ensemble-edge/edgit components list --format json > versions.json
 
       - name: Deploy to Cloudflare KV
         env:

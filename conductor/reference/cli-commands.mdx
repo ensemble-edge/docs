@@ -7,18 +7,16 @@ description: "Conductor command line reference"
 
 **Complete reference for the Conductor CLI.**
 
-## Installation
+## Getting Started
 
-Install the unified Ensemble CLI:
+No installation needed - use `npx` to run the CLI:
 
 ```bash
-# Using pnpm (recommended)
-pnpm add -g @ensemble-edge/ensemble
+# Launch the interactive wizard
+npx @ensemble-edge/ensemble
 
-# Using npm
-npm install -g @ensemble-edge/ensemble
-
-# Using npx (no installation)
+# Or run specific commands
+npx @ensemble-edge/ensemble conductor init my-project
 npx @ensemble-edge/ensemble conductor --help
 ```
 
@@ -33,9 +31,9 @@ ensemble conductor validate
 ```
 
 <Tip>
-For CI/automated environments, use `--yes` to skip all interactive prompts:
+**For CI/automated environments**, use the `-y` flag to skip all interactive prompts:
 ```bash
-ensemble conductor init my-project --yes
+npx @ensemble-edge/conductor init my-project -y
 ```
 </Tip>
 

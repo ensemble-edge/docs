@@ -8,11 +8,8 @@ description: "From zero to deployed edge workflow in 60 seconds. No ceremony, no
 Get a working Conductor project instantly:
 
 ```bash
-# Install the unified CLI
-npm install -g @ensemble-edge/ensemble
-
-# Create project with examples
-ensemble conductor init my-conductor-app
+# Create project with examples (no installation needed)
+npx @ensemble-edge/ensemble conductor init my-conductor-app
 cd my-conductor-app
 
 # Install and run
@@ -24,9 +21,9 @@ npx wrangler dev --local-protocol http
 Open http://localhost:8787 🎉
 
 <Tip>
-**For CI/automated environments**, use `--yes` to skip all interactive prompts:
+**For CI/automated environments**, use the `-y` flag to skip all interactive prompts:
 ```bash
-ensemble conductor init my-conductor-app --yes
+npx @ensemble-edge/conductor init my-conductor-app -y
 ```
 </Tip>
 

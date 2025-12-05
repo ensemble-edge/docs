@@ -109,14 +109,11 @@ Your Code (Git)  Cloud Build  Global Edge Deployment
 4. **Monitor**: View logs and metrics
 
 ```bash
-# Install Cloud CLI
-npm install -g @ensemble/cloud
+# No installation needed - use npx
+npx @ensemble-edge/ensemble cloud login
 
-# Login
-ensemble login
-
-# Deploy
-ensemble deploy
+# Deploy your project
+npx @ensemble-edge/ensemble cloud deploy
 ```
 
 ## Migration from Self-Hosted
