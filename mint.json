@@ -84,6 +84,7 @@
       "pages": [
         "index",
         "introduction/overview",
+        "introduction/ensemble-cli",
         "introduction/quick-start",
         "introduction/core-concepts",
         "introduction/nomenclature"
@@ -304,6 +305,12 @@
         "cloud/overview",
         "cloud/vision-roadmap",
         "cloud/join-waitlist"
+      ]
+    },
+    {
+      "group": "Cloud Reference",
+      "pages": [
+        "cloud/reference/cli-commands"
       ]
     }
   ],
