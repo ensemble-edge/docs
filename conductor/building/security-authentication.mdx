@@ -125,7 +125,7 @@ trigger:
 
 4. Generate keys with the CLI:
 ```bash
-conductor keys generate --name "my-service" --permissions "ensemble:*:execute"
+ensemble conductor keys generate --name "my-service" --permissions "ensemble:*:execute"
 ```
 
 ### Unkey Integration (Advanced)
@@ -217,16 +217,16 @@ Conductor includes CLI commands for managing API keys stored in Cloudflare KV.
 
 ```bash
 # Basic key with full access
-conductor keys generate --name "admin-key" --permissions "*"
+ensemble conductor keys generate --name "admin-key" --permissions "*"
 
 # Scoped key for specific ensembles
-conductor keys generate \
+ensemble conductor keys generate \
   --name "billing-service" \
   --permissions "ensemble:billing-*:execute,ensemble:invoice-*:execute" \
   --expires "90d"
 
 # Key that never expires
-conductor keys generate \
+ensemble conductor keys generate \
   --name "internal-service" \
   --permissions "ensemble:*:execute" \
   --expires "never"
@@ -246,22 +246,22 @@ Expires: 2024-05-15
 ### List Keys
 
 ```bash
-conductor keys list
+ensemble conductor keys list
 
 # Output as JSON
-conductor keys list --json
+ensemble conductor keys list --json
 ```
 
 ### Revoke a Key
 
 ```bash
-conductor keys revoke key_abc123
+ensemble conductor keys revoke key_abc123
 ```
 
 ### Get Key Info
 
 ```bash
-conductor keys info key_abc123
+ensemble conductor keys info key_abc123
 ```
 
 ### Rotate a Key
@@ -269,7 +269,7 @@ conductor keys info key_abc123
 Generate a new key while keeping the same metadata:
 
 ```bash
-conductor keys rotate key_abc123
+ensemble conductor keys rotate key_abc123
 ```
 
 ## Configuration
@@ -544,10 +544,10 @@ Instead of giving services full access (`*`), scope their permissions:
 
 ```bash
 # Bad: Full access
-conductor keys generate --name "billing" --permissions "*"
+ensemble conductor keys generate --name "billing" --permissions "*"
 
 # Good: Scoped to what's needed
-conductor keys generate --name "billing" \
+ensemble conductor keys generate --name "billing" \
   --permissions "ensemble:billing-*:execute,ensemble:invoice-*:execute"
 ```
 
@@ -555,7 +555,7 @@ conductor keys generate --name "billing" \
 
 ```bash
 # Rotate keys periodically
-conductor keys rotate key_abc123
+ensemble conductor keys rotate key_abc123
 ```
 
 ### 4. Use Unkey for Production

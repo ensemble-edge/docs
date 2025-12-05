@@ -20,23 +20,10 @@ ensemble wrangler dev                # Passthrough to Wrangler
 
 ## Why a Unified CLI?
 
-### Before: Multiple Tools
+The Ensemble CLI provides a single interface for all tools in the ecosystem:
 
 ```bash
-# Old way - install each separately
-pnpm add -g @ensemble-edge/conductor
-pnpm add -g @ensemble-edge/edgit
-pnpm add -g @ensemble-edge/cloud
-
-conductor init my-project
-edgit tag create prompt v1.0.0
-cloud deploy
-```
-
-### After: One CLI
-
-```bash
-# New way - single install
+# Single install gives you access to all tools
 pnpm add -g @ensemble-edge/ensemble
 
 ensemble conductor init my-project
@@ -251,18 +238,14 @@ deploy:
     CLOUDFLARE_API_TOKEN: $CLOUDFLARE_API_TOKEN
 ```
 
-## Direct Tool Access
+## Using npx
 
-While the unified CLI is recommended, you can still install tools individually:
+You can also use the CLI without global installation via npx:
 
 ```bash
-# Individual installations (alternative)
-pnpm add -g @ensemble-edge/conductor
-pnpm add -g @ensemble-edge/edgit
-
-# Direct commands work the same
-conductor init my-project
-edgit tag create my-prompt v1.0.0
+# Use without installation
+npx @ensemble-edge/ensemble conductor init my-project
+npx @ensemble-edge/ensemble edgit tag create my-prompt v1.0.0
 ```
 
 ## Troubleshooting

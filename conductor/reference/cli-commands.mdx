@@ -9,33 +9,35 @@ description: "Conductor command line reference"
 
 ## Installation
 
-The recommended way to use Conductor is through the unified Ensemble CLI:
+Install the unified Ensemble CLI:
 
 ```bash
-# Recommended: Unified CLI (includes all tools)
+# Using pnpm (recommended)
 pnpm add -g @ensemble-edge/ensemble
 
-# Alternative: Direct installation
-pnpm add -g @ensemble-edge/conductor
+# Using npm
+npm install -g @ensemble-edge/ensemble
+
+# Using npx (no installation)
+npx @ensemble-edge/ensemble conductor --help
 ```
 
 ## Usage
 
-Commands can be run through either the unified CLI or directly:
+All Conductor commands are accessed through the unified Ensemble CLI:
 
 ```bash
-# Via unified CLI (recommended)
 ensemble conductor init my-project
 ensemble conductor dev
-
-# Direct (alternative)
-conductor init my-project
-conductor dev
+ensemble conductor validate
 ```
 
-<Note>
-All examples below show the direct `conductor` command. Prefix with `ensemble` when using the unified CLI.
-</Note>
+<Tip>
+For CI/automated environments, use `--yes` to skip all interactive prompts:
+```bash
+ensemble conductor init my-project --yes
+```
+</Tip>
 
 ## Global Commands
 
@@ -44,16 +46,17 @@ All examples below show the direct `conductor` command. Prefix with `ensemble` w
 Initialize a new Conductor project.
 
 ```bash
-conductor init [project-name]
+ensemble conductor init [project-name]
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
+| `-y, --yes` | Non-interactive mode (skip all prompts) |
 | `--template <template>` | Use a template (basic, api, rag, chatbot) |
-| `--typescript` | Use TypeScript |
-| `--no-git` | Skip git initialization |
+| `--force` | Overwrite existing files |
+| `--no-examples` | Skip example files |
 | `--skip-auth` | Skip Wrangler authentication check |
 | `--skip-secrets` | Skip AI provider setup |
 | `--provider <name>` | Pre-select AI provider (anthropic, openai, cloudflare) |
@@ -62,16 +65,19 @@ conductor init [project-name]
 
 ```bash
 # Basic initialization
-conductor init my-project
+ensemble conductor init my-project
+
+# Non-interactive (CI/CD mode)
+ensemble conductor init my-project --yes
 
 # With template
-conductor init my-project --template rag
+ensemble conductor init my-project --template rag
 
 # With AI provider pre-selected
-conductor init my-project --provider anthropic
+ensemble conductor init my-project --provider anthropic
 
-# CI/CD mode (no prompts)
-conductor init my-project --skip-auth --skip-secrets
+# Skip auth and secrets prompts
+ensemble conductor init my-project --skip-auth --skip-secrets
 ```
 
 **What init does:**
@@ -87,24 +93,31 @@ conductor init my-project --skip-auth --skip-secrets
 Start local development server.
 
 ```bash
-conductor dev
+ensemble conductor dev
 ```
 
 Options:
-- `--port <port>` - Port number (default: 3000)
+- `--port <port>` - Port number (default: 8787)
 - `--host <host>` - Host address (default: localhost)
 
 Example:
 ```bash
-conductor dev --port 8080
+ensemble conductor dev --port 8080
 ```
+
+<Note>
+This wraps `npx wrangler dev`. For dev containers, add `--ip 0.0.0.0`:
+```bash
+npx wrangler dev --local-protocol http --ip 0.0.0.0
+```
+</Note>
 
 ### deploy
 
 Deploy to Cloudflare Workers.
 
 ```bash
-conductor deploy [environment]
+ensemble conductor deploy [environment]
 ```
 
 Options:
@@ -113,7 +126,7 @@ Options:
 
 Example:
 ```bash
-conductor deploy --env staging
+ensemble conductor deploy --env staging
 ```
 
 ### test
@@ -121,7 +134,7 @@ conductor deploy --env staging
 Run tests.
 
 ```bash
-conductor test [pattern]
+pnpm test [pattern]
 ```
 
 Options:
@@ -131,7 +144,7 @@ Options:
 
 Example:
 ```bash
-conductor test --coverage
+pnpm test --coverage
 ```
 
 ### build
@@ -139,7 +152,7 @@ conductor test --coverage
 Execute all build triggers in the project. Build triggers run at build time to generate static assets like documentation, OpenAPI specs, or pre-rendered pages.
 
 ```bash
-conductor build
+pnpm run build
 ```
 
 Options:
@@ -149,7 +162,7 @@ Options:
 
 Example:
 ```bash
-conductor build --env staging --verbose
+pnpm run build --env staging --verbose
 ```
 
 **What it does:**
@@ -159,7 +172,7 @@ conductor build --env staging --verbose
 - Reports build status and timing
 
 **Common Use Cases:**
-- `conductor build` before deployment (CI/CD)
+- `pnpm run build` before deployment (CI/CD)
 - Generate OpenAPI documentation
 - Pre-render static pages
 - Build search indexes
@@ -169,7 +182,7 @@ conductor build --env staging --verbose
 Execute a CLI trigger by command name. CLI triggers are custom commands defined in ensemble YAML files.
 
 ```bash
-conductor run <command> [options]
+ensemble conductor run <command> [options]
 ```
 
 **Arguments:**
@@ -188,13 +201,13 @@ Options are defined in the ensemble's CLI trigger configuration. They can be:
 Example:
 ```bash
 # Run a CLI command with options
-conductor run generate-docs --output ./docs --format markdown --verbose
+ensemble conductor run generate-docs --output ./docs --format markdown --verbose
 
 # Run with required and optional parameters
-conductor run import-data --file data.json --batch-size 100
+ensemble conductor run import-data --file data.json --batch-size 100
 
 # Boolean flags
-conductor run deploy --dry-run --skip-tests
+ensemble conductor run deploy --dry-run --skip-tests
 ```
 
 **Defining CLI Commands:**
@@ -231,7 +244,7 @@ flow:
 **Listing Available Commands:**
 
 ```bash
-conductor ensemble:list --type cli
+ensemble conductor ensemble:list --type cli
 ```
 
 ## Validate Command
@@ -241,7 +254,7 @@ conductor ensemble:list --type cli
 Validate ensemble and agent configuration files (YAML or TypeScript).
 
 ```bash
-conductor validate [path] [options]
+ensemble conductor validate [path] [options]
 ```
 
 **Arguments:**
@@ -273,7 +286,7 @@ The validate command checks TypeScript agent files for:
 
 ```bash
 # Validate a TypeScript agent
-conductor validate agents/my-agent/index.ts
+ensemble conductor validate agents/my-agent/index.ts
 ```
 
 Example output for common issues:
@@ -291,17 +304,17 @@ Example output for common issues:
 
 ```bash
 # Validate current directory
-conductor validate
+ensemble conductor validate
 
 # Validate specific file
-conductor validate ensembles/workflow.yaml
-conductor validate agents/custom-agent/index.ts
+ensemble conductor validate ensembles/workflow.yaml
+ensemble conductor validate agents/custom-agent/index.ts
 
 # Validate with auto-fix
-conductor validate --fix
+ensemble conductor validate --fix
 
 # Validate recursively with JSON output
-conductor validate . -r --format json
+ensemble conductor validate . -r --format json
 ```
 
 ---
@@ -313,7 +326,7 @@ conductor validate . -r --format json
 Export an ensemble or agent with all its dependencies into a portable archive.
 
 ```bash
-conductor bundle <type> <name> [options]
+ensemble conductor bundle <type> <name> [options]
 ```
 
 **Arguments:**
@@ -338,13 +351,13 @@ conductor bundle <type> <name> [options]
 
 ```bash
 # Bundle an ensemble
-conductor bundle ensemble my-workflow -o my-workflow.tar.gz
+ensemble conductor bundle ensemble my-workflow -o my-workflow.tar.gz
 
 # Bundle an agent
-conductor bundle agent company-enricher --format zip
+ensemble conductor bundle agent company-enricher --format zip
 
 # Preview bundle contents
-conductor bundle ensemble rag-pipeline --dry-run
+ensemble conductor bundle ensemble rag-pipeline --dry-run
 ```
 
 ### import
@@ -352,7 +365,7 @@ conductor bundle ensemble rag-pipeline --dry-run
 Import a bundled ensemble or agent into the current project.
 
 ```bash
-conductor import <bundle> [options]
+ensemble conductor import <bundle> [options]
 ```
 
 **Arguments:**
@@ -377,16 +390,16 @@ conductor import <bundle> [options]
 
 ```bash
 # Import a bundle
-conductor import ./my-workflow.tar.gz
+ensemble conductor import ./my-workflow.tar.gz
 
 # Preview import
-conductor import ./shared-agent.zip --dry-run
+ensemble conductor import ./shared-agent.zip --dry-run
 
 # Force overwrite existing files
-conductor import ./updated-workflow.tar.gz --force
+ensemble conductor import ./updated-workflow.tar.gz --force
 
 # Skip conflicts
-conductor import ./new-agents.tar.gz --skip
+ensemble conductor import ./new-agents.tar.gz --skip
 ```
 
 ---
@@ -398,7 +411,7 @@ conductor import ./new-agents.tar.gz --skip
 List all ensembles.
 
 ```bash
-conductor ensemble:list
+ensemble conductor ensemble:list
 ```
 
 ### ensemble:run
@@ -406,25 +419,25 @@ conductor ensemble:list
 Execute an ensemble locally.
 
 ```bash
-conductor ensemble:run <ensemble> [input]
+ensemble conductor ensemble:run <ensemble> [input]
 ```
 
 Example:
 ```bash
-conductor ensemble:run greet-user '{"name": "Alice"}'
+ensemble conductor ensemble:run greet-user '{"name": "Alice"}'
 ```
 
 ### ensemble:validate
 
-Validate ensemble YAML (legacy - prefer `conductor validate`).
+Validate ensemble YAML (legacy - prefer `ensemble conductor validate`).
 
 ```bash
-conductor ensemble:validate <file>
+ensemble conductor ensemble:validate <file>
 ```
 
 Example:
 ```bash
-conductor ensemble:validate ensembles/greet.yaml
+ensemble conductor ensemble:validate ensembles/greet.yaml
 ```
 
 ## Agent Commands
@@ -434,7 +447,7 @@ conductor ensemble:validate ensembles/greet.yaml
 List all agents.
 
 ```bash
-conductor agent:list
+ensemble conductor agent:list
 ```
 
 ### agent:run
@@ -442,12 +455,12 @@ conductor agent:list
 Execute an agent locally.
 
 ```bash
-conductor agent:run <agent> [input]
+ensemble conductor agent:run <agent> [input]
 ```
 
 Example:
 ```bash
-conductor agent:run company-enricher '{"company_name": "Anthropic"}'
+ensemble conductor agent:run company-enricher '{"company_name": "Anthropic"}'
 ```
 
 ### agent:validate
@@ -455,7 +468,7 @@ conductor agent:run company-enricher '{"company_name": "Anthropic"}'
 Validate agent YAML.
 
 ```bash
-conductor agent:validate <file>
+ensemble conductor agent:validate <file>
 ```
 
 ## Component Commands
@@ -465,7 +478,7 @@ conductor agent:validate <file>
 List all components.
 
 ```bash
-conductor component:list
+ensemble conductor component:list
 ```
 
 ### component:create
@@ -473,7 +486,7 @@ conductor component:list
 Create a new component.
 
 ```bash
-conductor component:create <name> --type <type>
+ensemble conductor component:create <name> --type <type>
 ```
 
 Options:
@@ -482,7 +495,7 @@ Options:
 
 Example:
 ```bash
-conductor component:create user-prompt --type prompt
+ensemble conductor component:create user-prompt --type prompt
 ```
 
 ## Edgit Commands
@@ -492,7 +505,7 @@ conductor component:create user-prompt --type prompt
 Initialize Edgit in project.
 
 ```bash
-conductor edgit:init
+ensemble edgit init
 ```
 
 ### edgit:status
@@ -500,7 +513,7 @@ conductor edgit:init
 Show Edgit status.
 
 ```bash
-conductor edgit:status
+ensemble edgit status
 ```
 
 ### edgit:commit
@@ -508,7 +521,7 @@ conductor edgit:status
 Commit changes.
 
 ```bash
-conductor edgit:commit -m "message"
+ensemble edgit commit -m "message"
 ```
 
 ### edgit:tag
@@ -516,12 +529,12 @@ conductor edgit:commit -m "message"
 Create version tag.
 
 ```bash
-conductor edgit:tag <version>
+ensemble edgit tag create <version>
 ```
 
 Example:
 ```bash
-conductor edgit:tag v1.2.0
+ensemble edgit tag create v1.2.0
 ```
 
 ### edgit:log
@@ -529,7 +542,7 @@ conductor edgit:tag v1.2.0
 Show commit history.
 
 ```bash
-conductor edgit:log [--limit <n>]
+ensemble edgit log [--limit <n>]
 ```
 
 ### edgit:diff
@@ -537,7 +550,7 @@ conductor edgit:log [--limit <n>]
 Show changes.
 
 ```bash
-conductor edgit:diff [commit1] [commit2]
+ensemble edgit diff [commit1] [commit2]
 ```
 
 ## Config Commands
@@ -547,12 +560,12 @@ conductor edgit:diff [commit1] [commit2]
 Get configuration value.
 
 ```bash
-conductor config:get <key>
+ensemble conductor config:get <key>
 ```
 
 Example:
 ```bash
-conductor config:get apiKey
+ensemble conductor config:get apiKey
 ```
 
 ### config:set
@@ -560,12 +573,12 @@ conductor config:get apiKey
 Set configuration value.
 
 ```bash
-conductor config:set <key> <value>
+ensemble conductor config:set <key> <value>
 ```
 
 Example:
 ```bash
-conductor config:set apiKey sk-...
+ensemble conductor config:set apiKey sk-...
 ```
 
 ### config:list
@@ -573,7 +586,7 @@ conductor config:set apiKey sk-...
 List all configuration.
 
 ```bash
-conductor config:list
+ensemble conductor config:list
 ```
 
 ## API Key Commands
@@ -585,7 +598,7 @@ Manage API keys for authentication. Keys are stored in Cloudflare KV.
 Generate a new API key with optional scoped permissions.
 
 ```bash
-conductor keys generate --name <name> [options]
+ensemble conductor keys generate --name <name> [options]
 ```
 
 **Options:**
@@ -602,16 +615,16 @@ conductor keys generate --name <name> [options]
 
 ```bash
 # Full access key
-conductor keys generate --name "admin" --permissions "*"
+ensemble conductor keys generate --name "admin" --permissions "*"
 
 # Scoped key for billing ensembles
-conductor keys generate \
+ensemble conductor keys generate \
   --name "billing-service" \
   --permissions "ensemble:billing-*:execute,ensemble:invoice-*:execute" \
   --expires "90d"
 
 # Key that never expires
-conductor keys generate --name "internal" --permissions "*" --expires never
+ensemble conductor keys generate --name "internal" --permissions "*" --expires never
 ```
 
 ### keys list
@@ -619,7 +632,7 @@ conductor keys generate --name "internal" --permissions "*" --expires never
 List all API keys.
 
 ```bash
-conductor keys list [options]
+ensemble conductor keys list [options]
 ```
 
 **Options:**
@@ -633,7 +646,7 @@ conductor keys list [options]
 Revoke an API key.
 
 ```bash
-conductor keys revoke <keyId> [options]
+ensemble conductor keys revoke <keyId> [options]
 ```
 
 **Options:**
@@ -647,7 +660,7 @@ conductor keys revoke <keyId> [options]
 Show information about an API key.
 
 ```bash
-conductor keys info <keyId> [options]
+ensemble conductor keys info <keyId> [options]
 ```
 
 **Options:**
@@ -661,7 +674,7 @@ conductor keys info <keyId> [options]
 Rotate an API key (generates new key, keeps metadata).
 
 ```bash
-conductor keys rotate <keyId> [options]
+ensemble conductor keys rotate <keyId> [options]
 ```
 
 **Options:**
@@ -679,14 +692,14 @@ conductor keys rotate <keyId> [options]
 Set a secret.
 
 ```bash
-conductor secret:set <name> [value]
+ensemble conductor secret:set <name> [value]
 ```
 
 If value is omitted, prompts securely.
 
 Example:
 ```bash
-conductor secret:set OPENAI_API_KEY
+ensemble conductor secret:set OPENAI_API_KEY
 ```
 
 ### secret:list
@@ -694,7 +707,7 @@ conductor secret:set OPENAI_API_KEY
 List secret names (not values).
 
 ```bash
-conductor secret:list
+ensemble conductor secret:list
 ```
 
 ### secret:delete
@@ -702,7 +715,7 @@ conductor secret:list
 Delete a secret.
 
 ```bash
-conductor secret:delete <name>
+ensemble conductor secret:delete <name>
 ```
 
 ## Database Commands
@@ -712,7 +725,7 @@ conductor secret:delete <name>
 Create D1 database.
 
 ```bash
-conductor db:create <name>
+ensemble conductor db:create <name>
 ```
 
 ### db:migrate
@@ -720,7 +733,7 @@ conductor db:create <name>
 Run database migrations.
 
 ```bash
-conductor db:migrate [--env <environment>]
+ensemble conductor db:migrate [--env <environment>]
 ```
 
 ### db:query
@@ -728,12 +741,12 @@ conductor db:migrate [--env <environment>]
 Execute SQL query.
 
 ```bash
-conductor db:query <sql> [--env <environment>]
+ensemble conductor db:query <sql> [--env <environment>]
 ```
 
 Example:
 ```bash
-conductor db:query "SELECT * FROM users LIMIT 10"
+ensemble conductor db:query "SELECT * FROM users LIMIT 10"
 ```
 
 ## Storage Commands
@@ -743,14 +756,14 @@ conductor db:query "SELECT * FROM users LIMIT 10"
 Create KV namespace or R2 bucket.
 
 ```bash
-conductor storage:create <type> <name>
+ensemble conductor storage:create <type> <name>
 ```
 
 Types: `kv`, `r2`, `vectorize`
 
 Example:
 ```bash
-conductor storage:create kv CACHE
+ensemble conductor storage:create kv CACHE
 ```
 
 ### storage:list
@@ -758,7 +771,7 @@ conductor storage:create kv CACHE
 List storage resources.
 
 ```bash
-conductor storage:list <type>
+ensemble conductor storage:list <type>
 ```
 
 ## Logs Commands
@@ -768,7 +781,7 @@ conductor storage:list <type>
 Tail production logs.
 
 ```bash
-conductor logs [--env <environment>] [--follow]
+npx wrangler tail [--env <environment>]
 ```
 
 Options:
@@ -778,7 +791,7 @@ Options:
 
 Example:
 ```bash
-conductor logs --follow --filter error
+npx wrangler tail --filter error
 ```
 
 ## Info Commands
@@ -788,7 +801,7 @@ conductor logs --follow --filter error
 Show project information.
 
 ```bash
-conductor info
+ensemble conductor info
 ```
 
 ### version
@@ -796,7 +809,7 @@ conductor info
 Show CLI version.
 
 ```bash
-conductor version
+ensemble --version
 ```
 
 ### help
@@ -804,7 +817,8 @@ conductor version
 Show help.
 
 ```bash
-conductor help [command]
+ensemble conductor --help
+ensemble conductor help [command]
 ```
 
 ## Environment Management
@@ -814,7 +828,7 @@ conductor help [command]
 List environments.
 
 ```bash
-conductor env:list
+ensemble conductor env:list
 ```
 
 ### env:create
@@ -822,7 +836,7 @@ conductor env:list
 Create environment.
 
 ```bash
-conductor env:create <name>
+ensemble conductor env:create <name>
 ```
 
 ### env:switch
@@ -830,7 +844,7 @@ conductor env:create <name>
 Switch active environment.
 
 ```bash
-conductor env:switch <name>
+ensemble conductor env:switch <name>
 ```
 
 ## Common Options

@@ -497,7 +497,7 @@ edgit checkout -b feature/better-extraction
 vim components/prompts/extraction.md
 
 # 3. Test locally (no version yet)
-conductor dev
+ensemble conductor dev
 
 # 4. Merge to main
 edgit checkout main
@@ -586,7 +586,7 @@ edgit components list --unversioned
 edgit tag create my-prompt v1.0.0  # Before testing
 
 #  Do
-conductor dev  # Test locally first
+ensemble conductor dev  # Test locally first
 edgit tag create my-prompt v1.0.0  # Version after confirming it works
 ```
 

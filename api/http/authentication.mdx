@@ -16,7 +16,7 @@ Authorization: Bearer sk-ensemble-abc123...
 ### Via CLI
 
 ```bash
-conductor auth:token
+ensemble conductor auth:token
 ```
 
 Output:
@@ -216,28 +216,28 @@ const response = await fetch('https://your-worker.workers.dev/api/v1/execute/ens
 **3. Rotate Tokens Regularly**
 ```bash
 # Create new token
-conductor auth:token --name "Q1 2025"
+ensemble conductor auth:token --name "Q1 2025"
 
 # Update applications
 # ...
 
 # Revoke old token
-conductor auth:revoke tok_old123
+ensemble conductor auth:revoke tok_old123
 ```
 
 **4. Use Short-Lived Tokens**
 ```bash
 # 30-day expiration
-conductor auth:token --expires-in 30d
+ensemble conductor auth:token --expires-in 30d
 ```
 
 **5. Monitor Token Usage**
 ```bash
 # Check last used
-conductor tokens:list
+ensemble conductor tokens:list
 
 # View activity
-conductor tokens:activity tok_abc123
+ensemble conductor tokens:activity tok_abc123
 ```
 
 ## Error Handling

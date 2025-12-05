@@ -7,27 +7,12 @@ description: "From zero to deployed edge workflow in 60 seconds. No ceremony, no
 
 Get a working Conductor project instantly:
 
-**Via Ensemble CLI (Recommended)**
-
 ```bash
 # Install the unified CLI
-pnpm add -g @ensemble-edge/ensemble
+npm install -g @ensemble-edge/ensemble
 
-# Create project with examples (includes auth check + AI provider setup)
-ensemble conductor init my-conductor-app
-cd my-conductor-app
-
-# Install and run
-pnpm install
-pnpm run build
-ensemble wrangler dev --local-protocol http
-```
-
-**Alternative: Direct**
-
-```bash
 # Create project with examples
-npx @ensemble-edge/conductor@latest init my-conductor-app
+ensemble conductor init my-conductor-app
 cd my-conductor-app
 
 # Install and run
@@ -37,6 +22,13 @@ npx wrangler dev --local-protocol http
 ```
 
 Open http://localhost:8787 🎉
+
+<Tip>
+**For CI/automated environments**, use `--yes` to skip all interactive prompts:
+```bash
+ensemble conductor init my-conductor-app --yes
+```
+</Tip>
 
 Your project includes working examples of pages, workflows, and agents!
 

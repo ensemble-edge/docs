@@ -35,7 +35,7 @@ The documentation system is pre-configured and ready to use:
 
 1. **Start your Conductor dev server:**
    ```bash
-   conductor dev
+   ensemble conductor dev
    ```
 
 2. **Visit the docs:**
@@ -245,13 +245,13 @@ output:
 
 ```bash
 # Generate docs via CLI (default YAML format)
-conductor run docs-generate
+ensemble conductor run docs-generate
 
 # Generate JSON format
-conductor run docs-generate --format json
+ensemble conductor run docs-generate --format json
 
 # Specify output directory
-conductor run docs-generate --output ./docs-export
+ensemble conductor run docs-generate --output ./docs-export
 
 # Enable scheduled generation (edit YAML)
 # Set cron trigger enabled: true
@@ -702,7 +702,7 @@ Generate static OpenAPI specs during build:
 
 ```bash
 # Runs automatically during deploy
-conductor build
+ensemble conductor build
 
 # Output: ./dist/docs/openapi.yaml
 ```
@@ -729,8 +729,8 @@ trigger:
 
 ```bash
 # Generate and save
-conductor run docs-generate --format yaml > api-spec.yaml
-conductor run docs-generate --format json > api-spec.json
+ensemble conductor run docs-generate --format yaml > api-spec.yaml
+ensemble conductor run docs-generate --format json > api-spec.json
 ```
 
 ### Programmatic Access
@@ -776,16 +776,16 @@ flow:
 
 ### Docs not loading
 
-Check that the ensemble is enabled:
+Check that the ensemble is valid:
 
 ```bash
-conductor validate ensembles/system/docs/serve.yaml
+ensemble conductor validate ensembles/system/docs/serve.yaml
 ```
 
 Verify the trigger is registered:
 
 ```bash
-conductor dev --verbose
+ensemble conductor dev --verbose
 # Look for: "Registered HTTP trigger: /docs"
 ```
 

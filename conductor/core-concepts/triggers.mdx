@@ -868,7 +868,7 @@ flow:
 
 ## Build Triggers
 
-Run ensembles at build time to generate static content. Build triggers execute during the `conductor build` command and are useful for generating documentation, static pages, or pre-computing data.
+Run ensembles at build time to generate static content. Build triggers execute during the `ensemble conductor build` command and are useful for generating documentation, static pages, or pre-computing data.
 
 ### Basic Build Trigger
 
@@ -897,7 +897,7 @@ outputs:
   content: ${docs.output}
 ```
 
-Run with: `conductor build`
+Run with: `ensemble conductor build`
 
 ### Build with Custom Input
 
@@ -969,7 +969,7 @@ trigger:
 
 ## CLI Triggers
 
-Create custom CLI commands that execute ensembles. CLI triggers are invoked via `conductor run <command>` and support options with defaults and validation.
+Create custom CLI commands that execute ensembles. CLI triggers are invoked via `ensemble conductor run <command>` and support options with defaults and validation.
 
 ### Basic CLI Trigger
 
@@ -995,7 +995,7 @@ outputs:
   result: ${docs.output}
 ```
 
-Run with: `conductor run generate-docs`
+Run with: `ensemble conductor run generate-docs`
 
 ### CLI with Options
 
@@ -1030,7 +1030,7 @@ flow:
 
 Run with:
 ```bash
-conductor run generate-docs --format=json --output=./docs/api.json --verbose
+ensemble conductor run generate-docs --format=json --output=./docs/api.json --verbose
 ```
 
 ### CLI Options Types

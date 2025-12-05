@@ -336,16 +336,16 @@ project/
 
 ## CLI Quick Reference
 
-conductor init [name]             # Create project
-conductor dev                     # Local dev server
-conductor deploy                  # Deploy to CF Workers
-conductor test                    # Run tests
-conductor validate [path]         # Validate YAML/TS
-conductor validate --fix          # Auto-fix issues
-conductor build                   # Run build triggers
-conductor run <command>           # Run CLI triggers
-conductor ensemble:run NAME INPUT
-conductor agent:run NAME INPUT
+```bash
+ensemble conductor init [name]    # Create project (use --yes for CI)
+ensemble conductor validate       # Validate YAML/TS
+
+# Project commands (pnpm/npm)
+pnpm run dev                      # Local dev server
+pnpm run build                    # Build project
+pnpm test                         # Run tests
+npx wrangler deploy               # Deploy to CF Workers
+```
 
 ## Common Mistakes
 
@@ -1128,28 +1128,25 @@ export default function myScript(context: AgentExecutionContext) {
 ## CLI Quick Reference
 
 ```bash
-# Project
-conductor init [name]             # Create project
-conductor dev                     # Local dev server
-conductor deploy                  # Deploy to CF Workers
-conductor test                    # Run Vitest tests
-conductor build                   # Run all build triggers
-conductor run <command>           # Run CLI trigger by command name
+# Project initialization
+ensemble conductor init [name]    # Create project (use --yes for CI)
+
+# Development (project commands)
+pnpm run dev                      # Local dev server
+pnpm run build                    # Build project
+pnpm test                         # Run Vitest tests
+npx wrangler deploy               # Deploy to CF Workers
 
 # Validate
-conductor validate [path]         # Validate YAML/TS files
-conductor validate --fix          # Auto-fix issues
-conductor validate -r             # Recursive directory scan
-conductor validate --strict       # Strict mode
-conductor validate --format json  # JSON output
+ensemble conductor validate [path]           # Validate YAML/TS files
+ensemble conductor validate --fix            # Auto-fix issues
+ensemble conductor validate -r               # Recursive directory scan
+ensemble conductor validate --strict         # Strict mode
+ensemble conductor validate --format json    # JSON output
 
 # Execute
-conductor ensemble:run <name> <input>
-conductor agent:run <name> <input>
-
-# Components
-conductor component:create <name> --type <type>
-conductor component:list
+ensemble conductor ensemble:run <name> <input>
+ensemble conductor agent:run <name> <input>
 
 # Secrets
 wrangler secret put <NAME>        # Production secrets
@@ -1172,7 +1169,7 @@ describe('My Ensemble', () => {
 })
 ```
 
-Run: `conductor test` or `pnpm test`
+Run: `pnpm test`
 
 ---
 
@@ -1180,17 +1177,17 @@ Run: `conductor test` or `pnpm test`
 
 ```bash
 # Validate all files in current directory
-conductor validate
+ensemble conductor validate
 
 # Validate specific file
-conductor validate ensembles/my-workflow.yaml
-conductor validate ensembles/my-workflow.ts
+ensemble conductor validate ensembles/my-workflow.yaml
+ensemble conductor validate ensembles/my-workflow.ts
 
 # Recursive with auto-fix
-conductor validate . -r --fix
+ensemble conductor validate . -r --fix
 
 # Strict mode with JSON output (for CI)
-conductor validate --strict --format json
+ensemble conductor validate --strict --format json
 ```
 
 **Validates:**
