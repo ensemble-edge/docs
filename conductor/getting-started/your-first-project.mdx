@@ -7,25 +7,56 @@ description: "From zero to deployed edge workflow in 60 seconds. No ceremony, no
 
 Get a working Conductor project instantly:
 
-```bash
-# Create project with examples (no installation needed)
-npx @ensemble-edge/ensemble conductor init my-conductor-app
-cd my-conductor-app
+<Tabs>
+  <Tab title="Unified CLI (Recommended)">
+    The interactive wizard handles everything—project creation, package manager detection, and dependency installation:
 
-# Install and run
-pnpm install
-pnpm run build
-npx wrangler dev --local-protocol http
-```
+    ```bash
+    # Launch the wizard (no installation needed)
+    npx @ensemble-edge/ensemble
+    ```
 
-Open http://localhost:8787 🎉
+    The wizard will:
+    1. Ask you to select **Conductor** as the project type
+    2. Prompt for your project name
+    3. Detect your package manager (npm, pnpm, yarn, bun)
+    4. Create the project and install dependencies automatically
 
-<Tip>
-**For CI/automated environments**, use the `-y` flag to skip all interactive prompts:
-```bash
-npx @ensemble-edge/conductor init my-conductor-app -y
-```
-</Tip>
+    Then start the dev server:
+
+    ```bash
+    cd my-conductor-app
+    pnpm run build
+    npx wrangler dev --local-protocol http
+    ```
+
+    Open http://localhost:8787 🎉
+  </Tab>
+
+  <Tab title="Direct Command">
+    Skip the wizard and create a project directly:
+
+    ```bash
+    # Create project with examples (no installation needed)
+    npx @ensemble-edge/ensemble conductor init my-conductor-app
+    cd my-conductor-app
+
+    # Install and run
+    pnpm install
+    pnpm run build
+    npx wrangler dev --local-protocol http
+    ```
+
+    Open http://localhost:8787 🎉
+
+    <Tip>
+    **For CI/automated environments**, use the `-y` flag to skip all interactive prompts:
+    ```bash
+    npx @ensemble-edge/conductor init my-conductor-app -y
+    ```
+    </Tip>
+  </Tab>
+</Tabs>
 
 Your project includes working examples of pages, workflows, and agents!
 

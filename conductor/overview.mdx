@@ -549,18 +549,43 @@ Run tests: `pnpm test`
 
 Get a working Conductor project instantly:
 
-```bash
-# Create project with examples (no installation needed)
-npx @ensemble-edge/ensemble conductor init my-conductor-app
-cd my-conductor-app
+<Tabs>
+  <Tab title="Unified CLI (Recommended)">
+    The interactive wizard handles everything:
 
-# Install and run
-pnpm install
-pnpm run build
-npx wrangler dev --local-protocol http
-```
+    ```bash
+    # Launch the wizard (no installation needed)
+    npx @ensemble-edge/ensemble
+    ```
 
-Open http://localhost:8787 🎉
+    Select **Conductor**, enter your project name, and the wizard will create your project and install dependencies automatically.
+
+    Then start the dev server:
+
+    ```bash
+    cd my-conductor-app
+    pnpm run build
+    npx wrangler dev --local-protocol http
+    ```
+
+    Open http://localhost:8787 🎉
+  </Tab>
+
+  <Tab title="Direct Command">
+    ```bash
+    # Create project with examples (no installation needed)
+    npx @ensemble-edge/ensemble conductor init my-conductor-app
+    cd my-conductor-app
+
+    # Install and run
+    pnpm install
+    pnpm run build
+    npx wrangler dev --local-protocol http
+    ```
+
+    Open http://localhost:8787 🎉
+  </Tab>
+</Tabs>
 
 Your project includes:
 - ✅ **10 example pages** - Static, dynamic, forms, and SSR patterns
