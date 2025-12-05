@@ -8,8 +8,8 @@ You've built your ensemble. Now let's put it in production where it matters.
 ## Prerequisites
 
 Before deploying:
--  Wrangler installed and authenticated (`wrangler login`)
--  Working ensemble running locally (`pnpm run dev`)
+-  Wrangler installed and authenticated (`ensemble wrangler login` or `wrangler login`)
+-  Working ensemble running locally (`ensemble wrangler dev --local-protocol http`)
 -  `wrangler.toml` configured
 
 ## Deploy to Production
@@ -60,7 +60,8 @@ pnpm run build
 **Step 2**: Test with wrangler dev
 
 ```bash
-npx wrangler dev
+ensemble wrangler dev --local-protocol http
+# or: npx wrangler dev --local-protocol http
 ```
 
 **Step 3**: Verify all resources are discovered

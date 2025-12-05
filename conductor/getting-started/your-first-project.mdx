@@ -7,6 +7,24 @@ description: "From zero to deployed edge workflow in 60 seconds. No ceremony, no
 
 Get a working Conductor project instantly:
 
+**Via Ensemble CLI (Recommended)**
+
+```bash
+# Install the unified CLI
+pnpm add -g @ensemble-edge/ensemble
+
+# Create project with examples (includes auth check + AI provider setup)
+ensemble conductor init my-conductor-app
+cd my-conductor-app
+
+# Install and run
+pnpm install
+pnpm run build
+ensemble wrangler dev --local-protocol http
+```
+
+**Alternative: Direct**
+
 ```bash
 # Create project with examples
 npx @ensemble-edge/conductor@latest init my-conductor-app

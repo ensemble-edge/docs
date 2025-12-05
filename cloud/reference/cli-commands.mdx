@@ -1,0 +1,465 @@
+---
+title: "CLI Commands"
+description: "Ensemble Cloud CLI command reference"
+---
+
+## Overview
+
+The Ensemble Cloud CLI provides commands for deploying and managing your projects on Ensemble Cloud. Access these commands through the unified Ensemble CLI:
+
+```bash
+ensemble cloud <command> [options]
+```
+
+<Note>
+**Ensemble Cloud is currently in private beta.** [Join the waitlist](/cloud/join-waitlist) to get early access.
+</Note>
+
+## Installation
+
+The cloud commands are included with the Ensemble CLI:
+
+```bash
+# Install the unified CLI
+pnpm add -g @ensemble-edge/ensemble
+
+# Verify installation
+ensemble cloud --help
+```
+
+## Authentication
+
+### `ensemble cloud login`
+
+Authenticate with Ensemble Cloud:
+
+```bash
+ensemble cloud login
+```
+
+This opens your browser to authenticate with your Ensemble Cloud account. The CLI stores credentials securely in your system keychain.
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--token <token>` | Use an API token instead of browser auth |
+| `--no-browser` | Print login URL instead of opening browser |
+
+**Examples:**
+
+```bash
+# Interactive browser login
+ensemble cloud login
+
+# Use API token (for CI/CD)
+ensemble cloud login --token $ENSEMBLE_CLOUD_TOKEN
+```
+
+### `ensemble cloud logout`
+
+Remove stored credentials:
+
+```bash
+ensemble cloud logout
+```
+
+### `ensemble cloud whoami`
+
+Display current authenticated user:
+
+```bash
+ensemble cloud whoami
+# Output: Logged in as alice@example.com (team: acme-corp)
+```
+
+## Deployment
+
+### `ensemble cloud deploy`
+
+Deploy your project to Ensemble Cloud:
+
+```bash
+ensemble cloud deploy [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--env <environment>` | Target environment (staging, production) |
+| `--message <msg>` | Deployment message |
+| `--dry-run` | Preview deployment without executing |
+| `--wait` | Wait for deployment to complete |
+
+**Examples:**
+
+```bash
+# Deploy to production
+ensemble cloud deploy
+
+# Deploy to staging
+ensemble cloud deploy --env staging
+
+# Preview what would be deployed
+ensemble cloud deploy --dry-run
+
+# Deploy with message
+ensemble cloud deploy --message "Fix payment processing bug"
+```
+
+### `ensemble cloud rollback`
+
+Rollback to a previous deployment:
+
+```bash
+ensemble cloud rollback [deployment-id] [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--env <environment>` | Target environment |
+| `--steps <n>` | Roll back n deployments (default: 1) |
+
+**Examples:**
+
+```bash
+# Rollback to previous deployment
+ensemble cloud rollback
+
+# Rollback to specific deployment
+ensemble cloud rollback dep_abc123
+
+# Rollback 3 deployments
+ensemble cloud rollback --steps 3
+```
+
+## Monitoring
+
+### `ensemble cloud status`
+
+View deployment and service status:
+
+```bash
+ensemble cloud status [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--env <environment>` | Target environment |
+| `--json` | Output as JSON |
+
+**Example Output:**
+
+```
+Project: my-conductor-app
+Environment: production
+
+Status: healthy
+Last deployed: 2 hours ago
+Version: v1.2.3
+
+Ensembles:
+  ✓ company-intel (healthy)
+  ✓ data-pipeline (healthy)
+  ⚠ email-processor (degraded - high latency)
+
+Resources:
+  Workers: 3/3 active
+  KV: 2.1 GB used
+  D1: 500 MB used
+```
+
+### `ensemble cloud logs`
+
+Stream or view logs:
+
+```bash
+ensemble cloud logs [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--follow`, `-f` | Stream logs in real-time |
+| `--env <environment>` | Target environment |
+| `--ensemble <name>` | Filter by ensemble |
+| `--level <level>` | Filter by log level (debug, info, warn, error) |
+| `--since <duration>` | Show logs since duration (1h, 30m, 1d) |
+| `--limit <n>` | Number of log entries (default: 100) |
+
+**Examples:**
+
+```bash
+# Stream production logs
+ensemble cloud logs -f
+
+# View staging errors from last hour
+ensemble cloud logs --env staging --level error --since 1h
+
+# Filter by ensemble
+ensemble cloud logs --ensemble company-intel --limit 50
+```
+
+### `ensemble cloud metrics`
+
+View performance metrics:
+
+```bash
+ensemble cloud metrics [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--env <environment>` | Target environment |
+| `--period <duration>` | Time period (1h, 24h, 7d, 30d) |
+| `--ensemble <name>` | Filter by ensemble |
+| `--json` | Output as JSON |
+
+**Example Output:**
+
+```
+Metrics (last 24h) - production
+
+Requests:     1.2M total
+  Success:    1.18M (98.3%)
+  Errors:     24K (1.7%)
+
+Latency (p50/p95/p99):
+  company-intel:    45ms / 120ms / 250ms
+  data-pipeline:    230ms / 890ms / 1.2s
+  email-processor:  89ms / 210ms / 450ms
+
+AI Operations:
+  Total:      890K
+  Tokens:     45M input / 12M output
+  Cost:       $127.45
+```
+
+## Project Management
+
+### `ensemble cloud projects list`
+
+List all projects:
+
+```bash
+ensemble cloud projects list [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--team <team>` | Filter by team |
+| `--json` | Output as JSON |
+
+### `ensemble cloud projects create`
+
+Create a new cloud project:
+
+```bash
+ensemble cloud projects create <name> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--team <team>` | Team to create project in |
+| `--region <region>` | Primary region (us, eu, asia) |
+
+### `ensemble cloud projects delete`
+
+Delete a project:
+
+```bash
+ensemble cloud projects delete <name> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Skip confirmation prompt |
+
+## Environment Management
+
+### `ensemble cloud env list`
+
+List environments:
+
+```bash
+ensemble cloud env list
+```
+
+### `ensemble cloud env create`
+
+Create a new environment:
+
+```bash
+ensemble cloud env create <name> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--copy-from <env>` | Copy configuration from existing environment |
+| `--region <region>` | Primary region |
+
+**Examples:**
+
+```bash
+# Create staging environment
+ensemble cloud env create staging
+
+# Create preview environment copying from staging
+ensemble cloud env create preview --copy-from staging
+```
+
+## Secrets Management
+
+### `ensemble cloud secrets set`
+
+Set a secret:
+
+```bash
+ensemble cloud secrets set <name> [value] [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--env <environment>` | Target environment (default: all) |
+| `--from-file <path>` | Read value from file |
+
+**Examples:**
+
+```bash
+# Set secret (prompts for value)
+ensemble cloud secrets set ANTHROPIC_API_KEY
+
+# Set with value
+ensemble cloud secrets set DATABASE_URL "postgres://..."
+
+# Set for specific environment
+ensemble cloud secrets set API_KEY --env staging
+```
+
+### `ensemble cloud secrets list`
+
+List secret names (not values):
+
+```bash
+ensemble cloud secrets list [options]
+```
+
+### `ensemble cloud secrets delete`
+
+Delete a secret:
+
+```bash
+ensemble cloud secrets delete <name> [options]
+```
+
+## Team Management
+
+### `ensemble cloud team members`
+
+List team members:
+
+```bash
+ensemble cloud team members [options]
+```
+
+### `ensemble cloud team invite`
+
+Invite a team member:
+
+```bash
+ensemble cloud team invite <email> [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--role <role>` | Role: admin, developer, viewer |
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Deploy to Ensemble Cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CLI
+        run: npm install -g @ensemble-edge/ensemble
+
+      - name: Deploy
+        run: ensemble cloud deploy --wait
+        env:
+          ENSEMBLE_CLOUD_TOKEN: ${{ secrets.ENSEMBLE_CLOUD_TOKEN }}
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ENSEMBLE_CLOUD_TOKEN` | API token for authentication |
+| `ENSEMBLE_CLOUD_PROJECT` | Override project name |
+| `ENSEMBLE_CLOUD_ENV` | Default target environment |
+
+## Exit Codes
+
+| Code | Description |
+|------|-------------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Authentication required |
+| `3` | Project not found |
+| `4` | Deployment failed |
+| `5` | Invalid configuration |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Cloud Overview" icon="cloud" href="/cloud/overview">
+    Learn about Ensemble Cloud
+  </Card>
+
+  <Card title="Join Waitlist" icon="envelope" href="/cloud/join-waitlist">
+    Get early access
+  </Card>
+
+  <Card title="Self-Host Guide" icon="server" href="/conductor/getting-started/your-first-deployment">
+    Deploy on your own infrastructure
+  </Card>
+
+  <Card title="Unified CLI" icon="terminal" href="/introduction/ensemble-cli">
+    Full CLI documentation
+  </Card>
+</CardGroup>

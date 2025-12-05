@@ -3,6 +3,36 @@ title: "CLI Commands"
 description: "Complete Edgit command reference with examples"
 ---
 
+## Installation
+
+The recommended way to use Edgit is through the unified Ensemble CLI:
+
+```bash
+# Recommended: Unified CLI (includes all tools)
+pnpm add -g @ensemble-edge/ensemble
+
+# Alternative: Direct installation
+pnpm add -g @ensemble-edge/edgit
+```
+
+## Usage
+
+Commands can be run through either the unified CLI or directly:
+
+```bash
+# Via unified CLI (recommended)
+ensemble edgit init
+ensemble edgit tag create my-prompt v1.0.0
+
+# Direct (alternative)
+edgit init
+edgit tag create my-prompt v1.0.0
+```
+
+<Note>
+All examples below show the direct `edgit` command. Prefix with `ensemble` when using the unified CLI.
+</Note>
+
 ## Global
 
 ### `edgit --version`
@@ -683,16 +713,16 @@ echo $COMPONENTS | jq '.[] | select(.type == "prompt") | .name'
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="Unified CLI" icon="terminal" href="/introduction/ensemble-cli">
+    Full Ensemble CLI documentation
+  </Card>
+
   <Card title="Basic Usage" icon="rocket" href="/edgit/getting-started/basic-usage">
     Essential commands and workflows
   </Card>
 
   <Card title="Versioning Guide" icon="tags" href="/edgit/guides/versioning-components-agents">
     Master versioning strategies
-  </Card>
-
-  <Card title="Deployment Strategies" icon="rocket" href="/edgit/guides/deployment-strategies">
-    Progressive rollouts and canaries
   </Card>
 
   <Card title="CI/CD Integration" icon="workflow" href="/edgit/getting-started/cicd-integration">

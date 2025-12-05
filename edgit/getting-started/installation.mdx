@@ -17,6 +17,18 @@ git --version   # Should be 2.30+
 
 ## Install
 
+**Recommended: Via Ensemble CLI**
+
+```bash
+# Install the unified CLI (includes Edgit)
+pnpm add -g @ensemble-edge/ensemble
+
+# Verify
+ensemble edgit --version
+```
+
+**Alternative: Direct Installation**
+
 ```bash
 npm install -g @ensemble-edge/edgit
 edgit --version
@@ -28,7 +40,8 @@ edgit --version
 
 ```bash
 cd your-project
-edgit init
+ensemble edgit init
+# or: edgit init
 ```
 
 This creates `.edgit/components.json`:
@@ -41,8 +54,8 @@ This creates `.edgit/components.json`:
 
 Commit it:
 ```bash
-edgit add .edgit/
-edgit commit -m "chore: initialize edgit"
+ensemble edgit add .edgit/
+ensemble edgit commit -m "chore: initialize edgit"
 ```
 
 ## Optional: AI-Powered Commits
@@ -58,8 +71,8 @@ Test it:
 ```bash
 # Make a change
 echo "export const test = () => 'hello'" > src/test.ts
-edgit add .
-edgit commit  # AI generates: "feat(test): add test function"
+ensemble edgit add .
+ensemble edgit commit  # AI generates: "feat(test): add test function"
 ```
 
 ## Troubleshooting

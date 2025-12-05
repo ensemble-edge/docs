@@ -18,16 +18,16 @@ pnpm install @ensemble-edge/conductor@latest
 # 2. Test everything works
 pnpm test
 pnpm run build
-npx wrangler dev --local-protocol http
+ensemble wrangler dev --local-protocol http
 
 # 3. Deploy when ready
-pnpm run deploy
+ensemble wrangler deploy
 ```
 
 <Note>
 **Starting the dev server**:
-- **Dev Container**: `npx wrangler dev --local-protocol http --ip 0.0.0.0`
-- **Local**: `npx wrangler dev --local-protocol http`
+- **Dev Container**: `ensemble wrangler dev --local-protocol http --ip 0.0.0.0`
+- **Local**: `ensemble wrangler dev --local-protocol http`
 
 The `--ip 0.0.0.0` flag is needed in containers to bind to all network interfaces.
 </Note>
@@ -187,7 +187,8 @@ pnpm test && pnpm run build
 
 ```bash
 # In a temporary directory
-npx @ensemble-edge/conductor@latest init temp-project
+ensemble conductor init temp-project
+# or: npx @ensemble-edge/conductor@latest init temp-project
 
 # Compare your project with the new template
 diff -r your-project/src temp-project/src
@@ -214,10 +215,10 @@ pnpm install @ensemble-edge/conductor@latest
 # Test thoroughly
 pnpm test
 pnpm run build
-npx wrangler dev --local-protocol http
+ensemble wrangler dev --local-protocol http
 
 # Deploy to preview environment
-npx wrangler deploy --env preview
+ensemble wrangler deploy --env preview
 
 # Verify in production-like environment
 # Then upgrade main project
@@ -256,7 +257,7 @@ After upgrading, check the latest template to discover new features:
 
 ```bash
 # Generate a new project in a temp directory
-npx @ensemble-edge/conductor@latest init temp-project
+ensemble conductor init temp-project
 
 # Explore the template
 cd temp-project

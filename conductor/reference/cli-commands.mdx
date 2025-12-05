@@ -9,9 +9,33 @@ description: "Conductor command line reference"
 
 ## Installation
 
+The recommended way to use Conductor is through the unified Ensemble CLI:
+
 ```bash
-npm install -g @ensemble/conductor
+# Recommended: Unified CLI (includes all tools)
+pnpm add -g @ensemble-edge/ensemble
+
+# Alternative: Direct installation
+pnpm add -g @ensemble-edge/conductor
 ```
+
+## Usage
+
+Commands can be run through either the unified CLI or directly:
+
+```bash
+# Via unified CLI (recommended)
+ensemble conductor init my-project
+ensemble conductor dev
+
+# Direct (alternative)
+conductor init my-project
+conductor dev
+```
+
+<Note>
+All examples below show the direct `conductor` command. Prefix with `ensemble` when using the unified CLI.
+</Note>
 
 ## Global Commands
 
@@ -23,15 +47,40 @@ Initialize a new Conductor project.
 conductor init [project-name]
 ```
 
-Options:
-- `--template <template>` - Use a template (basic, api, rag, chatbot)
-- `--typescript` - Use TypeScript
-- `--no-git` - Skip git initialization
+**Options:**
 
-Example:
+| Option | Description |
+|--------|-------------|
+| `--template <template>` | Use a template (basic, api, rag, chatbot) |
+| `--typescript` | Use TypeScript |
+| `--no-git` | Skip git initialization |
+| `--skip-auth` | Skip Wrangler authentication check |
+| `--skip-secrets` | Skip AI provider setup |
+| `--provider <name>` | Pre-select AI provider (anthropic, openai, cloudflare) |
+
+**Examples:**
+
 ```bash
+# Basic initialization
+conductor init my-project
+
+# With template
 conductor init my-project --template rag
+
+# With AI provider pre-selected
+conductor init my-project --provider anthropic
+
+# CI/CD mode (no prompts)
+conductor init my-project --skip-auth --skip-secrets
 ```
+
+**What init does:**
+
+1. Creates project directory structure
+2. Checks Wrangler authentication (unless `--skip-auth`)
+3. Sets up AI provider and stores API key (unless `--skip-secrets`)
+4. Installs dependencies
+5. Provides next steps
 
 ### dev
 
@@ -823,14 +872,14 @@ export default {
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="Unified CLI" icon="terminal" href="/introduction/ensemble-cli">
+    Full Ensemble CLI documentation
+  </Card>
   <Card title="YAML Schema" icon="file-code" href="/conductor/reference/yaml-schema">
     YAML configuration reference
   </Card>
   <Card title="TypeScript API" icon="code" href="/conductor/reference/ts-schema">
     TypeScript API reference
-  </Card>
-  <Card title="Environment Variables" icon="sliders" href="/conductor/reference/environment-variables">
-    Configuration reference
   </Card>
   <Card title="Your First Project" icon="rocket" href="/conductor/getting-started/your-first-project">
     Get started

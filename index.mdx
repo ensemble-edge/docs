@@ -176,31 +176,24 @@ Then orchestrates them at the edge where they execute fast and scale infinitely.
 ## Quick Start
 
 <CardGroup cols={2}>
-  <Card title="Install Edgit" icon="download" href="/edgit/getting-started/installation">
+  <Card title="Install Ensemble CLI" icon="download" href="/introduction/ensemble-cli">
     ```bash
-    npm install -g @ensemble-edge/edgit
-    cd your-repo
-    edgit init
+    pnpm add -g @ensemble-edge/ensemble
+    ensemble conductor init my-project
     ```
   </Card>
 
   <Card title="Version Components" icon="tags" href="/edgit/guides/versioning-components-agents">
     ```bash
-    edgit tag create my-prompt v1.0.0
-    edgit deploy set my-prompt v1.0.0 --to prod
-    ```
-  </Card>
-
-  <Card title="Install Conductor" icon="network-wired" href="/conductor/overview">
-    ```bash
-    pnpm add @ensemble-edge/conductor
-    conductor init
+    ensemble edgit tag create my-prompt v1.0.0
+    ensemble edgit deploy set my-prompt v1.0.0 --to prod
     ```
   </Card>
 
   <Card title="Deploy to Edge" icon="rocket" href="/conductor/getting-started/your-first-deployment">
     ```bash
-    conductor deploy
+    pnpm run build
+    ensemble wrangler deploy
     # Live at https://your-worker.workers.dev
     ```
   </Card>

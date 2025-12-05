@@ -1,0 +1,327 @@
+---
+title: "Ensemble CLI"
+description: "One CLI to rule them all - unified access to the entire Ensemble ecosystem"
+---
+
+## Overview
+
+The **Ensemble CLI** is the unified command-line interface for the entire Ensemble ecosystem. Instead of installing and managing separate CLIs for each tool, you get a single entry point that orchestrates everything.
+
+```bash
+# Install once, access everything
+pnpm add -g @ensemble-edge/ensemble
+
+# Access all tools through one interface
+ensemble conductor init my-project   # Create Conductor projects
+ensemble edgit tag create v1.0.0     # Version components
+ensemble cloud deploy                # Deploy to Ensemble Cloud
+ensemble wrangler dev                # Passthrough to Wrangler
+```
+
+## Why a Unified CLI?
+
+### Before: Multiple Tools
+
+```bash
+# Old way - install each separately
+pnpm add -g @ensemble-edge/conductor
+pnpm add -g @ensemble-edge/edgit
+pnpm add -g @ensemble-edge/cloud
+
+conductor init my-project
+edgit tag create prompt v1.0.0
+cloud deploy
+```
+
+### After: One CLI
+
+```bash
+# New way - single install
+pnpm add -g @ensemble-edge/ensemble
+
+ensemble conductor init my-project
+ensemble edgit tag create prompt v1.0.0
+ensemble cloud deploy
+```
+
+**Benefits:**
+
+- **Single installation** - One package to install and update
+- **Consistent interface** - Same patterns across all tools
+- **Automatic discovery** - CLI suggests related tools as you work
+- **Simplified CI/CD** - One binary in your pipelines
+
+## Quick Start
+
+### Installation
+
+```bash
+# Using pnpm (recommended)
+pnpm add -g @ensemble-edge/ensemble
+
+# Using npm
+npm install -g @ensemble-edge/ensemble
+
+# Using npx (no installation)
+npx @ensemble-edge/ensemble --help
+```
+
+### Verify Installation
+
+```bash
+ensemble --version
+# Output: ensemble v1.0.0
+
+ensemble --help
+# Shows all available commands
+```
+
+## Command Structure
+
+The CLI follows a simple pattern:
+
+```bash
+ensemble <tool> <command> [options]
+```
+
+### Available Tools
+
+| Tool | Description | Example |
+|------|-------------|---------|
+| `conductor` | Edge orchestration framework | `ensemble conductor init my-app` |
+| `edgit` | Component versioning | `ensemble edgit tag create v1.0.0` |
+| `cloud` | Ensemble Cloud management | `ensemble cloud deploy` |
+| `chamber` | Secrets management | `ensemble chamber set API_KEY` |
+| `wrangler` | Cloudflare Workers CLI (passthrough) | `ensemble wrangler dev` |
+
+## Conductor Commands
+
+Create and manage Conductor projects:
+
+```bash
+# Initialize a new project
+ensemble conductor init my-project
+
+# With AI provider setup
+ensemble conductor init my-project --provider anthropic
+
+# Skip authentication prompts (CI/CD)
+ensemble conductor init my-project --skip-auth --skip-secrets
+
+# Development server
+ensemble conductor dev
+
+# Deploy to Cloudflare
+ensemble conductor deploy
+```
+
+### Init Options
+
+| Option | Description |
+|--------|-------------|
+| `--skip-auth` | Skip Wrangler authentication check |
+| `--skip-secrets` | Skip AI provider setup |
+| `--provider <name>` | Pre-select AI provider (anthropic, openai, cloudflare) |
+| `--template <name>` | Use a starter template |
+
+## Edgit Commands
+
+Version and deploy components:
+
+```bash
+# Initialize Edgit in a repo
+ensemble edgit init
+
+# Register a component
+ensemble edgit components add prompt my-prompt prompts/my-prompt.md
+
+# Create a version tag
+ensemble edgit tag create my-prompt v1.0.0
+
+# Deploy to an environment
+ensemble edgit deploy set my-prompt v1.0.0 --to prod
+
+# List all components
+ensemble edgit components list
+```
+
+## Cloud Commands
+
+Manage Ensemble Cloud resources:
+
+```bash
+# Deploy to Ensemble Cloud
+ensemble cloud deploy
+
+# View deployment status
+ensemble cloud status
+
+# Stream logs
+ensemble cloud logs --follow
+```
+
+## Wrangler Passthrough
+
+All Wrangler commands are passed through transparently:
+
+```bash
+# These are equivalent:
+ensemble wrangler dev
+wrangler dev
+
+# Full Wrangler CLI available
+ensemble wrangler deploy
+ensemble wrangler secret put API_KEY
+ensemble wrangler kv:namespace create CACHE
+ensemble wrangler d1 create my-database
+```
+
+## Cross-Tool Discovery
+
+The CLI intelligently suggests related tools as you work:
+
+```bash
+$ ensemble conductor init my-project
+✓ Project created successfully!
+
+💡 Next steps:
+  • Run 'ensemble edgit init' to enable component versioning
+  • Run 'ensemble wrangler dev' to start the development server
+```
+
+```bash
+$ ensemble edgit tag create my-prompt v1.0.0
+✓ Tag created: prompts/my-prompt/v1.0.0
+
+💡 Deploy this version:
+  • Run 'ensemble edgit deploy set my-prompt v1.0.0 --to staging'
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ENSEMBLE_LOG_LEVEL` | Logging verbosity (debug, info, warn, error) |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare authentication |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `OPENAI_API_KEY` | OpenAI API key |
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Ensemble CLI
+        run: npm install -g @ensemble-edge/ensemble
+
+      - name: Build & Deploy
+        run: |
+          ensemble conductor build
+          ensemble wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+```
+
+### GitLab CI
+
+```yaml
+deploy:
+  image: node:20
+  script:
+    - npm install -g @ensemble-edge/ensemble
+    - ensemble conductor build
+    - ensemble wrangler deploy
+  variables:
+    CLOUDFLARE_API_TOKEN: $CLOUDFLARE_API_TOKEN
+```
+
+## Direct Tool Access
+
+While the unified CLI is recommended, you can still install tools individually:
+
+```bash
+# Individual installations (alternative)
+pnpm add -g @ensemble-edge/conductor
+pnpm add -g @ensemble-edge/edgit
+
+# Direct commands work the same
+conductor init my-project
+edgit tag create my-prompt v1.0.0
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found after installation">
+    Ensure your global npm/pnpm bin directory is in your PATH:
+
+    ```bash
+    # Check where packages are installed
+    pnpm bin -g
+
+    # Add to PATH (add to ~/.bashrc or ~/.zshrc)
+    export PATH="$(pnpm bin -g):$PATH"
+    ```
+  </Accordion>
+
+  <Accordion title="Permission errors on global install">
+    Use a Node version manager like nvm or fnm:
+
+    ```bash
+    # Install nvm
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+    # Install and use Node
+    nvm install 20
+    nvm use 20
+
+    # Now install works without sudo
+    pnpm add -g @ensemble-edge/ensemble
+    ```
+  </Accordion>
+
+  <Accordion title="Wrangler commands not working">
+    The Ensemble CLI passes through to Wrangler. Ensure you're authenticated:
+
+    ```bash
+    ensemble wrangler login
+    ensemble wrangler whoami
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/introduction/quick-start">
+    Build your first project in 5 minutes
+  </Card>
+
+  <Card title="Conductor Docs" icon="network-wired" href="/conductor/overview">
+    Edge orchestration framework
+  </Card>
+
+  <Card title="Edgit Docs" icon="code-branch" href="/edgit/overview">
+    Component versioning system
+  </Card>
+
+  <Card title="Cloud Docs" icon="cloud" href="/cloud/overview">
+    Managed platform
+  </Card>
+</CardGroup>

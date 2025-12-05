@@ -23,20 +23,32 @@ Running on Cloudflare Workers at 200+ locations globally.
 # That's it.
 ```
 
-## Step 1: Install Conductor
+## Step 1: Install the Ensemble CLI
 
 ```bash
-pnpm add -g @ensemble-edge/conductor
-conductor --version
+# Install the unified CLI (recommended)
+pnpm add -g @ensemble-edge/ensemble
+
+# Verify installation
+ensemble --version
 ```
+
+<Note>
+The Ensemble CLI provides access to all tools: Conductor (orchestration), Edgit (versioning), and Cloud (managed platform).
+</Note>
 
 ## Step 2: Create a Project
 
 ```bash
-mkdir my-ai-workflow
+ensemble conductor init my-ai-workflow
 cd my-ai-workflow
-conductor init
 ```
+
+The init command will:
+1. Check your Wrangler authentication (prompts to login if needed)
+2. Ask which AI provider you'll use (Anthropic, OpenAI, or Cloudflare)
+3. Securely store your API key
+4. Create the project structure
 
 This creates:
 ```
@@ -145,7 +157,7 @@ wrangler kv:namespace create "CACHE"
 
 ```bash
 # Start local dev server
-conductor dev
+ensemble wrangler dev --local-protocol http
 
 # In another terminal, test it
 curl http://localhost:8787/ensembles/company-intel \
@@ -174,7 +186,7 @@ Run it again - see `"cached": true` and &lt;10ms response time.
 
 ```bash
 # Deploy to Cloudflare
-conductor deploy
+ensemble wrangler deploy
 
 # Get your worker URL
 # Example: https://my-ai-workflow.your-subdomain.workers.dev
@@ -203,15 +215,14 @@ curl https://my-ai-workflow.your-subdomain.workers.dev/ensembles/company-intel \
 ### Add Component Versioning (Edgit)
 
 ```bash
-# Install Edgit
-npm install -g @ensemble-edge/edgit
-edgit init
+# Edgit is already included in the Ensemble CLI!
+ensemble edgit init
 
 # Version your prompt
-edgit tag create company-analysis-prompt v1.0.0
+ensemble edgit tag create company-analysis-prompt v1.0.0
 
 # Deploy to production
-edgit deploy set company-analysis-prompt v1.0.0 --to prod
+ensemble edgit deploy set company-analysis-prompt v1.0.0 --to prod
 ```
 
 Now reference it in your ensemble:
@@ -304,6 +315,10 @@ agents:
 ## Learn More
 
 <CardGroup cols={2}>
+  <Card title="Ensemble CLI" icon="terminal" href="/introduction/ensemble-cli">
+    Full CLI documentation
+  </Card>
+
   <Card title="Core Concepts" icon="book" href="/introduction/core-concepts">
     Understand components, agents, and ensembles
   </Card>
@@ -314,10 +329,6 @@ agents:
 
   <Card title="Starter Kit" icon="cube" href="/conductor/starter-kit/overview">
     Ready-to-use agents (scraper, validator, RAG, etc.)
-  </Card>
-
-  <Card title="Playbooks" icon="lightbulb" href="/conductor/playbooks/rag-pipeline">
-    Real-world patterns and recipes
   </Card>
 </CardGroup>
 
