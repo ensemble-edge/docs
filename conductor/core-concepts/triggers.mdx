@@ -1,11 +1,11 @@
 ---
 title: "Triggers"
-description: "Invoke ensembles via webhooks, MCP tools, email, queues, and cron schedules using the unified trigger system"
+description: "Invoke ensembles via webhooks, MCP tools, email, queues, cron schedules, and startup using the unified trigger system"
 ---
 
 ## Overview
 
-Triggers define how ensembles are invoked. Conductor supports eight trigger types, all configured using the unified `trigger:` array in your ensemble YAML:
+Triggers define how ensembles are invoked. Conductor supports nine trigger types, all configured using the unified `trigger:` array in your ensemble YAML:
 
 1. **HTTP** - Full web routing with path params, CORS, rate limiting, HTML/JSON responses
 2. **Webhook** - Simple HTTP endpoints for external integrations
@@ -15,6 +15,7 @@ Triggers define how ensembles are invoked. Conductor supports eight trigger type
 6. **Cron** - Scheduled execution with cron expressions
 7. **Build** - Static generation at build time
 8. **CLI** - Custom developer commands
+9. **Startup** - Execute on Worker cold start (initialization)
 
 All triggers use the same configuration pattern:
 
@@ -1078,6 +1079,150 @@ flow:
       outputPath: ${trigger.options.output}
 ```
 
+## Startup Triggers
+
+Run ensembles on Worker cold start, before HTTP routes are registered. Startup triggers are ideal for cache warming, health checks, and initialization tasks.
+
+<Note>
+**Cold start semantics:** Cloudflare Workers naturally cold start after a few minutes of inactivity. Startup triggers run once per cold start - not on every request.
+</Note>
+
+### Basic Startup Trigger
+
+```yaml
+name: cache-warmer
+description: Pre-warm caches on Worker startup
+
+trigger:
+  - type: startup
+    input:
+      cache_keys: ['products', 'categories', 'users']
+
+flow:
+  - agent: warm-cache
+
+agents:
+  - name: warm-cache
+    operation: code
+    config:
+      handler: |
+        for (const key of context.input.cache_keys) {
+          const data = await context.env.DB.prepare(`SELECT * FROM ${key} LIMIT 100`).all()
+          await context.env.KV.put(`cache:${key}`, JSON.stringify(data.results))
+        }
+        return { warmed: context.input.cache_keys.length }
+
+outputs:
+  result: ${warm-cache.output}
+```
+
+### Health Check on Startup
+
+Verify dependencies are available before serving requests:
+
+```yaml
+name: startup-health-check
+description: Verify dependencies on startup
+
+trigger:
+  - type: startup
+    metadata:
+      priority: high
+
+flow:
+  - agent: check-db
+  - agent: check-kv
+
+agents:
+  - name: check-db
+    operation: code
+    config:
+      handler: |
+        const result = await context.env.DB.prepare('SELECT 1').first()
+        if (!result) throw new Error('Database not responding')
+        return { db: 'ok' }
+
+  - name: check-kv
+    operation: code
+    config:
+      handler: |
+        await context.env.KV.put('health:startup', Date.now().toString())
+        return { kv: 'ok' }
+
+outputs:
+  health: ${check-kv.output}
+```
+
+### Startup with Custom Input
+
+Pass static input data to startup ensembles:
+
+```yaml
+trigger:
+  - type: startup
+    enabled: true
+    input:
+      warmCaches: true
+      preloadUsers: 100
+    metadata:
+      description: "Initialize application state"
+      priority: "high"
+```
+
+Access in ensemble:
+```yaml
+agents:
+  - name: init
+    operation: code
+    config:
+      handler: |
+        if (context.input.warmCaches) {
+          // Pre-warm caches
+        }
+        return { initialized: true }
+```
+
+### Disable Startup Trigger
+
+Temporarily disable without removing:
+
+```yaml
+trigger:
+  - type: startup
+    enabled: false  # Disabled
+    input:
+      action: warm-cache
+```
+
+### Performance Considerations
+
+<Warning>
+**Keep startup triggers fast (<5 seconds).** Cloudflare Workers have a 30-second initialization timeout. While startup triggers run non-blocking via `waitUntil()`, slow triggers delay background task completion.
+</Warning>
+
+**Good use cases:**
+- Cache warming (KV reads/writes)
+- Health checks (database ping)
+- Configuration loading
+- Metrics initialization
+
+**Avoid:**
+- Heavy data processing
+- Long-running API calls
+- Complex AI inference
+- Large file operations
+
+### Startup vs Cron
+
+| Feature | Startup | Cron |
+|---------|---------|------|
+| **When** | On cold start | On schedule |
+| **Frequency** | Variable (depends on traffic) | Predictable |
+| **Blocking** | Non-blocking (waitUntil) | Blocking |
+| **Use case** | Initialization | Recurring tasks |
+
+If you need predictable timing, use cron. If you need "run once when Worker starts", use startup.
+
 ## Multiple Triggers
 
 Ensembles can have multiple triggers of different types:
@@ -1304,6 +1449,15 @@ trigger:
 | `options[].default` | `any` | No | Default value |
 | `options[].required` | `boolean` | No | Whether option is required (default: `false`) |
 | `options[].description` | `string` | No | Option description |
+
+### Startup Trigger
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"startup"` | Yes | Trigger type |
+| `enabled` | `boolean` | No | Enable trigger (default: `true`) |
+| `input` | `object` | No | Static input data for startup execution |
+| `metadata` | `object` | No | Additional metadata (e.g., priority, description) |
 
 ## Response Formats
 
