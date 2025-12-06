@@ -153,7 +153,7 @@ Template agents you can modify or delete. Located in `agents/system/`:
 | tools | MCP tool integration |
 | autorag | Automated RAG indexing |
 
-## Triggers (8 types)
+## Triggers (9 types)
 
 | Trigger | Config | Use Case |
 |---------|--------|----------|
@@ -165,8 +165,18 @@ Template agents you can modify or delete. Located in `agents/system/`:
 | cron | cron, timezone, enabled | Scheduled execution |
 | build | output, enabled, input, metadata | Static generation at build time |
 | cli | command, description, options[] | Developer commands |
+| startup | enabled, runOnce | Worker cold start initialization |
 
-### Build Trigger (NEW)
+### Startup Trigger (NEW)
+trigger:
+  - type: startup
+    enabled: true
+    runOnce: true  # Only run once per worker instance
+flow:
+  - agent: cache-warmer
+    input: { keys: ["config", "templates"] }
+
+### Build Trigger
 trigger:
   - type: build
     enabled: true
@@ -705,7 +715,7 @@ Template agents you can modify or delete. Located in `agents/system/`:
 
 > [Starter Kit](/conductor/starter-kit/overview)
 
-### Triggers (8 types)
+### Triggers (9 types)
 
 | Trigger | Config | Use Case |
 |---------|--------|----------|
@@ -717,6 +727,7 @@ Template agents you can modify or delete. Located in `agents/system/`:
 | `cron` | `cron`, `timezone`, `enabled` | Scheduled execution |
 | `build` | `output`, `enabled`, `input`, `metadata` | Static generation at build time |
 | `cli` | `command`, `description`, `options[]` | Developer commands |
+| `startup` | `enabled`, `runOnce` | Worker cold start initialization |
 
 > [Triggers Reference](/conductor/core-concepts/triggers)
 
