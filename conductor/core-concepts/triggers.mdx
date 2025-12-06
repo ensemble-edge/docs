@@ -1241,7 +1241,7 @@ trigger:
 ### Performance Considerations
 
 <Warning>
-**Keep startup triggers fast (<5 seconds).** Cloudflare Workers have a 30-second initialization timeout. While startup triggers run non-blocking via `waitUntil()`, slow triggers delay background task completion.
+**Keep startup triggers fast (under 5 seconds).** Cloudflare Workers have a 30-second initialization timeout. While startup triggers run non-blocking via `waitUntil()`, slow triggers delay background task completion.
 </Warning>
 
 **Good use cases:**
