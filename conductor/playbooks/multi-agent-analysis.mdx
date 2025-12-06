@@ -13,8 +13,8 @@ description: "Run multiple AI agents in parallel for comprehensive analysis. Fas
 
 ## Basic Pattern
 
-<Tabs>
-  <Tab title="YAML">
+### YAML
+
 ```yaml
 ensemble: multi-agent-analysis
 
@@ -45,8 +45,9 @@ agents:
       aspect2: ${agent-2.output}
       aspect3: ${agent-3.output}
 ```
-  </Tab>
-  <Tab title="TypeScript">
+
+### TypeScript
+
 ```typescript
 import { createEnsemble, step, parallel } from '@anthropic/conductor'
 
@@ -81,8 +82,6 @@ const multiAgentAnalysis = createEnsemble('multi-agent-analysis')
 
 export default multiAgentAnalysis
 ```
-  </Tab>
-</Tabs>
 
 ```typescript
 // scripts/aggregate-analysis-results.ts
