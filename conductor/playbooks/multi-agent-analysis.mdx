@@ -201,7 +201,7 @@ export default function aggregateModerationChecks(context: AgentExecutionContext
 
 ## Code Review
 
-```yaml
+````yaml
 ensemble: code-review
 
 inputs:
@@ -314,7 +314,7 @@ agents:
 
 output:
   review: ${aggregate.output}
-```
+````
 
 ```typescript
 // scripts/aggregate-code-reviews.ts
@@ -416,6 +416,7 @@ agents:
       topics: ${extract-topics.output}
       sentiment: ${sentiment-analysis.output}
       key_points: ${extract-key-points.output}
+```
 
 ```typescript
 // scripts/combine-document-analyses.ts
@@ -592,9 +593,6 @@ export default function aggregateWithTimeout(context: AgentExecutionContext) {
 }
 ```
 
-```yaml
-```
-
 **3. Failure Handling**
 ```yaml
 agents:
@@ -632,9 +630,6 @@ export default function aggregateSuccessfulResults(context: AgentExecutionContex
 
   return { results }
 }
-```
-
-```yaml
 ```
 
 **4. Cost Optimization**
