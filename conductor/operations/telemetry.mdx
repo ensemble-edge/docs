@@ -1,0 +1,309 @@
+---
+title: "telemetry Operation"
+description: "Emit custom analytics events to Cloudflare Analytics Engine"
+---
+
+The `telemetry` operation emits events to Cloudflare Analytics Engine for aggregated metrics, billing dashboards, and trend analysis.
+
+<Note>
+  **Telemetry vs Observability**: Telemetry is for business metrics (counts, rates, costs). For debugging traces and logs, use `logger` in your agent code or enable [observability](/conductor/observability/overview).
+</Note>
+
+## Quick Start
+
+```yaml
+agents:
+  - name: log-order
+    operation: telemetry
+    input:
+      blobs:
+        - order_placed
+        - ${input.category}
+        - ${input.region}
+      doubles:
+        - ${input.amount}
+        - ${input.itemCount}
+      indexes:
+        - ${input.customerId}
+```
+
+## Configuration
+
+```yaml
+config:
+  dataset: string    # Analytics dataset name (optional, defaults to 'telemetry')
+```
+
+## Input
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `blobs` | string[] | String dimensions (up to 20). First is typically event name |
+| `doubles` | number[] | Numeric metrics (up to 20) |
+| `indexes` | string[] | Index field for fast filtering (1 per event) |
+
+## Output
+
+```typescript
+{
+  success: boolean    // true if event was emitted
+  timestamp: number   // Unix timestamp when emitted
+}
+```
+
+## Examples
+
+### Track Order Events
+
+```yaml
+ensemble: checkout-flow
+
+agents:
+  - name: process-order
+    operation: code
+    config:
+      script: scripts/process-order
+    input:
+      order: ${input}
+
+  - name: log-order-metrics
+    operation: telemetry
+    input:
+      blobs:
+        - order_completed
+        - ${input.category}
+        - ${process-order.output.status}
+      doubles:
+        - ${input.total}
+        - ${input.items.length}
+        - ${process-order.output.processingTimeMs}
+      indexes:
+        - ${input.customerId}
+```
+
+### Track AI Usage
+
+```yaml
+agents:
+  - name: generate-summary
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o
+      prompt: ${input.text}
+
+  - name: log-ai-usage
+    operation: telemetry
+    input:
+      blobs:
+        - ai_inference
+        - openai
+        - gpt-4o
+        - ${input.documentType}
+      doubles:
+        - ${generate-summary.output.usage.inputTokens}
+        - ${generate-summary.output.usage.outputTokens}
+        - ${generate-summary.output.usage.totalCost}
+      indexes:
+        - ${input.projectId}
+```
+
+### Track Document Processing
+
+```yaml
+ensemble: document-processor
+
+agents:
+  - name: extract
+    operation: think
+    config:
+      model: claude-3-5-sonnet-20241022
+    component: prompts/extraction@v1.0.0
+    input:
+      document: ${input.document}
+
+  - name: log-extraction
+    operation: telemetry
+    input:
+      blobs:
+        - document-extraction
+        - ${extract.output.status}
+        - ${input.document_type}
+      doubles:
+        - ${extract.output.confidence}
+        - ${extract.output.processingTimeMs}
+      indexes:
+        - ${input.projectId}
+```
+
+## Programmatic Usage
+
+In TypeScript agents, use `ctx.telemetry`:
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function myAgent(ctx: AgentExecutionContext) {
+  const { input, telemetry } = ctx
+  const startTime = Date.now()
+
+  const result = await processDocument(input.document)
+
+  // Emit custom telemetry
+  telemetry?.emitCustom('document_processed', {
+    dimensions: { type: input.documentType, status: 'success' },
+    metrics: {
+      confidence: result.confidence,
+      processingTimeMs: Date.now() - startTime,
+    },
+    index: input.projectId,
+  })
+
+  return result
+}
+```
+
+### Available Methods
+
+```typescript
+interface TelemetryEmitter {
+  // Raw event
+  emit(event: { blobs?: string[], doubles?: number[], indexes?: string[] }): void
+
+  // Standardized agent event
+  emitAgentEvent(event: {
+    agentName: string
+    status: 'success' | 'error' | 'timeout'
+    durationMs: number
+    inputTokens?: number
+    outputTokens?: number
+    costUsd?: number
+  }): void
+
+  // Custom business event
+  emitCustom(eventName: string, options: {
+    dimensions?: Record<string, string>
+    metrics?: Record<string, number>
+    index?: string
+  }): void
+}
+```
+
+## Analytics Engine Limits
+
+| Field | Limit |
+|-------|-------|
+| Blobs (strings) | 20 per event |
+| Doubles (numbers) | 20 per event |
+| Indexes | 1 per event |
+| Blob max length | 1024 bytes |
+
+## Standard Event Schema
+
+Conductor uses a standardized blob/double layout for auto-instrumentation:
+
+| Position | Field | Description |
+|----------|-------|-------------|
+| blob1 | `name` | Event or agent name |
+| blob2 | `status` | success, error, timeout |
+| blob3 | `environment` | prod, staging, latest |
+| blob4 | `context` | Error type or user ID |
+| double1 | `duration_ms` | Execution time |
+| double2 | `input_tokens` | Tokens in prompt |
+| double3 | `output_tokens` | Tokens in response |
+| double4 | `cost_usd` | Estimated cost |
+| index1 | `project_id` | For filtering |
+
+Following this schema enables cross-project querying and standard dashboards.
+
+## Querying Analytics
+
+Use the Cloudflare dashboard or SQL API to query your telemetry:
+
+```sql
+-- Top agents by invocation count
+SELECT blob1 as agent, COUNT() as invocations
+FROM telemetry
+WHERE timestamp > NOW() - INTERVAL '24' HOUR
+GROUP BY blob1
+ORDER BY invocations DESC
+LIMIT 10;
+
+-- Error rates by agent
+SELECT
+  blob1 as agent,
+  COUNT() as total,
+  SUM(CASE WHEN blob2 = 'error' THEN 1 ELSE 0 END) as errors,
+  SUM(CASE WHEN blob2 = 'error' THEN 1 ELSE 0 END) * 100.0 / COUNT() as error_rate
+FROM telemetry
+WHERE timestamp > NOW() - INTERVAL '7' DAY
+GROUP BY blob1
+ORDER BY error_rate DESC;
+
+-- Token usage and costs
+SELECT
+  DATE(timestamp) as date,
+  SUM(double2) as total_input_tokens,
+  SUM(double3) as total_output_tokens,
+  SUM(double4) as total_cost
+FROM telemetry
+WHERE blob1 LIKE '%agent%'
+  AND timestamp > NOW() - INTERVAL '30' DAY
+GROUP BY DATE(timestamp)
+ORDER BY date;
+```
+
+## Setup
+
+### 1. Create Analytics Dataset
+
+In Cloudflare dashboard: **Workers & Pages** → **Analytics Engine** → **Create Dataset**
+
+### 2. Add Binding to wrangler.toml
+
+```toml
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "my_telemetry"
+```
+
+### 3. Use in Ensembles
+
+```yaml
+agents:
+  - name: log-event
+    operation: telemetry
+    input:
+      blobs: [event_name, ${input.category}]
+      doubles: [${input.value}]
+      indexes: [${input.projectId}]
+```
+
+## Error Handling
+
+Telemetry failures are non-blocking - they never crash your application:
+
+```yaml
+agents:
+  - name: critical-operation
+    operation: code
+    config:
+      script: scripts/important-work
+
+  # Even if this fails, the ensemble continues
+  - name: log-metrics
+    operation: telemetry
+    input:
+      blobs: [operation_complete]
+```
+
+In dev mode without Analytics Engine, events log to console:
+```
+[telemetry] name=operation_complete status=success duration=150ms
+```
+
+## Related
+
+- [Observability](/conductor/observability/overview) - Debugging traces and logs
+- [Location Context](/conductor/core-concepts/location-context) - Geographic data for analytics
+- [storage](/conductor/operations/storage) - Persist aggregated data
