@@ -421,6 +421,7 @@ export default function handleApiError(context: AgentExecutionContext) {
 
 ```yaml
 ### Transform Response
+```
 
 ```yaml
 operations:
@@ -459,6 +460,7 @@ export default function transformUsers(context: AgentExecutionContext) {
 ## Common API Integrations
 
 ### REST API with Pagination
+```
 
 ```yaml
 operations:
@@ -733,6 +735,7 @@ export default function handleServerError(context: AgentExecutionContext) {
 ```yaml
 
 ### Retry on Failure
+```
 
 ```yaml
 operations:
@@ -793,6 +796,7 @@ export default function handleTimeout(context: AgentExecutionContext) {
 ## Caching
 
 ### Cache API Responses
+```
 
 ```yaml
 operations:
@@ -1085,6 +1089,7 @@ export default function validateResponseStructure(context: AgentExecutionContext
 ```yaml
 
 **8. Rate Limit Awareness**
+```
 ```yaml
 # Good: Respect rate limits
 operations:
@@ -1115,6 +1120,7 @@ export default function checkRateLimit(context: AgentExecutionContext) {
 ## Common Pitfalls
 
 ### Pitfall: No Error Handling
+```
 
 ```yaml
 # Bad: No error handling
@@ -1152,6 +1158,7 @@ export default function handleErrorSimple(context: AgentExecutionContext) {
 ```yaml
 
 ### Pitfall: Missing Content-Type
+```
 
 ```yaml
 # Bad: No Content-Type for JSON

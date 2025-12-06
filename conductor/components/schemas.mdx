@@ -511,7 +511,6 @@ export default function validateContact(context: AgentExecutionContext) {
 }
 ```
 
-```yaml
 ### Multi-Schema Workflow
 
 ```yaml
@@ -672,12 +671,13 @@ export default async function processContacts(ctx: AgentExecutionContext) {
 1. Lower temperature: `temperature: 0.1`
 2. Use more capable model: `claude-sonnet-4` or `claude-opus-4`
 3. Add explicit instruction in prompt:
-   ```yaml
-   prompt: |
-     Extract contact information and return ONLY valid JSON matching the schema.
 
-     Text: ${input.text}
-   ```
+```yaml
+prompt: |
+  Extract contact information and return ONLY valid JSON matching the schema.
+
+  Text: ${input.text}
+```
 
 ### Schema Too Complex
 

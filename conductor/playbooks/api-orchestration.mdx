@@ -232,6 +232,7 @@ agents:
       weather: ${weather.output.body}
       news_articles: ${news.output.body.articles}
       events: ${events.output.body.events}
+```
 
 ```typescript
 // scripts/combine-city-data.ts
@@ -271,6 +272,7 @@ agents:
     operation: code
     config:
       script: scripts/process-webhook-data
+```
 
 ```typescript
 // scripts/validate-webhook-signature.ts
@@ -414,6 +416,7 @@ agents:
     operation: code
     config:
       script: scripts/circuit-breaker-fallback
+```
 
 ```typescript
 // scripts/circuit-breaker-fallback.ts

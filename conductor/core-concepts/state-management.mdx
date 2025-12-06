@@ -407,6 +407,7 @@ agents:
       set:
         progress: ${process.output.progress}
         data: ${process.output.data}
+```
 
 ```typescript
 // scripts/update-progress.ts
@@ -460,6 +461,7 @@ agents:
       script: scripts/update-workflow-status
     state:
       use: [workflow_data]
+```
 
 ```typescript
 // scripts/update-workflow-status.ts
@@ -535,6 +537,7 @@ operations:
       use: [internal_counter]
       set:
         internal_counter: ${increment.output.count}
+```
 
 ```typescript
 // scripts/increment-internal-counter.ts
