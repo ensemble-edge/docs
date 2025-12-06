@@ -51,40 +51,128 @@ ensemble conductor init [project-name]
 
 | Option | Description |
 |--------|-------------|
+| `--setup <type>` | Project setup type: `full`, `starter`, `basic` (default: `full`) |
+| `--examples` | Include example agents & ensembles (same as `--setup full`) |
+| `--no-examples` | Template only, no examples (same as `--setup starter`) |
+| `--skip-install` | Skip dependency installation |
+| `--pm <manager>` | Package manager: `npm`, `pnpm`, `yarn`, `bun` |
+| `-f, --force` | Overwrite existing directory |
 | `-y, --yes` | Non-interactive mode (skip all prompts) |
-| `--template <template>` | Use a template (basic, api, rag, chatbot) |
-| `--force` | Overwrite existing files |
-| `--no-examples` | Skip example files |
-| `--skip-auth` | Skip Wrangler authentication check |
-| `--skip-secrets` | Skip AI provider setup |
-| `--provider <name>` | Pre-select AI provider (anthropic, openai, cloudflare) |
+
+**Setup Types:**
+
+| Type | Description |
+|------|-------------|
+| `full` | **Recommended.** Complete template with example agents, ensembles, and docs. Great for learning. |
+| `starter` | Ready-to-code template without examples. Clean slate for experienced users. |
+| `basic` | Minimal stub for manual setup. Advanced users only. |
 
 **Examples:**
 
 ```bash
-# Basic initialization
+# Interactive wizard (recommended)
 ensemble conductor init my-project
+
+# With examples (full template)
+ensemble conductor init my-project --setup full
+
+# Without examples (starter template)
+ensemble conductor init my-project --setup starter
+ensemble conductor init my-project --no-examples
+
+# Minimal setup (basic)
+ensemble conductor init my-project --setup basic
 
 # Non-interactive (CI/CD mode)
 ensemble conductor init my-project --yes
 
-# With template
-ensemble conductor init my-project --template rag
+# With specific package manager
+ensemble conductor init my-project --pm pnpm
 
-# With AI provider pre-selected
-ensemble conductor init my-project --provider anthropic
-
-# Skip auth and secrets prompts
-ensemble conductor init my-project --skip-auth --skip-secrets
+# Force overwrite existing directory
+ensemble conductor init my-project --force -y
 ```
 
 **What init does:**
 
 1. Creates project directory structure
-2. Checks Wrangler authentication (unless `--skip-auth`)
-3. Sets up AI provider and stores API key (unless `--skip-secrets`)
-4. Installs dependencies
+2. Installs dependencies (`@ensemble-edge/conductor`, etc.)
+3. Copies project templates (for `full` and `starter` modes)
+4. Configures dev scripts for your environment
 5. Provides next steps
+
+<Tip>
+**Need to configure AI later?** If you skipped AI setup during init, you can run:
+```bash
+ensemble configure ai
+```
+See [Configure Command](#configure) for details.
+</Tip>
+
+### configure
+
+Configure AI providers, authentication, and other settings after project creation.
+
+```bash
+ensemble configure [subcommand]
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `ai` | Configure AI provider (Anthropic, OpenAI, Cloudflare AI, Groq) |
+| `auth` | Configure Cloudflare authentication (wrangler login) |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--provider <name>` | Pre-select AI provider (anthropic, openai, cloudflare, groq) |
+| `-y, --yes` | Skip confirmation prompts |
+
+**Examples:**
+
+```bash
+# Interactive menu
+ensemble configure
+
+# Configure AI directly
+ensemble configure ai
+
+# Pre-select provider
+ensemble configure ai --provider anthropic
+
+# Configure Cloudflare authentication
+ensemble configure auth
+```
+
+**What configure ai does:**
+
+1. Prompts for AI provider selection
+2. Prompts for API key (except Cloudflare AI)
+3. Stores secret via `wrangler secret put`
+4. Enables `[ai]` binding in wrangler.toml
+
+**What configure auth does:**
+
+1. Checks if already logged in to Cloudflare
+2. Opens browser for OAuth login if needed
+
+**Supported Providers:**
+
+| Provider | Secret Name | Notes |
+|----------|-------------|-------|
+| `cloudflare` | — | Built-in, no API key needed |
+| `anthropic` | `ANTHROPIC_API_KEY` | Claude models (recommended) |
+| `openai` | `OPENAI_API_KEY` | GPT-4 and GPT-3.5 |
+| `groq` | `GROQ_API_KEY` | Fast inference with Llama and Mixtral |
+
+<Note>
+The `configure` command requires a `wrangler.toml` file. Run it from your project directory after `init`. The same wizards are used during `ensemble conductor init` to ensure consistency.
+</Note>
+
+---
 
 ### dev
 
@@ -804,11 +892,18 @@ ensemble conductor info
 
 ### version
 
-Show CLI version.
+Show CLI version and check for updates.
 
 ```bash
 ensemble --version
 ```
+
+When run from a project directory, this also shows:
+- Installed Ensemble packages and their versions
+- Latest available versions from npm
+- Upgrade instructions using your package manager
+
+See [Checking for Updates](/introduction/ensemble-cli#checking-for-updates) for more details.
 
 ### help
 

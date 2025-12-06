@@ -53,11 +53,47 @@ npx @ensemble-edge/ensemble --help
 
 ```bash
 npx @ensemble-edge/ensemble --version
-# Output: ensemble v1.0.0
+# Output: ensemble v0.1.4
 
 npx @ensemble-edge/ensemble --help
 # Shows all available commands
 ```
+
+## Checking for Updates
+
+The `--version` flag does more than just show the version—it checks for updates too:
+
+```bash
+ensemble --version
+```
+
+**Outside a project directory:**
+```
+ensemble v0.1.4
+
+Run from a project directory to check for package updates.
+```
+
+**Inside a project directory:**
+```
+ensemble v0.1.4
+
+Project: my-conductor-app (conductor)
+
+┌────────────┬───────────┬────────┐
+│ Package    │ Installed │ Latest │
+├────────────┼───────────┼────────┤
+│ ensemble   │ 0.1.4     │ 0.1.4 ✓ │
+│ conductor  │ 0.2.3     │ 0.3.0 ⬆ │
+└────────────┴───────────┴────────┘
+
+To upgrade: pnpm update @ensemble-edge/conductor
+```
+
+The version command:
+- **Detects your project** - Reads `package.json` to find installed Ensemble packages
+- **Checks npm registry** - Fetches latest versions (with 5s timeout)
+- **Shows upgrade instructions** - Uses your detected package manager (npm, pnpm, yarn, bun)
 
 ## Command Structure
 
@@ -142,6 +178,78 @@ ensemble cloud status
 # Stream logs
 ensemble cloud logs --follow
 ```
+
+## Configure Command
+
+Configure AI providers, authentication, and other settings after project creation:
+
+```bash
+# Interactive configuration menu
+ensemble configure
+
+# Configure AI provider directly
+ensemble configure ai
+
+# Pre-select a provider
+ensemble configure ai --provider anthropic
+
+# Configure Cloudflare authentication
+ensemble configure auth
+```
+
+### AI Provider Setup
+
+The `configure ai` command helps you set up AI providers:
+
+```bash
+$ ensemble configure ai
+
+? Select AI provider:
+❯ Cloudflare Workers AI — Built-in, no API key needed
+  Anthropic — Claude models (recommended)
+  OpenAI — GPT-4 and GPT-3.5 models
+  Groq — Fast inference with Llama and Mixtral
+
+? Anthropic API key: sk-ant-...
+
+✓ Secret stored: ANTHROPIC_API_KEY
+✓ AI binding enabled in wrangler.toml
+
+Anthropic configured!
+
+Next steps:
+  pnpm run dev
+```
+
+**Supported Providers:**
+
+| Provider | Description | API Key Required |
+|----------|-------------|------------------|
+| `cloudflare` | Cloudflare Workers AI | No |
+| `anthropic` | Claude models (recommended) | Yes |
+| `openai` | GPT-4 and GPT-3.5 models | Yes |
+| `groq` | Fast inference with Llama and Mixtral | Yes |
+
+### Cloudflare Authentication
+
+The `configure auth` command helps you log in to Cloudflare:
+
+```bash
+$ ensemble configure auth
+
+⠋ Checking Cloudflare auth...
+✓ Already logged in to Cloudflare
+```
+
+If not logged in, it will open a browser to complete the OAuth flow.
+
+### How It Works
+
+The configure command:
+- **Stores secrets securely** - Uses `wrangler secret put` to store API keys
+- **Updates wrangler.toml** - Enables the `[ai]` binding automatically
+- **Works anytime** - Run after initial project creation to add AI support
+- **Shared with init** - Same wizards used during `ensemble conductor init`
 
 ## Wrangler Passthrough
 
