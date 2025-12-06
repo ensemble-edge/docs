@@ -693,8 +693,8 @@ Conductor parses RFC822 emails and provides structured data to your ensemble:
 | `input.subject` | `string` | Email subject line |
 | `input.body` | `string` | Plain text body |
 | `input.html` | `string \| null` | HTML body (if present) |
-| `input.headers` | `Record<string, string>` | All email headers as key-value pairs |
-| `input.attachments` | `Array<Attachment>` | File attachments (see below) |
+| `input.headers` | `Record&lt;string, string&gt;` | All email headers as key-value pairs |
+| `input.attachments` | `Array&lt;Attachment&gt;` | File attachments (see below) |
 
 **Attachment format:**
 ```typescript
