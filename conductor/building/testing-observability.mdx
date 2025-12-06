@@ -302,6 +302,20 @@ Then create the dataset in Cloudflare Dashboard:
 
 ---
 
+### Telemetry vs Observability
+
+**Observability** (logging, traces) is for debugging—understanding *how* your code executed.
+**Telemetry** is for analytics—tracking *business metrics* for billing, dashboards, and trend analysis.
+
+| Use Case | Tool |
+|----------|------|
+| Debug failures, trace execution | `logger`, observability config |
+| Track costs, revenue, conversion | [telemetry operation](/conductor/operations/telemetry) |
+
+For example, in a payment agent: use `logger` to debug failures, use `telemetry` to track daily revenue and success rates.
+
+---
+
 ## Logging in Agents
 
 Every agent receives a pre-configured `logger` and `metrics` recorder in its execution context:

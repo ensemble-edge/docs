@@ -678,6 +678,35 @@ config:
   model: '@cf/meta/llama-3.1-8b-instruct'
 ```
 
+### 6. Track AI Costs with Telemetry
+
+Emit token usage to Analytics Engine for cost tracking and billing:
+
+```yaml
+agents:
+  - name: generate
+    operation: think
+    config:
+      provider: openai
+      model: gpt-4o-mini
+      prompt: ${input.text}
+
+  - name: track-costs
+    operation: telemetry
+    input:
+      blobs:
+        - ai_inference
+        - openai
+        - gpt-4o-mini
+      doubles:
+        - ${generate.output.usage.inputTokens}
+        - ${generate.output.usage.outputTokens}
+      indexes:
+        - ${input.customerId}
+```
+
+See [telemetry operation](/conductor/operations/telemetry) for querying examples.
+
 ## Performance Tips
 
 ### Use Workers AI for Speed

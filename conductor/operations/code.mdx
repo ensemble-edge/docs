@@ -50,6 +50,9 @@ The script receives the full `AgentExecutionContext`:
 - `context.logger` - Structured logging
 - `context.request` - HTTP request (if triggered via HTTP)
 - `context.cache` - Caching utilities
+- `context.location` - [Geographic and compliance data](/conductor/core-concepts/location-context)
+- `context.edge` - [Network and protocol info](/conductor/core-concepts/edge-context)
+- `context.telemetry` - [Emit business metrics](/conductor/operations/telemetry)
 
 ## Script File Format
 
@@ -276,6 +279,81 @@ export default function processDates(context: AgentExecutionContext) {
     dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
     month: date.toLocaleDateString('en-US', { month: 'long' }),
     year: date.getFullYear()
+  }
+}
+```
+
+### 7. Location-Aware Logic
+
+Use the [location context](/conductor/core-concepts/location-context) for geo-aware business logic:
+
+```typescript
+// scripts/geo/localized-pricing.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function localizedPricing(context: AgentExecutionContext) {
+  const { basePrice } = context.input as { basePrice: number }
+  const { location } = context
+
+  // Apply regional pricing
+  const regionalMultipliers: Record<string, number> = {
+    US: 1.0,
+    GB: 0.85,
+    EU: 0.90,
+    IN: 0.50,
+  }
+
+  const region = location?.isIn(['EU']) ? 'EU' : location?.country
+  const multiplier = regionalMultipliers[region ?? ''] ?? 1.0
+
+  return {
+    price: basePrice * multiplier,
+    currency: location?.isIn(['GB']) ? 'GBP' : location?.isIn(['EU']) ? 'EUR' : 'USD',
+    country: location?.country,
+    requiresConsent: location?.requiresConsent('analytics')
+  }
+}
+```
+
+### 8. Security & Compliance Checks
+
+Use the [edge context](/conductor/core-concepts/edge-context) for security decisions:
+
+```typescript
+// scripts/security/traffic-filter.ts
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default function trafficFilter(context: AgentExecutionContext) {
+  const { edge, location, logger } = context
+
+  let riskScore = 0
+  const flags: string[] = []
+
+  // Cloud provider traffic often indicates automation
+  if (edge?.isFromCloudProvider()) {
+    riskScore += 30
+    flags.push(`cloud_provider:${edge.getCloudProvider()}`)
+  }
+
+  // VPN usage
+  if (edge?.isFromVPN()) {
+    riskScore += 10
+    flags.push('vpn_detected')
+  }
+
+  // Outdated TLS
+  if (!edge?.isModernTLS()) {
+    riskScore += 20
+    flags.push('legacy_tls')
+  }
+
+  logger?.info('Traffic analysis', { riskScore, flags, asn: edge?.asn })
+
+  return {
+    allowed: riskScore < 50,
+    riskScore,
+    flags,
+    datacenter: edge?.coloName
   }
 }
 ```

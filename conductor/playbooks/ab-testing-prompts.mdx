@@ -131,23 +131,18 @@ agents:
     input:
       data: ${input.data}
 
-  # Track metrics
+  # Track metrics with telemetry operation
   - name: track-metrics
-    operation: code
-    config:
-      script: |
-        const result = input.result;
-        const variant = ['gpt4', 'claude', 'workersai'][input.variantIndex];
-
-        env.ANALYTICS?.writeDataPoint({
-          blobs: ['model-comparison', variant, input.userId],
-          doubles: [result.executionTime, result.cost, result.qualityScore]
-        });
-
-        return { logged: true };
+    operation: telemetry
     input:
-      variantIndex: ${route.output.variant}
-      result: ${analyze-gpt4.output || analyze-claude.output || analyze-workersai.output}
+      blobs:
+        - model-comparison
+        - ${route.output.variant === 0 ? 'gpt4' : route.output.variant === 1 ? 'claude' : 'workersai'}
+      doubles:
+        - ${analyze-gpt4.output.duration || analyze-claude.output.duration || analyze-workersai.output.duration}
+        - ${analyze-gpt4.output.cost || analyze-claude.output.cost || analyze-workersai.output.cost}
+      indexes:
+        - ${input.userId}
 ```
 
 **Measure:**
