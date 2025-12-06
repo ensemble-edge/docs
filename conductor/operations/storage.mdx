@@ -297,27 +297,57 @@ See [data operation](/conductor/operations/data) for database queries.
 
 ## Examples
 
-### Session Management with KV
+### Session Management with KV and Cookies
+
+Combine KV storage with the [cookies operation](/conductor/operations/cookies) for complete session management:
 
 ```yaml
-operations:
-  # Store session
-  - name: save-session
-    operation: storage
-    config:
-      type: kv
-      action: put
-      key: session-${input.sessionId}
-      value: ${input.sessionData}
-      expirationTtl: 86400  # 24 hours
-
-  # Retrieve session
+agents:
+  # Read session ID from cookie
   - name: get-session
+    condition: ${input.cookies.session_id}
     operation: storage
     config:
       type: kv
       action: get
-      key: session-${input.sessionId}
+      key: session-${input.cookies.session_id}
+
+  # Create new session if none exists
+  - name: create-session
+    condition: ${!input.cookies.session_id}
+    operation: code
+    config:
+      handler: |
+        const id = crypto.randomUUID()
+        return { sessionId: id, data: { created: Date.now() } }
+
+  # Store new session in KV
+  - name: save-session
+    condition: ${!input.cookies.session_id}
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: session-${create-session.output.sessionId}
+      value: ${create-session.output.data}
+      expirationTtl: 86400  # 24 hours
+
+  # Set session cookie
+  - name: set-session-cookie
+    condition: ${!input.cookies.session_id}
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${create-session.output.sessionId}
+      httpOnly: true
+      secure: true
+      sameSite: lax
+      maxAge: 86400
+      purpose: essential
+
+output:
+  session: ${get-session.output.value || create-session.output.data}
 ```
 
 ### File Upload to R2

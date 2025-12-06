@@ -1,0 +1,134 @@
+---
+title: "Pulse"
+description: "Anonymous usage metrics that help improve Conductor"
+---
+
+# Pulse
+
+**Anonymous usage metrics that help improve Conductor.**
+
+Conductor Pulse collects anonymous usage metrics to help us understand how the platform
+is used and prioritize improvements. It's enabled by default and sends minimal, non-identifying
+data when your Conductor Worker starts.
+
+## What We Collect
+
+| Data Point | Description |
+|------------|-------------|
+| **Project ID** | A random UUID generated when you run `conductor init` |
+| **Event type** | What happened (e.g., `server.start`) |
+| **Version** | Which version of Conductor you're using |
+| **Agent count** | How many agents your project has |
+| **Ensemble count** | How many ensembles your project has |
+| **Component count** | Total number of components |
+| **Country** | Derived from Cloudflare's edge location (colo), not your IP |
+
+## What We DON'T Collect
+
+- Your IP address
+- Project names or file contents
+- Agent or ensemble names
+- Prompts, schemas, or configurations
+- API keys or any secrets
+- Any personally identifiable information
+
+## How to Opt Out
+
+### Option 1: Config file
+
+```typescript
+// conductor.config.ts
+export default {
+  cloud: {
+    pulse: false,
+  },
+  // ...
+}
+```
+
+### Option 2: Environment variable
+
+```bash
+# Standard opt-out (respects DO_NOT_TRACK convention)
+DO_NOT_TRACK=1
+
+# Or Conductor-specific
+CONDUCTOR_PULSE=false
+```
+
+<Note>
+Environment variables take precedence over config file settings. If `DO_NOT_TRACK=1` is set,
+Pulse will be disabled regardless of your config.
+</Note>
+
+## How It Works
+
+1. When you run `conductor init`, a unique project ID (UUID) is generated and stored in your `conductor.config.ts`
+2. On each Worker cold start, Pulse sends a single lightweight request to `pulse.ensemble.ai`
+3. The request is fire-and-forget using `ctx.waitUntil()` - it never blocks your Worker
+4. If the network request fails, it's silently ignored
+
+### Upgraded Projects
+
+If you're upgrading from an older version of Conductor that doesn't have a project ID in your config,
+Pulse will auto-generate an ephemeral ID at runtime. This means:
+
+- Your metrics will still be collected (unless you opt out)
+- Each cold start may generate a different ID until you add one to your config
+- To get consistent tracking, run `conductor init .` to add a project ID to your existing project
+
+## Why We Collect Pulse Metrics
+
+- **Prioritize features**: See which parts of Conductor are most used
+- **Track adoption**: Understand version migration patterns
+- **Geographic insights**: Optimize edge performance by region
+- **Project complexity**: Guide documentation based on typical project sizes
+
+## Where Data Goes
+
+Pulse signals are sent to `pulse.ensemble.ai`, a minimal Cloudflare Worker that writes
+to Workers Analytics Engine. Data is aggregated and never shared with third parties.
+
+## Technical Details
+
+### Payload Schema
+
+```typescript
+interface PulsePayload {
+  pid: string      // Project ID (UUID)
+  e: string        // Event type (e.g., "server.start")
+  v: string        // Conductor version
+  cc: number       // Component count
+  ac: number       // Agent count
+  ec: number       // Ensemble count
+  ts: number       // Timestamp
+}
+```
+
+### Request Details
+
+- **Endpoint**: `https://pulse.ensemble.ai`
+- **Method**: POST
+- **Timeout**: 5 seconds (non-blocking)
+- **Retry**: None (fire-and-forget)
+
+## Privacy-First Design
+
+Pulse was designed with privacy as the top priority:
+
+1. **No IP Logging**: We derive country from Cloudflare's edge location, not your IP
+2. **Random IDs**: Project IDs are UUIDs with no relation to your actual project
+3. **Minimal Data**: We only collect what's needed for aggregate statistics
+4. **Easy Opt-Out**: Multiple ways to disable, respecting industry standards
+5. **Transparent**: This documentation tells you exactly what we collect
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="sliders" href="/conductor/reference/environment-variables">
+    All configuration options
+  </Card>
+  <Card title="CLI Commands" icon="terminal" href="/conductor/reference/cli-commands">
+    Command reference
+  </Card>
+</CardGroup>

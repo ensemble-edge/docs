@@ -172,6 +172,74 @@ flow:
         get-user-stats: ${get-user-stats}
 ```
 
+## Personalization with Cookies
+
+Use [cookies](/conductor/operations/cookies) to personalize HTML content based on user preferences or session data:
+
+```yaml
+name: personalized-page
+trigger:
+  - type: http
+    path: /home
+    methods: [GET]
+    public: true
+    responses:
+      html: {enabled: true}
+
+agents:
+  # Check for preference cookie
+  - name: get-theme
+    operation: cookies
+    config:
+      action: get
+      name: theme_preference
+
+  # Load user session if logged in
+  - name: get-session
+    condition: ${input.cookies.session_id}
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: session-${input.cookies.session_id}
+
+  # Render personalized page
+  - name: render
+    operation: html
+    config:
+      template: |
+        <!DOCTYPE html>
+        <html data-theme="{{ theme }}">
+        <head>
+          <title>{% if user %}Welcome back, {{ user.name }}{% else %}Welcome{% endif %}</title>
+        </head>
+        <body>
+          {% if user %}
+            <p>Last visit: {{ user.lastVisit }}</p>
+          {% else %}
+            <p>Create an account for a personalized experience</p>
+          {% endif %}
+        </body>
+        </html>
+      data:
+        theme: ${get-theme.output.value || 'light'}
+        user: ${get-session.output.value}
+```
+
+Set preference cookies when users change settings:
+
+```yaml
+agents:
+  - name: save-theme
+    operation: cookies
+    config:
+      action: set
+      name: theme_preference
+      value: ${input.body.theme}
+      maxAge: 31536000  # 1 year
+      purpose: personalization
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>

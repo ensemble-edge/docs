@@ -59,6 +59,147 @@ agents:
         Authorization: Bearer ${get-token.output.body.access_token}
 ```
 
+## Session-Based Authentication
+
+Use [cookies](/conductor/operations/cookies) with KV storage for stateful session management:
+
+```yaml
+ensemble: session-auth-api
+
+trigger:
+  - type: http
+    path: /api/protected
+    methods: [GET, POST]
+    public: true  # Auth handled by session check
+
+agents:
+  # Validate session from cookie
+  - name: validate-session
+    condition: ${input.cookies.session_id}
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: session-${input.cookies.session_id}
+
+  # Check if session is valid and not expired
+  - name: check-auth
+    operation: code
+    config:
+      handler: |
+        const session = context.input.session
+        if (!session) {
+          return { authenticated: false, error: 'No session' }
+        }
+        if (session.expires_at < Date.now()) {
+          return { authenticated: false, error: 'Session expired' }
+        }
+        return { authenticated: true, userId: session.user_id }
+    input:
+      session: ${validate-session.output.value}
+
+  # Reject if not authenticated
+  - name: reject
+    condition: ${!check-auth.output.authenticated}
+    operation: code
+    config:
+      handler: |
+        return {
+          status: 401,
+          error: context.input.error || 'Unauthorized'
+        }
+    input:
+      error: ${check-auth.output.error}
+
+  # Proceed with authenticated request
+  - name: protected-action
+    condition: ${check-auth.output.authenticated}
+    operation: fetch
+    inputs:
+      url: https://api.internal.com/user/${check-auth.output.userId}
+
+  # Refresh session TTL on activity
+  - name: refresh-session
+    condition: ${check-auth.output.authenticated}
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: session-${input.cookies.session_id}
+      value: ${validate-session.output.value}
+      expirationTtl: 86400  # Extend 24 hours
+
+output:
+  data: ${protected-action.output.body}
+  error: ${reject.output.error}
+```
+
+### Login Endpoint
+
+Create sessions on successful authentication:
+
+```yaml
+ensemble: login
+
+trigger:
+  - type: http
+    path: /api/login
+    methods: [POST]
+    public: true
+
+agents:
+  # Verify credentials
+  - name: verify
+    operation: fetch
+    inputs:
+      url: https://auth.internal.com/verify
+      method: POST
+      body: ${input.body}
+
+  # Create session on success
+  - name: create-session
+    condition: ${verify.output.body.success}
+    operation: code
+    config:
+      handler: |
+        return {
+          session_id: crypto.randomUUID(),
+          user_id: context.input.userId,
+          expires_at: Date.now() + 86400000
+        }
+    input:
+      userId: ${verify.output.body.user_id}
+
+  # Store session
+  - name: save-session
+    condition: ${verify.output.body.success}
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: session-${create-session.output.session_id}
+      value: ${create-session.output}
+      expirationTtl: 86400
+
+  # Set session cookie
+  - name: set-cookie
+    condition: ${verify.output.body.success}
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${create-session.output.session_id}
+      httpOnly: true
+      secure: true
+      sameSite: strict
+      maxAge: 86400
+      purpose: essential
+
+output:
+  success: ${verify.output.body.success}
+  user: ${verify.output.body.user}
+```
+
 ## Parallel API Aggregation
 
 ```yaml

@@ -150,6 +150,8 @@
         "conductor/core-concepts/auto-discovery",
         "conductor/core-concepts/flow-control",
         "conductor/core-concepts/state-management",
+        "conductor/core-concepts/location-context",
+        "conductor/core-concepts/edge-context",
         "conductor/core-concepts/ab-testing"
       ]
     },
@@ -278,6 +280,7 @@
         "conductor/reference/ts-schema",
         "conductor/reference/cli-commands",
         "conductor/reference/environment-variables",
+        "conductor/reference/pulse",
         "conductor/reference/ai-context"
       ]
     },

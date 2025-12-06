@@ -129,6 +129,50 @@ trigger:
       json: {enabled: true}
 ```
 
+### HTTP Request Context
+
+HTTP triggers automatically parse request data and make it available to your ensemble:
+
+| Field | Description |
+|-------|-------------|
+| `input.method` | HTTP method (GET, POST, etc.) |
+| `input.params` | Path parameters (`/users/:id` → `input.params.id`) |
+| `input.query` | Query string parameters |
+| `input.headers` | Request headers |
+| `input.body` | Request body (parsed JSON) |
+| `input.cookies` | Parsed cookies from Cookie header |
+
+**Cookie Access:**
+
+```yaml
+agents:
+  - name: check-session
+    condition: ${input.cookies.session_id}
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: session-${input.cookies.session_id}
+```
+
+To **set cookies** in responses, use the [cookies operation](/conductor/operations/cookies):
+
+```yaml
+agents:
+  - name: create-session
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${generate-id.output}
+      httpOnly: true
+      secure: true
+      sameSite: strict
+      maxAge: 86400
+```
+
+The cookies operation integrates with [Location Context](/conductor/core-concepts/location-context) for GDPR/CCPA consent-aware cookie management.
+
 ### HTTP vs Webhook
 
 | Feature | HTTP | Webhook |

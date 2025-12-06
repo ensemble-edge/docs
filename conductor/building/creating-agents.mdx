@@ -72,8 +72,17 @@ export default async function greeter(
   input: GreeterInput,
   ctx: AgentExecutionContext
 ): Promise<GreeterOutput> {
+  // Access location for personalized greeting
+  const timeOfDay = ctx.location?.getTimeOfDay() ?? 'day'
+  const greetings = {
+    morning: 'Good morning',
+    afternoon: 'Good afternoon',
+    evening: 'Good evening',
+    day: 'Hello'
+  }
+
   return {
-    greeting: `Hello, ${input.name}!`
+    greeting: `${greetings[timeOfDay]}, ${input.name}!`
   }
 }
 ```
@@ -85,6 +94,7 @@ export default async function greeter(
 - The TypeScript function signature: `(input, ctx) => Promise<Output>`
 - The function name can be anything (typically matches the agent name)
 - Full type safety with TypeScript interfaces
+- Access [location](/conductor/core-concepts/location-context) and [edge](/conductor/core-concepts/edge-context) context for geo-aware behavior
 
 ## Complete Agent Example
 
@@ -750,6 +760,8 @@ For complete TypeScript API documentation, see the [TypeScript API Reference](/c
 6. **Document Inputs/Outputs** - Clear schemas
 7. **Monitor Performance** - Track execution times
 8. **Version with Edgit** - Track changes over time
+9. **Use Location Context** - Leverage [location](/conductor/core-concepts/location-context) for localization and compliance
+10. **Consider Edge Context** - Use [edge](/conductor/core-concepts/edge-context) for security decisions
 
 ## Next Steps
 
@@ -762,11 +774,11 @@ For complete TypeScript API documentation, see the [TypeScript API Reference](/c
     Orchestrate agents
   </Card>
 
-  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
-    Monitor your agents
+  <Card title="Location Context" icon="globe" href="/conductor/core-concepts/location-context">
+    Geographic data and compliance
   </Card>
 
-  <Card title="Operations Reference" icon="bolt" href="/conductor/operations/overview">
-    All 12 operations
+  <Card title="Edge Context" icon="network-wired" href="/conductor/core-concepts/edge-context">
+    Network and protocol info
   </Card>
 </CardGroup>

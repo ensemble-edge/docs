@@ -1,0 +1,419 @@
+---
+title: "Edge Context"
+description: "Network and infrastructure information from Cloudflare's edge. Detect cloud providers, VPNs, and protocol details."
+---
+
+The `edge` context provides information about *how* a request arrived—the network path, protocols, and infrastructure. Use it for security decisions, performance optimization, and debugging.
+
+## Overview
+
+The `edge` context is available on every `AgentExecutionContext`:
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge } = ctx
+
+  // Datacenter
+  console.log(edge?.colo)      // "DFW"
+  console.log(edge?.coloName)  // "Dallas"
+
+  // Network
+  console.log(edge?.asn)            // 7922
+  console.log(edge?.asOrganization) // "Comcast"
+
+  // Protocol
+  console.log(edge?.httpProtocol)  // "HTTP/2"
+  console.log(edge?.tlsVersion)    // "TLSv1.3"
+
+  // Detection helpers
+  if (edge?.isFromCloudProvider()) {
+    // Request from AWS, GCP, Azure, etc.
+  }
+}
+```
+
+## Datacenter Information
+
+Know which Cloudflare datacenter is serving the request:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge, logger } = ctx
+
+  // Three-letter IATA airport code
+  const colo = edge?.colo  // "DFW", "LHR", "NRT", etc.
+
+  // Human-readable city name
+  const coloName = edge?.coloName  // "Dallas", "London", "Tokyo"
+
+  // Useful for debugging latency
+  logger?.info(`Request served from ${coloName} (${colo})`)
+
+  return { servedFrom: coloName }
+}
+```
+
+### Common Datacenter Codes
+
+| Code | City | Region |
+|------|------|--------|
+| `DFW` | Dallas | North America |
+| `LAX` | Los Angeles | North America |
+| `EWR` | Newark | North America |
+| `LHR` | London | Europe |
+| `FRA` | Frankfurt | Europe |
+| `CDG` | Paris | Europe |
+| `NRT` | Tokyo | Asia Pacific |
+| `SIN` | Singapore | Asia Pacific |
+| `SYD` | Sydney | Asia Pacific |
+
+## Network Detection
+
+Identify the network provider (ASN) for security and routing decisions:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge } = ctx
+
+  // Autonomous System Number
+  const asn = edge?.asn  // 7922
+
+  // Organization name
+  const org = edge?.asOrganization  // "Comcast Cable Communications, LLC"
+
+  return { asn, organization: org }
+}
+```
+
+### Cloud Provider Detection
+
+Detect if the request originates from a known cloud provider:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge, logger } = ctx
+
+  if (edge?.isFromCloudProvider()) {
+    const provider = edge.getCloudProvider()
+    logger?.warn('Request from cloud provider', { provider, asn: edge.asn })
+
+    // Apply stricter rate limiting for potential automation
+    return {
+      rateLimit: 'strict',
+      reason: `Traffic from ${provider}`
+    }
+  }
+
+  return { rateLimit: 'normal' }
+}
+```
+
+Detected cloud providers:
+
+| Provider | ASNs |
+|----------|------|
+| AWS | 16509, 14618 |
+| Google Cloud | 15169, 396982 |
+| Microsoft Azure | 8075, 8068 |
+| DigitalOcean | 14061 |
+| Cloudflare | 13335 |
+| Oracle Cloud | 31898 |
+| Alibaba Cloud | 45102 |
+| Linode | 63949 |
+| Vultr | 20473 |
+| Hetzner | 24940 |
+| OVH | 16276 |
+
+### VPN Detection
+
+Detect if the request comes from a known VPN provider:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge, logger } = ctx
+
+  if (edge?.isFromVPN()) {
+    const provider = edge.getVPNProvider()
+    logger?.info('Request from VPN', { provider })
+
+    // VPN usage might indicate privacy-conscious user
+    // Consider adjusting fingerprinting or tracking
+  }
+
+  return { vpnDetected: edge?.isFromVPN() }
+}
+```
+
+<Note>
+VPN detection is based on ASN matching and is not foolproof. Many VPNs use residential or cloud IP addresses that won't be detected.
+</Note>
+
+## Protocol Information
+
+Check HTTP and TLS protocol details:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge } = ctx
+
+  // HTTP version
+  const protocol = edge?.httpProtocol  // "HTTP/1.1", "HTTP/2", "HTTP/3"
+
+  // TLS details
+  const tlsVersion = edge?.tlsVersion  // "TLSv1.3"
+  const tlsCipher = edge?.tlsCipher    // "AEAD-AES128-GCM-SHA256"
+
+  // Client capabilities
+  const acceptEncoding = edge?.clientAcceptEncoding  // "gzip, deflate, br"
+
+  return { protocol, tlsVersion, tlsCipher }
+}
+```
+
+### Protocol Helpers
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge } = ctx
+
+  // Check HTTP/2 or higher
+  if (edge?.isHTTP2OrHigher()) {
+    // Can use HTTP/2+ features like server push
+  }
+
+  // Check HTTP/3 specifically (QUIC)
+  if (edge?.isHTTP3()) {
+    // Client supports QUIC protocol
+  }
+
+  // Check modern TLS (1.2+)
+  if (edge?.isModernTLS()) {
+    // Secure connection with modern cipher suite
+  } else {
+    // Consider warning about outdated client
+  }
+}
+```
+
+## Use Cases
+
+### Bot & Scraper Detection
+
+Requests from cloud providers often indicate automated traffic:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge, location, input } = ctx
+
+  let suspicionScore = 0
+
+  // Cloud provider traffic
+  if (edge?.isFromCloudProvider()) {
+    suspicionScore += 30
+  }
+
+  // VPN usage
+  if (edge?.isFromVPN()) {
+    suspicionScore += 10
+  }
+
+  // Missing or unusual Accept-Encoding
+  if (!edge?.clientAcceptEncoding) {
+    suspicionScore += 20
+  }
+
+  // Decide action based on score
+  if (suspicionScore >= 50) {
+    return {
+      action: 'challenge',
+      reason: 'Suspicious traffic pattern'
+    }
+  }
+
+  return { action: 'allow' }
+}
+```
+
+### Security Logging
+
+Log edge information for security audits:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge, location, logger, input } = ctx
+
+  // Log security-relevant details
+  logger?.info('Request processed', {
+    // Network
+    colo: edge?.colo,
+    asn: edge?.asn,
+    asOrganization: edge?.asOrganization,
+    isCloudProvider: edge?.isFromCloudProvider(),
+    cloudProvider: edge?.getCloudProvider(),
+
+    // Protocol security
+    httpProtocol: edge?.httpProtocol,
+    tlsVersion: edge?.tlsVersion,
+    isModernTLS: edge?.isModernTLS(),
+
+    // Geographic (from location context)
+    country: location?.country,
+    region: location?.regionCode
+  })
+
+  return { logged: true }
+}
+```
+
+### Feature Detection
+
+Enable features based on client capabilities:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge } = ctx
+
+  const features = {
+    // HTTP/2+ enables multiplexing
+    multiplexing: edge?.isHTTP2OrHigher(),
+
+    // HTTP/3 enables QUIC benefits
+    quic: edge?.isHTTP3(),
+
+    // Modern TLS for secure features
+    secureFeatures: edge?.isModernTLS(),
+
+    // Compression support
+    brotli: edge?.clientAcceptEncoding?.includes('br'),
+    gzip: edge?.clientAcceptEncoding?.includes('gzip')
+  }
+
+  return { supportedFeatures: features }
+}
+```
+
+### Multi-Region Debugging
+
+Debug latency issues by checking which datacenter served the request:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { edge, location, logger } = ctx
+  const startTime = Date.now()
+
+  // Process request...
+  const result = await processRequest()
+
+  const latency = Date.now() - startTime
+
+  // Log with geographic context
+  logger?.info('Request timing', {
+    latencyMs: latency,
+    userCountry: location?.country,
+    servingColo: edge?.colo,
+    servingCity: edge?.coloName,
+    // Useful for identifying routing issues
+    expectedColo: getExpectedColo(location?.country)
+  })
+
+  return result
+}
+
+function getExpectedColo(country?: string): string {
+  // Map countries to expected nearby datacenters
+  const coloMap: Record<string, string> = {
+    US: 'DFW/LAX/EWR',
+    GB: 'LHR',
+    DE: 'FRA',
+    JP: 'NRT',
+    AU: 'SYD',
+    SG: 'SIN'
+  }
+  return coloMap[country ?? ''] ?? 'unknown'
+}
+```
+
+## TypeScript Types
+
+Import the EdgeContext type:
+
+```typescript
+import type { EdgeContext } from '@ensemble-edge/conductor'
+
+// EdgeContext interface
+interface EdgeContext {
+  // Datacenter
+  colo: string
+  coloName: string
+
+  // Network
+  asn: number
+  asOrganization: string
+
+  // Protocol
+  httpProtocol: string
+  tlsVersion: string
+  tlsCipher: string
+  clientAcceptEncoding: string
+
+  // Methods
+  isFromCloudProvider(): boolean
+  getCloudProvider(): string | null
+  isFromVPN(): boolean
+  getVPNProvider(): string | null
+  isHTTP2OrHigher(): boolean
+  isHTTP3(): boolean
+  isModernTLS(): boolean
+}
+```
+
+## Edge vs Location
+
+Both contexts come from Cloudflare's `request.cf`, but serve different purposes:
+
+| Context | Purpose | Example Use |
+|---------|---------|-------------|
+| `location` | *Where* the user is | Localization, compliance, timezone |
+| `edge` | *How* they connected | Security, debugging, feature detection |
+
+Use them together for comprehensive request intelligence:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location, edge } = ctx
+
+  return {
+    // Geographic intelligence
+    country: location?.country,
+    jurisdiction: location?.jurisdiction,
+    language: location?.language,
+
+    // Network intelligence
+    datacenter: edge?.coloName,
+    isAutomated: edge?.isFromCloudProvider(),
+    isSecure: edge?.isModernTLS()
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Location Context" icon="globe" href="/conductor/core-concepts/location-context">
+    Geographic and jurisdiction data
+  </Card>
+
+  <Card title="Security" icon="shield" href="/conductor/building/security-authentication">
+    Authentication and authorization
+  </Card>
+
+  <Card title="Operations" icon="bolt" href="/conductor/core-concepts/operations">
+    Available operation types
+  </Card>
+
+  <Card title="Testing" icon="flask" href="/conductor/building/testing-observability">
+    Testing and observability
+  </Card>
+</CardGroup>

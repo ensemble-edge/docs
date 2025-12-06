@@ -1,0 +1,480 @@
+---
+title: "cookies Operation"
+description: "Read, write, and delete HTTP cookies with consent awareness"
+---
+
+Manage HTTP cookies with built-in consent integration. Read cookies from requests, set cookies on responses, and automatically respect GDPR/CCPA consent requirements.
+
+<Note>
+  The cookies operation integrates with [Location & Jurisdiction](/conductor/core-concepts/location-jurisdiction) for consent-aware cookie management.
+</Note>
+
+## Quick Start
+
+**Reading cookies** — just use `input.cookies`:
+
+```yaml
+agents:
+  - name: check-auth
+    condition: ${input.cookies.auth_token}
+    operation: code
+    config:
+      script: scripts/validate-token
+    input:
+      token: ${input.cookies.auth_token}
+```
+
+**Setting cookies** — use the cookies operation:
+
+```yaml
+agents:
+  - name: set-session
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${create-session.output.id}
+      httpOnly: true
+      secure: true
+      sameSite: strict
+      maxAge: 86400
+```
+
+## Configuration
+
+```yaml
+config:
+  action: string      # get, set, delete, getAll (required)
+  name: string        # Cookie name (required for get/set/delete)
+  value: string       # Cookie value (required for set)
+  maxAge: number      # Seconds until expiration
+  expires: string     # Expiration date (ISO string or timestamp)
+  path: string        # URL path scope (default: /)
+  domain: string      # Domain scope
+  secure: boolean     # HTTPS only (default: true)
+  httpOnly: boolean   # No JavaScript access (default: true)
+  sameSite: string    # strict, lax, none (default: lax)
+  purpose: string     # Consent purpose for GDPR/CCPA
+```
+
+## Actions
+
+### GET - Read a Single Cookie
+
+```yaml
+agents:
+  - name: get-session
+    operation: cookies
+    config:
+      action: get
+      name: session_id
+```
+
+**Output**:
+```typescript
+{
+  value: string | null  // Cookie value or null if not found
+  found: boolean        // true if cookie exists
+}
+```
+
+### GET ALL - Read All Cookies
+
+```yaml
+agents:
+  - name: get-all-cookies
+    operation: cookies
+    config:
+      action: getAll
+```
+
+**Output**:
+```typescript
+{
+  cookies: Record<string, string>  // All cookies as key-value pairs
+  count: number                    // Number of cookies
+}
+```
+
+### SET - Create or Update a Cookie
+
+```yaml
+agents:
+  - name: set-session
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${session.id}
+      maxAge: 86400        # 24 hours
+      path: /
+      httpOnly: true
+      secure: true
+      sameSite: strict
+```
+
+**Output**:
+```typescript
+{
+  success: boolean     // true if cookie was set
+  header: string       // The Set-Cookie header value
+  name: string         // Cookie name
+  skipped?: boolean    // true if skipped (consent/context)
+  reason?: string      // Reason for skipping
+}
+```
+
+### DELETE - Remove a Cookie
+
+```yaml
+agents:
+  - name: logout
+    operation: cookies
+    config:
+      action: delete
+      name: session_id
+      path: /            # Must match the path used when setting
+```
+
+**Output**:
+```typescript
+{
+  success: boolean     // true if delete header was set
+  header: string       // The Set-Cookie header (with Max-Age=0)
+  name: string         // Cookie name
+}
+```
+
+## Trigger Compatibility
+
+Cookies only work with HTTP-based triggers. For non-HTTP triggers, operations skip gracefully.
+
+| Trigger | Read (`input.cookies`) | Write (`set`/`delete`) |
+|---------|------------------------|------------------------|
+| **http** | ✅ | ✅ |
+| **webhook** | ✅ | ✅ |
+| **mcp** | ✅ | ✅ |
+| **email** | ❌ | ❌ (skips gracefully) |
+| **queue** | ❌ | ❌ (skips gracefully) |
+| **cron** | ❌ | ❌ (skips gracefully) |
+
+When a non-HTTP trigger is used, `set` and `delete` actions return:
+```typescript
+{
+  success: false,
+  skipped: true,
+  reason: 'no_http_context'
+}
+```
+
+## Consent Integration
+
+The `purpose` field integrates with Conductor's jurisdiction detection. If a purpose requires consent in the user's region, the cookie is only set if consent is granted.
+
+### Cookie Purposes
+
+| Purpose | Description | Consent Required |
+|---------|-------------|------------------|
+| `essential` | Sessions, auth, security | Never |
+| `analytics` | Usage tracking, metrics | GDPR, CCPA |
+| `marketing` | Ads, promotional content | GDPR, CCPA |
+| `personalization` | Recommendations, preferences | GDPR |
+| `third_party` | External service cookies | GDPR, CCPA |
+
+### Example: Analytics Cookie with Consent
+
+```yaml
+ensemble: analytics-setup
+
+agents:
+  - name: set-analytics
+    operation: cookies
+    config:
+      action: set
+      name: _analytics_id
+      value: ${generate-id.output.id}
+      purpose: analytics
+      maxAge: 31536000  # 1 year
+```
+
+If the user is in a GDPR region (EU) and hasn't consented to analytics, the result will be:
+
+```typescript
+{
+  success: false,
+  skipped: true,
+  reason: 'consent_required',
+  purpose: 'analytics'
+}
+```
+
+### Passing Consent from Client
+
+```yaml
+triggers:
+  - type: http
+    method: POST
+    path: /api/track
+
+agents:
+  - name: set-tracking
+    operation: cookies
+    config:
+      action: set
+      name: _tracker
+      value: ${input.trackingId}
+      purpose: marketing
+```
+
+The client passes consent in the request body:
+```json
+{
+  "trackingId": "abc123",
+  "consents": {
+    "marketing": true,
+    "analytics": false
+  }
+}
+```
+
+## Security Best Practices
+
+### Authentication Cookies
+
+Always use secure settings for auth cookies:
+
+```yaml
+agents:
+  - name: set-auth-cookie
+    operation: cookies
+    config:
+      action: set
+      name: auth_token
+      value: ${auth.output.token}
+      httpOnly: true      # Prevents XSS attacks
+      secure: true        # HTTPS only
+      sameSite: strict    # Prevents CSRF
+      maxAge: 3600        # 1 hour
+      purpose: essential  # No consent required
+```
+
+### Session Cookies
+
+```yaml
+agents:
+  - name: create-session
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${session.id}
+      httpOnly: true
+      secure: true
+      sameSite: lax       # Allows top-level navigation
+      path: /
+      purpose: essential
+```
+
+### SameSite Attribute Guide
+
+| Value | Use Case | Cross-Site Behavior |
+|-------|----------|---------------------|
+| `strict` | Auth tokens, sensitive data | Never sent cross-site |
+| `lax` | Sessions, general use | Sent on top-level navigation |
+| `none` | Cross-site embeds, widgets | Always sent (requires `secure: true`) |
+
+## Examples
+
+### Session Management
+
+```yaml
+ensemble: session-handler
+
+agents:
+  # Check for existing session
+  - name: get-session
+    operation: cookies
+    config:
+      action: get
+      name: session_id
+
+  # Validate session if exists
+  - name: validate-session
+    condition: ${get-session.output.found}
+    operation: storage
+    config:
+      type: kv
+      action: get
+      key: session-${get-session.output.value}
+
+  # Create new session if not found
+  - name: create-session
+    condition: ${!get-session.output.found}
+    operation: code
+    config:
+      script: scripts/create-session
+
+  # Set session cookie
+  - name: set-session-cookie
+    condition: ${!get-session.output.found}
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${create-session.output.sessionId}
+      httpOnly: true
+      secure: true
+      sameSite: lax
+      maxAge: 86400
+      purpose: essential
+
+output:
+  session: ${validate-session.output.value || create-session.output}
+```
+
+### Logout Flow
+
+```yaml
+ensemble: logout
+
+agents:
+  # Get session to invalidate
+  - name: get-session
+    operation: cookies
+    config:
+      action: get
+      name: session_id
+
+  # Delete session from store
+  - name: delete-session-data
+    condition: ${get-session.output.found}
+    operation: storage
+    config:
+      type: kv
+      action: delete
+      key: session-${get-session.output.value}
+
+  # Delete session cookie
+  - name: delete-session-cookie
+    operation: cookies
+    config:
+      action: delete
+      name: session_id
+      path: /
+
+output:
+  success: true
+  message: "Logged out successfully"
+```
+
+### A/B Testing Cookie
+
+```yaml
+ensemble: ab-test-setup
+
+agents:
+  # Check for existing variant
+  - name: get-variant
+    operation: cookies
+    config:
+      action: get
+      name: ab_variant
+
+  # Assign variant if not set
+  - name: assign-variant
+    condition: ${!get-variant.output.found}
+    operation: code
+    config:
+      script: scripts/assign-variant
+
+  # Set variant cookie
+  - name: set-variant-cookie
+    condition: ${!get-variant.output.found}
+    operation: cookies
+    config:
+      action: set
+      name: ab_variant
+      value: ${assign-variant.output.variant}
+      maxAge: 2592000  # 30 days
+      purpose: personalization
+
+output:
+  variant: ${get-variant.output.value || assign-variant.output.variant}
+```
+
+### Cookie Banner Preferences
+
+```yaml
+ensemble: save-consent
+
+triggers:
+  - type: http
+    method: POST
+    path: /api/consent
+
+agents:
+  # Store consent preferences
+  - name: set-consent-cookie
+    operation: cookies
+    config:
+      action: set
+      name: consent_preferences
+      value: ${JSON.stringify(input.consents)}
+      maxAge: 31536000  # 1 year
+      httpOnly: false   # JS needs to read this
+      secure: true
+      sameSite: lax
+      purpose: essential  # Meta-consent is essential
+
+output:
+  success: true
+  consents: ${input.consents}
+```
+
+## Reading Cookies Without the Operation
+
+For simple cookie reads, use `input.cookies` directly without the cookies operation:
+
+```yaml
+agents:
+  - name: check-auth
+    operation: code
+    config:
+      script: scripts/verify-auth
+    input:
+      token: ${input.cookies.auth_token}
+      userId: ${input.cookies.user_id}
+```
+
+The cookies operation's `get` and `getAll` actions are useful when you need:
+- Conditional logic based on cookie existence
+- Consistent output format
+- Integration with other operation patterns
+
+## Error Handling
+
+Cookie operations are designed to fail gracefully:
+
+```yaml
+agents:
+  - name: set-cookie
+    operation: cookies
+    config:
+      action: set
+      name: test
+      value: ${value}
+      purpose: analytics
+
+  # Handle consent denial
+  - name: fallback
+    condition: ${set-cookie.output.skipped && set-cookie.output.reason === 'consent_required'}
+    operation: code
+    config:
+      script: scripts/handle-no-consent
+```
+
+## Related Operations
+
+- [storage](/conductor/operations/storage) - Persist session data
+- [html](/conductor/operations/html) - Render pages with cookie-based personalization
+- [http](/conductor/operations/http) - Make authenticated API calls

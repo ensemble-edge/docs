@@ -1,0 +1,480 @@
+---
+title: "Location Context"
+description: "Geographic location, jurisdiction detection, and consent helpers. Build privacy-compliant, localized applications with ease."
+---
+
+Every request to your Conductor application includes rich location data from Cloudflare's edge network. Use it for localization, privacy compliance, and intelligent routing.
+
+## Overview
+
+The `location` context is available on every `AgentExecutionContext` and provides:
+
+- **Geographic data**: Country, city, region, coordinates, timezone
+- **Jurisdiction detection**: GDPR, CCPA, LGPD, and other privacy laws
+- **Consent helpers**: Check if consent is required for specific purposes
+- **Language inference**: Detect preferred language from headers or country
+- **Timezone utilities**: Format times, check business hours
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location } = ctx
+
+  // Geographic
+  console.log(location?.country)      // "DE"
+  console.log(location?.city)         // "Berlin"
+
+  // Jurisdiction
+  console.log(location?.isGDPR)       // true
+  console.log(location?.jurisdiction) // "GDPR"
+
+  // Consent
+  if (location?.requiresConsent('analytics')) {
+    return { needsConsent: true }
+  }
+
+  // Language
+  const lang = location?.preferredLanguage(['en', 'de', 'fr'])
+
+  // Time
+  const greeting = location?.getTimeOfDay() // "morning"
+}
+```
+
+## Geographic Data
+
+Access location information extracted from Cloudflare's edge:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location } = ctx
+
+  return {
+    // Country
+    country: location?.country,           // "US" (ISO code)
+    countryName: location?.countryName,   // "United States"
+
+    // Region/State
+    region: location?.region,             // "Texas"
+    regionCode: location?.regionCode,     // "TX"
+
+    // City & Postal
+    city: location?.city,                 // "Austin"
+    postalCode: location?.postalCode,     // "78701"
+
+    // Continent
+    continent: location?.continent,       // "NA"
+    continentName: location?.continentName, // "North America"
+
+    // Coordinates
+    latitude: location?.latitude,         // 30.2672
+    longitude: location?.longitude,       // -97.7431
+    coordinates: location?.coordinates,   // { lat: 30.2672, lng: -97.7431 }
+  }
+}
+```
+
+### Region Checking
+
+Use `isIn()` to check if the user is in specific regions or groups:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location } = ctx
+
+  // Check region groups
+  if (location?.isIn(['EU'])) {
+    // User is in European Union
+  }
+
+  if (location?.isIn(['APAC'])) {
+    // User is in Asia-Pacific
+  }
+
+  // Check specific countries
+  if (location?.isIn(['US', 'CA', 'MX'])) {
+    // User is in North America
+  }
+
+  // Check specific state/region
+  if (location?.isIn(['US-CA'])) {
+    // User is in California
+  }
+
+  // Mix groups and countries
+  if (location?.isIn(['GDPR', 'BR'])) {
+    // User is in GDPR region OR Brazil
+  }
+}
+```
+
+### Available Region Groups
+
+| Group | Countries |
+|-------|-----------|
+| `EU` | 27 EU member states |
+| `EEA` | EU + Iceland, Liechtenstein, Norway |
+| `GDPR` | EEA + UK |
+| `APAC` | Asia-Pacific (CN, JP, KR, SG, AU, IN, etc.) |
+| `LATAM` | Latin America (BR, MX, AR, CL, etc.) |
+| `MENA` | Middle East & North Africa |
+| `NORTH_AMERICA` | US, CA, MX |
+| `ASEAN` | Southeast Asian nations |
+| `FIVE_EYES` | US, GB, CA, AU, NZ |
+| `NINE_EYES` | Five Eyes + DK, FR, NL, NO |
+| `FOURTEEN_EYES` | Nine Eyes + DE, BE, IT, SE, ES |
+| `G7` | US, GB, CA, FR, DE, IT, JP |
+| `G20` | Major economies |
+| `BRICS` | BR, RU, IN, CN, ZA |
+| `MERCOSUR` | BR, AR, UY, PY |
+
+## Jurisdiction Detection
+
+Automatically detect which privacy laws apply to the user:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location } = ctx
+
+  // Primary jurisdiction
+  const jurisdiction = location?.jurisdiction  // "GDPR" | "CCPA" | "LGPD" | etc.
+
+  // All applicable jurisdictions
+  const all = location?.jurisdictions  // ["GDPR"] or []
+
+  // Convenience booleans
+  const isGDPR = location?.isGDPR   // true for EEA + UK
+  const isEU = location?.isEU       // true for EU members only
+  const isEEA = location?.isEEA     // true for EU + Iceland/Liechtenstein/Norway
+  const isCCPA = location?.isCCPA   // true for California
+  const isLGPD = location?.isLGPD   // true for Brazil
+}
+```
+
+### Supported Jurisdictions
+
+| Jurisdiction | Region | Model |
+|--------------|--------|-------|
+| `GDPR` | EU + EEA + UK | Opt-in |
+| `CCPA` | California, USA | Opt-out |
+| `LGPD` | Brazil | Opt-in |
+| `PIPEDA` | Canada | Opt-in |
+| `POPIA` | South Africa | Opt-in |
+| `PDPA` | Singapore | Opt-in |
+| `APPI` | Japan | Opt-in |
+
+## Consent Helpers
+
+Check if consent is required before processing user data:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location, input } = ctx
+
+  // Check specific purpose
+  if (location?.requiresConsent('analytics')) {
+    // User is in opt-in jurisdiction (GDPR, LGPD, etc.)
+    if (!input.consents?.analytics) {
+      return {
+        requiresConsent: true,
+        purposes: location.getRequiredConsentPurposes()
+      }
+    }
+  }
+
+  // Track analytics only with consent
+  trackUserActivity(input.userId)
+
+  return { success: true }
+}
+```
+
+### Consent Purposes
+
+| Purpose | Description | GDPR | CCPA |
+|---------|-------------|------|------|
+| `essential` | Core functionality | No consent needed | No consent needed |
+| `analytics` | Usage tracking | Requires consent | Allowed (opt-out) |
+| `marketing` | Ads, promotions | Requires consent | Allowed (opt-out) |
+| `personalization` | Recommendations | Requires consent | Allowed (opt-out) |
+| `third_party` | Partner sharing | Requires consent | Allowed (opt-out) |
+
+### Consent Model
+
+Get the consent model to use:
+
+```typescript
+const model = location?.consentModel  // "opt-in" | "opt-out" | "none"
+
+if (model === 'opt-in') {
+  // Must get consent BEFORE processing (GDPR)
+} else if (model === 'opt-out') {
+  // Can process until user opts out (CCPA)
+} else {
+  // No consent requirements
+}
+```
+
+### Consent-Aware Cookies
+
+The [cookies operation](/conductor/operations/cookies) integrates directly with location context to automatically enforce consent rules. When you specify a `purpose` for a cookie, the operation checks if consent is required and granted before setting the cookie.
+
+```yaml
+agents:
+  # This cookie only sets if analytics consent is granted (or not required)
+  - name: set-analytics-cookie
+    operation: cookies
+    config:
+      action: set
+      name: _analytics_id
+      value: ${generate-id.output}
+      purpose: analytics     # Integrates with location context
+      maxAge: 31536000
+
+  # Essential cookies don't require consent
+  - name: set-session-cookie
+    operation: cookies
+    config:
+      action: set
+      name: session_id
+      value: ${session.id}
+      purpose: essential     # Always allowed
+      httpOnly: true
+      secure: true
+```
+
+If a GDPR user hasn't consented to analytics, the first cookie returns:
+
+```json
+{
+  "success": false,
+  "skipped": true,
+  "reason": "consent_required",
+  "purpose": "analytics"
+}
+```
+
+Pass user consent from your cookie banner:
+
+```yaml
+# Request body: { "consents": { "analytics": true, "marketing": false } }
+agents:
+  - name: set-tracking
+    operation: cookies
+    config:
+      action: set
+      name: _tracker
+      value: ${input.trackingId}
+      purpose: marketing  # Will check input.consents.marketing
+```
+
+See [cookies operation](/conductor/operations/cookies) for full documentation.
+
+## Language Inference
+
+Detect the user's preferred language:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location } = ctx
+
+  // Best guess from Accept-Language header or country
+  const language = location?.language  // "de"
+
+  // Country's official languages
+  const languages = location?.languages  // ["de"]
+
+  // Is the language RTL?
+  const isRTL = location?.isRTL  // false
+
+  // Get best match from your supported languages
+  const lang = location?.preferredLanguage(['en', 'de', 'fr', 'es'])
+  // Returns 'de' if user prefers German, or best alternative
+
+  return {
+    greeting: translate('hello', lang),
+    direction: isRTL ? 'rtl' : 'ltr'
+  }
+}
+```
+
+### Language Matching Priority
+
+1. **Accept-Language header** - User's browser preference
+2. **Country's primary language** - Fallback based on location
+3. **First supported language** - Ultimate fallback
+
+## Timezone Utilities
+
+Work with the user's local time:
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location } = ctx
+
+  // IANA timezone identifier
+  const timezone = location?.timezone  // "America/Chicago"
+
+  // Offset from UTC
+  const offset = location?.timezoneOffset      // -360 (minutes)
+  const offsetHours = location?.timezoneOffsetHours  // -6
+
+  // Daylight saving time
+  const isDST = location?.isDST  // true/false
+
+  // Format current time in user's timezone
+  const localTime = location?.formatTime()  // "Dec 6, 2024, 2:30 PM"
+
+  // Format a specific date
+  const formatted = location?.formatTime(new Date('2024-12-25'))
+
+  // Get current time as Date object
+  const now = location?.now()
+
+  // Time of day for greetings
+  const timeOfDay = location?.getTimeOfDay()  // "morning" | "afternoon" | "evening"
+
+  // Business hours check
+  const isOpen = location?.isBusinessHours()  // true if 9 AM - 5 PM
+  const isCustomHours = location?.isBusinessHours(8, 18)  // 8 AM - 6 PM
+}
+```
+
+### Smart Scheduling
+
+```typescript
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location, input } = ctx
+
+  // Only send notifications during business hours
+  if (!location?.isBusinessHours(9, 17)) {
+    return {
+      scheduled: true,
+      message: 'Notification queued for business hours'
+    }
+  }
+
+  // Personalized greeting
+  const greeting = {
+    morning: 'Good morning',
+    afternoon: 'Good afternoon',
+    evening: 'Good evening'
+  }[location?.getTimeOfDay() ?? 'afternoon']
+
+  return {
+    message: `${greeting}, ${input.name}!`
+  }
+}
+```
+
+## Real-World Example
+
+A complete example showing consent gating and localization:
+
+```typescript
+import type { AgentExecutionContext } from '@ensemble-edge/conductor'
+
+interface ConsentState {
+  analytics?: boolean
+  marketing?: boolean
+}
+
+export default async function handler(ctx: AgentExecutionContext) {
+  const { location, input } = ctx
+
+  // 1. Check consent requirements
+  const requiredConsents = location?.getRequiredConsentPurposes() ?? []
+  const userConsents: ConsentState = input.consents ?? {}
+
+  const missingConsents = requiredConsents.filter(
+    purpose => !userConsents[purpose as keyof ConsentState]
+  )
+
+  if (missingConsents.length > 0) {
+    return {
+      requiresConsent: true,
+      purposes: missingConsents,
+      consentModel: location?.consentModel,
+      jurisdiction: location?.jurisdiction
+    }
+  }
+
+  // 2. Get localized content
+  const lang = location?.preferredLanguage(['en', 'de', 'fr', 'es']) ?? 'en'
+  const greeting = getGreeting(location?.getTimeOfDay() ?? 'afternoon', lang)
+
+  // 3. Format times in user's timezone
+  const localTime = location?.formatTime()
+
+  // 4. Track analytics (consent verified above)
+  if (userConsents.analytics) {
+    await trackPageView({
+      country: location?.country,
+      region: location?.regionCode,
+      language: lang
+    })
+  }
+
+  return {
+    greeting,
+    localTime,
+    language: lang,
+    direction: location?.isRTL ? 'rtl' : 'ltr'
+  }
+}
+
+function getGreeting(
+  timeOfDay: 'morning' | 'afternoon' | 'evening',
+  lang: string
+): string {
+  const greetings: Record<string, Record<string, string>> = {
+    en: { morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' },
+    de: { morning: 'Guten Morgen', afternoon: 'Guten Tag', evening: 'Guten Abend' },
+    fr: { morning: 'Bonjour', afternoon: 'Bon après-midi', evening: 'Bonsoir' },
+    es: { morning: 'Buenos días', afternoon: 'Buenas tardes', evening: 'Buenas noches' }
+  }
+  return greetings[lang]?.[timeOfDay] ?? greetings.en[timeOfDay]
+}
+
+async function trackPageView(data: Record<string, unknown>) {
+  // Analytics implementation
+}
+```
+
+## TypeScript Types
+
+Import types directly from the package:
+
+```typescript
+import type {
+  LocationContext,
+  Jurisdiction,
+  ConsentPurpose,
+  ConsentModel
+} from '@ensemble-edge/conductor'
+
+// Jurisdiction: 'GDPR' | 'CCPA' | 'LGPD' | 'PIPEDA' | 'POPIA' | 'PDPA' | 'APPI'
+// ConsentPurpose: 'essential' | 'analytics' | 'marketing' | 'personalization' | 'third_party'
+// ConsentModel: 'opt-in' | 'opt-out' | 'none'
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Edge Context" icon="network-wired" href="/conductor/core-concepts/edge-context">
+    Network and infrastructure info
+  </Card>
+
+  <Card title="Security" icon="shield" href="/conductor/building/security-authentication">
+    Authentication and authorization
+  </Card>
+
+  <Card title="Operations" icon="bolt" href="/conductor/core-concepts/operations">
+    Available operation types
+  </Card>
+
+  <Card title="Creating Agents" icon="robot" href="/conductor/building/creating-agents">
+    Build custom agents
+  </Card>
+</CardGroup>

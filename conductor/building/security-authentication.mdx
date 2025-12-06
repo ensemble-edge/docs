@@ -529,6 +529,59 @@ For hardcoded API endpoints (like Twilio, Resend, OpenAI), you can use regular `
 
 ---
 
+## Privacy Compliance
+
+Conductor provides built-in [location context](/conductor/core-concepts/location-context) for privacy law compliance:
+
+### Jurisdiction Detection
+
+```typescript
+export default async function(context: AgentExecutionContext) {
+  const { location, input } = context
+
+  // Automatic jurisdiction detection
+  if (location?.isGDPR) {
+    // User is in EU/EEA/UK - opt-in consent required
+    if (!input.consents?.analytics) {
+      return { requiresConsent: true, jurisdiction: 'GDPR' }
+    }
+  }
+
+  if (location?.isCCPA) {
+    // User is in California - opt-out model
+    // Can process unless user has opted out
+  }
+
+  // Process with appropriate compliance
+  return processUserData(input)
+}
+```
+
+### Consent Helpers
+
+```typescript
+export default async function(context: AgentExecutionContext) {
+  const { location } = context
+
+  // Check specific consent purposes
+  const purposes = ['analytics', 'marketing', 'personalization']
+
+  const requiredConsents = purposes.filter(
+    purpose => location?.requiresConsent(purpose as any)
+  )
+
+  return {
+    consentModel: location?.consentModel,  // 'opt-in' | 'opt-out' | 'none'
+    requiredConsents,
+    jurisdiction: location?.jurisdiction
+  }
+}
+```
+
+See [Location Context](/conductor/core-concepts/location-context) for complete privacy compliance documentation.
+
+---
+
 ## Security Best Practices
 
 ### 1. Never Expose API Keys in Client Code
@@ -589,6 +642,30 @@ export default {
   security: {
     allowDirectAgentExecution: false,
   },
+}
+```
+
+### 7. Use Edge Context for Bot Detection
+
+Leverage [edge context](/conductor/core-concepts/edge-context) for traffic analysis:
+
+```typescript
+export default async function(context: AgentExecutionContext) {
+  const { edge } = context
+
+  // Detect automated traffic
+  if (edge?.isFromCloudProvider()) {
+    // Requests from AWS, GCP, Azure often indicate bots
+    return { action: 'challenge', reason: edge.getCloudProvider() }
+  }
+
+  // Check for modern protocols
+  if (!edge?.isModernTLS()) {
+    // Outdated clients may be suspicious
+    return { action: 'warn', reason: 'legacy_tls' }
+  }
+
+  return { action: 'allow' }
 }
 ```
 
