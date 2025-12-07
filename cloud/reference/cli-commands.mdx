@@ -140,7 +140,7 @@ ensemble cloud rollback --steps 3
 
 ### `ensemble cloud status`
 
-View deployment and service status:
+View cloud connection and deployment status:
 
 ```bash
 ensemble cloud status [options]
@@ -150,29 +150,67 @@ ensemble cloud status [options]
 
 | Option | Description |
 |--------|-------------|
-| `--env <environment>` | Target environment |
+| `--env <environment>` | Target environment (default: production) |
 | `--json` | Output as JSON |
+| `--compact` | Compact single-line format |
 
-**Example Output:**
+**Example Output (Full):**
 
 ```
-Project: my-conductor-app
+┌─────────────────────────────┐
+│ ✓ ☁️  Cloud Status          │
+│                             │
+│ Environment: production     │
+└─────────────────────────────┘
+
+Connection
+  Status:         ✓ Enabled
+  GitHub Repo:    acme/my-project
+
+Deployment
+  Worker URL:     https://my-project.workers.dev
+  Health:         ✓ Reachable (v2.4.0)
+
+Docs: https://docs.ensemble.ai/cloud
+```
+
+**Example Output (Compact):**
+
+```bash
+ensemble cloud status --compact
+```
+
+```
+☁️  Cloud Status
+
 Environment: production
-
-Status: healthy
-Last deployed: 2 hours ago
-Version: v1.2.3
-
-Ensembles:
-  ✓ company-intel (healthy)
-  ✓ data-pipeline (healthy)
-  ⚠ email-processor (degraded - high latency)
-
-Resources:
-  Workers: 3/3 active
-  KV: 2.1 GB used
-  D1: 500 MB used
+Status:      ✓ Enabled
+Worker:      ✓ (v2.4.0) https://my-project.workers.dev
 ```
+
+**Example Output (JSON):**
+
+```bash
+ensemble cloud status --json
+```
+
+```json
+{
+  "enabled": true,
+  "environment": "production",
+  "github_repo": "acme/my-project",
+  "workerUrl": "https://my-project.workers.dev",
+  "stealthMode": false,
+  "health": {
+    "ok": true,
+    "version": "2.4.0"
+  }
+}
+```
+
+<Note>
+When `stealthMode` is enabled in your `conductor.config.ts`, the health endpoint is hidden and the status command will show a 404 error with a helpful tip about stealth mode.
+</Note>
 
 ### `ensemble cloud logs`
 

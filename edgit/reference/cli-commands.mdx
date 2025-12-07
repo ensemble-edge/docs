@@ -45,6 +45,109 @@ edgit --help
 edgit <command> --help  # Help for specific command
 ```
 
+## Status
+
+### `ensemble edgit status`
+
+View comprehensive Edgit status including initialization state, tracked components, recent versions, and deployments:
+
+```bash
+ensemble edgit status [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON (for CI/scripting) |
+| `--compact` | Compact single-line format |
+
+**Example Output (Full):**
+
+```
+┌─────────────────────────────┐
+│ ✓ 📦 Edgit Status           │
+│                             │
+│ Semantic versioning for     │
+│ AI components               │
+└─────────────────────────────┘
+
+Repository
+  Git Repo:         ✓ Initialized
+  Edgit:            ✓ Initialized
+  Components:       12 tracked (3 untracked)
+
+Recent Versions (5 of 24 total)
+  prompts/extraction-prompt/v1.2.0    2024-11-15
+  configs/api-config/v2.0.1           2024-11-14
+  ensembles/data-pipeline/v1.0.0      2024-11-12
+  agents/scraper/v3.1.0               2024-11-10
+  prompts/analysis-prompt/v1.0.0      2024-11-08
+
+Deployments
+  extraction-prompt    prod: v1.2.0    staging: v1.1.0
+  api-config           prod: v2.0.1    staging: v2.0.1
+  data-pipeline        prod: v1.0.0    staging: v1.0.0
+
+Docs: https://docs.ensemble.ai/edgit
+```
+
+**Example Output (Compact):**
+
+```bash
+ensemble edgit status --compact
+```
+
+```
+📦 Edgit Status
+
+Git:         ✓ Initialized
+Edgit:       ✓ Initialized
+Components:  12 tracked
+Versions:    24 total
+```
+
+**Example Output (JSON):**
+
+```bash
+ensemble edgit status --json
+```
+
+```json
+{
+  "gitRepo": true,
+  "initialized": true,
+  "components": {
+    "tracked": 12,
+    "untracked": 3
+  },
+  "versions": {
+    "total": 24,
+    "recent": [
+      {
+        "tag": "prompts/extraction-prompt/v1.2.0",
+        "date": "2024-11-15"
+      },
+      {
+        "tag": "configs/api-config/v2.0.1",
+        "date": "2024-11-14"
+      }
+    ]
+  },
+  "deployments": [
+    {
+      "component": "extraction-prompt",
+      "prod": "v1.2.0",
+      "staging": "v1.1.0"
+    }
+  ]
+}
+```
+
+<Note>
+The status command is served by the Ensemble CLI for a rich, consistent experience across all products. Other edgit commands pass through to the standalone edgit CLI.
+</Note>
+
 ## Initialization
 
 ### `edgit init`

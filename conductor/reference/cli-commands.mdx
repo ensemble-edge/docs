@@ -174,6 +174,156 @@ The `configure` command requires a `wrangler.toml` file. Run it from your projec
 
 ---
 
+### status
+
+Show comprehensive project status including configuration, components, triggers, Cloudflare services, and deployment health.
+
+```bash
+ensemble conductor status [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON (for CI/scripting) |
+| `--compact` | Compact single-line format |
+| `--no-health-check` | Skip worker health ping |
+
+**Example Output (Full):**
+
+```
+┌─────────────────────┐
+│ 🎼 Conductor Status │
+└─────────────────────┘
+
+Project
+  Name:             my-project
+  Version:          1.2.3
+  Conductor:        @ensemble-edge/conductor@2.4.0
+  Environment:      development (local)
+
+Configuration
+  conductor.config: ✓ Found
+  wrangler.toml:    ✓ Found
+
+Components
+  Agents:           12 (10 custom)
+  Ensembles:        5
+  Other:            30 (8 prompts, 6 schemas, 5 configs, ...)
+
+Triggers
+  HTTP routes:      8
+  Webhooks:         2
+  MCP tools:        3
+  Cron jobs:        1
+
+Security
+  requireAuth:      ✓ true
+  stealthMode:      ○ false
+  allowDirectAgentExecution: ✓ true
+
+┌─────────────────────────┐
+│ ☁️  Cloudflare Services │
+└─────────────────────────┘
+
+AI & Intelligence
+  ✓ Workers AI:       Configured              [AI]
+  ○ AI Gateway:       Not configured
+  ✓ Vectorize:        my-index                [VECTORIZE]
+
+Storage
+  ✓ KV:               2 configured            [CACHE, SESSIONS]
+  ✓ D1:               my-db                   [DB]
+  ○ R2:               Not configured
+
+Compute & State
+  ✓ Durable Objects:  2 configured            [EXEC, HITL]
+  ○ Queues:           Not configured
+  ○ Hyperdrive:       Not configured
+
+┌───────────────┐
+│ 🌐 Deployment │
+└───────────────┘
+
+  Worker URL:       https://my-project.workers.dev
+  Status:           ✓ Reachable (v2.4.0)
+
+  Ensemble Cloud:   ○ Not connected
+  Pulse:            ✓ Enabled
+
+Docs: https://docs.ensemble.ai/conductor
+```
+
+**Example Output (Compact):**
+
+```bash
+ensemble conductor status --compact
+```
+
+```
+🎼 Conductor Status
+
+Project:     my-project v1.2.3 (@ensemble-edge/conductor@2.4.0)
+Environment: development (local)
+
+Components:  47 total (12 agents, 5 ensembles, 30 other)
+Triggers:    8 http │ 2 webhook │ 3 mcp │ 1 cron
+
+Cloudflare
+  ✓ Workers AI    ✓ KV (2)        ✓ D1           ○ Analytics
+  ○ AI Gateway    ○ R2            ✓ DO (2)       ○ Queues
+  ✓ Vectorize     ○ Hyperdrive
+
+Worker:      ✓ https://my-project.workers.dev (v2.4.0)
+Cloud:       ○ Not connected
+Pulse:       ✓ Enabled
+```
+
+**Example Output (JSON):**
+
+```bash
+ensemble conductor status --json
+```
+
+```json
+{
+  "project": {
+    "name": "my-project",
+    "version": "1.2.3",
+    "conductorVersion": "2.4.0"
+  },
+  "config": {
+    "conductorConfig": true,
+    "wranglerConfig": true
+  },
+  "environment": "development",
+  "components": {
+    "agents": { "total": 12, "custom": 10, "builtIn": 2 },
+    "ensembles": 5,
+    "prompts": 8
+  },
+  "triggers": {
+    "http": 8,
+    "webhook": 2,
+    "mcp": 3,
+    "cron": 1
+  },
+  "cloudflare": {
+    "workersAI": { "configured": true, "bindings": ["AI"] },
+    "kv": { "configured": true, "count": 2, "bindings": ["CACHE", "SESSIONS"] }
+  },
+  "deployment": {
+    "workerUrl": "https://my-project.workers.dev",
+    "health": { "ok": true, "version": "2.4.0" },
+    "cloudEnabled": false,
+    "pulse": true
+  }
+}
+```
+
+---
+
 ### dev
 
 Start local development server.
