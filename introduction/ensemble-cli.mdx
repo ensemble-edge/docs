@@ -59,41 +59,108 @@ npx @ensemble-edge/ensemble --help
 # Shows all available commands
 ```
 
-## Checking for Updates
+## Checking for Updates (Landscape View)
 
-The `--version` flag does more than just show the version—it checks for updates too:
+The `--version` flag scans your directory tree and shows all discovered Ensemble projects in a tree view:
 
 ```bash
 ensemble --version
 ```
 
-**Outside a project directory:**
+**Example output:**
 ```
-ensemble v0.1.4
+Ensemble Landscape
+══════════════════════════════════════════════════════════════════
 
-Run from a project directory to check for package updates.
-```
+ensemble v0.1.10 (latest)
 
-**Inside a project directory:**
-```
-ensemble v0.1.4
+Found 3 projects:
 
-Project: my-conductor-app (conductor)
+./my-conductor-app (conductor, pnpm)
+├─ @anthropic-ai/sdk 0.25.2 ✓
+├─ @ensemble-edge/conductor 0.7.26 → 0.8.0 ⬆
+└─ @ensemble-edge/ensemble 0.1.10 ✓
 
-┌────────────┬───────────┬────────┐
-│ Package    │ Installed │ Latest │
-├────────────┼───────────┼────────┤
-│ ensemble   │ 0.1.4     │ 0.1.4 ✓ │
-│ conductor  │ 0.2.3     │ 0.3.0 ⬆ │
-└────────────┴───────────┴────────┘
+./analytics-service (conductor, npm)
+├─ @anthropic-ai/sdk 0.25.2 ✓
+└─ @ensemble-edge/conductor 0.7.26 → 0.8.0 ⬆
 
-To upgrade: pnpm update @ensemble-edge/conductor
+./docs-site (edgit, pnpm)
+└─ @ensemble-edge/edgit 0.4.4 ✓
+
+══════════════════════════════════════════════════════════════════
+Summary: 3 projects, 2 with updates available (3 packages total)
+
+Run 'ensemble upgrade' to update packages interactively.
 ```
 
 The version command:
-- **Detects your project** - Reads `package.json` to find installed Ensemble packages
-- **Checks npm registry** - Fetches latest versions (with 5s timeout)
-- **Shows upgrade instructions** - Uses your detected package manager (npm, pnpm, yarn, bun)
+- **Scans your workspace** - Recursively finds all Ensemble projects (up to 3 levels deep)
+- **Tree view display** - Shows each project with its packages and update status
+- **Checks npm registry** - Fetches latest versions for all packages in parallel
+- **Detects package manager** - Shows npm, pnpm, yarn, or bun per project
+
+## Upgrade Command
+
+Manage updates across all your Ensemble projects with the interactive `upgrade` command:
+
+```bash
+ensemble upgrade
+```
+
+**Features:**
+- **Multi-project scanning** - Finds all Conductor and Edgit projects in your workspace
+- **Interactive selection** - Choose which projects to upgrade
+- **Batch operations** - Update multiple projects at once
+- **Package manager aware** - Uses the correct package manager per project
+
+**Example output:**
+```
+Found 2 projects with updates:
+
+  my-conductor-app (conductor)
+    @ensemble-edge/conductor 0.7.26 → 0.8.0
+
+  analytics-service (conductor)
+    @ensemble-edge/conductor 0.7.26 → 0.8.0
+
+? How would you like to proceed?
+❯ Upgrade all projects (2)
+  Select projects to upgrade
+  Cancel
+```
+
+### Upgrade Options
+
+| Option | Description |
+|--------|-------------|
+| `--all` | Upgrade all projects without prompting |
+| `--yes`, `-y` | Auto-confirm upgrade prompts |
+| `--dry-run` | Show what would be upgraded without making changes |
+| `--global` | Upgrade the globally installed ensemble CLI |
+
+### Usage Examples
+
+```bash
+# Interactive upgrade (default)
+ensemble upgrade
+
+# Upgrade all projects without prompting
+ensemble upgrade --all
+
+# See what would be upgraded
+ensemble upgrade --dry-run
+
+# Upgrade the global CLI
+ensemble upgrade --global
+
+# Non-interactive upgrade for CI/CD
+ensemble upgrade --all --yes
+```
+
+<Tip>
+Run `ensemble upgrade` regularly to keep all your Ensemble projects up to date. The command is designed for managing multiple projects in a monorepo or workspace.
+</Tip>
 
 ## Command Structure
 
@@ -119,6 +186,7 @@ ensemble <tool> <command> [options]
 |---------|-------------|---------|
 | `info` | Show project info (interactive) | `ensemble info` |
 | `status` | Alias for info | `ensemble status` |
+| `upgrade` | Update Ensemble packages across projects | `ensemble upgrade` |
 | `configure` | Configure AI providers | `ensemble configure ai` |
 
 ## Info Command

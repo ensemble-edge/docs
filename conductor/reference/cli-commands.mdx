@@ -1050,18 +1050,38 @@ ensemble conductor info
 
 ### version
 
-Show CLI version and check for updates.
+Show CLI version and scan for all Ensemble projects.
 
 ```bash
 ensemble --version
 ```
 
-When run from a project directory, this also shows:
-- Installed Ensemble packages and their versions
+The version command now scans your workspace and displays:
+- Tree view of all discovered Ensemble projects (Conductor, Edgit)
+- Installed packages and their versions per project
 - Latest available versions from npm
-- Upgrade instructions using your package manager
+- Update status indicators (✓ up-to-date, ⬆ update available)
 
-See [Checking for Updates](/introduction/ensemble-cli#checking-for-updates) for more details.
+See [Checking for Updates](/introduction/ensemble-cli#checking-for-updates-landscape-view) for the full output format.
+
+### upgrade
+
+Interactively upgrade Ensemble packages across all discovered projects.
+
+```bash
+ensemble upgrade
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--all` | Upgrade all projects without prompting |
+| `--yes`, `-y` | Auto-confirm upgrade prompts |
+| `--dry-run` | Show what would be upgraded without making changes |
+| `--global` | Upgrade the globally installed ensemble CLI |
+
+See [Upgrade Command](/introduction/ensemble-cli#upgrade-command) for detailed examples.
 
 ### help
 
