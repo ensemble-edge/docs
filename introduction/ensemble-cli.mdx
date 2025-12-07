@@ -275,16 +275,16 @@ ensemble conductor deploy
 
 ### Start/Stop Options
 
-The `start` command provides smart defaults for development:
+The `start` command runs in foreground by default (you see logs in real-time):
 
 | Option | Description |
 |--------|-------------|
 | `--port, -p <n>` | Server port (default: 8787, auto-finds if busy) |
-| `--foreground` | Run in foreground (don't detach) |
+| `--background, -b` | Run in background (detached) |
 | `--no-auto-host` | Disable auto `--host 0.0.0.0` in containers |
 | `--persist-to <dir>` | Persist D1/KV data to directory |
 
-The `stop` command:
+The `stop` command (for background servers):
 
 | Option | Description |
 |--------|-------------|
