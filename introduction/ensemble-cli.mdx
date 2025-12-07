@@ -180,6 +180,16 @@ ensemble <tool> <command> [options]
 | `chamber` | Secrets management | `ensemble chamber set API_KEY` |
 | `wrangler` | Cloudflare Workers CLI (passthrough) | `ensemble wrangler dev` |
 
+### Conductor Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `conductor start` | Start dev server with smart defaults | `ensemble conductor start` |
+| `conductor stop` | Stop development server | `ensemble conductor stop` |
+| `conductor restart` | Restart development server | `ensemble conductor restart` |
+| `conductor info` | Show project info | `ensemble conductor info` |
+| `conductor init` | Create a new project | `ensemble conductor init my-app` |
+
 ### Global Commands
 
 | Command | Description | Example |
@@ -240,8 +250,15 @@ ensemble conductor init my-project --skip-auth --skip-secrets
 ensemble conductor info
 ensemble conductor info --json
 
-# Development server
-ensemble conductor dev
+# Start development server (smart defaults)
+ensemble conductor start
+ensemble conductor start --port 3000
+
+# Stop development server
+ensemble conductor stop
+
+# Restart development server
+ensemble conductor restart
 
 # Deploy to Cloudflare
 ensemble conductor deploy
@@ -255,6 +272,31 @@ ensemble conductor deploy
 | `--skip-secrets` | Skip AI provider setup |
 | `--provider <name>` | Pre-select AI provider (anthropic, openai, cloudflare) |
 | `--template <name>` | Use a starter template |
+
+### Start/Stop Options
+
+The `start` command provides smart defaults for development:
+
+| Option | Description |
+|--------|-------------|
+| `--port, -p <n>` | Server port (default: 8787, auto-finds if busy) |
+| `--foreground` | Run in foreground (don't detach) |
+| `--no-auto-host` | Disable auto `--host 0.0.0.0` in containers |
+| `--persist-to <dir>` | Persist D1/KV data to directory |
+
+The `stop` command:
+
+| Option | Description |
+|--------|-------------|
+| `--force, -f` | Force stop with SIGKILL |
+
+<Tip>
+**Dev Container Support:** When running in a dev container (VS Code Remote Containers, GitHub Codespaces, Docker), `ensemble conductor start` automatically binds to `0.0.0.0` for network access. Use `--no-auto-host` to disable this behavior.
+</Tip>
+
+<Tip>
+**Port Conflicts:** If port 8787 is in use, the command automatically finds the next available port. No more "Address already in use" errors!
+</Tip>
 
 ## Edgit Commands
 
