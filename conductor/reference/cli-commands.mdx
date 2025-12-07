@@ -174,12 +174,12 @@ The `configure` command requires a `wrangler.toml` file. Run it from your projec
 
 ---
 
-### status
+### info
 
-Show comprehensive project status including configuration, components, triggers, Cloudflare services, and deployment health.
+Show comprehensive project info including configuration, components, triggers, Cloudflare services, and deployment health.
 
 ```bash
-ensemble conductor status [options]
+ensemble conductor info [options]
 ```
 
 **Options:**
@@ -190,11 +190,15 @@ ensemble conductor status [options]
 | `--compact` | Compact single-line format |
 | `--no-health-check` | Skip worker health ping |
 
+<Note>
+**Command Naming:** `info` is the official command. `status` is an alias that works identically.
+</Note>
+
 **Example Output (Full):**
 
 ```
 ┌─────────────────────┐
-│ 🎼 Conductor Status │
+│ 🎼 Conductor Info   │
 └─────────────────────┘
 
 Project
@@ -258,11 +262,11 @@ Docs: https://docs.ensemble.ai/conductor
 **Example Output (Compact):**
 
 ```bash
-ensemble conductor status --compact
+ensemble conductor info --compact
 ```
 
 ```
-🎼 Conductor Status
+🎼 Conductor Info
 
 Project:     my-project v1.2.3 (@ensemble-edge/conductor@2.4.0)
 Environment: development (local)
@@ -283,7 +287,7 @@ Pulse:       ✓ Enabled
 **Example Output (JSON):**
 
 ```bash
-ensemble conductor status --json
+ensemble conductor info --json
 ```
 
 ```json
@@ -744,13 +748,17 @@ Initialize Edgit in project.
 ensemble edgit init
 ```
 
-### edgit:status
+### edgit:info
 
-Show Edgit status.
+Show Edgit project info.
 
 ```bash
-ensemble edgit status
+ensemble edgit info
 ```
+
+<Note>
+`ensemble edgit status` passes through to `git status` since Edgit is git-native. Use `info` for Edgit project information.
+</Note>
 
 ### edgit:commit
 

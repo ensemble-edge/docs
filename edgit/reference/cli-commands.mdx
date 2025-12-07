@@ -45,14 +45,14 @@ edgit --help
 edgit <command> --help  # Help for specific command
 ```
 
-## Status
+## Info
 
-### `ensemble edgit status`
+### `ensemble edgit info`
 
-View comprehensive Edgit status including initialization state, tracked components, recent versions, and deployments:
+View comprehensive Edgit project info including initialization state, tracked components, recent versions, and deployments:
 
 ```bash
-ensemble edgit status [options]
+ensemble edgit info [options]
 ```
 
 **Options:**
@@ -66,7 +66,7 @@ ensemble edgit status [options]
 
 ```
 ┌─────────────────────────────┐
-│ ✓ 📦 Edgit Status           │
+│ ✓ 📦 Edgit Info             │
 │                             │
 │ Semantic versioning for     │
 │ AI components               │
@@ -95,11 +95,11 @@ Docs: https://docs.ensemble.ai/edgit
 **Example Output (Compact):**
 
 ```bash
-ensemble edgit status --compact
+ensemble edgit info --compact
 ```
 
 ```
-📦 Edgit Status
+📦 Edgit Info
 
 Git:         ✓ Initialized
 Edgit:       ✓ Initialized
@@ -110,7 +110,7 @@ Versions:    24 total
 **Example Output (JSON):**
 
 ```bash
-ensemble edgit status --json
+ensemble edgit info --json
 ```
 
 ```json
@@ -145,7 +145,21 @@ ensemble edgit status --json
 ```
 
 <Note>
-The status command is served by the Ensemble CLI for a rich, consistent experience across all products. Other edgit commands pass through to the standalone edgit CLI.
+**Command Naming:** The official command is `info`. Using `ensemble edgit status` will pass through to `git status` since Edgit is git-native. Use `info` for Edgit project information.
+</Note>
+
+### `edgit info` (Direct CLI)
+
+You can also run the info command directly via the Edgit CLI:
+
+```bash
+npx @ensemble-edge/edgit info [options]
+# or
+edgit info [options]
+```
+
+<Note>
+The info command provides the same data whether called via Ensemble CLI or directly. The Ensemble CLI adds visual styling (banners, colors, boxes) for a richer experience.
 </Note>
 
 ## Initialization

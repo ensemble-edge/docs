@@ -113,6 +113,47 @@ ensemble <tool> <command> [options]
 | `chamber` | Secrets management | `ensemble chamber set API_KEY` |
 | `wrangler` | Cloudflare Workers CLI (passthrough) | `ensemble wrangler dev` |
 
+### Global Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `info` | Show project info (interactive) | `ensemble info` |
+| `status` | Alias for info | `ensemble status` |
+| `configure` | Configure AI providers | `ensemble configure ai` |
+
+## Info Command
+
+View project information across all Ensemble products:
+
+```bash
+# Interactive product selection
+ensemble info
+
+# Or directly for a specific product
+ensemble conductor info
+ensemble edgit info
+ensemble cloud info
+
+# Output formats
+ensemble conductor info --json      # JSON for CI/scripting
+ensemble conductor info --compact   # Compact single-line format
+```
+
+**Using `ensemble info`:**
+
+The interactive menu lets you choose which product to view:
+
+```
+? Which product would you like to see info for?
+❯ Conductor - AI agent orchestration
+  Edgit - Git-native component versioning
+  Cloud - Ensemble Cloud account
+```
+
+<Note>
+**Command Naming:** `info` is the official command. `status` is an alias that works identically. For Edgit specifically, `ensemble edgit status` passes through to `git status` since Edgit is git-native.
+</Note>
+
 ## Conductor Commands
 
 Create and manage Conductor projects:
@@ -126,6 +167,10 @@ ensemble conductor init my-project --provider anthropic
 
 # Skip authentication prompts (CI/CD)
 ensemble conductor init my-project --skip-auth --skip-secrets
+
+# View project info
+ensemble conductor info
+ensemble conductor info --json
 
 # Development server
 ensemble conductor dev
@@ -151,6 +196,10 @@ Version and deploy components:
 # Initialize Edgit in a repo
 ensemble edgit init
 
+# View Edgit project info
+ensemble edgit info
+ensemble edgit info --json
+
 # Register a component
 ensemble edgit components add prompt my-prompt prompts/my-prompt.md
 
@@ -162,7 +211,14 @@ ensemble edgit deploy set my-prompt v1.0.0 --to prod
 
 # List all components
 ensemble edgit components list
+
+# Git status passthrough
+ensemble edgit status  # Same as 'git status'
 ```
+
+<Note>
+Since Edgit is git-native, `ensemble edgit status` passes through to `git status`. Use `ensemble edgit info` for Edgit project information.
+</Note>
 
 ## Cloud Commands
 
@@ -172,8 +228,8 @@ Manage Ensemble Cloud resources:
 # Deploy to Ensemble Cloud
 ensemble cloud deploy
 
-# View deployment status
-ensemble cloud status
+# View Cloud account info
+ensemble cloud info
 
 # Stream logs
 ensemble cloud logs --follow
