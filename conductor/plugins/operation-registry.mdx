@@ -33,7 +33,7 @@ const registry = getOperationRegistry()
 
 ## Built-in Operations
 
-Conductor includes three built-in operations:
+Conductor includes these built-in operations:
 
 ### `fetch-data`
 
@@ -49,17 +49,38 @@ operations:
         active: true
 ```
 
-### `transform-data`
+### `transform`
 
-Transform data using expressions:
+Declarative data transformations - return literal values, apply modifiers (pick/omit/defaults), or merge data:
 
 ```yaml
-operations:
-  - operation: transform-data
+agents:
+  - name: mock-data
+    operation: transform
     config:
-      input: ${previous.output}
-      transform: "$.user.email"
+      value:
+        - { id: 1, name: "Alice" }
+        - { id: 2, name: "Bob" }
+
+  - name: clean-user
+    operation: transform
+    config:
+      input: ${fetch-user.output}
+      omit: [password, secret]
+      defaults:
+        status: "active"
+
+  - name: combine
+    operation: transform
+    config:
+      merge:
+        - ${agent1.output}
+        - ${agent2.output}
 ```
+
+<Note>
+The `transform` operation is a first-class agent operation. Expression interpolation (`${...}`) is resolved by the runtime before the agent executes. See the [Transform Agent documentation](/conductor/operations/transform) for full details.
+</Note>
 
 ### `custom-code`
 
@@ -185,7 +206,7 @@ const result = await registry.execute({
 
 ```typescript
 const all = registry.list()
-// ['fetch-data', 'transform-data', 'custom-code', 'plasmic:render', ...]
+// ['fetch-data', 'transform', 'custom-code', 'plasmic:render', ...]
 ```
 
 ### List by Context
