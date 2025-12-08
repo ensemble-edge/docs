@@ -178,7 +178,8 @@ ensemble <tool> <command> [options]
 | `edgit` | Component versioning | `ensemble edgit tag create v1.0.0` |
 | `cloud` | Ensemble Cloud management | `ensemble cloud deploy` |
 | `chamber` | Secrets management | `ensemble chamber set API_KEY` |
-| `wrangler` | Cloudflare Workers CLI (passthrough) | `ensemble wrangler dev` |
+| `wrangler` | Cloudflare Workers CLI (explicit passthrough) | `ensemble wrangler deploy` |
+| `tail` | Stream live logs (shortcut for wrangler tail) | `ensemble tail` |
 
 ### Conductor Commands
 
@@ -417,21 +418,27 @@ The configure command:
 - **Works anytime** - Run after initial project creation to add AI support
 - **Shared with init** - Same wizards used during `ensemble conductor init`
 
-## Wrangler Passthrough
+## Wrangler Commands
 
-All Wrangler commands are passed through transparently:
+Use `ensemble wrangler` to run any Wrangler command:
 
 ```bash
-# These are equivalent:
-ensemble wrangler dev
-wrangler dev
-
-# Full Wrangler CLI available
+# Explicit wrangler passthrough
 ensemble wrangler deploy
 ensemble wrangler secret put API_KEY
 ensemble wrangler kv:namespace create CACHE
 ensemble wrangler d1 create my-database
+ensemble wrangler login
+ensemble wrangler whoami
+
+# Shortcut for streaming logs (commonly used for debugging)
+ensemble tail
+ensemble tail --format pretty
 ```
+
+<Note>
+**Why explicit wrangler?** Previously, unknown commands were automatically passed to Wrangler. This caused confusing errors when you mistyped a command (e.g., `ensemble start` instead of `ensemble conductor start`). Now, Wrangler commands require the explicit `ensemble wrangler` prefix, and typos show helpful suggestions.
+</Note>
 
 ## Cross-Tool Discovery
 
