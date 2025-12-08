@@ -90,7 +90,7 @@ Built-in capabilities ship as catalog templates (real agents/ensembles):
 - catalog/ensembles/system/docs/ → ensembles/system/docs/
 No magic. Framework must support all use cases.
 
-## Operations (13 types)
+## Operations (16 types)
 
 | Operation | Purpose | Config Keys |
 |-----------|---------|-------------|
@@ -107,6 +107,9 @@ No magic. Framework must support all use cases.
 | form | Generate forms | fields, csrf |
 | queue | Queue messages | action: send|consume, queue, body |
 | docs | API docs | OpenAPI generation |
+| transform | Data transformation | mode: value|merge|input, pick, omit, rename, defaults |
+| convert | Format conversion | from: html|markdown|docx, to: html|markdown, options |
+| chart | Data visualization | type: bar|line|area|pie|scatter|sparkline, data, x, y, output: svg|url|vega|html |
 
 ## Flow Control (TypeScript)
 
@@ -646,7 +649,7 @@ When you run `conductor init`, these are copied to your project. You can:
 
 ## Primitives Reference
 
-### Operations (13 types)
+### Operations (16 types)
 
 | Operation | Purpose | Config Keys |
 |-----------|---------|-------------|
@@ -663,6 +666,9 @@ When you run `conductor init`, these are copied to your project. You can:
 | `form` | Generate forms | `fields`, `csrf` |
 | `queue` | Queue messages | `action: send\|consume`, `queue`, `body` |
 | `docs` | API docs | OpenAPI generation |
+| `transform` | Data transformation | `mode: value\|merge\|input`, `pick`, `omit`, `rename`, `defaults` |
+| `convert` | Format conversion | `from: html\|markdown\|docx`, `to: html\|markdown`, `options` |
+| `chart` | Data visualization | `type: bar\|line\|area\|pie\|scatter\|sparkline`, `data`, `x`, `y`, `output: svg\|url\|vega\|html` |
 
 > [Operations Reference](/conductor/operations/overview)
 
@@ -1295,6 +1301,9 @@ Add `CLOUDFLARE_API_TOKEN` to `.dev.vars` for authentication.
 - [storage](/conductor/operations/storage)
 - [data](/conductor/operations/data)
 - [http](/conductor/operations/http)
+- [transform](/conductor/operations/transform)
+- [convert](/conductor/operations/convert)
+- [chart](/conductor/operations/chart)
 - [All Operations](/conductor/operations/overview)
 
 ### Patterns
