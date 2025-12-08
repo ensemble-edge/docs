@@ -337,8 +337,10 @@ ensemble conductor dev
 ```
 
 Options:
-- `--port <port>` - Port number (default: 8787)
-- `--host <host>` - Host address (default: localhost)
+- `--port, -p <port>` - Port number (default: 8787, auto-finds if busy)
+- `--background, -b` - Run in background (detached)
+- `--no-auto-host` - Disable auto `--ip 0.0.0.0` in containers
+- `--persist-to <dir>` - Persist D1/KV data to directory
 
 Example:
 ```bash
