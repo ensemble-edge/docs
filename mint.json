@@ -188,6 +188,9 @@
         "conductor/operations/overview",
         "conductor/operations/think",
         "conductor/operations/code",
+        "conductor/operations/transform",
+        "conductor/operations/convert",
+        "conductor/operations/chart",
         "conductor/operations/storage",
         "conductor/operations/data",
         "conductor/operations/http",
@@ -197,7 +200,9 @@
         "conductor/operations/form",
         "conductor/operations/html",
         "conductor/operations/pdf",
-        "conductor/operations/queue"
+        "conductor/operations/queue",
+        "conductor/operations/cookies",
+        "conductor/operations/telemetry"
       ]
     },
     {

@@ -1,0 +1,701 @@
+---
+title: "convert Operation"
+description: "Document format conversion - HTML to Markdown, Markdown to HTML, DOCX extraction, PDF text extraction, frontmatter parsing"
+---
+
+The convert operation transforms documents between formats without writing custom code. Convert HTML to clean Markdown, render Markdown to HTML, extract Word documents, extract text from PDFs, or parse frontmatter metadata.
+
+<Note>
+  The `convert` operation uses Workers-compatible libraries: **turndown** for HTML→Markdown, **marked** for Markdown→HTML, **gray-matter** for frontmatter, **mammoth** for DOCX, and **unpdf** for PDF text extraction. DOCX and PDF require `nodejs_compat`.
+</Note>
+
+## Quick Start
+
+**HTML to Markdown**:
+
+```yaml
+agents:
+  - name: clean-html
+    operation: convert
+    config:
+      input: ${fetch-page.output.html}
+      from: html
+      to: markdown
+```
+
+**Markdown to HTML**:
+
+```yaml
+agents:
+  - name: render-content
+    operation: convert
+    config:
+      input: ${input.markdown}
+      from: markdown
+      to: html
+```
+
+**Extract Frontmatter**:
+
+```yaml
+agents:
+  - name: parse-doc
+    operation: convert
+    config:
+      input: ${read-file.output}
+      from: markdown
+      to: frontmatter
+```
+
+**PDF to Text**:
+
+```yaml
+agents:
+  - name: extract-pdf
+    operation: convert
+    config:
+      input: ${read-pdf.output}  # ArrayBuffer
+      from: pdf
+      to: text
+```
+
+## Configuration
+
+```yaml
+config:
+  input: any              # Content to convert (required)
+  from: string            # Source format (required)
+  to: string              # Target format (required)
+
+  # Format-specific options
+  turndown: object        # HTML→Markdown options
+  marked: object          # Markdown→HTML options
+  mammoth: object         # DOCX conversion options
+  pdf: object             # PDF extraction options
+```
+
+## Supported Conversions
+
+| From | To | Description |
+|------|-----|-------------|
+| `html` | `markdown` | Convert HTML to clean Markdown using turndown with GFM |
+| `html` | `text` | Strip HTML tags to plain text |
+| `markdown` | `html` | Render Markdown to HTML using marked with GFM |
+| `markdown` | `frontmatter` | Extract YAML frontmatter and content |
+| `docx` | `html` | Convert Word document to HTML |
+| `docx` | `markdown` | Convert Word document to Markdown |
+| `pdf` | `text` | Extract text content from PDF documents |
+
+## HTML to Markdown
+
+Converts HTML to clean Markdown using [turndown](https://github.com/mixmark-io/turndown) with GitHub Flavored Markdown (GFM) support.
+
+```yaml
+agents:
+  - name: convert-article
+    operation: convert
+    config:
+      input: |
+        <h1>Welcome</h1>
+        <p>This is <strong>bold</strong> and <em>italic</em> text.</p>
+        <ul>
+          <li>Item 1</li>
+          <li>Item 2</li>
+        </ul>
+      from: html
+      to: markdown
+```
+
+**Output**:
+```markdown
+# Welcome
+
+This is **bold** and _italic_ text.
+
+- Item 1
+- Item 2
+```
+
+### Turndown Options
+
+Customize the Markdown output:
+
+```yaml
+config:
+  input: ${html}
+  from: html
+  to: markdown
+  turndown:
+    headingStyle: atx          # atx (# heading) or setext (underlines)
+    codeBlockStyle: fenced     # fenced (```) or indented
+    bulletListMarker: "-"      # -, *, or +
+    emDelimiter: "_"           # _ or *
+    strongDelimiter: "**"      # ** or __
+    linkStyle: inlined         # inlined or referenced
+    gfm: true                  # Enable GFM tables, strikethrough
+```
+
+### GFM Table Support
+
+Tables are automatically converted:
+
+```yaml
+agents:
+  - name: convert-table
+    operation: convert
+    config:
+      input: |
+        <table>
+          <thead><tr><th>Name</th><th>Age</th></tr></thead>
+          <tbody>
+            <tr><td>Alice</td><td>30</td></tr>
+            <tr><td>Bob</td><td>25</td></tr>
+          </tbody>
+        </table>
+      from: html
+      to: markdown
+```
+
+**Output**:
+```markdown
+| Name | Age |
+|------|-----|
+| Alice | 30 |
+| Bob | 25 |
+```
+
+## Markdown to HTML
+
+Renders Markdown to HTML using [marked](https://marked.js.org/) with GFM support.
+
+```yaml
+agents:
+  - name: render-post
+    operation: convert
+    config:
+      input: |
+        # Hello World
+
+        This is a **markdown** document with:
+        - Bullet points
+        - [Links](https://example.com)
+        - `inline code`
+      from: markdown
+      to: html
+```
+
+**Output**:
+```html
+<h1>Hello World</h1>
+<p>This is a <strong>markdown</strong> document with:</p>
+<ul>
+<li>Bullet points</li>
+<li><a href="https://example.com">Links</a></li>
+<li><code>inline code</code></li>
+</ul>
+```
+
+### Marked Options
+
+```yaml
+config:
+  input: ${markdown}
+  from: markdown
+  to: html
+  marked:
+    gfm: true       # Enable GFM (default: true)
+    breaks: false   # Convert \n to <br> (default: false)
+```
+
+### Code Block Syntax Highlighting
+
+Code blocks preserve language hints for syntax highlighting:
+
+```yaml
+agents:
+  - name: render-code
+    operation: convert
+    config:
+      input: |
+        ```javascript
+        const greeting = "Hello, World!";
+        console.log(greeting);
+        ```
+      from: markdown
+      to: html
+```
+
+**Output**:
+```html
+<pre><code class="language-javascript">const greeting = &quot;Hello, World!&quot;;
+console.log(greeting);
+</code></pre>
+```
+
+## Frontmatter Extraction
+
+Parses YAML frontmatter from Markdown documents using [gray-matter](https://github.com/jonschlinkert/gray-matter).
+
+```yaml
+agents:
+  - name: parse-blog-post
+    operation: convert
+    config:
+      input: |
+        ---
+        title: My Blog Post
+        author: Alice
+        date: 2024-01-15
+        tags:
+          - typescript
+          - tutorial
+        ---
+
+        # Introduction
+
+        Welcome to my blog post about TypeScript!
+      from: markdown
+      to: frontmatter
+```
+
+**Output**:
+```typescript
+{
+  frontmatter: {
+    title: "My Blog Post",
+    author: "Alice",
+    date: Date("2024-01-15"),  // Parsed as Date object
+    tags: ["typescript", "tutorial"]
+  },
+  content: "# Introduction\n\nWelcome to my blog post about TypeScript!"
+}
+```
+
+### Using Extracted Data
+
+```yaml
+agents:
+  - name: parse-doc
+    operation: convert
+    config:
+      input: ${read-file.output}
+      from: markdown
+      to: frontmatter
+
+  - name: render-page
+    operation: html
+    config:
+      template: blog-post
+      data:
+        title: ${parse-doc.output.frontmatter.title}
+        author: ${parse-doc.output.frontmatter.author}
+        content: ${parse-doc.output.content}
+```
+
+## HTML to Text
+
+Strips all HTML tags and returns plain text. Useful for search indexing, text analysis, or email plain-text versions.
+
+```yaml
+agents:
+  - name: extract-text
+    operation: convert
+    config:
+      input: |
+        <h1>Title</h1>
+        <p>This is <strong>formatted</strong> content.</p>
+        <script>alert('removed')</script>
+      from: html
+      to: text
+```
+
+**Output**:
+```
+Title This is formatted content.
+```
+
+Features:
+- Removes `<script>` and `<style>` tags completely
+- Decodes HTML entities (`&amp;` → `&`, `&lt;` → `<`)
+- Normalizes whitespace
+
+## DOCX Conversion
+
+<Warning>
+  DOCX conversion requires the `nodejs_compat` compatibility flag in your wrangler.toml. This enables Node.js APIs needed by the mammoth library.
+</Warning>
+
+Convert Word documents to HTML or Markdown using [mammoth](https://github.com/mwilliamson/mammoth.js).
+
+```yaml
+agents:
+  - name: read-docx
+    operation: storage
+    config:
+      type: r2
+      action: get
+      bucket: documents
+      key: report.docx
+
+  - name: convert-to-html
+    operation: convert
+    config:
+      input: ${read-docx.output}  # ArrayBuffer
+      from: docx
+      to: html
+```
+
+### DOCX to Markdown
+
+```yaml
+agents:
+  - name: convert-to-markdown
+    operation: convert
+    config:
+      input: ${read-docx.output}
+      from: docx
+      to: markdown
+```
+
+<Note>
+  DOCX to Markdown internally converts to HTML first, then to Markdown using turndown. This preserves formatting like headings, lists, and tables.
+</Note>
+
+## PDF Text Extraction
+
+<Warning>
+  PDF text extraction requires the `nodejs_compat` compatibility flag in your wrangler.toml. This enables Node.js APIs needed by the unpdf library.
+</Warning>
+
+Extract text content from PDF documents using [unpdf](https://github.com/unjs/unpdf), a Workers-compatible PDF library built on PDF.js.
+
+```yaml
+agents:
+  - name: read-pdf
+    operation: storage
+    config:
+      type: r2
+      action: get
+      bucket: documents
+      key: report.pdf
+
+  - name: extract-text
+    operation: convert
+    config:
+      input: ${read-pdf.output}  # ArrayBuffer
+      from: pdf
+      to: text
+```
+
+### PDF Options
+
+Control how pages are merged:
+
+```yaml
+config:
+  input: ${pdf-data}
+  from: pdf
+  to: text
+  pdf:
+    mergePages: true       # Merge all pages into single string (default: true)
+    pageSeparator: "\n\n"  # Separator between pages (default: "\n\n")
+```
+
+### Multi-page Documents
+
+By default, text from all pages is merged with double newlines:
+
+```yaml
+agents:
+  - name: extract-full-doc
+    operation: convert
+    config:
+      input: ${read-pdf.output}
+      from: pdf
+      to: text
+      pdf:
+        pageSeparator: "\n---\n"  # Use horizontal rule between pages
+```
+
+### PDF Processing Pipeline
+
+Extract PDF text and process it further:
+
+```yaml
+name: pdf-to-summary
+
+agents:
+  - name: read-pdf
+    operation: storage
+    config:
+      type: r2
+      action: get
+      bucket: uploads
+      key: ${input.filename}
+
+  - name: extract-text
+    operation: convert
+    config:
+      input: ${read-pdf.output}
+      from: pdf
+      to: text
+
+  - name: summarize
+    operation: llm
+    config:
+      model: claude-sonnet-4-20250514
+      prompt: |
+        Summarize the following document in 3-5 bullet points:
+
+        ${extract-text.output}
+
+flow:
+  - agent: read-pdf
+  - agent: extract-text
+  - agent: summarize
+
+output:
+  body:
+    summary: ${summarize.output}
+```
+
+### PDF Input Validation
+
+PDF conversion requires an ArrayBuffer (binary data from R2/storage):
+
+```yaml
+# This will throw an error
+config:
+  input: "not an ArrayBuffer"
+  from: pdf
+  to: text
+```
+
+**Error**: `convert: PDF input must be an ArrayBuffer (use storage operation to read the file)`
+
+## Examples
+
+### Web Scraping Pipeline
+
+```yaml
+name: scrape-and-convert
+
+agents:
+  - name: fetch-page
+    operation: http
+    config:
+      url: ${input.url}
+
+  - name: convert-to-markdown
+    operation: convert
+    config:
+      input: ${fetch-page.output.body}
+      from: html
+      to: markdown
+
+  - name: store-content
+    operation: storage
+    config:
+      type: kv
+      action: put
+      key: content-${input.slug}
+      value: ${convert-to-markdown.output}
+
+flow:
+  - agent: fetch-page
+  - agent: convert-to-markdown
+  - agent: store-content
+
+output:
+  body:
+    markdown: ${convert-to-markdown.output}
+```
+
+### Blog Post Processor
+
+```yaml
+name: process-blog-post
+
+agents:
+  - name: read-post
+    operation: storage
+    config:
+      type: r2
+      action: get
+      bucket: blog
+      key: posts/${input.slug}.md
+
+  - name: parse-frontmatter
+    operation: convert
+    config:
+      input: ${read-post.output}
+      from: markdown
+      to: frontmatter
+
+  - name: render-html
+    operation: convert
+    config:
+      input: ${parse-frontmatter.output.content}
+      from: markdown
+      to: html
+
+flow:
+  - agent: read-post
+  - agent: parse-frontmatter
+  - agent: render-html
+
+output:
+  body:
+    title: ${parse-frontmatter.output.frontmatter.title}
+    author: ${parse-frontmatter.output.frontmatter.author}
+    date: ${parse-frontmatter.output.frontmatter.date}
+    html: ${render-html.output}
+```
+
+### Email with Plain Text Fallback
+
+```yaml
+name: send-newsletter
+
+agents:
+  - name: render-html
+    operation: convert
+    config:
+      input: ${input.markdown}
+      from: markdown
+      to: html
+
+  - name: generate-text
+    operation: convert
+    config:
+      input: ${render-html.output}
+      from: html
+      to: text
+
+  - name: send-email
+    operation: email
+    config:
+      to: ${input.email}
+      subject: ${input.subject}
+      html: ${render-html.output}
+      text: ${generate-text.output}
+
+flow:
+  - agent: render-html
+  - agent: generate-text
+  - agent: send-email
+```
+
+### Document Migration Pipeline
+
+```yaml
+name: migrate-docs
+
+agents:
+  - name: read-docx
+    operation: storage
+    config:
+      type: r2
+      action: get
+      bucket: legacy-docs
+      key: ${input.filename}
+
+  - name: convert-to-markdown
+    operation: convert
+    config:
+      input: ${read-docx.output}
+      from: docx
+      to: markdown
+
+  - name: add-frontmatter
+    operation: transform
+    config:
+      value: |
+        ---
+        title: ${input.title}
+        migrated: true
+        originalFile: ${input.filename}
+        ---
+        ${convert-to-markdown.output}
+
+  - name: store-markdown
+    operation: storage
+    config:
+      type: r2
+      action: put
+      bucket: new-docs
+      key: ${input.slug}.md
+      body: ${add-frontmatter.output}
+
+flow:
+  - agent: read-docx
+  - agent: convert-to-markdown
+  - agent: add-frontmatter
+  - agent: store-markdown
+```
+
+## Error Handling
+
+### Invalid Conversion
+
+```yaml
+# This will throw an error
+config:
+  input: "some text"
+  from: text
+  to: pdf  # Not supported
+```
+
+**Error**: `convert: unsupported conversion text → pdf. Supported: html→markdown, html→text, markdown→html, markdown→frontmatter, docx→markdown, docx→html, pdf→text`
+
+### Empty Input
+
+Empty strings are handled gracefully:
+
+```yaml
+config:
+  input: ""
+  from: html
+  to: markdown
+```
+
+**Output**: `""` (empty string)
+
+For frontmatter, empty input returns:
+```typescript
+{ frontmatter: {}, content: "" }
+```
+
+### DOCX Input Validation
+
+DOCX conversion requires an ArrayBuffer:
+
+```yaml
+# This will throw an error
+config:
+  input: "not an ArrayBuffer"
+  from: docx
+  to: html
+```
+
+**Error**: `convert: DOCX input must be an ArrayBuffer (use storage operation to read the file)`
+
+## Performance
+
+Convert operations are fast and efficient:
+
+| Conversion | Typical Speed | Notes |
+|------------|--------------|-------|
+| html→markdown | ~1-5ms | Depends on DOM complexity |
+| html→text | <1ms | Simple regex operations |
+| markdown→html | ~1-3ms | Fast marked parser |
+| markdown→frontmatter | <1ms | Fast YAML parsing |
+| docx→html/markdown | ~50-200ms | Depends on document size |
+| pdf→text | ~100-500ms | Depends on page count and complexity |
+
+## Related Operations
+
+- [transform](/conductor/operations/transform) - Declarative data transformations
+- [html](/conductor/operations/html) - HTML template rendering
+- [storage](/conductor/operations/storage) - Read/write files for conversion
+- [http](/conductor/operations/http) - Fetch web pages to convert

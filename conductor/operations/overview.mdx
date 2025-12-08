@@ -19,6 +19,14 @@ Execute logic and transform data.
   <Card title="code" icon="code" href="/conductor/operations/code">
     JavaScript/TypeScript execution
   </Card>
+
+  <Card title="transform" icon="shuffle" href="/conductor/operations/transform">
+    Declarative data transformations
+  </Card>
+
+  <Card title="convert" icon="arrows-rotate" href="/conductor/operations/convert">
+    Document format conversion (HTML, Markdown, DOCX)
+  </Card>
 </CardGroup>
 
 ### Data Operations
@@ -65,7 +73,7 @@ Background processing and message queues.
 
 Render content for users.
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="html" icon="window" href="/conductor/operations/html">
     Render HTML templates
   </Card>
@@ -76,6 +84,10 @@ Render content for users.
 
   <Card title="form" icon="square-check" href="/conductor/operations/form">
     Generate validated forms
+  </Card>
+
+  <Card title="chart" icon="chart-bar" href="/conductor/operations/chart">
+    Data visualization (bar, line, pie, etc.)
   </Card>
 </CardGroup>
 
@@ -113,7 +125,10 @@ Extend functionality with external tools.
 | Operation | Use Case | Example |
 |-----------|----------|---------|
 | **think** | AI reasoning, text generation | Analyze sentiment, generate content |
-| **code** | Data transformation, business logic | Calculate totals, format data |
+| **code** | Complex logic, calculations | Calculate totals, custom algorithms |
+| **transform** | Declarative data shaping | Pick/omit fields, merge data, mock data |
+| **convert** | Document format conversion | HTML→Markdown, DOCX extraction |
+| **chart** | Data visualization | Bar, line, pie charts as SVG or image URLs |
 | **storage** | Simple storage, caching | Cache in KV, store files in R2 |
 | **data** | Database queries, structured data | Query D1, vector search in Vectorize |
 | **http** | API calls, web requests | Fetch external data |
@@ -307,9 +322,11 @@ operations:
 
 ### When to Use What
 
-**think vs code**:
+**think vs code vs transform vs convert**:
 - Use `think` for AI reasoning, natural language
-- Use `code` for deterministic logic, calculations
+- Use `code` for complex logic, conditionals, loops
+- Use `transform` for simple data shaping (pick/omit/merge)
+- Use `convert` for format conversion (HTML↔Markdown, DOCX)
 
 **storage vs data**:
 - Use `storage` (KV) for caching, simple key-value

@@ -1,0 +1,669 @@
+---
+title: "chart Operation"
+description: "Data visualization - generate bar, line, area, pie, scatter, and sparkline charts as SVG, image URLs, or interactive specs"
+---
+
+The chart operation generates data visualizations from your data without external services or client-side rendering. Output as server-rendered SVG (default), QuickChart.io image URLs, or Vega-Lite specs for interactive client-side rendering.
+
+<Note>
+  The `chart` operation is fully Workers-compatible - no DOM, Canvas, or external dependencies. All rendering is pure string manipulation.
+</Note>
+
+## Quick Start
+
+**Simple bar chart**:
+
+```yaml
+agents:
+  - name: revenue-chart
+    operation: chart
+    config:
+      type: bar
+      data: ${sales.output}
+      x: month
+      y: revenue
+      title: Monthly Revenue
+```
+
+**Line chart with multiple series**:
+
+```yaml
+agents:
+  - name: metrics-chart
+    operation: chart
+    config:
+      type: line
+      data: ${metrics.output}
+      x: date
+      y: [users, sessions, conversions]
+      smooth: true
+```
+
+**Pie chart**:
+
+```yaml
+agents:
+  - name: distribution-chart
+    operation: chart
+    config:
+      type: pie
+      data: ${categories.output}
+      labels: category
+      values: amount
+```
+
+## Configuration
+
+```yaml
+config:
+  # Chart type (required unless auto: true)
+  type: string           # bar, line, area, pie, donut, scatter, sparkline
+  auto: boolean          # Auto-detect best chart type from data
+
+  # Data and axes
+  data: array            # Array of data objects (required)
+  x: string              # Field name for x-axis (for cartesian charts)
+  y: string | string[]   # Field name(s) for y-axis (for cartesian charts)
+  labels: string         # Field for labels (for pie/donut)
+  values: string         # Field for values (for pie/donut)
+
+  # Output format
+  output: string         # svg (default), url, vega, html
+
+  # Dimensions
+  width: number          # Chart width in pixels (default: 600)
+  height: number         # Chart height in pixels (default: 400)
+
+  # Labels and titles
+  title: string          # Chart title
+  subtitle: string       # Chart subtitle
+  xAxis:
+    label: string        # X-axis label
+    format: string       # Number format: compact, percent, currency
+  yAxis:
+    label: string        # Y-axis label
+    format: string       # Number format: compact, percent, currency
+
+  # Styling
+  theme: string          # light (default), dark, minimal, brand
+  colors: string[]       # Custom color palette
+
+  # Chart options
+  legend: boolean | string  # Show legend: true, false, top, bottom, right
+  stacked: boolean       # Stack bars/areas (for multi-series)
+  horizontal: boolean    # Horizontal bars (for bar charts)
+  smooth: boolean        # Smooth curves (for line/area charts)
+  showValues: boolean    # Show values on chart (default: true)
+
+  # Reference lines
+  referenceLine:
+    value: number        # Y-value for the reference line (or 'average', 'median')
+    label: string        # Label text
+    style: string        # solid, dashed, dotted
+    color: string        # Line color
+
+  # Annotations
+  annotations: array     # Array of annotation configs
+    - type: string       # line, band, point, label
+      value: number | [number, number]  # Value or range for bands
+      label: string      # Annotation label
+      color: string      # Annotation color
+      style: string      # solid, dashed, dotted (for lines)
+```
+
+## Chart Types
+
+### Bar Chart
+
+Vertical or horizontal bar charts with optional grouping or stacking.
+
+```yaml
+agents:
+  - name: sales-chart
+    operation: chart
+    config:
+      type: bar
+      data:
+        - { month: "Jan", revenue: 45000, costs: 32000 }
+        - { month: "Feb", revenue: 52000, costs: 35000 }
+        - { month: "Mar", revenue: 48000, costs: 31000 }
+      x: month
+      y: [revenue, costs]
+      title: Revenue vs Costs
+      legend: true
+```
+
+**Stacked bar chart**:
+
+```yaml
+config:
+  type: bar
+  data: ${regional-sales.output}
+  x: quarter
+  y: [north, south, east, west]
+  stacked: true
+  title: Regional Sales by Quarter
+```
+
+**Horizontal bar chart**:
+
+```yaml
+config:
+  type: bar
+  data: ${rankings.output}
+  x: score
+  y: name
+  horizontal: true
+```
+
+### Line Chart
+
+Line charts with single or multiple series, optional smoothing.
+
+```yaml
+agents:
+  - name: trends-chart
+    operation: chart
+    config:
+      type: line
+      data:
+        - { date: "2024-01", users: 1000, sessions: 2500 }
+        - { date: "2024-02", users: 1500, sessions: 3200 }
+        - { date: "2024-03", users: 1200, sessions: 2800 }
+      x: date
+      y: [users, sessions]
+      smooth: true
+      title: User Metrics
+```
+
+### Area Chart
+
+Filled area charts with gradient fills, similar to line charts.
+
+```yaml
+agents:
+  - name: traffic-chart
+    operation: chart
+    config:
+      type: area
+      data: ${traffic.output}
+      x: hour
+      y: requests
+      title: Requests per Hour
+```
+
+**Stacked area**:
+
+```yaml
+config:
+  type: area
+  data: ${sources.output}
+  x: date
+  y: [organic, paid, direct]
+  stacked: true
+```
+
+### Pie & Donut Charts
+
+Circular charts for showing proportions.
+
+```yaml
+agents:
+  - name: market-share
+    operation: chart
+    config:
+      type: pie
+      data:
+        - { company: "A", share: 35 }
+        - { company: "B", share: 28 }
+        - { company: "C", share: 22 }
+        - { company: "Other", share: 15 }
+      labels: company
+      values: share
+      title: Market Share
+```
+
+**Donut chart** (pie with hole in center):
+
+```yaml
+config:
+  type: donut
+  data: ${expenses.output}
+  labels: category
+  values: amount
+  title: Expense Breakdown
+```
+
+### Scatter Plot
+
+Show relationships between two numeric variables.
+
+```yaml
+agents:
+  - name: correlation-chart
+    operation: chart
+    config:
+      type: scatter
+      data:
+        - { price: 100, rating: 4.5, brand: "A" }
+        - { price: 200, rating: 4.0, brand: "B" }
+        - { price: 150, rating: 4.8, brand: "A" }
+      x: price
+      y: rating
+      title: Price vs Rating
+```
+
+### Sparkline
+
+Minimal inline charts for dashboards and tables.
+
+```yaml
+agents:
+  - name: trend-spark
+    operation: chart
+    config:
+      type: sparkline
+      data: [10, 15, 12, 18, 14, 22, 19]
+      width: 100
+      height: 30
+```
+
+**From objects**:
+
+```yaml
+config:
+  type: sparkline
+  data: ${daily-metrics.output}
+  y: value
+  width: 120
+  height: 40
+```
+
+## Output Formats
+
+### SVG (Default)
+
+Server-rendered SVG string. Best for embedding directly in HTML.
+
+```yaml
+config:
+  type: bar
+  data: ${data.output}
+  x: category
+  y: value
+  output: svg  # Default, can be omitted
+```
+
+### URL (QuickChart.io)
+
+Generate an image URL for use in emails, Slack, etc.
+
+```yaml
+config:
+  type: line
+  data: ${metrics.output}
+  x: date
+  y: value
+  output: url
+```
+
+Returns: `https://quickchart.io/chart?c={...}`
+
+<Note>
+  QuickChart URLs are generated client-side. The chart config is URL-encoded, so very large datasets may exceed URL length limits.
+</Note>
+
+### Vega-Lite Spec
+
+Generate a Vega-Lite specification for client-side interactive rendering.
+
+```yaml
+config:
+  type: bar
+  data: ${data.output}
+  x: category
+  y: value
+  output: vega
+```
+
+Returns a JSON object you can render with Vega-Embed.
+
+### HTML
+
+Self-contained HTML document with embedded SVG.
+
+```yaml
+config:
+  type: pie
+  data: ${data.output}
+  labels: name
+  values: amount
+  output: html
+```
+
+Useful for generating standalone chart pages or PDF conversion.
+
+## Theming
+
+### Built-in Themes
+
+```yaml
+# Light theme (default) - white background, dark text
+config:
+  theme: light
+
+# Dark theme - dark background, light text
+config:
+  theme: dark
+
+# Minimal theme - no borders, subtle colors
+config:
+  theme: minimal
+
+# Brand theme - blue primary color
+config:
+  theme: brand
+```
+
+### Custom Colors
+
+Override the color palette:
+
+```yaml
+config:
+  type: bar
+  data: ${data.output}
+  x: category
+  y: [series1, series2, series3]
+  colors:
+    - "#FF6B6B"  # Coral
+    - "#4ECDC4"  # Teal
+    - "#45B7D1"  # Sky blue
+```
+
+## Reference Lines
+
+Add horizontal reference lines for targets, thresholds, or averages.
+
+```yaml
+config:
+  type: line
+  data: ${performance.output}
+  x: date
+  y: score
+  referenceLine:
+    value: 80
+    label: Target
+    style: dashed
+    color: "#FF0000"
+```
+
+Reference lines can also use dynamic values:
+
+```yaml
+referenceLine:
+  value: average  # or median
+  label: Average
+```
+
+## Annotations
+
+Add annotations to highlight specific data points or ranges.
+
+### Line Annotation
+
+Draw a horizontal or vertical line at a specific value:
+
+```yaml
+config:
+  type: bar
+  data: ${sales.output}
+  x: month
+  y: revenue
+  annotations:
+    - type: line
+      value: 50000
+      label: Target
+      color: "#FF0000"
+      style: dashed
+```
+
+### Band Annotation
+
+Highlight a range of values:
+
+```yaml
+config:
+  type: line
+  data: ${metrics.output}
+  x: date
+  y: score
+  annotations:
+    - type: band
+      value: [70, 90]       # Range from 70 to 90
+      label: Target Range
+      color: "#00FF00"
+```
+
+### Point Annotation
+
+Mark a specific point:
+
+```yaml
+config:
+  type: line
+  data: ${performance.output}
+  x: date
+  y: score
+  annotations:
+    - type: point
+      value: 85
+      label: Peak
+      color: "#0000FF"
+```
+
+### Multiple Annotations
+
+Combine multiple annotations:
+
+```yaml
+config:
+  type: bar
+  data: ${sales.output}
+  x: quarter
+  y: revenue
+  annotations:
+    - type: line
+      value: 100000
+      label: Goal
+      color: "#00AA00"
+      style: dashed
+    - type: band
+      value: [80000, 100000]
+      label: Target Zone
+      color: "#FFCC00"
+    - type: line
+      value: 50000
+      label: Minimum
+      color: "#FF0000"
+      style: dotted
+```
+
+## Auto Detection
+
+Let the chart agent automatically choose the best chart type:
+
+```yaml
+config:
+  auto: true
+  data: ${unknown-data.output}
+  labels: category
+  values: value
+```
+
+Auto-detection rules:
+- Small categorical data (2-6 items with string + number) → pie
+- Time-series data (date field + numeric) → line
+- Two numeric fields without categories → scatter
+- Single numeric array → sparkline
+- Default → bar
+
+## Number Formatting
+
+Format axis values and labels:
+
+```yaml
+config:
+  type: bar
+  data: ${revenue.output}
+  x: month
+  y: amount
+  yAxis:
+    label: Revenue
+    format: currency  # $1.2K, $45.3M, etc.
+
+# Available formats:
+# - compact: 1.2K, 45.3M (default)
+# - percent: 45%, 123%
+# - currency: $1.2K, $45.3M
+# - none: raw numbers
+```
+
+## Complete Dashboard Example
+
+```yaml
+name: sales-dashboard
+
+trigger:
+  - type: http
+    path: /dashboard
+    methods: [GET]
+
+agents:
+  # Fetch data
+  - name: fetch-sales
+    operation: data
+    config:
+      type: d1
+      database: analytics
+      query: |
+        SELECT month, revenue, costs, profit
+        FROM monthly_sales
+        WHERE year = 2024
+        ORDER BY month
+
+  # Main revenue chart
+  - name: revenue-chart
+    operation: chart
+    config:
+      type: bar
+      data: ${fetch-sales.output}
+      x: month
+      y: [revenue, costs]
+      title: Revenue vs Costs
+      theme: dark
+      legend: bottom
+      yAxis:
+        format: currency
+
+  # Profit trend
+  - name: profit-chart
+    operation: chart
+    config:
+      type: area
+      data: ${fetch-sales.output}
+      x: month
+      y: profit
+      title: Profit Trend
+      smooth: true
+      referenceLine:
+        value: 0
+        label: Breakeven
+        style: dashed
+
+  # Sparkline for header
+  - name: revenue-spark
+    operation: chart
+    config:
+      type: sparkline
+      data: ${fetch-sales.output}
+      y: revenue
+      width: 100
+      height: 30
+
+flow:
+  - agent: fetch-sales
+  - parallel:
+      - agent: revenue-chart
+      - agent: profit-chart
+      - agent: revenue-spark
+
+output:
+  body:
+    revenueChart: ${revenue-chart.output}
+    profitChart: ${profit-chart.output}
+    sparkline: ${revenue-spark.output}
+  headers:
+    Content-Type: text/html
+```
+
+## Performance
+
+Chart generation is fast since it's pure string manipulation:
+
+| Chart Type | Data Size | Typical Speed |
+|------------|-----------|---------------|
+| Bar | 10 items | <5ms |
+| Bar | 100 items | <15ms |
+| Line | 100 points | <10ms |
+| Line | 1000 points | <50ms |
+| Pie | 6 slices | <5ms |
+| Scatter | 100 points | <10ms |
+| Sparkline | 50 points | <2ms |
+
+## Error Handling
+
+### Missing Required Fields
+
+```yaml
+# This will throw an error:
+config:
+  type: bar
+  data: ${data.output}
+  x: month
+  # y is missing
+```
+
+**Error**: `chart: bar chart requires config.x and config.y`
+
+### Invalid Chart Type
+
+```yaml
+# This will throw an error:
+config:
+  type: histogram
+  data: ${data.output}
+```
+
+**Error**: `chart: invalid type "histogram". Must be one of: bar, line, area, pie, donut, scatter, sparkline`
+
+### Empty Data
+
+```yaml
+# This will throw an error:
+config:
+  type: bar
+  data: []
+  x: category
+  y: value
+```
+
+**Error**: `chart: config.data must be a non-empty array`
+
+## Related Operations
+
+- [transform](/conductor/operations/transform) - Prepare and transform data for charts
+- [data](/conductor/operations/data) - Fetch data from databases
+- [http](/conductor/operations/http) - Fetch data from APIs
+- [html](/conductor/operations/html) - Embed charts in HTML templates
+- [pdf](/conductor/operations/pdf) - Generate PDF reports with charts

@@ -1,0 +1,785 @@
+---
+title: "transform Operation"
+description: "Declarative data transformations - return values, parse/format data, apply modifiers, filter, sort, and clean data"
+---
+
+The transform operation provides declarative data transformations without writing JavaScript. Return literal values, parse/format CSV/Excel/JSON data, modify objects with pick/omit/defaults, filter and sort arrays, or merge multiple data sources.
+
+<Note>
+  The `transform` operation is edge-compatible - no eval or Function constructors. All expressions (`${...}`) are resolved by the runtime before the agent executes.
+</Note>
+
+## Quick Start
+
+**Return literal values**:
+
+```yaml
+agents:
+  - name: mock-users
+    operation: transform
+    config:
+      value:
+        - { id: 1, name: "Alice" }
+        - { id: 2, name: "Bob" }
+```
+
+**Parse CSV to objects**:
+
+```yaml
+agents:
+  - name: parse-upload
+    operation: transform
+    config:
+      input: ${storage.output}
+      parse: csv
+```
+
+**Format to CSV**:
+
+```yaml
+agents:
+  - name: export-csv
+    operation: transform
+    config:
+      input: ${users.output}
+      format: csv
+      columns: [id, name, email]
+```
+
+**Filter and sort**:
+
+```yaml
+agents:
+  - name: active-users
+    operation: transform
+    config:
+      input: ${users.output}
+      filter: active
+      sort:
+        by: createdAt
+        order: desc
+      limit: 10
+```
+
+## Configuration
+
+```yaml
+config:
+  # Mode selection (one required)
+  value: any           # Value mode: return this literal
+  input: any           # Input mode: transform this data
+  merge: array         # Merge mode: combine these items
+
+  # Parse/Format (Phase 2.5)
+  parse: string        # Parse input: csv, tsv, jsonl, xlsx
+  format: string       # Format output: csv, tsv, jsonl, xlsx
+  sheet: string        # For xlsx: sheet name (default: first sheet)
+  columns: string[]    # Column selection and ordering for output
+
+  # Field modifiers
+  pick: string[]       # Include only these fields
+  omit: string[]       # Exclude these fields
+  rename: object       # Rename fields: { oldName: newName }
+  defaults: object     # Add defaults for missing fields
+
+  # Array operations (Phase 3)
+  filter: string       # Filter by truthy field
+  sort: object         # Sort: { by: string, order: 'asc' | 'desc' }
+  limit: number        # Limit results
+  offset: number       # Skip first N results
+
+  # Data cleaning (Phase 3)
+  trim: boolean        # Trim whitespace from strings
+  compact: boolean     # Remove null/undefined values
+  dedupe: boolean|string  # Remove duplicates (true=by value, string=by field)
+  coerce: object       # Type coercion: { field: 'string'|'number'|'boolean'|'date' }
+```
+
+## Modes
+
+### Value Mode
+
+Return a literal value. Expression interpolation (`${...}`) is resolved before the agent runs.
+
+```yaml
+agents:
+  - name: get-config
+    operation: transform
+    config:
+      value:
+        version: "1.0"
+        app:
+          name: ${input.appName}
+          environment: ${input.environment}
+        database:
+          host: ${input.dbHost}
+          port: ${input.dbPort}
+```
+
+Value mode supports all types:
+
+```yaml
+# String
+config:
+  value: "Hello, World!"
+
+# Number
+config:
+  value: 42
+
+# Boolean
+config:
+  value: true
+
+# Null
+config:
+  value: null
+
+# Object
+config:
+  value:
+    name: "Alice"
+    email: "alice@example.com"
+
+# Array
+config:
+  value:
+    - item1
+    - item2
+    - item3
+```
+
+### Input Mode
+
+Pass through data with optional modifiers applied.
+
+#### Pick - Include Only Specified Fields
+
+```yaml
+agents:
+  - name: public-user
+    operation: transform
+    config:
+      input: ${fetch-user.output}
+      pick: [id, name, email, avatar]
+```
+
+**Input**: `{ id: 1, name: "Alice", email: "alice@example.com", password: "secret", adminNotes: "..." }`
+
+**Output**: `{ id: 1, name: "Alice", email: "alice@example.com" }`
+
+#### Omit - Exclude Specified Fields
+
+```yaml
+agents:
+  - name: safe-user
+    operation: transform
+    config:
+      input: ${fetch-user.output}
+      omit: [password, passwordHash, ssn, adminNotes]
+```
+
+**Input**: `{ id: 1, name: "Alice", password: "secret", ssn: "123-45-6789" }`
+
+**Output**: `{ id: 1, name: "Alice" }`
+
+#### Rename - Rename Fields
+
+```yaml
+agents:
+  - name: normalize-api
+    operation: transform
+    config:
+      input: ${api.output}
+      rename:
+        user_id: id
+        display_name: name
+        created_at: createdAt
+```
+
+**Input**: `{ user_id: 1, display_name: "Alice", created_at: "2024-01-15" }`
+
+**Output**: `{ id: 1, name: "Alice", createdAt: "2024-01-15" }`
+
+#### Defaults - Add Missing Fields
+
+```yaml
+agents:
+  - name: with-defaults
+    operation: transform
+    config:
+      input: ${input.user}
+      defaults:
+        status: "pending"
+        role: "user"
+        verified: false
+```
+
+**Input**: `{ id: 1, name: "Alice" }`
+
+**Output**: `{ id: 1, name: "Alice", status: "pending", role: "user", verified: false }`
+
+Existing values are not overwritten:
+
+**Input**: `{ id: 1, name: "Alice", status: "active" }`
+
+**Output**: `{ id: 1, name: "Alice", status: "active", role: "user", verified: false }`
+
+#### Combining Modifiers
+
+Modifiers are applied in order: defaults → rename → pick → omit
+
+```yaml
+agents:
+  - name: process-user
+    operation: transform
+    config:
+      input: ${api.output}
+      defaults:
+        verified: false
+      rename:
+        user_id: id
+      pick: [id, name, email, verified]
+      omit: [email]
+```
+
+#### Array Input
+
+Modifiers apply to each item in arrays:
+
+```yaml
+agents:
+  - name: clean-users
+    operation: transform
+    config:
+      input: ${fetch-users.output}
+      omit: [password]
+      defaults:
+        status: "pending"
+```
+
+**Input**: `[{ id: 1, name: "Alice", password: "x" }, { id: 2, name: "Bob", password: "y" }]`
+
+**Output**: `[{ id: 1, name: "Alice", status: "pending" }, { id: 2, name: "Bob", status: "pending" }]`
+
+### Merge Mode
+
+Combine multiple items into one.
+
+#### Object Merge
+
+Later objects override earlier ones (shallow merge):
+
+```yaml
+agents:
+  - name: full-profile
+    operation: transform
+    config:
+      merge:
+        - ${user.output}           # { id: 1, name: "Alice" }
+        - ${preferences.output}    # { theme: "dark" }
+        - { updatedAt: ${now} }    # timestamp
+```
+
+**Output**: `{ id: 1, name: "Alice", theme: "dark", updatedAt: "2025-01-15T..." }`
+
+#### Array Concatenation
+
+Arrays are flattened:
+
+```yaml
+agents:
+  - name: all-items
+    operation: transform
+    config:
+      merge:
+        - ${batch1.output}  # [1, 2, 3]
+        - ${batch2.output}  # [4, 5]
+        - ${batch3.output}  # [6]
+```
+
+**Output**: `[1, 2, 3, 4, 5, 6]`
+
+## Parse & Format
+
+Transform can parse and format data between different formats without custom code.
+
+### CSV Parsing
+
+Parse CSV strings to arrays of objects:
+
+```yaml
+agents:
+  - name: parse-upload
+    operation: transform
+    config:
+      input: ${storage.output}  # Raw CSV string
+      parse: csv
+```
+
+**Input**:
+```
+id,name,email
+1,Alice,alice@example.com
+2,Bob,bob@example.com
+```
+
+**Output**:
+```javascript
+[
+  { id: 1, name: "Alice", email: "alice@example.com" },
+  { id: 2, name: "Bob", email: "bob@example.com" }
+]
+```
+
+<Note>
+  CSV parsing uses papaparse with `dynamicTyping: true`, so numbers are automatically converted to numeric types.
+</Note>
+
+### CSV Formatting
+
+Format arrays of objects to CSV strings:
+
+```yaml
+agents:
+  - name: export-csv
+    operation: transform
+    config:
+      input: ${users.output}
+      format: csv
+      columns: [id, name, email]  # Optional: control column order
+```
+
+**Input**:
+```javascript
+[
+  { id: 1, name: "Alice", email: "alice@example.com", password: "secret" },
+  { id: 2, name: "Bob", email: "bob@example.com", password: "secret2" }
+]
+```
+
+**Output** (with `columns: [id, name, email]`):
+```
+id,name,email
+1,Alice,alice@example.com
+2,Bob,bob@example.com
+```
+
+### TSV (Tab-Separated Values)
+
+Same as CSV but with tab delimiters:
+
+```yaml
+agents:
+  - name: parse-tsv
+    operation: transform
+    config:
+      input: ${storage.output}
+      parse: tsv
+
+  - name: format-tsv
+    operation: transform
+    config:
+      input: ${data.output}
+      format: tsv
+```
+
+### JSONL (Newline-Delimited JSON)
+
+Parse/format newline-delimited JSON:
+
+```yaml
+agents:
+  - name: parse-logs
+    operation: transform
+    config:
+      input: ${storage.output}
+      parse: jsonl
+```
+
+**Input**:
+```
+{"id":1,"name":"Alice"}
+{"id":2,"name":"Bob"}
+```
+
+**Output**:
+```javascript
+[{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }]
+```
+
+### XLSX (Excel)
+
+<Warning>
+  XLSX parsing/formatting uses the xlsx library (~500KB). It's dynamically imported only when needed to keep the bundle lean. For simpler use cases, consider CSV instead.
+</Warning>
+
+Parse Excel files:
+
+```yaml
+agents:
+  - name: read-spreadsheet
+    operation: storage
+    config:
+      type: r2
+      action: get
+      bucket: uploads
+      key: data.xlsx
+
+  - name: parse-xlsx
+    operation: transform
+    config:
+      input: ${read-spreadsheet.output}  # ArrayBuffer or base64 string
+      parse: xlsx
+      sheet: "Sheet1"  # Optional: specific sheet name
+```
+
+Format to Excel (returns base64 string):
+
+```yaml
+agents:
+  - name: export-xlsx
+    operation: transform
+    config:
+      input: ${data.output}
+      format: xlsx
+      sheet: "Report"
+      columns: [id, name, email]
+```
+
+## Array Operations
+
+Transform provides declarative array operations without writing loops.
+
+### Filter
+
+Keep only items where a field is truthy:
+
+```yaml
+agents:
+  - name: active-users
+    operation: transform
+    config:
+      input: ${users.output}
+      filter: active
+```
+
+**Input**:
+```javascript
+[
+  { id: 1, name: "Alice", active: true },
+  { id: 2, name: "Bob", active: false },
+  { id: 3, name: "Carol", active: true }
+]
+```
+
+**Output**:
+```javascript
+[
+  { id: 1, name: "Alice", active: true },
+  { id: 3, name: "Carol", active: true }
+]
+```
+
+### Sort
+
+Sort by a field:
+
+```yaml
+agents:
+  - name: sorted-users
+    operation: transform
+    config:
+      input: ${users.output}
+      sort:
+        by: name
+        order: asc  # or desc
+```
+
+Sorting handles numbers, strings, and dates correctly. Null/undefined values sort to the end.
+
+### Pagination
+
+Use `limit` and `offset` for pagination:
+
+```yaml
+agents:
+  - name: paginated
+    operation: transform
+    config:
+      input: ${all-items.output}
+      sort:
+        by: createdAt
+        order: desc
+      offset: 20  # Skip first 20
+      limit: 10   # Return 10 items
+```
+
+## Data Cleaning
+
+Transform provides utilities for cleaning messy data.
+
+### Trim
+
+Trim whitespace from all string fields:
+
+```yaml
+agents:
+  - name: clean-input
+    operation: transform
+    config:
+      input: ${form.output}
+      trim: true
+```
+
+**Input**: `{ name: "  Alice  ", email: " alice@example.com " }`
+
+**Output**: `{ name: "Alice", email: "alice@example.com" }`
+
+### Compact
+
+Remove null and undefined values:
+
+```yaml
+agents:
+  - name: remove-nulls
+    operation: transform
+    config:
+      input: ${api.output}
+      compact: true
+```
+
+**Input**: `{ id: 1, name: "Alice", email: null, phone: undefined }`
+
+**Output**: `{ id: 1, name: "Alice" }`
+
+### Dedupe
+
+Remove duplicates:
+
+```yaml
+# By specific field
+agents:
+  - name: unique-emails
+    operation: transform
+    config:
+      input: ${users.output}
+      dedupe: email
+
+# By full object value
+agents:
+  - name: unique-items
+    operation: transform
+    config:
+      input: ${items.output}
+      dedupe: true
+```
+
+### Coerce
+
+Convert field types:
+
+```yaml
+agents:
+  - name: normalize-types
+    operation: transform
+    config:
+      input: ${csv-data.output}
+      coerce:
+        id: number
+        active: boolean
+        createdAt: date
+        score: number
+```
+
+Supported types:
+- `string` - Convert to string
+- `number` - Parse as number (returns 0 for invalid)
+- `boolean` - Parse as boolean ("true", "1", "yes" → true)
+- `date` - Parse as Date object (returns null for invalid)
+
+## Complete ETL Example
+
+Here's a complete example showing parse → transform → format:
+
+```yaml
+name: csv-etl-pipeline
+
+trigger:
+  - type: http
+    path: /process
+    methods: [POST]
+
+agents:
+  # Read uploaded CSV
+  - name: read-file
+    operation: storage
+    config:
+      type: r2
+      action: get
+      bucket: uploads
+      key: ${input.filename}
+
+  # Parse CSV to objects
+  - name: parse-data
+    operation: transform
+    config:
+      input: ${read-file.output}
+      parse: csv
+
+  # Clean and transform
+  - name: process-data
+    operation: transform
+    config:
+      input: ${parse-data.output}
+      trim: true           # Clean whitespace
+      compact: true        # Remove nulls
+      filter: active       # Keep active only
+      rename:
+        user_id: id
+        full_name: name
+      omit: [password, internal_notes]
+      sort:
+        by: created_at
+        order: desc
+      limit: 100
+
+  # Format as CSV for export
+  - name: export-csv
+    operation: transform
+    config:
+      input: ${process-data.output}
+      format: csv
+      columns: [id, name, email, created_at]
+
+  # Save processed file
+  - name: save-file
+    operation: storage
+    config:
+      type: r2
+      action: put
+      bucket: exports
+      key: processed-${input.filename}
+      body: ${export-csv.output}
+
+flow:
+  - agent: read-file
+  - agent: parse-data
+  - agent: process-data
+  - agent: export-csv
+  - agent: save-file
+
+output:
+  body:
+    success: true
+    records: ${process-data.output.length}
+```
+
+## Mode Priority
+
+When multiple modes are specified, they're evaluated in this order:
+
+1. **value** - If defined (including `null`), use value mode
+2. **merge** - If defined, use merge mode
+3. **input** - If defined, use input mode
+
+If none are specified, an error is thrown.
+
+## Why Transform vs Code?
+
+Use **transform** when you need:
+- Return static/mock data
+- Parse/format CSV, TSV, XLSX, JSONL
+- Pick/omit/rename fields from objects
+- Merge multiple data sources
+- Filter/sort/paginate arrays
+- Clean data (trim, compact, dedupe)
+- Type coercion
+
+Use **code** when you need:
+- Complex conditional logic
+- Custom calculations
+- Multiple dependent transformations
+- External library calls
+
+Transform is:
+- **Faster** - No JavaScript parsing
+- **Safer** - No arbitrary code execution
+- **Clearer** - Declarative intent
+- **Cacheable** - Deterministic outputs
+
+## Error Handling
+
+### Missing Mode
+
+If no mode is specified, an error is thrown:
+
+```yaml
+# This will throw an error:
+agents:
+  - name: invalid
+    operation: transform
+    config: {}  # No value, input, or merge
+```
+
+**Error**: `transform operation requires one of: config.value, config.input, or config.merge`
+
+### Empty Merge Array
+
+```yaml
+# This will throw an error:
+config:
+  merge: []
+```
+
+**Error**: `transform merge mode requires a non-empty array`
+
+### Invalid Parse Format
+
+```yaml
+# This will throw an error:
+config:
+  input: "some data"
+  parse: pdf  # Not supported
+```
+
+**Error**: `transform: unsupported parse format 'pdf'`
+
+### JSONL Parse Error
+
+```yaml
+# Invalid JSON on line 2
+config:
+  input: |
+    {"id":1}
+    {invalid}
+  parse: jsonl
+```
+
+**Error**: `transform: JSONL parse error at line 2: Invalid JSON`
+
+## Performance
+
+Transform is one of the fastest operations:
+
+| Operation | Typical Speed |
+|-----------|---------------|
+| Value mode | <1ms |
+| Pick/omit/rename | <1ms |
+| Parse CSV (1000 rows) | ~5-10ms |
+| Format CSV (1000 rows) | ~5-10ms |
+| Filter/sort (1000 items) | ~2-5ms |
+| Parse XLSX | ~50-200ms |
+| Format XLSX | ~50-200ms |
+
+<Note>
+  XLSX operations are slower due to the library size. For high-performance use cases, prefer CSV.
+</Note>
+
+## Related Operations
+
+- [convert](/conductor/operations/convert) - Document format conversion (HTML↔Markdown, DOCX)
+- [code](/conductor/operations/code) - For complex JavaScript logic
+- [http](/conductor/operations/http) - Fetch data to transform
+- [storage](/conductor/operations/storage) - Read/write files
+- [data](/conductor/operations/data) - Database operations
