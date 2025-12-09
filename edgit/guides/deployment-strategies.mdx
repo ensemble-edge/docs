@@ -362,7 +362,7 @@ Every deployment strategy needs a rollback plan.
 edgit tag set prompts/extraction production v1.0.0
 edgit push --tags --force
 
-# <50ms later (if using Cloudflare KV), you're back
+# Under 50ms later (if using Cloudflare KV), you're back
 ```
 
 **Remember:** `--force` is required for environment tags because you're moving the tag to point to a different version.

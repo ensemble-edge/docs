@@ -1,6 +1,6 @@
 ---
 title: "Rollback & Time Travel"
-description: "Instant rollbacks (<50ms) and perfect reproducibility. Recreate any state from any point in history."
+description: "Instant rollbacks (under 50ms) and perfect reproducibility. Recreate any state from any point in history."
 ---
 
 Production is broken. You need to rollback. Now.
@@ -28,7 +28,7 @@ edgit tag list prompts/extraction
 edgit tag set prompts/extraction production v1.0.0
 edgit push --tags --force
 
-# <50ms later, you're back to working version
+# Under 50ms later, you're back to working version
 ```
 
 ### How It Works
@@ -50,7 +50,7 @@ edgit push --tags --force
 
 # GitHub Actions detects tag push and deploys
 # Conductor reads new version from runtime
-# <50ms globally, you're back to v1.0.0
+# Under 50ms globally, you're back to v1.0.0
 ```
 
 **Philosophy:** Edgit creates/moves tags. GitHub Actions detects the tag push and deploys. Separation of concerns.
@@ -125,7 +125,7 @@ git diff components/prompts/extraction/v1.0.0 components/prompts/extraction/v1.1
 git show components/prompts/extraction/v1.1.0 --format=%B --no-patch
 ```
 
-**Total time:** <2 minutes from "production is broken" to "production is fixed."
+**Total time:** Under 2 minutes from "production is broken" to "production is fixed."
 
 ## Partial Rollback
 
