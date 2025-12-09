@@ -130,10 +130,10 @@ RESULTS=$(wrangler d1 execute production-db --command="
   GROUP BY version
 ")
 
-# If v2.0.0 wins, deploy to 100%
+# If v2.0.0 wins, promote to production
 if echo "$RESULTS" | grep "v2.0.0" | grep -q "0.9[5-9]"; then
-  edgit deploy set analysis-prompt v2.0.0 --to prod
-  git push --tags
+  edgit tag set analysis-prompt prod v2.0.0
+  edgit push --tags --force
   echo " Promoted v2.0.0 to production"
 fi
 ```

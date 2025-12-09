@@ -71,7 +71,8 @@ Version it:
 
 ```bash
 edgit tag create company-analysis v1.0.0
-edgit deploy set company-analysis v1.0.0 --to prod
+edgit tag set company-analysis prod v1.0.0
+edgit push --tags --force
 ```
 
 Now agents can reference it:
@@ -391,18 +392,15 @@ Each variant runs with its specific combination of versions.
 Reproduce bugs from last week by deploying the exact versions that were running:
 
 ```bash
-# What was deployed on Tuesday at 2:47 PM?
-edgit history --date="2024-11-05T14:47:00Z"
+# Check what's deployed
+edgit tag list analyzer
+edgit tag list analysis-prompt
 
-# Output:
-# analyzer@v1.9.2
-# analysis-prompt@v3.1.0
-# config@v2.0.1
-
-# Recreate that exact environment
-edgit deploy set analyzer v1.9.2 --to debug
-edgit deploy set analysis-prompt v3.1.0 --to debug
-edgit deploy set config v2.0.1 --to debug
+# Recreate exact environment with specific versions
+edgit tag set analyzer debug v1.9.2
+edgit tag set analysis-prompt debug v3.1.0
+edgit tag set config debug v2.0.1
+edgit push --tags --force
 ```
 
 Perfect reproducibility. Every time.

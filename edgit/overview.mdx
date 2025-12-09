@@ -9,6 +9,14 @@ Edgit extends Git with component-aware versioning. It tracks components (prompts
 
 **Everything lives in Git.** No proprietary storage. No vendor database. You own the source of truth.
 
+## Philosophy: A Thin Git Wrapper
+
+Edgit's job ends at `git push`. It creates Git tags, updates the registry, and pushes to your repository. That's it.
+
+**GitHub Actions handles everything after that.** Deployment, validation, notifications—all standard Git workflows. Edgit doesn't manage infrastructure, run webhooks, or orchestrate deploys. It's just Git with component awareness.
+
+This keeps Edgit simple, portable, and compatible with any Git-based workflow you already have.
+
 ## The Problem It Solves
 
 Modern AI systems have hundreds of independently evolving pieces:
@@ -24,27 +32,26 @@ Modern AI systems have hundreds of independently evolving pieces:
 
 ```bash
 # Version components independently
-edgit tag create extraction-prompt v1.0.0
-edgit tag create company-agent v2.1.0
-edgit tag create validation-query v0.5.0
-edgit tag create invoice-schema v1.0.0
-edgit tag create data-pipeline v1.0.0     # TypeScript ensemble
+edgit tag create prompts/extraction v1.0.0
+edgit tag create agents/company v2.1.0
+edgit tag create queries/validation v0.5.0
+edgit tag create schemas/invoice v1.0.0
+edgit tag create ensembles/data-pipeline v1.0.0
 
 # Deploy optimal combination
-edgit deploy set extraction-prompt v0.1.0 --to prod  # Ancient but perfect
-edgit deploy set company-agent v3.0.0 --to prod      # Latest stable
-edgit deploy set invoice-schema v1.0.0 --to prod     # Structured outputs
-edgit deploy set data-pipeline v1.0.0 --to prod      # Ensemble workflow
+edgit tag set prompts/extraction prod v0.1.0    # Ancient but perfect
+edgit tag set agents/company prod v3.0.0        # Latest stable
+edgit tag set schemas/invoice prod v1.0.0       # Structured outputs
 
-# Rollback one component instantly
-edgit deploy set extraction-prompt v0.1.0 --to prod  # &lt;50ms globally
+# Push tags to trigger deployment
+edgit push --tags
 ```
 
 ## Core Features
 
 ### Component Versioning
 
-**Components** are versioned artifacts that agents use:
+**Components** are hot-swappable artifacts that don't require rebuilds:
 
 - **Prompts** (`.md`) - AI instructions
 - **Configs** (`.json`, `.yaml`) - Settings
@@ -56,28 +63,31 @@ Each gets its own version history via Git tags.
 
 ```bash
 # Create version
-edgit tag create my-prompt v1.0.0
+edgit tag create prompts/extraction v1.0.0
 
 # List versions
-edgit tag list my-prompt
+edgit tag list prompts/extraction
 # Output: v1.0.0, v1.1.0, v1.2.0
 
 # View changes
-git show components/my-prompt/v1.0.0
+git show components/prompts/extraction/v1.0.0
 ```
 
 ### Agent Versioning
 
-**Agents** are workers that execute tasks. They can also be versioned independently:
+**Agents** are worker implementations that require rebuilds to deploy:
 
 ```bash
 # Version agent implementations
-edgit tag create scraper v1.5.0 --type=agent
-edgit tag create analyzer v2.0.0 --type=agent
+edgit tag create agents/scraper v1.5.0
+edgit tag create agents/analyzer v2.0.0
 
-# Deploy specific versions
-edgit deploy set scraper v1.5.0 --to prod
-edgit deploy set analyzer v2.0.0 --to prod
+# Set environment tags
+edgit tag set agents/scraper prod v1.5.0
+edgit tag set agents/analyzer prod v2.0.0
+
+# Push tags
+edgit push --tags
 ```
 
 Now you can reference versioned agents in ensembles:
@@ -100,13 +110,13 @@ agents:
 
 ```bash
 # Version TypeScript ensembles
-edgit tag create data-pipeline v1.0.0 --type=ensemble
+edgit tag create ensembles/data-pipeline v1.0.0
 
 # Version YAML ensembles
-edgit tag create scraping-workflow v2.0.0 --type=ensemble
+edgit tag create ensembles/scraping-workflow v2.0.0
 
-# Deploy specific versions
-edgit deploy set data-pipeline v1.0.0 --to prod
+# Set environment tags
+edgit tag set ensembles/data-pipeline prod v1.0.0
 ```
 
 TypeScript ensembles provide full type safety:
@@ -126,13 +136,51 @@ export default createEnsemble('data-pipeline')
   .build()
 ```
 
-Ensemble Git tags use their own namespace:
+### Git Tag Namespace
+
+All tags use a 4-level format: `{prefix}/{type}/{name}/{slot}`
 
 ```bash
-# Ensemble tags
-ensembles/data-pipeline/v1.0.0
-ensembles/data-pipeline/prod
-ensembles/scraping-workflow/v2.0.0
+# Components (hot-swappable)
+components/prompts/extraction/v1.0.0
+components/prompts/extraction/prod
+components/queries/validation/v0.5.0
+components/queries/validation/staging
+
+# Logic (requires rebuild)
+logic/agents/scraper/v1.5.0
+logic/agents/scraper/prod
+logic/ensembles/data-pipeline/v1.0.0
+logic/ensembles/data-pipeline/prod
+```
+
+**Prefix meanings:**
+- `components/` - Hot-swappable artifacts (prompts, queries, configs, scripts, schemas)
+- `logic/` - Requires rebuild to deploy (agents, ensembles)
+
+**Type examples:**
+- `prompts/`, `queries/`, `configs/`, `scripts/`, `schemas/` (under `components/`)
+- `agents/`, `ensembles/` (under `logic/`)
+
+**Slot types:**
+- Semantic versions: `v1.0.0`, `v2.1.3`
+- Environment tags: `prod`, `staging`, `dev`
+
+The prefix is automatically inferred from the file location in your repository.
+
+### Tag Commands
+
+```bash
+# Create immutable version tag
+edgit tag create prompts/extraction v1.0.0
+
+# Set mutable environment tag
+edgit tag set prompts/extraction prod v1.0.0
+edgit tag set agents/scraper staging v2.0.0-beta
+
+# Push tags to trigger deployment
+edgit push --tags
+edgit push --tags --force  # Force update remote tags
 ```
 
 ### Deployment Tracking
@@ -140,43 +188,21 @@ ensembles/scraping-workflow/v2.0.0
 Know exactly what's deployed where:
 
 ```bash
-# Mark as deployed
-edgit deploy set my-prompt v1.0.0 --to prod
-
 # Check status
 edgit components list --format tree
 # Output:
-# my-prompt (prompt)
+# extraction (prompt)
 #  v1.0.0 [prod]
 #  v0.9.0 [staging]
 #  v0.1.0
 
-# View deployment history
-edgit history my-prompt
-# Output:
-# production: v1.0.0 (deployed 2025-11-01 14:30)
-# staging: v0.9.0 (deployed 2025-10-28 10:15)
+# View versions
+edgit tag list prompts/extraction
+# Output: v1.0.0, v0.9.0, v0.1.0
+
+# View version details
+edgit tag show prompts/extraction@v1.0.0
 ```
-
-### Git Tag Namespace
-
-Components, agents, and ensembles use separate Git tag namespaces:
-
-```bash
-# Component tags
-components/extraction-prompt/v1.0.0
-components/extraction-prompt/prod
-
-# Agent tags
-agents/scraper/v1.5.0
-agents/scraper/prod
-
-# Ensemble tags
-ensembles/data-pipeline/v1.0.0
-ensembles/data-pipeline/prod
-```
-
-This keeps versioning clean and prevents naming collisions.
 
 ### Component Discovery
 
@@ -196,12 +222,6 @@ edgit discover detect src/my-function.ts
 # Type: script
 # Confidence: 95%
 # Suggested name: my-function
-
-# Detect TypeScript ensemble
-edgit discover detect ensembles/data-pipeline.ts
-# Type: ensemble
-# Confidence: 95%
-# Suggested name: data-pipeline
 
 # List untracked components
 edgit components list --untracked
@@ -302,12 +322,12 @@ export default createEnsemble('multiverse-test')
 Reproduce bugs from last week by recreating the exact environment:
 
 ```bash
-# What was deployed on Tuesday at 2:47 PM?
-edgit history --date="2024-11-05T14:47:00Z"
+# View tag history using Git
+git log --oneline refs/tags/components/prompts/extraction
 
-# Recreate that exact environment
-edgit deploy set extraction-prompt v3.1.0 --to debug
-edgit deploy set processor v1.9.2 --to debug
+# Recreate exact environment
+edgit tag set prompts/extraction debug v3.1.0
+edgit tag set agents/processor debug v1.9.2
 ```
 
 ## Next Steps

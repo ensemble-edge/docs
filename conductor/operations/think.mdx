@@ -933,43 +933,6 @@ ${agent.output._meta.provider}    # Provider (e.g., "openai")
 ${agent.output._meta.tokensUsed}  # Total tokens consumed
 ```
 
-### Legacy: Manual JSON Parsing
-
-For backwards compatibility, you can still parse JSON manually in code:
-
-```yaml
-operations:
-  - name: extract-json
-    operation: think
-    config:
-      provider: openai
-      model: gpt-4o-mini
-      responseFormat: json
-      prompt: |
-        Extract data as JSON:
-        {"name": "...", "email": "..."}
-
-        Text: ${input.text}
-
-  - name: use-data
-    operation: code
-    config:
-      script: scripts/parse-json-output
-    input:
-      json_output: ${extract-json.output.content}
-```
-
-```typescript
-// scripts/parse-json-output.ts
-import type { AgentExecutionContext } from '@ensemble-edge/conductor'
-
-export default function parseJsonOutput(context: AgentExecutionContext) {
-  const { json_output } = context.input
-  const data = JSON.parse(json_output)
-  return { userName: data.name }
-}
-```
-
 ## Testing
 
 Test AI operations with mocks:

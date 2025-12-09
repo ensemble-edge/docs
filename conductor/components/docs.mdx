@@ -65,7 +65,8 @@ Sign up to get your API key at {{signupUrl}}
 ```bash
 edgit components add getting-started docs/getting-started.md docs
 edgit tag create getting-started v1.0.0
-edgit deploy set getting-started v1.0.0 --to production
+edgit tag set getting-started production v1.0.0
+edgit push --tags --force
 ```
 
 ### 3. Use in Your Application

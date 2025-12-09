@@ -178,8 +178,9 @@ output:
 Switch environments:
 
 ```bash
-# Deploy v2.0.0 to green (no traffic yet)
-edgit deploy set my-prompt v2.0.0 --to green
+# Tag v2.0.0 for green (no traffic yet)
+edgit tag set my-prompt green v2.0.0
+edgit push --tags --force
 
 # Test green environment
 curl https://api.example.com/test?env=green

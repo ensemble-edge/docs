@@ -1,11 +1,11 @@
 ---
-title: 'Operation Registry'
+title: 'Plugin Registry'
 description: 'Global registry for custom operations that work everywhere'
 ---
 
-# Operation Registry
+# Plugin Registry
 
-The Operation Registry is the core of Conductor's plugin system. It's a global singleton that stores all operations (built-in and custom) and makes them available across all contexts.
+The Plugin Registry is the core of Conductor's plugin system. It's a global singleton that stores all operations (built-in and custom) and makes them available across all contexts.
 
 ## Key Concepts
 
@@ -25,9 +25,9 @@ No context-specific code needed!
 The registry is a singleton - there's only one instance per Worker:
 
 ```typescript
-import { getOperationRegistry } from '@ensemble-edge/conductor'
+import { getPluginRegistry } from '@ensemble-edge/conductor'
 
-const registry = getOperationRegistry()
+const registry = getPluginRegistry()
 // Always returns the same instance
 ```
 
@@ -99,9 +99,9 @@ operations:
 ### Basic Registration
 
 ```typescript
-import { getOperationRegistry, type OperationHandler } from '@ensemble-edge/conductor'
+import { getPluginRegistry, type OperationHandler } from '@ensemble-edge/conductor'
 
-const registry = getOperationRegistry()
+const registry = getPluginRegistry()
 
 const handler: OperationHandler = {
   async execute(operation, context) {
@@ -122,7 +122,7 @@ registry.register('custom:op', handler, {
   description: 'Custom operation description',
   version: '1.0.0',
   author: '@conductor/custom',
-  contexts: ['page', 'form'],  // or ['all']
+  contexts: ['form', 'api'],  // or ['all']
   tags: ['custom', 'data'],
   inputs: {
     foo: 'string',
@@ -147,7 +147,7 @@ interface OperationContext {
   query?: Record<string, string>    // Query string parameters
   headers?: Record<string, string>  // Request headers
   data?: Record<string, any>        // Input data
-  contextType: 'ensemble' | 'page' | 'form' | 'api' | 'webhook'
+  contextType: 'ensemble' | 'form' | 'api' | 'webhook'
 }
 ```
 
@@ -163,8 +163,8 @@ const handler: OperationHandler = {
     const userId = context.params?.userId
 
     // Check context type
-    if (context.contextType === 'page') {
-      // Page-specific logic
+    if (context.contextType === 'ensemble') {
+      // Ensemble-specific logic
     }
 
     return { success: true }
@@ -212,8 +212,8 @@ const all = registry.list()
 ### List by Context
 
 ```typescript
-const pageOps = registry.listByContext('page')
-// Only operations that work in page context
+const formOps = registry.listByContext('form')
+// Only operations that work in form context
 ```
 
 ### List by Tag
@@ -237,7 +237,7 @@ if (registry.has('plasmic:render')) {
 const meta = registry.getMetadata('plasmic:render')
 console.log(meta.description)  // "Render Plasmic component"
 console.log(meta.version)      // "1.0.0"
-console.log(meta.contexts)     // ['page', 'form']
+console.log(meta.contexts)     // ['form', 'api']
 console.log(meta.tags)         // ['ui', 'visual', 'render']
 ```
 
@@ -249,12 +249,12 @@ Operations can check their execution context:
 const handler: OperationHandler = {
   async execute(operation, context) {
     switch (context.contextType) {
-      case 'page':
-        return await handlePageContext(operation, context)
-      case 'api':
-        return await handleApiContext(operation, context)
       case 'ensemble':
         return await handleEnsembleContext(operation, context)
+      case 'api':
+        return await handleApiContext(operation, context)
+      case 'form':
+        return await handleFormContext(operation, context)
       default:
         throw new Error(`Unsupported context: ${context.contextType}`)
     }
@@ -264,7 +264,7 @@ const handler: OperationHandler = {
 registry.register('context:aware', handler, {
   name: 'context:aware',
   description: 'Context-aware operation',
-  contexts: ['page', 'api', 'ensemble']  // Specify supported contexts
+  contexts: ['ensemble', 'api', 'form']  // Specify supported contexts
 })
 ```
 
@@ -279,7 +279,7 @@ interface OperationMetadata {
   version?: string                // Semver version
   author?: string                 // Plugin/package name
   contexts?: Array<               // Supported contexts
-    'ensemble' | 'page' | 'form' | 'api' | 'webhook' | 'all'
+    'ensemble' | 'form' | 'api' | 'webhook' | 'all'
   >
   inputs?: Record<string, any>    // Input schema (for docs/validation)
   outputs?: Record<string, any>   // Output schema (for docs/validation)
@@ -291,13 +291,13 @@ interface OperationMetadata {
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest'
-import { getOperationRegistry } from '@ensemble-edge/conductor'
+import { getPluginRegistry } from '@ensemble-edge/conductor'
 
 describe('Custom Operation', () => {
   let registry
 
   beforeEach(() => {
-    registry = getOperationRegistry()
+    registry = getPluginRegistry()
     registry.reset() // Reset to clean state
   })
 
@@ -342,7 +342,7 @@ registry.register('op', handler, {
   description: 'Clear, concise description',
   version: '1.0.0',
   author: '@conductor/plugin',
-  contexts: ['page'],  // Be explicit
+  contexts: ['ensemble'],  // Be explicit
   tags: ['ui', 'render'],  // Aid discovery
 })
 ```
@@ -402,3 +402,7 @@ registry.reset()
 - [Creating a Lifecycle Plugin](/conductor/plugins/lifecycle-plugins)
 - [Plugin Examples](/conductor/plugins/examples)
 - [Plugin Best Practices](/conductor/plugins/best-practices)
+
+<Note>
+The Plugin Registry was previously known as the "Operation Registry". The API remains the same, but the class and function names now use "Plugin" prefix for consistency with the plugin system terminology.
+</Note>

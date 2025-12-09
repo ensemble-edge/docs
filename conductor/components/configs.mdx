@@ -37,7 +37,8 @@ Create a JSON configuration file:
 ```bash
 edgit components add anthropic-settings configs/anthropic-settings.json config
 edgit tag create anthropic-settings v1.0.0
-edgit deploy set anthropic-settings v1.0.0 --to production
+edgit tag set anthropic-settings production v1.0.0
+edgit push --tags --force
 ```
 
 ### 3. Reference in Your Ensemble

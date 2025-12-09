@@ -670,54 +670,6 @@ trigger:
     path: /webhooks/unsafe  # Error: requires auth or public: true
 ```
 
-## Migration Guide
-
-If you're migrating from the old `webhook:` config to the new model:
-
-### Old Configuration
-
-```yaml
-ensemble: my-workflow
-
-webhook:
-  url: https://api.example.com/hooks
-  events: [execution.completed]
-  secret: ${env.SECRET}
-
-agents:
-  # ...
-```
-
-### New Configuration
-
-```yaml
-name: my-workflow
-
-notifications:
-  - type: webhook
-    url: https://api.example.com/hooks
-    events: [execution.completed]
-    secret: ${env.SECRET}
-
-flow:
-  - agent: process
-
-agents:
-  - name: process
-    operation: think
-    config:
-      # ... agent config
-
-outputs:
-  result: ${process.output}
-```
-
-**Key Changes**:
-- `webhook:` -> `notifications:` (array)
-- Single webhook -> Multiple notifications supported
-- Can mix webhook and email notifications
-- Inbound webhooks moved to `trigger:` array
-
 ## Next Steps
 
 <CardGroup cols={2}>

@@ -46,15 +46,21 @@ edgit tag create company-agent v2.1.0
 edgit tag create validation-query v0.5.0
 
 # Deploy the optimal combination - cherry-pick from history
-edgit deploy set extraction-prompt v0.1.0 --to prod  # Ancient but perfect
-edgit deploy set company-agent v3.0.0 --to prod      # Latest stable
-edgit deploy set validation-query v2.5.0 --to prod   # Best performance
+edgit tag set extraction-prompt prod v0.1.0  # Ancient but perfect
+edgit push --tags --force
+
+edgit tag set company-agent prod v3.0.0      # Latest stable
+edgit push --tags --force
+
+edgit tag set validation-query prod v2.5.0   # Best performance
+edgit push --tags --force
 
 # Instant rollback
-edgit deploy set extraction-prompt v0.1.0 --to prod  # &lt;50ms globally
+edgit tag set extraction-prompt prod v0.1.0  # &lt;50ms globally
+edgit push --tags --force
 ```
 
-**No merge conflicts. No monorepo hell. No JSON state files.**
+**Edgit creates and manages git tags. That's it.** GitHub Actions handles deployment.
 
 All version data lives in Git tags. Your CI/CD deploys to Cloudflare KV. Every version ever created is instantly accessible at the edge.
 
@@ -186,7 +192,8 @@ Then orchestrates them at the edge where they execute fast and scale infinitely.
   <Card title="Version Components" icon="tags" href="/edgit/guides/versioning-components-agents">
     ```bash
     npx @ensemble-edge/edgit tag create my-prompt v1.0.0
-    npx @ensemble-edge/edgit deploy set my-prompt v1.0.0 --to prod
+    npx @ensemble-edge/edgit tag set my-prompt prod v1.0.0
+    npx @ensemble-edge/edgit push --tags --force
     ```
   </Card>
 

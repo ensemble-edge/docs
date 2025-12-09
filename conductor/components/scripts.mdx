@@ -523,8 +523,9 @@ edgit components add transform-data scripts/transform-data.ts script
 # Create version tag
 edgit tag create transform-data v1.0.0
 
-# Deploy to production
-edgit deploy set transform-data v1.0.0 --to production
+# Tag for production
+edgit tag set transform-data production v1.0.0
+edgit push --tags --force
 ```
 
 Reference versioned scripts:

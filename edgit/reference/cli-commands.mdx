@@ -82,16 +82,16 @@ Repository
   Components:       12 tracked (3 untracked)
 
 Recent Versions (5 of 24 total)
-  prompts/extraction-prompt/v1.2.0    2024-11-15
-  configs/api-config/v2.0.1           2024-11-14
-  ensembles/data-pipeline/v1.0.0      2024-11-12
-  agents/scraper/v3.1.0               2024-11-10
-  prompts/analysis-prompt/v1.0.0      2024-11-08
+  components/prompts/extraction/v1.2.0    2024-11-15
+  components/configs/api-config/v2.0.1    2024-11-14
+  components/ensembles/data-pipeline/v1.0.0      2024-11-12
+  logic/agents/scraper/v3.1.0             2024-11-10
+  components/prompts/analysis/v1.0.0      2024-11-08
 
 Deployments
-  extraction-prompt    prod: v1.2.0    staging: v1.1.0
-  api-config           prod: v2.0.1    staging: v2.0.1
-  data-pipeline        prod: v1.0.0    staging: v1.0.0
+  extraction        prod: v1.2.0    staging: v1.1.0
+  api-config        prod: v2.0.1    staging: v2.0.1
+  data-pipeline     prod: v1.0.0    staging: v1.0.0
 
 Docs: https://docs.ensemble.ai/edgit
 ```
@@ -129,18 +129,18 @@ ensemble edgit info --json
     "total": 24,
     "recent": [
       {
-        "tag": "prompts/extraction-prompt/v1.2.0",
+        "tag": "components/prompts/extraction/v1.2.0",
         "date": "2024-11-15"
       },
       {
-        "tag": "configs/api-config/v2.0.1",
+        "tag": "components/configs/api-config/v2.0.1",
         "date": "2024-11-14"
       }
     ]
   },
   "deployments": [
     {
-      "component": "extraction-prompt",
+      "component": "extraction",
       "prod": "v1.2.0",
       "staging": "v1.1.0"
     }
@@ -199,14 +199,12 @@ edgit components add <type> <name> <path> [options]
 
 **Options:**
 - `--description` - Human-readable description
-- `--type=agent` - Register as agent (for agent implementations)
-- `--type=ensemble` - Register as ensemble (for workflow definitions)
 
 **Examples:**
 
 ```bash
 # Register prompt
-edgit components add prompt extraction-prompt components/prompts/extraction.md
+edgit components add prompt extraction components/prompts/extraction.md
 
 # Register config
 edgit components add config api-config components/configs/api.json
@@ -224,7 +222,7 @@ edgit components add template header components/templates/header.html
 edgit components add docs getting-started components/docs/getting-started.md
 
 # Register agent
-edgit components add agent scraper agents/scraper/ --type=agent
+edgit components add agent scraper agents/scraper/
 
 # Register TypeScript ensemble
 edgit components add ensemble data-pipeline ensembles/data-pipeline.ts
@@ -252,7 +250,7 @@ edgit components list [options]
 # Tree view (default)
 edgit components list --format tree
 # Output:
-# extraction-prompt (prompt)
+# extraction (prompt)
 #  v1.0.0 [prod]
 #  v0.9.0 [staging]
 #  v0.1.0
@@ -260,8 +258,8 @@ edgit components list --format tree
 # Table view
 edgit components list --format table
 # Output:
-# Component          Type    Latest   Prod     Staging
-# extraction-prompt  prompt  v1.0.0   v1.0.0   v0.9.0
+# Component    Type    Latest   Prod     Staging
+# extraction   prompt  v1.0.0   v1.0.0   v0.9.0
 
 # JSON (for scripts)
 edgit components list --format json
@@ -288,23 +286,45 @@ edgit components remove <name>
 
 ## Versioning
 
+### Tag Format
+
+Edgit uses a 4-level tag format:
+
+```
+{prefix}/{type}/{name}/{slot}
+```
+
+- **prefix** - `components` or `logic` (inferred from file location)
+- **type** - `prompts`, `agents`, `schemas`, etc.
+- **name** - Component name
+- **slot** - Version (e.g., `v1.0.0`) or environment (e.g., `production`, `staging`)
+
+**Examples:**
+```bash
+components/prompts/extraction/v1.0.0
+components/prompts/extraction/production
+components/schemas/user/v2.1.0
+logic/agents/classifier/staging
+logic/agents/classifier/v1.5.0
+```
+
 ### Type-Specific Tag Namespaces
 
-Edgit uses type-specific namespaces for Git tags. Each component type gets its own namespace:
+Each component type gets its own namespace in the 4-level format:
 
-| Component Type | Tag Namespace | Example Tag |
-|----------------|---------------|-------------|
-| `prompt` | `prompts/` | `prompts/extraction-prompt/v1.0.0` |
-| `schema` | `schemas/` | `schemas/user-schema/v1.0.0` |
-| `config` | `configs/` | `configs/api-config/v1.0.0` |
-| `script` | `scripts/` | `scripts/transform/v1.0.0` |
-| `query` | `queries/` | `queries/analytics-query/v1.0.0` |
-| `template` | `templates/` | `templates/email-header/v1.0.0` |
-| `tool` | `tools/` | `tools/calculator/v1.0.0` |
-| `agent` | `agents/` | `agents/scraper/v1.0.0` |
-| `ensemble` | `ensembles/` | `ensembles/data-pipeline/v1.0.0` |
+| Component Type | Tag Example |
+|----------------|-------------|
+| `prompt` | `components/prompts/extraction/v1.0.0` |
+| `schema` | `components/schemas/user/v1.0.0` |
+| `config` | `components/configs/api/v1.0.0` |
+| `script` | `components/scripts/transform/v1.0.0` |
+| `query` | `components/queries/analytics/v1.0.0` |
+| `template` | `components/templates/email/v1.0.0` |
+| `tool` | `components/tools/calculator/v1.0.0` |
+| `agent` | `logic/agents/scraper/v1.0.0` |
+| `ensemble` | `components/ensembles/pipeline/v1.0.0` |
 
-This allows components of different types to have the same name without conflicts.
+The prefix (`components` or `logic`) is automatically inferred from the component's file location.
 
 ### `edgit tag create`
 
@@ -315,40 +335,68 @@ edgit tag create <name> <version> [options]
 ```
 
 **Arguments:**
-- `name` - Component or agent name
+- `name` - Component name
 - `version` - Semantic version (v{major}.{minor}.{patch})
 
 **Options:**
-- `--type=agent` - Tag an agent (default: component)
-- `--type=ensemble` - Tag an ensemble
 - `-m <message>` - Tag message
-- `--force` - Overwrite existing tag
 
 **Examples:**
 
 ```bash
 # Version a component
-edgit tag create extraction-prompt v1.0.0
+edgit tag create extraction v1.0.0
 
 # Version with message
-edgit tag create extraction-prompt v1.0.0 -m "Initial stable release"
+edgit tag create extraction v1.0.0 -m "Initial stable release"
 
-# Version an agent
-edgit tag create scraper v1.5.0 --type=agent
+# Version an agent (prefix inferred from location)
+edgit tag create scraper v1.5.0
 
-# Version a TypeScript ensemble
-edgit tag create data-pipeline v1.0.0 --type=ensemble
-
-# Version with message
-edgit tag create data-pipeline v2.0.0 --type=ensemble -m "Added parallel processing"
-
-# Force overwrite
-edgit tag create extraction-prompt v1.0.0 --force
+# Version an ensemble
+edgit tag create data-pipeline v1.0.0 -m "Added parallel processing"
 ```
+
+<Note>
+Version tags are immutable and don't require `--force` to push.
+</Note>
+
+### `edgit tag set`
+
+Create or move a mutable environment tag:
+
+```bash
+edgit tag set <component> <environment> [ref]
+```
+
+**Arguments:**
+- `component` - Component name
+- `environment` - Environment name (production, staging, dev, etc.)
+- `ref` - Optional git ref (default: HEAD)
+
+**Examples:**
+
+```bash
+# Set staging to current HEAD
+edgit tag set extraction staging
+
+# Set production to a specific version
+edgit tag set extraction production v1.0.0
+
+# Set from a branch
+edgit tag set extraction staging feature-branch
+
+# Agent environment tags
+edgit tag set classifier staging HEAD
+```
+
+<Note>
+Environment tags are mutable and require `--force` when pushing if the tag has moved: `edgit push --tags --force`
+</Note>
 
 ### `edgit tag list`
 
-List versions of a component or agent:
+List versions of a component:
 
 ```bash
 edgit tag list <name> [options]
@@ -362,26 +410,26 @@ edgit tag list <name> [options]
 
 ```bash
 # List versions
-edgit tag list extraction-prompt
+edgit tag list extraction
 # Output:
 # v1.0.0
 # v1.0.1
 # v1.1.0
 
 # With dates
-edgit tag list extraction-prompt --with-dates
+edgit tag list extraction --with-dates
 # Output:
 # v1.0.0 (2024-10-15)
 # v1.0.1 (2024-10-18)
 # v1.1.0 (2024-10-25)
 
 # JSON output (useful for scripting and CI/CD)
-edgit tag list extraction-prompt --format json
+edgit tag list extraction --format json
 # Output:
 # {
-#   "name": "extraction-prompt",
+#   "name": "extraction",
 #   "type": "prompt",
-#   "namespace": "prompts",
+#   "namespace": "components/prompts",
 #   "versions": [
 #     {"version": "v1.0.0", "date": "2024-10-15T10:30:00Z"},
 #     {"version": "v1.0.1", "date": "2024-10-18T14:22:00Z"},
@@ -405,22 +453,22 @@ edgit tag show <name>@<version> [options]
 
 ```bash
 # Show version details
-edgit tag show extraction-prompt@v1.0.0
+edgit tag show extraction@v1.0.0
 # Output:
-# Tag: prompts/extraction-prompt/v1.0.0
+# Tag: components/prompts/extraction/v1.0.0
 # Date: 2024-10-15T10:30:00Z
 # Author: John Doe <john@example.com>
 # Message: Initial stable release
 
 # JSON output (useful for CI/CD pipelines)
-edgit tag show extraction-prompt@v1.0.0 --format json
+edgit tag show extraction@v1.0.0 --format json
 # Output:
 # {
-#   "name": "extraction-prompt",
+#   "name": "extraction",
 #   "version": "v1.0.0",
 #   "type": "prompt",
-#   "namespace": "prompts",
-#   "tag": "prompts/extraction-prompt/v1.0.0",
+#   "namespace": "components/prompts",
+#   "tag": "components/prompts/extraction/v1.0.0",
 #   "sha": "abc123...",
 #   "date": "2024-10-15T10:30:00Z",
 #   "author": "John Doe <john@example.com>",
@@ -438,63 +486,34 @@ edgit tag delete <name> <version>
 
 **Caution:** This deletes the Git tag. Use sparingly.
 
-## Deployment
+## Push
 
-### `edgit deploy set`
+### `edgit push`
 
-Deploy a version to an environment:
-
-```bash
-edgit deploy set <name> <version> --to <environment> [options]
-```
-
-**Arguments:**
-- `name` - Component or agent name
-- `version` - Version to deploy
-- `--to` - Target environment (prod, staging, dev, etc.)
-
-**Options:**
-- `--type=agent` - Deploy an agent
-- `--type=ensemble` - Deploy an ensemble
-
-**Examples:**
+Push commits and tags to remote:
 
 ```bash
-# Deploy to staging
-edgit deploy set extraction-prompt v1.0.0 --to staging
-
-# Deploy to production
-edgit deploy set extraction-prompt v1.0.0 --to prod
-
-# Deploy agent
-edgit deploy set scraper v1.5.0 --to prod --type=agent
-
-# Deploy TypeScript ensemble
-edgit deploy set data-pipeline v1.0.0 --to prod --type=ensemble
-
-# Deploy to custom environment
-edgit deploy set extraction-prompt v1.0.0 --to canary
-```
-
-### `edgit deploy get`
-
-Get deployed version for an environment:
-
-```bash
-edgit deploy get <name> --from <environment>
+edgit push                    # Push commits only
+edgit push --tags             # Push commits + all tags
+edgit push --tags --force     # Push with force (for moved environment tags)
 ```
 
 **Examples:**
 
 ```bash
-# Get production version
-edgit deploy get extraction-prompt --from prod
-# Output: v1.0.0
+# Push commits only
+edgit push
 
-# Get staging version
-edgit deploy get extraction-prompt --from staging
-# Output: v0.9.0
+# Push commits and all tags
+edgit push --tags
+
+# Push with force (needed when moving environment tags)
+edgit push --tags --force
 ```
+
+<Note>
+Use `--force` when pushing moved environment tags (production, staging, etc.). Version tags are immutable and never need `--force`.
+</Note>
 
 ## Discovery
 
@@ -616,41 +635,6 @@ edgit discover patterns list --format json
 # }
 ```
 
-## History
-
-### `edgit history`
-
-View deployment history:
-
-```bash
-edgit history [name] [options]
-```
-
-**Options:**
-- `--date <ISO8601>` - Show versions at specific date/time
-- `--from <environment>` - Filter by environment
-- `--format <type>` - Output format (text, json)
-
-**Examples:**
-
-```bash
-# Component history
-edgit history extraction-prompt
-# Output:
-# prod: v1.0.0 (deployed 2024-11-01 14:30)
-# staging: v0.9.0 (deployed 2024-10-28 10:15)
-
-# All components at specific time
-edgit history --date="2024-11-05T14:47:00Z"
-# Output:
-# extraction-prompt: v1.0.5
-# analysis-prompt: v1.9.2
-# validation-config: v1.4.0
-
-# JSON format
-edgit history extraction-prompt --format json
-```
-
 ## Git Pass-Through
 
 **All `git` commands work with Edgit:**
@@ -659,15 +643,12 @@ edgit history extraction-prompt --format json
 # Standard git commands via edgit
 edgit add .
 edgit commit -m "message"
-edgit push
 edgit pull
 edgit checkout -b feature
 edgit merge main
 edgit status
 edgit log
 edgit diff
-
-# Edgit passes through to git
 ```
 
 <Note>
@@ -747,38 +728,41 @@ edgit tag create my-prompt v1.0.0  # Automatically pushes
 
 ```bash
 # 1. Register component
-edgit components add prompt my-prompt components/prompts/my-prompt.md
+edgit components add prompt extraction components/prompts/extraction.md
 
 # 2. Create version
-edgit tag create my-prompt v1.0.0
+edgit tag create extraction v1.0.0
 
 # 3. Push tag
-git push --tags
+edgit push --tags
 ```
 
 ### Deploy Pipeline
 
 ```bash
 # 1. Deploy to staging
-edgit deploy set my-prompt v1.0.0 --to staging
-git push --tags
+edgit tag set extraction staging v1.0.0
+edgit push --tags --force
 
 # 2. Test in staging...
 
 # 3. Promote to production
-edgit deploy set my-prompt v1.0.0 --to prod
-git push --tags
+edgit tag set extraction production v1.0.0
+edgit push --tags --force
 ```
 
 ### Rollback
 
 ```bash
-# 1. Check history
-edgit history my-prompt
+# 1. Check version history
+edgit tag list extraction --with-dates
 
-# 2. Rollback to previous
-edgit deploy set my-prompt v0.9.0 --to prod
-git push --tags
+# 2. See details of a specific version
+edgit tag show extraction@v0.9.0
+
+# 3. Rollback to previous version
+edgit tag set extraction production v0.9.0
+edgit push --tags --force
 ```
 
 ### Discovery
@@ -788,10 +772,10 @@ git push --tags
 edgit discover scan
 
 # 2. Register interesting ones
-edgit components add prompt analysis-prompt components/prompts/analysis.md
+edgit components add prompt analysis components/prompts/analysis.md
 
 # 3. Version them
-edgit tag create analysis-prompt v1.0.0
+edgit tag create analysis v1.0.0
 ```
 
 ## Tips
@@ -803,7 +787,7 @@ Add to your `.bashrc` or `.zshrc` for convenience:
 ```bash
 alias edgit='npx @ensemble-edge/edgit'
 alias et='edgit tag create'
-alias ed='edgit deploy set'
+alias ed='edgit tag set'
 ```
 
 ### Auto-Completion

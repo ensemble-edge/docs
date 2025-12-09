@@ -70,11 +70,10 @@ agents:
 **Deploy both versions:**
 
 ```bash
-# Deploy variant A (conservative)
-edgit deploy set extraction-prompt v1.0.0 --to prod
-
-# Deploy variant B (aggressive)
-edgit deploy set extraction-prompt v2.0.0 --to prod
+# Tag both versions for production
+edgit tag set extraction-prompt prod v1.0.0
+edgit tag set extraction-prompt prod v2.0.0
+edgit push --tags --force
 
 # Both versions live simultaneously at the edge
 ```
@@ -504,11 +503,13 @@ if (pValue < (1 - CONFIDENCE)) {
 ### Instant Deployment
 
 ```bash
-# Deploy new prompt version globally in < 50ms
-edgit deploy set extraction-prompt v2.0.0 --to prod
+# Deploy new prompt version globally
+edgit tag set extraction-prompt prod v2.0.0
+edgit push --tags --force
 
 # Instant rollback if quality drops
-edgit deploy set extraction-prompt v1.0.0 --to prod
+edgit tag set extraction-prompt prod v1.0.0
+edgit push --tags --force
 ```
 
 **No build step. No container deployment. No waiting.**
@@ -562,14 +563,15 @@ const variant = getVariant(request.headers.get('x-user-id'));
 
 ```bash
 # Register prompt as component
-edgit components add prompt extraction-prompt components/prompts/extraction.md
+edgit components add extraction-prompt components/prompts/extraction.md prompt
 
 # Create versions
 edgit tag create extraction-prompt v1.0.0
 edgit tag create extraction-prompt v2.0.0
 
-# Deploy independently
-edgit deploy set extraction-prompt v1.0.0 --to prod
+# Tag for production
+edgit tag set extraction-prompt prod v1.0.0
+edgit push --tags --force
 ```
 
 ### 2. Test One Dimension at a Time

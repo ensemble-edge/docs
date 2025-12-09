@@ -21,71 +21,88 @@ git push           # Push to trigger CI/CD
 
 **Edgit approach:**
 ```bash
-edgit deploy set my-prompt v1.0.0 --to prod
-# &lt;50ms later, you're back to working version
+# Check current deployment
+edgit tag list prompts/extraction
+
+# Rollback by setting env tag to previous version
+edgit tag set prompts/extraction production v1.0.0
+edgit push --tags --force
+
+# <50ms later, you're back to working version
 ```
 
 ### How It Works
 
-Edgit deployments are just Git tags:
+Edgit uses a 4-level tag format: `components/prompts/extraction/production`
+
+Environment tags (like `production`, `staging`) are **mutable** - they move to point at different versions. This is why you need `--force` when pushing: Git requires it to update remote tags that already exist.
 
 ```bash
 # Current state (broken)
-components/my-prompt/prod  v1.1.0
+components/prompts/extraction/production → v1.1.0
 
 # Rollback (instant)
-edgit deploy set my-prompt v1.0.0 --to prod
-# Updates tag: components/my-prompt/prod  v1.0.0
+edgit tag set prompts/extraction production v1.0.0
+# Moves tag: components/prompts/extraction/production → v1.0.0
 
-# Push tag
-git push --tags
+# Push tag (--force required for mutable tags)
+edgit push --tags --force
 
-# CI/CD updates Cloudflare KV (or your runtime)
-# Conductor reads new version from KV
-# &lt;50ms globally, you're back to v1.0.0
+# GitHub Actions detects tag push and deploys
+# Conductor reads new version from runtime
+# <50ms globally, you're back to v1.0.0
 ```
+
+**Philosophy:** Edgit creates/moves tags. GitHub Actions detects the tag push and deploys. Separation of concerns.
+
+### Why --force is Required
+
+Environment tags are mutable pointers. When you rollback:
+
+1. `production` tag already exists pointing to v1.1.0
+2. You move it to point to v1.0.0
+3. Git sees this as "rewriting" the tag
+4. `--force` tells Git: "Yes, I want to move this tag"
+
+This is safe - you're not rewriting history, just moving an environment pointer.
 
 ## Emergency Rollback Playbook
 
-### Step 1: Identify the Problem
+### Step 1: Check Current Deployment
 
 ```bash
-# Check current deployed versions
-edgit components list --format tree
+edgit tag list prompts/extraction
 # Output:
-# my-prompt (prompt)
-#  v1.1.0 [prod]  This is currently deployed
-#  v1.0.0
-#  v0.9.0
+# components/prompts/extraction/production → v1.1.0
+# components/prompts/extraction/staging → v1.1.0
+# components/prompts/extraction/v1.1.0 → abc123
+# components/prompts/extraction/v1.0.0 → def456
 ```
 
 ### Step 2: Find Last Known Good Version
 
 ```bash
-# View deployment history
-edgit history my-prompt
-# Output:
-# prod: v1.1.0 (deployed 2024-11-12 14:45)  Current (broken)
-# prod: v1.0.0 (deployed 2024-11-08 10:30)  Last good
-# prod: v0.9.0 (deployed 2024-11-01 09:15)
+# View available versions
+edgit tag list prompts/extraction
+# Shows: production → v1.1.0 (current/broken)
+# Shows: v1.1.0, v1.0.0, v0.9.0 available
+
+# Choose last known good version (e.g., v1.0.0)
 ```
 
 ### Step 3: Rollback
 
 ```bash
 # Rollback to last known good
-edgit deploy set my-prompt v1.0.0 --to prod
+edgit tag set prompts/extraction production v1.0.0
 
-# Push tags
-git push --tags
+# Push tags (--force required for mutable env tags)
+edgit push --tags --force
 
 # Verify
-edgit components list --format tree
+edgit tag list prompts/extraction
 # Output:
-# my-prompt (prompt)
-#  v1.1.0
-#  v1.0.0 [prod]  Now deployed
-#  v0.9.0
+# components/prompts/extraction/production → v1.0.0
 ```
 
 ### Step 4: Monitor
@@ -102,13 +119,13 @@ curl https://prod.example.com/test
 
 ```bash
 # What changed between v1.0.0 and v1.1.0?
-git diff components/my-prompt/v1.0.0 components/my-prompt/v1.1.0
+git diff components/prompts/extraction/v1.0.0 components/prompts/extraction/v1.1.0
 
 # View commit message
-git show components/my-prompt/v1.1.0 --format=%B --no-patch
+git show components/prompts/extraction/v1.1.0 --format=%B --no-patch
 ```
 
-**Total time:** &lt;2 minutes from "production is broken" to "production is fixed."
+**Total time:** <2 minutes from "production is broken" to "production is fixed."
 
 ## Partial Rollback
 
@@ -117,19 +134,18 @@ You don't have to rollback everything. Roll back only what's broken.
 ### Scenario
 
 You deployed 3 components at once:
-- `extraction-prompt` v1.1.0  Works fine
-- `analysis-prompt` v2.0.0  BROKEN
-- `validation-config` v1.5.0  Works fine
+- `prompts/extraction` v1.1.0  Works fine
+- `prompts/analysis` v2.0.0  BROKEN
+- `configs/validation` v1.5.0  Works fine
 
 ```bash
 # Only rollback the broken component
-edgit deploy set analysis-prompt v1.9.0 --to prod
+edgit tag set prompts/analysis production v1.9.0
+edgit push --tags --force
 
 # Keep the others
-# extraction-prompt still at v1.1.0
-# validation-config still at v1.5.0
-
-git push --tags
+# prompts/extraction still at v1.1.0
+# configs/validation still at v1.5.0
 ```
 
 **This is the power of independent versioning.**
@@ -146,26 +162,29 @@ You need to reproduce the exact environment that was running at that moment.
 
 ```bash
 # What versions were deployed on Tuesday at 2:47 PM?
-edgit history --date="2024-11-12T14:47:00Z"
+# Use Git to find tags created around that time
+git for-each-ref --sort=creatordate \
+  --format '%(creatordate:iso) %(refname:short)' \
+  refs/tags/components/ | grep "2024-11-12"
 
-# Output:
-# extraction-prompt: v1.0.5
-# analysis-prompt: v1.9.2
-# validation-config: v1.4.0
-# transform-script: v2.1.3
+# Identify versions that were active:
+# prompts/extraction: v1.0.5
+# prompts/analysis: v1.9.2
+# configs/validation: v1.4.0
+# scripts/transform: v2.1.3
 ```
 
 Now recreate that exact state:
 
 ```bash
 # Deploy to debug environment
-edgit deploy set extraction-prompt v1.0.5 --to debug
-edgit deploy set analysis-prompt v1.9.2 --to debug
-edgit deploy set validation-config v1.4.0 --to debug
-edgit deploy set transform-script v2.1.3 --to debug
+edgit tag set prompts/extraction debug v1.0.5
+edgit tag set prompts/analysis debug v1.9.2
+edgit tag set configs/validation debug v1.4.0
+edgit tag set scripts/transform debug v2.1.3
 
 # Push tags
-git push --tags
+edgit push --tags --force
 ```
 
 Test in debug environment:
@@ -183,33 +202,34 @@ curl https://debug.example.com/test \
 
 ```bash
 # Test each version individually
-# Was it extraction-prompt v1.0.5?
-edgit deploy set extraction-prompt v1.0.6 --to debug  # Try next version
+# Was it prompts/extraction v1.0.5?
+edgit tag set prompts/extraction debug v1.0.6  # Try next version
 # Test...
 
-# Was it analysis-prompt v1.9.2?
-edgit deploy set analysis-prompt v1.9.3 --to debug  # Try next version
+# Was it prompts/analysis v1.9.2?
+edgit tag set prompts/analysis debug v1.9.3  # Try next version
 # Test...
 
-# Found it! analysis-prompt v1.9.2 has the bug
+# Found it! prompts/analysis v1.9.2 has the bug
 ```
 
 Now fix and deploy:
 
 ```bash
-# Fix the bug in analysis-prompt
+# Fix the bug in prompts/analysis
 vim components/prompts/analysis.md
 
 # Create new version
-edgit tag create analysis-prompt v1.9.4
+edgit tag create prompts/analysis v1.9.4
 
 # Test in debug
-edgit deploy set analysis-prompt v1.9.4 --to debug
+edgit tag set prompts/analysis debug v1.9.4
+edgit push --tags --force
 # Verify fix...
 
 # Deploy to production
-edgit deploy set analysis-prompt v1.9.4 --to prod
-git push --tags
+edgit tag set prompts/analysis production v1.9.4
+edgit push --tags --force
 ```
 
 ## Rollback Strategies
@@ -220,11 +240,12 @@ git push --tags
 
 ```bash
 # Don't investigate, just rollback
-edgit deploy set my-prompt v1.0.0 --to prod
-git push --tags
+edgit tag set prompts/extraction production v1.0.0
+edgit push --tags --force
 
 # Investigate later in debug environment
-edgit deploy set my-prompt v1.1.0 --to debug
+edgit tag set prompts/extraction debug v1.1.0
+edgit push --tags --force
 ```
 
 ### Strategy 2: Gradual Rollback
@@ -238,7 +259,8 @@ wrangler kv:key put --namespace-id=$KV_ID "rollout-percentage" "10"
 # Monitor error rates...
 
 # If still high, full rollback
-edgit deploy set my-prompt v1.0.0 --to prod
+edgit tag set prompts/extraction production v1.0.0
+edgit push --tags --force
 ```
 
 ### Strategy 3: Targeted Rollback
@@ -247,11 +269,13 @@ edgit deploy set my-prompt v1.0.0 --to prod
 
 ```bash
 # Rollback for specific region
-edgit deploy set my-prompt v1.0.0 --to prod-us-west
+edgit tag set prompts/extraction production-us-west v1.0.0
+edgit push --tags --force
 
 # Keep other regions on new version
-edgit deploy set my-prompt v1.1.0 --to prod-eu
-edgit deploy set my-prompt v1.1.0 --to prod-asia
+edgit tag set prompts/extraction production-eu v1.1.0
+edgit tag set prompts/extraction production-asia v1.1.0
+edgit push --tags --force
 ```
 
 ## Rollback Best Practices
@@ -262,21 +286,22 @@ Before deploying:
 
 ```bash
 # Document rollback command
-echo "If issues: edgit deploy set my-prompt v1.0.0 --to prod" > ROLLBACK.md
+echo "If issues: edgit tag set prompts/extraction production v1.0.0 && edgit push --tags --force" > ROLLBACK.md
 
 # Test rollback in staging
-edgit deploy set my-prompt v1.1.0 --to staging
-edgit deploy set my-prompt v1.0.0 --to staging  # Verify rollback works
+edgit tag set prompts/extraction staging v1.1.0
+edgit tag set prompts/extraction staging v1.0.0  # Verify rollback works
+edgit push --tags --force
 ```
 
 ### 2. Keep Multiple Versions Running
 
 ```bash
 # During rollout, keep old version in canary
-prod: v1.0.0        # 90% traffic
-prod-canary: v1.1.0 # 10% traffic
+production: v1.0.0        # 90% traffic
+production-canary: v1.1.0 # 10% traffic
 
-# If canary has issues, just remove it (don't affect prod)
+# If canary has issues, just remove it (don't affect production)
 ```
 
 ### 3. Automate Rollback
@@ -287,8 +312,8 @@ In CI/CD:
 - name: Deploy with Auto-Rollback
   run: |
     # Deploy new version
-    edgit deploy set my-prompt v1.1.0 --to prod
-    git push --tags
+    edgit tag set prompts/extraction production v1.1.0
+    edgit push --tags --force
 
     # Wait for deploy
     sleep 60
@@ -298,8 +323,8 @@ In CI/CD:
 
     if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
       echo "Error rate too high! Auto-rollback..."
-      edgit deploy set my-prompt v1.0.0 --to prod
-      git push --tags
+      edgit tag set prompts/extraction production v1.0.0
+      edgit push --tags --force
       exit 1
     fi
 ```
@@ -311,11 +336,13 @@ In CI/CD:
 # Every month, do a surprise rollback drill
 
 # 1. Deploy test version
-edgit deploy set my-prompt v999.0.0 --to prod-drill
+edgit tag set prompts/extraction production-drill v999.0.0
+edgit push --tags --force
 
 # 2. "Discover" the issue
 # 3. Practice rolling back
-edgit deploy set my-prompt v1.0.0 --to prod-drill
+edgit tag set prompts/extraction production-drill v1.0.0
+edgit push --tags --force
 
 # 4. Time how long it takes
 ```
@@ -327,13 +354,15 @@ edgit deploy set my-prompt v1.0.0 --to prod-drill
 Customer: "I got wrong results yesterday at 3 PM"
 
 ```bash
-# Recreate environment from yesterday 3 PM
-edgit history --date="2024-11-11T15:00:00Z"
+# Find versions from yesterday 3 PM using Git
+git for-each-ref --sort=creatordate \
+  --format '%(creatordate:iso) %(refname:short)' \
+  refs/tags/components/ | grep "2024-11-11"
 
-# Deploy to debug
-edgit deploy set extraction-prompt v1.0.4 --to debug
-edgit deploy set analysis-prompt v1.9.1 --to debug
-git push --tags
+# Identify and deploy versions that were active
+edgit tag set prompts/extraction debug v1.0.4
+edgit tag set prompts/analysis debug v1.9.1
+edgit push --tags --force
 
 # Test with customer's input
 curl https://debug.example.com/test -d @customer-input.json
@@ -344,20 +373,19 @@ curl https://debug.example.com/test -d @customer-input.json
 "Performance was better last week. What changed?"
 
 ```bash
-# Get versions from last week
-edgit history --date="2024-11-05T12:00:00Z"
+# Find what was deployed last week
+git for-each-ref --sort=creatordate \
+  --format '%(creatordate:iso) %(refname:short)' \
+  refs/tags/components/ | grep "2024-11-05"
 
-# Compare to current
-edgit components list --format json > current-versions.json
-edgit history --date="2024-11-05T12:00:00Z" --format json > last-week-versions.json
-
-# Diff
-diff current-versions.json last-week-versions.json
-# Shows: analysis-prompt changed from v1.8.0 to v1.9.0
+# Compare to current versions
+edgit tag list prompts/analysis
+# Shows: prompts/analysis changed from v1.8.0 to v1.9.0
 
 # Test both versions
-edgit deploy set analysis-prompt v1.8.0 --to benchmark-old
-edgit deploy set analysis-prompt v1.9.0 --to benchmark-new
+edgit tag set prompts/analysis benchmark-old v1.8.0
+edgit tag set prompts/analysis benchmark-new v1.9.0
+edgit push --tags --force
 
 # Benchmark performance difference
 ```
@@ -368,9 +396,9 @@ edgit deploy set analysis-prompt v1.9.0 --to benchmark-new
 
 ```bash
 # Deploy both for comparison
-edgit deploy set my-prompt v1.5.0 --to ab-test-a
-edgit deploy set my-prompt v1.8.0 --to ab-test-b
-git push --tags
+edgit tag set prompts/extraction ab-test-a v1.5.0
+edgit tag set prompts/extraction ab-test-b v1.8.0
+edgit push --tags --force
 ```
 
 Ensemble configuration:
@@ -381,12 +409,12 @@ ensemble: ab-test-historical
 agents:
   - name: variant-a
     operation: think
-    component: my-prompt@v1.5.0
+    component: prompts/extraction@v1.5.0
     condition: ${input.user_id % 2 === 0}
 
   - name: variant-b
     operation: think
-    component: my-prompt@v1.8.0
+    component: prompts/extraction@v1.8.0
     condition: ${input.user_id % 2 === 1}
 ```
 
@@ -395,57 +423,26 @@ agents:
 "Who deployed what and when?"
 
 ```bash
-# Full history of a component
-git log --all --decorate --oneline --grep="components/my-prompt"
+# Full history of a component's tags
+git log --all --oneline -- 'refs/tags/components/prompts/extraction/*'
 
-# Who deployed v1.1.0 to prod?
-git log --all components/my-prompt/prod
+# Who created v1.1.0?
+git show components/prompts/extraction/v1.1.0
 
-# What was running during incident?
-edgit history --date="2024-11-10T16:30:00Z"
+# All tags for a component
+edgit tag list prompts/extraction
 ```
 
-## Advanced: Multi-Component Time Travel
+## Advanced: Time Travel with Git
 
-Recreate entire system state from a specific time.
-
-```bash
-#!/bin/bash
-# recreate-environment.sh
-
-TARGET_DATE=$1
-TARGET_ENV=$2
-
-echo "Recreating environment from $TARGET_DATE to $TARGET_ENV..."
-
-# Get all components
-COMPONENTS=$(edgit components list --format json | jq -r '.[] | .name')
-
-# For each component, get version at target date
-for component in $COMPONENTS; do
-  VERSION=$(edgit history $component --date="$TARGET_DATE" --from prod)
-
-  if [ ! -z "$VERSION" ]; then
-    echo "Deploying $component $VERSION to $TARGET_ENV"
-    edgit deploy set $component $VERSION --to $TARGET_ENV
-  fi
-done
-
-git push --tags
-
-echo " Environment $TARGET_ENV now matches $TARGET_DATE"
-```
-
-Usage:
+Git tags retain the commit history. To see what was deployed at a specific time, use Git directly:
 
 ```bash
-./recreate-environment.sh "2024-11-10T14:30:00Z" debug
+# Find tag state at a specific date
+git for-each-ref --sort=creatordate --format '%(creatordate:iso) %(refname:short)' refs/tags/components/
 
-# Output:
-# Deploying extraction-prompt v1.0.5 to debug
-# Deploying analysis-prompt v1.9.2 to debug
-# Deploying validation-config v1.4.0 to debug
-#  Environment debug now matches 2024-11-10T14:30:00Z
+# See all version tags for a component
+git tag -l 'components/prompts/extraction/v*'
 ```
 
 ## Rollback Safety Checks
@@ -460,17 +457,18 @@ COMPONENT=$1
 VERSION=$2
 ENV=$3
 
-echo "= Checking if rollback is safe..."
+echo "Checking if rollback is safe..."
 
 # 1. Check version exists
 if ! edgit tag list $COMPONENT | grep -q "$VERSION"; then
-  echo "L Version $VERSION doesn't exist"
+  echo "Version $VERSION doesn't exist"
   exit 1
 fi
 
-# 2. Check version was previously deployed
-if ! edgit history $COMPONENT | grep -q "$VERSION"; then
-  echo "  Warning: $VERSION was never deployed to $ENV before"
+# 2. Check version exists in available versions
+edgit tag show $COMPONENT@$VERSION > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "Warning: Cannot verify $VERSION details"
   read -p "Continue anyway? (y/n) " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -479,7 +477,7 @@ if ! edgit history $COMPONENT | grep -q "$VERSION"; then
 fi
 
 # 3. Check current version
-CURRENT=$(edgit deploy get $COMPONENT --from $ENV)
+CURRENT=$(edgit tag list $COMPONENT --env $ENV)
 echo "Current version: $CURRENT"
 echo "Rolling back to: $VERSION"
 
@@ -490,10 +488,10 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # 4. Do rollback
-edgit deploy set $COMPONENT $VERSION --to $ENV
-git push --tags
+edgit tag set $COMPONENT $ENV $VERSION
+edgit push --tags --force
 
-echo " Rolled back $COMPONENT to $VERSION in $ENV"
+echo "Rolled back $COMPONENT to $VERSION in $ENV"
 ```
 
 ## Troubleshooting
@@ -502,7 +500,7 @@ echo " Rolled back $COMPONENT to $VERSION in $ENV"
 
 ```bash
 # Check tag was updated
-git show components/my-prompt/prod
+git show components/prompts/extraction/production
 # Should point to rollback version
 
 # Check CI/CD deployed to runtime
@@ -510,7 +508,7 @@ curl https://api.example.com/version
 # Should show rollback version
 
 # If using Cloudflare KV, check it was updated
-wrangler kv:key get --namespace-id=$KV_ID "component-versions" | jq '.["my-prompt"].prod'
+wrangler kv:key get --namespace-id=$KV_ID "component-versions" | jq '.["prompts/extraction"].production'
 # Should show rollback version
 ```
 
@@ -518,25 +516,27 @@ wrangler kv:key get --namespace-id=$KV_ID "component-versions" | jq '.["my-promp
 
 ```bash
 # List all versions
-edgit tag list my-prompt
+edgit tag list prompts/extraction
 
 # If version was deleted, check Git history
-git log --all --oneline -- components/prompts/my-prompt.md
+git log --all --oneline -- components/prompts/extraction.md
 
 # Restore deleted tag
-git tag components/my-prompt/v1.0.0 <commit-hash>
+git tag components/prompts/extraction/v1.0.0 <commit-hash>
 ```
 
 ### Rolled Back But Issue Persists
 
 ```bash
 # Might not be the component you think
-# Check all component versions at time of incident
-edgit history --date="<incident-time>"
+# Check all component versions
+edgit tag list prompts/extraction
+edgit tag list prompts/analysis
 
-# Rollback all changed components
-edgit deploy set component-a v1.0.0 --to prod
-edgit deploy set component-b v2.0.0 --to prod
+# Rollback multiple components if needed
+edgit tag set prompts/extraction production v1.0.0
+edgit tag set prompts/analysis production v2.0.0
+edgit push --tags --force
 ```
 
 ## Next Steps

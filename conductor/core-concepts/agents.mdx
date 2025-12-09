@@ -263,13 +263,14 @@ Version agents with Edgit:
 
 ```bash
 # Register agent
-edgit components add agent company-enricher agents/company-enricher/ --type=agent
+edgit components add company-enricher agents/company-enricher/ agent
 
 # Create version
-edgit tag create company-enricher v1.0.0 --type=agent
+edgit tag create company-enricher v1.0.0
 
-# Deploy to production
-edgit deploy set company-enricher v1.0.0 --to prod --type=agent
+# Tag for production
+edgit tag set company-enricher prod v1.0.0
+edgit push --tags --force
 ```
 
 Lock to specific versions in ensembles:

@@ -49,10 +49,13 @@ edgit tag create extraction-prompt v1.0.0
 edgit tag create analysis-config v2.1.0
 edgit tag create validation-query v0.5.0
 
-# Deploy optimal combination
-edgit deploy set extraction-prompt v1.0.0 --to prod
-edgit deploy set analysis-config v2.1.0 --to prod
-edgit deploy set validation-query v0.5.0 --to prod
+# Tag versions to environments
+edgit tag set extraction-prompt prod v1.0.0
+edgit tag set analysis-config prod v2.1.0
+edgit tag set validation-query prod v0.5.0
+
+# Push tags to trigger deployment
+edgit push --tags --force
 ```
 
 ### 2. Agents (The Workers)

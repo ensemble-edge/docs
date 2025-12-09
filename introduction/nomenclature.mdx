@@ -18,7 +18,8 @@ description: "Complete terminology reference for Ensemble Edge. Clear definition
 **Example:**
 ```bash
 edgit tag create extraction-prompt v1.0.0
-edgit deploy set extraction-prompt v1.0.0 --to prod
+edgit tag set extraction-prompt prod v1.0.0
+edgit push --tags --force
 ```
 
 **Used in:**
@@ -255,8 +256,9 @@ agents/scraper/prod
 
 **Example:**
 ```bash
-edgit deploy set extraction-prompt v1.0.0 --to prod
-edgit deploy set extraction-prompt v2.0.0-beta --to staging
+edgit tag set extraction-prompt prod v1.0.0
+edgit tag set extraction-prompt staging v2.0.0-beta
+edgit push --tags --force
 ```
 
 ---
@@ -533,11 +535,13 @@ components/extraction-prompt/staging    v2.0.0-beta
 # Create version
 edgit tag create my-component v1.0.0
 
-# Deploy to staging
-edgit deploy set my-component v1.0.0 --to staging
+# Tag to staging and push
+edgit tag set my-component staging v1.0.0
+edgit push --tags --force
 
 # Test and promote to production
-edgit deploy set my-component v1.0.0 --to prod
+edgit tag set my-component prod v1.0.0
+edgit push --tags --force
 ```
 
 ---
@@ -621,7 +625,7 @@ What each entity can do:
 ### Common Confusions
 
 **Q: Are ensembles versioned?**
-A: Yes! With Edgit, ensembles can be versioned independently using `edgit tag create my-ensemble v1.0.0 --type=ensemble`. They reference versioned agents and components, and the ensemble itself can be version-pinned.
+A: Yes! With Edgit, ensembles can be versioned independently using `edgit tag create my-ensemble v1.0.0` (type is inferred from file location). They reference versioned agents and components, and the ensemble itself can be version-pinned.
 
 **Q: Can ensembles use operations directly?**
 A: No. Ensembles orchestrate agents. Agents use operations.

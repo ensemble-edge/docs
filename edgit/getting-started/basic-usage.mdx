@@ -12,17 +12,20 @@ edgit components add prompt my-prompt components/prompts/analysis.md
 # 2. Create a version
 edgit tag create my-prompt v1.0.0
 
-# 3. Deploy it
-edgit deploy set my-prompt v1.0.0 --to prod
+# 3. Push tags
+edgit push --tags
 
-# 4. Need to rollback?
-edgit deploy set my-prompt v0.9.0 --to prod
+# 4. Deploy to staging
+edgit tag set my-prompt staging v1.0.0
+edgit push --tags --force
 
 # 5. Check status
-edgit components list --format tree
+edgit components list
 ```
 
 That's it. Everything else is details.
+
+**Philosophy:** Edgit's job ends at `git push`. GitHub Actions handles deployment.
 
 ## Register Components
 
@@ -66,7 +69,7 @@ edgit tag list my-prompt
 # Output: v1.0.0, v1.1.0, v1.2.0
 
 # View what changed
-git show components/my-prompt/v1.0.0
+git show components/prompts/my-prompt/v1.0.0
 ```
 
 **Version multiple components:**
@@ -79,24 +82,47 @@ edgit tag create validation-query v0.5.0
 
 Each component gets its own independent version history.
 
-## Deploy Versions
+**Tags use 4-level format:**
+- `components/prompts/my-prompt/v1.0.0` (version tag)
+- `components/prompts/my-prompt/staging` (environment tag)
+
+The prefix (`components/prompts/`) is automatically inferred from the component type.
+
+## Deploy to Environment
 
 Mark which versions are deployed to which environments:
 
 ```bash
 # Deploy to staging
-edgit deploy set my-prompt v1.0.0 --to staging
+edgit tag set my-prompt staging v1.0.0
+edgit push --tags --force
 
 # Test in staging...
 # All good? Deploy to production
-edgit deploy set my-prompt v1.0.0 --to prod
+edgit tag set my-prompt prod v1.0.0
+edgit push --tags --force
 
 # Deploy multiple components
-edgit deploy set extraction-prompt v1.0.0 --to prod
-edgit deploy set analysis-config v2.1.0 --to prod
+edgit tag set extraction-prompt prod v1.0.0
+edgit tag set analysis-config prod v2.1.0
+edgit push --tags --force
 ```
 
-**Deployment is just metadata.** Edgit creates tags like `components/my-prompt/prod` that point to `v1.0.0`. Your CI/CD reads these tags.
+**Deployment is just metadata.** Edgit creates tags like `components/prompts/my-prompt/prod` that point to `v1.0.0`. Your CI/CD reads these tags.
+
+## When to Use --force
+
+- **Version tags:** No `--force` needed. These are permanent markers.
+  ```bash
+  edgit tag create my-prompt v1.0.0
+  edgit push --tags
+  ```
+
+- **Environment tags:** `--force` required when moving environments.
+  ```bash
+  edgit tag set my-prompt prod v1.0.0
+  edgit push --tags --force
+  ```
 
 ## Check Status
 
@@ -128,28 +154,28 @@ Something broke? Rollback instantly:
 
 ```bash
 # Rollback to previous version
-edgit deploy set my-prompt v0.9.0 --to prod
+edgit tag set my-prompt prod v0.9.0
+edgit push --tags --force
 
 # Or specific version
-edgit deploy set my-prompt v0.5.0 --to prod
+edgit tag set my-prompt prod v0.5.0
+edgit push --tags --force
 ```
 
-**Rollback is instant** (&lt;50ms globally if you've deployed version data to Cloudflare KV).
+**Rollback is instant** (<50ms globally if you've deployed version data to Cloudflare KV).
 
-## View History
+## View Versions
 
-See deployment history:
+See component versions and details:
 
 ```bash
-# Component history
-edgit history my-prompt
-# Output:
-# prod: v1.0.0 (deployed 2025-11-01 14:30)
-# staging: v0.9.0 (deployed 2025-10-28 10:15)
+# List all versions
+edgit tag list my-prompt
+# Output: v1.0.0, v0.9.0, v0.8.0
 
-# What was deployed on a specific date?
-edgit history --date="2024-11-05T14:47:00Z"
-# Output shows exact versions deployed at that time
+# Show version details
+edgit tag show my-prompt@v1.0.0
+# Shows: commit, author, date, changes
 ```
 
 ## Version Agents Too
@@ -158,13 +184,14 @@ Agents can be versioned just like components:
 
 ```bash
 # Register an agent
-edgit components add agent scraper agents/scraper/ --type=agent
+edgit components add agent scraper agents/scraper/
 
 # Version it
-edgit tag create scraper v1.5.0 --type=agent
+edgit tag create scraper v1.5.0
 
 # Deploy it
-edgit deploy set scraper v1.5.0 --to prod --type=agent
+edgit tag set scraper prod v1.5.0
+edgit push --tags --force
 
 # Now reference in ensembles
 ```
@@ -181,27 +208,32 @@ agents:
 
 ```bash
 # Deploy to staging first
-edgit deploy set my-prompt v2.0.0 --to staging
+edgit tag set my-prompt staging v2.0.0
+edgit push --tags --force
 
 # Test thoroughly...
 
 # Deploy to canary (10% of prod traffic)
-edgit deploy set my-prompt v2.0.0 --to canary
+edgit tag set my-prompt canary v2.0.0
+edgit push --tags --force
 
 # Monitor...
 
 # Full prod rollout
-edgit deploy set my-prompt v2.0.0 --to prod
+edgit tag set my-prompt prod v2.0.0
+edgit push --tags --force
 ```
 
 ### A/B Testing
 
 ```bash
 # Deploy variant A
-edgit deploy set my-prompt v1.0.0 --to prod-variant-a
+edgit tag set my-prompt prod-variant-a v1.0.0
+edgit push --tags --force
 
 # Deploy variant B
-edgit deploy set my-prompt v2.0.0 --to prod-variant-b
+edgit tag set my-prompt prod-variant-b v2.0.0
+edgit push --tags --force
 
 # Your ensemble references both
 ```
@@ -221,13 +253,14 @@ agents:
 
 ```bash
 # Production is broken!
-# Check what was deployed before
-edgit history my-prompt
+# Check available versions
+edgit tag list my-prompt
 
 # Rollback to last known good
-edgit deploy set my-prompt v0.9.5 --to prod
+edgit tag set my-prompt prod v0.9.5
+edgit push --tags --force
 
-# &lt;50ms later, you're back to working version
+# <50ms later, you're back to working version
 ```
 
 ## Use Edgit for All Git Operations
@@ -255,16 +288,15 @@ edgit components add <type> <name> <path>
 # Version
 edgit tag create <name> <version>
 edgit tag list <name>
+edgit tag show <name>@<version>
 
 # Deploy
-edgit deploy set <name> <version> --to <env>
-edgit deploy get <name> --from <env>
+edgit tag set <name> <env> <version>
+edgit push --tags --force
 
 # Status
 edgit components list
 edgit components list --format tree|table|json
-edgit history <name>
-edgit history --date="2024-11-05T14:47:00Z"
 
 # Discover
 edgit discover scan

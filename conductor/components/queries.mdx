@@ -41,7 +41,8 @@ LIMIT 1
 ```bash
 edgit components add get-customer-profile queries/get-customer-profile.sql query
 edgit tag create get-customer-profile v1.0.0
-edgit deploy set get-customer-profile v1.0.0 --to production
+edgit tag set get-customer-profile production v1.0.0
+edgit push --tags --force
 ```
 
 ### 3. Reference in Your Ensemble

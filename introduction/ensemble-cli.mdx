@@ -317,8 +317,12 @@ ensemble edgit components add prompt my-prompt prompts/my-prompt.md
 # Create a version tag
 ensemble edgit tag create my-prompt v1.0.0
 
-# Deploy to an environment
-ensemble edgit deploy set my-prompt v1.0.0 --to prod
+# Tag to environment and push
+ensemble edgit tag set my-prompt prod v1.0.0
+ensemble edgit push --tags --force
+
+# List component tags
+ensemble edgit tag list my-prompt
 
 # List all components
 ensemble edgit components list
@@ -458,7 +462,8 @@ $ ensemble edgit tag create my-prompt v1.0.0
 ✓ Tag created: prompts/my-prompt/v1.0.0
 
 💡 Deploy this version:
-  • Run 'ensemble edgit deploy set my-prompt v1.0.0 --to staging'
+  • Run 'ensemble edgit tag set my-prompt staging v1.0.0'
+  • Then 'ensemble edgit push --tags --force'
 ```
 
 ## Environment Variables

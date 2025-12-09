@@ -579,7 +579,7 @@ actions:
     # Reference shared components
     uses:
       - schemas/docs-page@1.0.0      # Validation schema
-      - prompts/docs-writer@latest    # AI prompt (if useAI enabled)
+      - prompts/docs-writer@latest    # AI prompt (if ai.enabled)
       - configs/docs-settings@1.0.0   # Shared configuration
 ```
 
@@ -594,7 +594,7 @@ export default async function generate(ctx: AgentContext) {
   // Access project configuration
   const docsConfig = ctx.config.docs
 
-  if (docsConfig?.useAI && prompt) {
+  if (docsConfig?.ai?.enabled && prompt) {
     // AI-powered generation
     return ctx.think({
       prompt: prompt.render({ page: ctx.input.page }),

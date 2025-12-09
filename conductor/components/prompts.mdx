@@ -37,7 +37,8 @@ Provide analysis in a structured format with clear sections.
 ```bash
 edgit components add analyze-company prompts/analyze-company.txt prompt
 edgit tag create analyze-company v1.0.0
-edgit deploy set analyze-company v1.0.0 --to production
+edgit tag set analyze-company production v1.0.0
+edgit push --tags --force
 ```
 
 ### 3. Reference in Your Ensemble

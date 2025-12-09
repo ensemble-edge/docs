@@ -24,6 +24,99 @@ Ensemble D: v1.0.0, v1.1.0 (independent)
 
 **Power:** Mix any combination. Prompt A v1 + Config B v3 + Query C v1.5 + Ensemble D v1.1. Infinite possibilities.
 
+## Thin Git Wrapper Philosophy
+
+**Edgit creates Git tags. That's it.**
+
+- No custom databases
+- No version registries
+- No deployment state files
+- Just standard Git tags
+
+Your CI/CD (GitHub Actions, etc.) handles the actual deployment. Edgit gives you the primitives to version and reference everything.
+
+## Git Tag Format (4 Levels)
+
+Edgit uses a **4-level tag format**:
+
+```
+{prefix}/{type}/{name}/{slot}
+```
+
+**Levels:**
+1. **prefix**: `components` or `logic` (inferred from file path)
+2. **type**: `prompts`, `agents`, `ensembles`, etc.
+3. **name**: Component name
+4. **slot**: Version (v1.0.0) or environment (staging, production)
+
+**Examples:**
+
+```bash
+# Components (hot-swappable)
+components/prompts/extraction/v1.0.0
+components/prompts/extraction/staging
+components/configs/api-settings/v2.1.0
+components/queries/analytics/production
+
+# Logic (requires Worker rebuild)
+logic/agents/scraper/v1.0.0
+logic/agents/classifier/v2.0.0
+logic/agents/classifier/staging
+logic/ensembles/pipeline/v1.5.0
+logic/ensembles/pipeline/production
+```
+
+**Prefix determines deployment behavior:**
+- **components**: Hot-swappable (prompts, configs, queries, schemas). Push to KV, live immediately.
+- **logic**: Requires Worker rebuild (agents, ensembles). Bundle into code, redeploy Worker.
+
+No `--type` flags needed. Edgit infers prefix from file location.
+
+## Version Tags vs Environment Tags
+
+### Version Tags (Immutable)
+
+Version tags are immutable snapshots:
+
+```bash
+edgit tag create prompts/extraction v1.0.0
+edgit push --tags
+
+edgit tag create agents/classifier v2.0.0
+edgit push --tags
+```
+
+**Characteristics:**
+- Semantic versioning: v1.0.0, v1.1.0, v2.0.0
+- Immutable by convention (no --force needed)
+- Create once, reference forever
+- Safe for production
+
+### Environment Tags (Mutable)
+
+Environment tags are pointers to versions:
+
+```bash
+# Point staging to a version
+edgit tag set prompts/extraction staging v1.0.0
+edgit push --tags --force
+
+# Update production pointer
+edgit tag set prompts/extraction production v2.0.0
+edgit push --tags --force
+```
+
+**Characteristics:**
+- Common names: staging, production, dev, canary
+- Mutable (--force required to update)
+- Point to version tags
+- Easy deployment workflow
+
+**Why mutable tags require --force:**
+- Git protects against accidental overwrites
+- Forces explicit intent when moving environment pointers
+- Prevents race conditions in CI/CD
+
 ## Component Versioning
 
 ### What Gets Versioned
@@ -42,62 +135,44 @@ Each gets its own version history via Git tags.
 ### Create Component Versions
 
 ```bash
-# Register a prompt
-edgit components add prompt extraction-prompt components/prompts/extraction.md
+# Create version tag
+edgit tag create prompts/extraction v1.0.0
+edgit push --tags
 
-# Create versions as you iterate
-edgit tag create extraction-prompt v1.0.0  # Initial version
-# ... make improvements ...
-edgit tag create extraction-prompt v1.1.0  # Better extraction
-# ... major rewrite ...
-edgit tag create extraction-prompt v2.0.0  # New approach
+# Iterate
+edgit tag create prompts/extraction v1.1.0
+edgit push --tags
+
+# Set environment pointer
+edgit tag set prompts/extraction staging v1.1.0
+edgit push --tags --force
 ```
 
-### Git Tag Format
+**No registration needed.** Just create tags. The 4-level format is self-describing.
 
-Edgit uses **type-specific namespaced** Git tags. Each component type has its own namespace:
+### Full Workflow Example
 
 ```bash
-# Prompts use prompts/ namespace
-prompts/extraction-prompt/v1.0.0
-prompts/extraction-prompt/v1.1.0
-prompts/extraction-prompt/prod      # Deployment tag
+# 1. Create version tags
+edgit tag create prompts/extraction v1.0.0
+edgit tag create prompts/validation v2.1.0
+edgit push --tags
 
-# Schemas use schemas/ namespace
-schemas/user-schema/v1.0.0
-schemas/user-schema/staging         # Deployment tag
+# 2. Deploy to staging
+edgit tag set prompts/extraction staging v1.0.0
+edgit tag set prompts/validation staging v2.1.0
+edgit push --tags --force
 
-# Configs use configs/ namespace
-configs/api-config/v1.0.0
+# 3. Test in staging
+# ... run tests ...
 
-# Scripts use scripts/ namespace
-scripts/transform/v1.0.0
-
-# Queries use queries/ namespace
-queries/analytics-query/v1.0.0
-
-# Templates use templates/ namespace
-templates/email-header/v1.0.0
+# 4. Promote to production
+edgit tag set prompts/extraction production v1.0.0
+edgit tag set prompts/validation production v2.1.0
+edgit push --tags --force
 ```
 
-**Type-to-Namespace Mapping:**
-
-| Component Type | Tag Namespace |
-|----------------|---------------|
-| `prompt` | `prompts/` |
-| `schema` | `schemas/` |
-| `config` | `configs/` |
-| `script` | `scripts/` |
-| `query` | `queries/` |
-| `template` | `templates/` |
-| `tool` | `tools/` |
-| `agent` | `agents/` |
-| `ensemble` | `ensembles/` |
-
-View them:
-```bash
-git tag | grep "prompts/extraction-prompt"
-```
+**GitHub Actions sees tags and deploys them.** Edgit just creates the tags.
 
 ### Semantic Versioning
 
@@ -106,19 +181,19 @@ Follow semver: `v{major}.{minor}.{patch}`
 **Major (v2.0.0):** Breaking changes
 ```bash
 # Changed prompt output format from JSON to CSV
-edgit tag create extraction-prompt v2.0.0
+edgit tag create prompts/extraction v2.0.0
 ```
 
 **Minor (v1.1.0):** New features, backward compatible
 ```bash
 # Added extraction of new fields
-edgit tag create extraction-prompt v1.1.0
+edgit tag create prompts/extraction v1.1.0
 ```
 
 **Patch (v1.0.1):** Bug fixes
 ```bash
 # Fixed typo in prompt instructions
-edgit tag create extraction-prompt v1.0.1
+edgit tag create prompts/extraction v1.0.1
 ```
 
 ### Reference Versions in Ensembles
@@ -176,7 +251,7 @@ For TypeScript ensembles, see the [Version Primitives documentation](/conductor/
 
 ### What Are Agents?
 
-**Agents** are workers that execute tasks. They can be versioned just like components:
+**Agents** are workers that execute tasks. They live in `logic/` because they require Worker rebuilds:
 
 - **Pre-built agents** (scraper, validator, RAG, HITL)
 - **Custom agent implementations**
@@ -184,32 +259,23 @@ For TypeScript ensembles, see the [Version Primitives documentation](/conductor/
 ### Version Agent Implementations
 
 ```bash
-# Register an agent
-edgit components add agent scraper agents/scraper/ --type=agent
+# Create version tags
+edgit tag create agents/scraper v1.0.0
+edgit tag create agents/scraper v1.5.0
+edgit push --tags
 
-# Create versions
-edgit tag create scraper v1.0.0 --type=agent
-edgit tag create scraper v1.5.0 --type=agent
-edgit tag create scraper v2.0.0 --type=agent
+# Set environment
+edgit tag set agents/scraper staging v1.5.0
+edgit push --tags --force
 ```
 
-### Git Tag Format for Agents
-
-Agents use the `agents/` namespace:
-
-```bash
-agents/scraper/v1.0.0
-agents/scraper/v1.5.0
-agents/scraper/v2.0.0
-agents/scraper/prod      # Deployment tag
-agents/scraper/staging   # Deployment tag
+**Tag format:**
 ```
-
-**Why type-specific namespaces?**
-- Clear distinction between component types
-- No naming collisions (you can have a prompt and agent with the same name)
-- Better organization in Git
-- Aligns with Conductor's KV storage namespaces
+logic/agents/scraper/v1.0.0
+logic/agents/scraper/v1.5.0
+logic/agents/scraper/staging
+logic/agents/scraper/production
+```
 
 ### Reference Agent Versions
 
@@ -240,7 +306,7 @@ agents:
 
 ### What Are Ensembles?
 
-**Ensembles** are workflow definitions that orchestrate agents. They can be:
+**Ensembles** are workflow definitions that orchestrate agents. They live in `logic/`:
 
 - **YAML ensembles** (`.yaml`, `.yml`) - Declarative workflow definitions
 - **TypeScript ensembles** (`.ts`) - Programmatic workflow definitions with full type safety
@@ -250,40 +316,37 @@ agents:
 <Tabs>
   <Tab title="TypeScript">
 ```bash
-# Register a TypeScript ensemble
-edgit components add ensemble data-pipeline ensembles/data-pipeline.ts
+# Create version tags
+edgit tag create ensembles/data-pipeline v1.0.0
+edgit tag create ensembles/data-pipeline v1.1.0
+edgit push --tags
 
-# Create versions
-edgit tag create data-pipeline v1.0.0 --type=ensemble
-edgit tag create data-pipeline v1.1.0 --type=ensemble
-edgit tag create data-pipeline v2.0.0 --type=ensemble
+# Set environment
+edgit tag set ensembles/data-pipeline staging v1.1.0
+edgit push --tags --force
 ```
   </Tab>
   <Tab title="YAML">
 ```bash
-# Register a YAML ensemble
-edgit components add ensemble scraping-workflow ensembles/scraping.yaml
+# Create version tags
+edgit tag create ensembles/scraping-workflow v1.0.0
+edgit tag create ensembles/scraping-workflow v1.5.0
+edgit push --tags
 
-# Create versions
-edgit tag create scraping-workflow v1.0.0 --type=ensemble
-edgit tag create scraping-workflow v1.5.0 --type=ensemble
+# Set environment
+edgit tag set ensembles/scraping-workflow production v1.5.0
+edgit push --tags --force
 ```
   </Tab>
 </Tabs>
 
-### Git Tag Format for Ensembles
-
-Ensembles use the `ensembles/` namespace:
-
-```bash
-ensembles/data-pipeline/v1.0.0
-ensembles/data-pipeline/v1.1.0
-ensembles/data-pipeline/v2.0.0
-ensembles/data-pipeline/prod      # Deployment tag
-ensembles/data-pipeline/staging   # Deployment tag
+**Tag format:**
 ```
-
-This follows the same type-specific namespace pattern as all other component types.
+logic/ensembles/data-pipeline/v1.0.0
+logic/ensembles/data-pipeline/v1.1.0
+logic/ensembles/data-pipeline/staging
+logic/ensembles/data-pipeline/production
+```
 
 ### TypeScript vs YAML Ensembles
 
@@ -407,19 +470,24 @@ output:
 
 ```bash
 # Week 1: Test new prompt with stable agent
-edgit tag create analysis-prompt v2.0.0
+edgit tag create prompts/analysis v2.0.0
+edgit tag set prompts/analysis staging v2.0.0
+edgit push --tags --force
 # Deploy: analyzer@v1.0.0 + analysis-prompt@v2.0.0
 
 # Week 2: New prompt works! Now test new agent with old prompt
-edgit tag create analyzer v2.0.0 --type=agent
+edgit tag create agents/analyzer v2.0.0
+edgit tag set agents/analyzer staging v2.0.0
+edgit push --tags --force
 # Deploy: analyzer@v2.0.0 + analysis-prompt@v1.0.0
 
 # Week 3: Both work individually. Test together
 # Deploy: analyzer@v2.0.0 + analysis-prompt@v2.0.0
 
 # Week 4: All good! Promote to production
-edgit deploy set analyzer v2.0.0 --to prod --type=agent
-edgit deploy set analysis-prompt v2.0.0 --to prod
+edgit tag set agents/analyzer production v2.0.0
+edgit tag set prompts/analysis production v2.0.0
+edgit push --tags --force
 ```
 
 **You de-risked the rollout by testing each change independently.**
@@ -491,7 +559,7 @@ agents:
 
 ```bash
 # 1. Create feature branch
-edgit checkout -b feature/better-extraction
+git checkout -b feature/better-extraction
 
 # 2. Modify component
 vim components/prompts/extraction.md
@@ -500,35 +568,38 @@ vim components/prompts/extraction.md
 ensemble conductor dev
 
 # 4. Merge to main
-edgit checkout main
-edgit merge feature/better-extraction
+git checkout main
+git merge feature/better-extraction
 
 # 5. Version after merge (via CI or manually)
-edgit tag create extraction-prompt v1.1.0
+edgit tag create prompts/extraction v1.1.0
+edgit push --tags
 
 # 6. Deploy to staging
-edgit deploy set extraction-prompt v1.1.0 --to staging
+edgit tag set prompts/extraction staging v1.1.0
+edgit push --tags --force
 
 # 7. Test in staging
 curl https://staging.example.com/test
 
 # 8. Promote to production
-edgit deploy set extraction-prompt v1.1.0 --to prod
+edgit tag set prompts/extraction production v1.1.0
+edgit push --tags --force
 ```
 
 ### When to Create Versions
 
 **Do version:**
--  After merging to main
--  After successful tests in staging
--  When deploying to any environment
--  When you want to lock a working state
+- After merging to main
+- After successful tests in staging
+- When deploying to any environment
+- When you want to lock a working state
 
 **Don't version:**
-- L Every commit during development
-- L WIP (work in progress) changes
-- L Before testing
-- L In feature branches
+- Every commit during development
+- WIP (work in progress) changes
+- Before testing
+- In feature branches
 
 **Philosophy:** Versions are milestones, not checkpoints.
 
@@ -537,44 +608,30 @@ edgit deploy set extraction-prompt v1.1.0 --to prod
 ### List All Versions
 
 ```bash
-# List versions of a component
-edgit tag list extraction-prompt
+# List all tags for a component
+git tag | grep "components/prompts/extraction"
 # Output:
-# v1.0.0
-# v1.0.1
-# v1.1.0
-# v2.0.0
+# components/prompts/extraction/v1.0.0
+# components/prompts/extraction/v1.0.1
+# components/prompts/extraction/v1.1.0
+# components/prompts/extraction/staging
+# components/prompts/extraction/production
 
-# List with dates
-edgit tag list extraction-prompt --with-dates
-# Output:
-# v1.0.0 (2024-10-15)
-# v1.0.1 (2024-10-18)
-# v1.1.0 (2024-10-25)
-# v2.0.0 (2024-11-01)
+# List all logic tags
+git tag | grep "logic/agents"
 ```
 
 ### View Version Changes
 
 ```bash
 # See what changed in a version
-git show components/extraction-prompt/v1.1.0
+git show components/prompts/extraction/v1.1.0
 
 # Compare two versions
-git diff components/extraction-prompt/v1.0.0 components/extraction-prompt/v1.1.0
+git diff components/prompts/extraction/v1.0.0 components/prompts/extraction/v1.1.0
 
 # View commit message
-git show components/extraction-prompt/v1.1.0 --format=%B --no-patch
-```
-
-### Find Component by Version
-
-```bash
-# Which components are at v1.0.0?
-edgit components list --version v1.0.0
-
-# Which components haven't been versioned?
-edgit components list --unversioned
+git show components/prompts/extraction/v1.1.0 --format=%B --no-patch
 ```
 
 ## Best Practices
@@ -582,51 +639,51 @@ edgit components list --unversioned
 ### 1. Version After Testing
 
 ```bash
-# L Don't
-edgit tag create my-prompt v1.0.0  # Before testing
+# Don't
+edgit tag create prompts/my-prompt v1.0.0  # Before testing
 
-#  Do
+# Do
 ensemble conductor dev  # Test locally first
-edgit tag create my-prompt v1.0.0  # Version after confirming it works
+edgit tag create prompts/my-prompt v1.0.0  # Version after confirming it works
 ```
 
 ### 2. Use Semantic Versioning Correctly
 
 ```bash
-# L Don't
-edgit tag create my-prompt v1.0.1  # Major change labeled as patch
+# Don't
+edgit tag create prompts/my-prompt v1.0.1  # Major change labeled as patch
 
-#  Do
-edgit tag create my-prompt v2.0.0  # Breaking change = major bump
+# Do
+edgit tag create prompts/my-prompt v2.0.0  # Breaking change = major bump
 ```
 
 ### 3. Document Breaking Changes
 
 ```bash
-# L Don't
-edgit tag create my-prompt v2.0.0 -m "Update prompt"
+# Don't
+edgit tag create prompts/my-prompt v2.0.0 -m "Update prompt"
 
-#  Do
-edgit tag create my-prompt v2.0.0 -m "BREAKING: Changed output format from JSON to CSV"
+# Do
+edgit tag create prompts/my-prompt v2.0.0 -m "BREAKING: Changed output format from JSON to CSV"
 ```
 
 ### 4. Keep Old Versions
 
 ```bash
-# L Don't
-git tag -d components/my-prompt/v1.0.0  # Delete old versions
+# Don't
+git tag -d components/prompts/my-prompt/v1.0.0  # Delete old versions
 
-#  Do
+# Do
 # Keep all versions - you might need to rollback
 ```
 
 ### 5. Test Version Combinations
 
 ```bash
-# L Don't
+# Don't
 # Only test new agent with new prompt
 
-#  Do
+# Do
 # Test all combinations:
 # - New agent + Old prompt
 # - Old agent + New prompt
@@ -638,17 +695,13 @@ git tag -d components/my-prompt/v1.0.0  # Delete old versions
 ### Version Not Found
 
 ```bash
-# Error: prompts/my-prompt/v1.0.0 not found
+# Error: components/prompts/my-prompt/v1.0.0 not found
 
-# Check if tag exists (note: use the correct namespace)
-git tag | grep "prompts/my-prompt"
+# Check if tag exists
+git tag | grep "components/prompts/my-prompt"
 
-# List all versions
-edgit tag list my-prompt
-
-# Check your component type - namespace depends on type
-edgit components list
-# prompts/ for prompts, schemas/ for schemas, agents/ for agents, etc.
+# Check prefix (components vs logic)
+git tag | grep "my-prompt"
 ```
 
 ### Version Conflicts
@@ -656,22 +709,21 @@ edgit components list
 ```bash
 # Error: Tag already exists
 
-# Check existing tag (use correct namespace)
-git show prompts/my-prompt/v1.0.0
+# Check existing tag
+git show components/prompts/my-prompt/v1.0.0
 
 # Use force to overwrite (careful!)
-edgit tag create my-prompt v1.0.0 --force
+edgit tag create prompts/my-prompt v1.0.0 --force
+edgit push --tags --force
 ```
 
-### Can't Reference Version in Ensemble
+### Can't Push Environment Tags
 
-```yaml
-# Error: Component not found: my-prompt@v1.0.0
+```bash
+# Error: Updates were rejected
 
-# Possible issues:
-# 1. Tag doesn't exist (check: edgit tag list my-prompt)
-# 2. Wrong component name (check: edgit components list)
-# 3. Version data not deployed (check: deployment pipeline)
+# Environment tags are mutable, need --force
+edgit push --tags --force
 ```
 
 ## Next Steps

@@ -56,7 +56,7 @@ jobs:
           done
 
       - name: Push tags
-        run: git push --tags
+        run: edgit push --tags
 ```
 
 ## GitHub Actions
@@ -107,7 +107,7 @@ jobs:
           done
 
       - name: Push Tags
-        run: git push --tags
+        run: edgit push --tags
 ```
 
 ### Deploy to Staging on PR Merge
@@ -140,11 +140,11 @@ jobs:
           # Deploy latest version of each to staging
           for component in $COMPONENTS; do
             LATEST=$(npx @ensemble-edge/edgit tag list $component | tail -1)
-            npx @ensemble-edge/edgit deploy set $component $LATEST --to staging
+            npx @ensemble-edge/edgit tag set $component staging $LATEST
           done
 
       - name: Push Deployment Tags
-        run: git push --tags
+        run: edgit push --tags --force
 ```
 
 ### Promote Staging to Production
@@ -181,16 +181,16 @@ jobs:
 
           for component in $COMPONENTS; do
             # Get staging version
-            STAGING_VERSION=$(npx @ensemble-edge/edgit deploy get $component --from staging)
+            STAGING_VERSION=$(npx @ensemble-edge/edgit tag show $component@staging)
 
             # Deploy to production
-            npx @ensemble-edge/edgit deploy set $component $STAGING_VERSION --to prod
+            npx @ensemble-edge/edgit tag set $component prod $STAGING_VERSION
 
             echo " Promoted $component: $STAGING_VERSION  prod"
           done
 
       - name: Push Tags
-        run: git push --tags
+        run: edgit push --tags --force
 ```
 
 ## GitLab CI
@@ -227,7 +227,7 @@ version:components:
       done
 
       # Push tags
-      git push https://oauth2:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git --tags
+      npx @ensemble-edge/edgit push --tags
 
 deploy:staging:
   stage: deploy
@@ -240,9 +240,9 @@ deploy:staging:
       COMPONENTS=$(npx @ensemble-edge/edgit components list --format json | jq -r '.[] | .name')
       for component in $COMPONENTS; do
         LATEST=$(npx @ensemble-edge/edgit tag list $component | tail -1)
-        npx @ensemble-edge/edgit deploy set $component $LATEST --to staging
+        npx @ensemble-edge/edgit tag set $component staging $LATEST
       done
-      git push https://oauth2:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git --tags
+      npx @ensemble-edge/edgit push --tags --force
 ```
 
 ## CircleCI
@@ -274,7 +274,7 @@ jobs:
             done
       - run:
           name: Push Tags
-          command: git push --tags
+          command: edgit push --tags
 
 workflows:
   version-and-deploy:
@@ -337,7 +337,7 @@ on:
   push:
     tags:
       - 'components/**'
-      - 'agents/**'
+      - 'logic/**'
 
 jobs:
   deploy:

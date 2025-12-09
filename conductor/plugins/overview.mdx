@@ -124,14 +124,14 @@ export const complexPlugin: LifecyclePlugin = {
 - Complex state management
 - Plugins with cleanup requirements
 
-## Global Operation Registry
+## Global Plugin Registry
 
-All plugins register their operations with the global `OperationRegistry`:
+All plugins register their operations with the global `PluginRegistry`:
 
 ```typescript
-import { getOperationRegistry } from '@ensemble-edge/conductor'
+import { getPluginRegistry } from '@ensemble-edge/conductor'
 
-const registry = getOperationRegistry()
+const registry = getPluginRegistry()
 
 // Register a custom operation
 registry.register('custom:op', handler, {
@@ -139,7 +139,7 @@ registry.register('custom:op', handler, {
   description: 'Custom operation',
   version: '1.0.0',
   author: '@conductor/custom',
-  contexts: ['page', 'form'],
+  contexts: ['form', 'api'],
   tags: ['custom', 'example']
 })
 
@@ -185,7 +185,7 @@ Plugins receive a `PluginContext` during initialization:
 
 ```typescript
 interface PluginContext {
-  operationRegistry: OperationRegistry  // Register operations
+  operationRegistry: PluginRegistry  // Register operations
   env: ConductorEnv                     // Environment bindings
   ctx: ExecutionContext                 // Cloudflare Workers context
   config: Record<string, any>           // Plugin configuration
@@ -202,7 +202,7 @@ Operations can be discovered and filtered:
 const all = registry.list()
 
 // List operations by context
-const pageOps = registry.listByContext('page')
+const formOps = registry.listByContext('form')
 
 // List operations by tag
 const uiOps = registry.listByTag('ui')
@@ -240,7 +240,7 @@ export const plasmicPlugin: LifecyclePlugin = {
       description: 'Render Plasmic component',
       version: '1.0.0',
       author: '@conductor/plasmic',
-      contexts: ['page', 'form'],
+      contexts: ['form', 'api'],
       tags: ['ui', 'visual', 'render']
     })
 
@@ -315,6 +315,6 @@ Browse the official plugin ecosystem:
 ## Next Steps
 
 - [Quick Start: Creating Your First Plugin](/conductor/plugins/quick-start)
-- [Understanding the Operation Registry](/conductor/plugins/operation-registry)
+- [Understanding the Plugin Registry](/conductor/plugins/operation-registry)
 - [Plugin Development Guide](/conductor/plugins/development)
 - [Example Plugins](/conductor/plugins/examples)

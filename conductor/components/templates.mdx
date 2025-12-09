@@ -52,7 +52,8 @@ Create an HTML template file with your preferred template engine:
 ```bash
 edgit components add main-layout templates/layouts/main.html template
 edgit tag create main-layout v1.0.0
-edgit deploy set main-layout v1.0.0 --to production
+edgit tag set main-layout production v1.0.0
+edgit push --tags --force
 ```
 
 ### 3. Reference in Your Ensemble
@@ -643,12 +644,15 @@ conductor/catalog/components/templates/
 # Deploy header component
 edgit components add header conductor/catalog/components/templates/components/header.html template
 edgit tag create header v1.0.0
-edgit deploy set header v1.0.0 --to production
+edgit tag set header production v1.0.0
 
 # Deploy main layout
 edgit components add main-layout conductor/catalog/components/templates/layouts/main.html template
 edgit tag create main-layout v1.0.0
-edgit deploy set main-layout v1.0.0 --to production
+edgit tag set main-layout production v1.0.0
+
+# Push tags
+edgit push --tags --force
 ```
 
 See the [catalog README](/conductor/catalog/components/templates/README.md) for complete documentation.
