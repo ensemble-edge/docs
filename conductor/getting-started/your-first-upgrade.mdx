@@ -17,20 +17,11 @@ pnpm install @ensemble-edge/conductor@latest
 
 # 2. Test everything works
 pnpm test
-pnpm run build
-ensemble wrangler dev --local-protocol http
+ensemble conductor start
 
 # 3. Deploy when ready
-ensemble wrangler deploy
+ensemble deploy
 ```
-
-<Note>
-**Starting the dev server**:
-- **Dev Container**: `ensemble wrangler dev --local-protocol http --ip 0.0.0.0`
-- **Local**: `ensemble wrangler dev --local-protocol http`
-
-The `--ip 0.0.0.0` flag is needed in containers to bind to all network interfaces.
-</Note>
 
 That's it! Most upgrades are seamless.
 
@@ -142,12 +133,10 @@ time pnpm run build
   <Accordion title="Wrangler hangs or requests timeout">
     **Symptoms**: Dev server starts but all requests hang
 
-    **Solution**: Use the `--local-protocol http` flag:
+    **Solution**: Use `ensemble conductor start` which handles this automatically:
     ```bash
-    npx wrangler dev --local-protocol http
+    ensemble conductor start
     ```
-
-    This properly binds network access for the Workers runtime.
   </Accordion>
 
   <Accordion title="Wrangler warnings">
@@ -213,11 +202,10 @@ pnpm install @ensemble-edge/conductor@latest
 
 # Test thoroughly
 pnpm test
-pnpm run build
-ensemble wrangler dev --local-protocol http
+ensemble conductor start
 
 # Deploy to preview environment
-ensemble wrangler deploy --env preview
+ensemble deploy --env preview
 
 # Verify in production-like environment
 # Then upgrade main project
@@ -351,14 +339,13 @@ Use exact versions in production, flexible versions in development:
 ```bash
 # Always test before production deployment
 pnpm test
-pnpm run build
-npx wrangler dev --local-protocol http
+ensemble conductor start
 
 # Test in preview environment first
-npx wrangler deploy --env preview
+ensemble deploy --env preview
 
 # Verify preview works, then deploy to production
-npx wrangler deploy
+ensemble deploy
 ```
 
 ### Keep Release Notes
@@ -420,10 +407,9 @@ rm -rf node_modules pnpm-lock.yaml && pnpm install
 ### After Upgrade
 
 - ✅ Run tests: `pnpm test`
-- ✅ Build: `pnpm run build`
-- ✅ Test locally: `npx wrangler dev --local-protocol http`
-- ✅ Test in preview: `npx wrangler deploy --env preview`
-- ✅ Deploy to production: `npx wrangler deploy`
+- ✅ Test locally: `ensemble conductor start`
+- ✅ Test in preview: `ensemble deploy --env preview`
+- ✅ Deploy to production: `ensemble deploy`
 
 ## Next Steps
 

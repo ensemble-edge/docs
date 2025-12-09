@@ -101,8 +101,7 @@ curl -X GET https://api.example.com/v1/users \
 Start your dev server:
 
 ```bash
-pnpm run build
-pnpm run dev
+ensemble conductor start
 ```
 
 Visit the documentation:
@@ -408,7 +407,7 @@ docs/
 1. Verify `docs/` directory exists with at least one `.md` file
 2. Rebuild to trigger auto-discovery:
    ```bash
-   pnpm run build && pnpm run dev
+   ensemble conductor start
    ```
 3. Check logs for errors:
    ```bash
