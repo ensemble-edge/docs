@@ -537,7 +537,7 @@ edgit tag create main-layout v2.0.0
 Create stable version tags for production ensembles:
 
 ```bash
-edgit tag create main-layout@v1.2.3 production
+edgit tag set main-layout production v1.2.3
 ```
 
 ```yaml
@@ -674,7 +674,7 @@ ensemble: page-staging
         layout: "template://layouts/main@v1.1.0"
 
 # 3. Promote to production
-edgit tag create main-layout@v1.1.0 production
+edgit tag set main-layout production v1.1.0
 ```
 
 ### Rollback Strategy
@@ -910,8 +910,8 @@ export default async function renderConditional(ctx: AgentExecutionContext) {
 
 **Solution**:
 1. Check template exists: `edgit list templates`
-2. Check version: `edgit versions main-layout`
-3. Verify deployment: `edgit status main-layout@v1.0.0`
+2. Check version: `edgit tag list main-layout`
+3. Verify deployment: `edgit tag show main-layout@v1.0.0`
 
 ### Template Rendering Errors
 

@@ -380,12 +380,12 @@ watch_dirs = ["src", "agents", "ensembles", "docs"]
 
 ### conductor.config.ts
 
-This file controls project settings, observability, and API execution controls:
+This file controls project settings, observability, and API execution controls. Use `defineConfig()` for full TypeScript autocomplete:
 
 ```typescript
-import type { ConductorConfig } from '@ensemble-edge/conductor';
+import { defineConfig } from '@ensemble-edge/conductor';
 
-const config: ConductorConfig = {
+export default defineConfig({
   name: 'my-conductor-project',
   version: '1.0.0',
 
@@ -409,10 +409,12 @@ const config: ConductorConfig = {
       ensembles: { requireExplicit: false }
     }
   }
-};
-
-export default config;
+});
 ```
+
+<Tip>
+The `defineConfig()` helper provides TypeScript autocomplete and validation for all configuration options.
+</Tip>
 
 **Note**: Authentication is configured per-route in each ensemble's `trigger:` config using `public: true/false`. See the examples above.
 

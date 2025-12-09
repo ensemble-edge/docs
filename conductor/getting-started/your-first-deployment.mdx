@@ -1,6 +1,6 @@
 ---
 title: "Your First Deployment"
-description: "From local development to global edge deployment in 60 seconds"
+description: "From local development to global edge deployment with tag-based versioning"
 ---
 
 You've built your ensemble. Now let's put it in production where it matters.
@@ -8,13 +8,16 @@ You've built your ensemble. Now let's put it in production where it matters.
 ## Prerequisites
 
 Before deploying:
--  Wrangler installed and authenticated (`ensemble wrangler login` or `wrangler login`)
--  Working ensemble running locally (`ensemble wrangler dev --local-protocol http`)
--  `wrangler.toml` configured
+- Wrangler installed and authenticated (`ensemble wrangler login` or `wrangler login`)
+- Working ensemble running locally (`ensemble wrangler dev --local-protocol http`)
+- `wrangler.toml` configured
+- Edgit initialized (`edgit init`)
 
-## Deploy to Production
+## Quick Start
 
 ```bash
+# Build and deploy
+pnpm run build
 pnpm run deploy
 ```
 
@@ -29,314 +32,119 @@ Published my-conductor-app (0.5 sec)
 Current Deployment ID: abc123-def456-ghi789
 ```
 
-Test it:
-```bash
-curl https://my-conductor-app.your-subdomain.workers.dev?name=World
+**You're live.** Your ensemble is running in 300+ cities worldwide with <50ms cold starts.
+
+## Deployment Configuration
+
+Create a `conductor.config.ts` in your project root for type-safe deployment settings:
+
+```typescript
+import { defineConfig } from '@ensemble-edge/conductor';
+
+export default defineConfig({
+  // Environment tags that trigger deployments
+  // 'main' is always implicit (maps to HEAD of main branch)
+  environments: ['staging', 'production'],
+
+  // Optional: Custom worker names per environment
+  workers: {
+    main: 'my-app-dev',
+    staging: 'my-app-staging',
+    production: 'my-app'
+  },
+
+  // Version tag sync to KV
+  versions: {
+    sync: true,           // Sync version tags to KV
+    retention: 'last-10'  // Keep 10 most recent versions per component
+  },
+
+  // KV namespace for components
+  kv: {
+    namespace: 'COMPONENTS_KV'
+  }
+});
 ```
 
-**You're live.** Your ensemble is running in 300+ cities worldwide with &lt;50ms cold starts.
+<Tip>
+The `defineConfig()` helper provides full TypeScript autocomplete and validation for your configuration.
+</Tip>
 
-## Auto-Discovery in Production (v1.12+)
+### Configuration Options
 
-Auto-discovery works identically in production - no configuration needed!
+| Option | Default | Description |
+|--------|---------|-------------|
+| `environments` | `['main']` | Environment tags that trigger deployments |
+| `workers` | Auto-generated | Worker name overrides per environment |
+| `versions.sync` | `true` | Whether to sync version tags to KV |
+| `versions.retention` | `'last-10'` | How many versions to keep (`'all'`, `'last-5'`, `'last-10'`, `'last-20'`, `'last-50'`) |
+| `kv.namespace` | `'COMPONENTS_KV'` | KV binding name in wrangler.toml |
 
-### What Gets Deployed
+## Tag-Based Deployment
 
-When you run `pnpm run build`, the bundle includes:
-- ✅ All agents from `agents/**/*.yaml`
-- ✅ All ensembles from `ensembles/**/*.yaml`
-- ✅ All pages from `pages/**/*.yaml`
-- ✅ All docs from `docs/**/*.md`
-- ✅ Virtual modules pre-compiled for fast cold starts
-
-### Verification Before Deploy
-
-**Step 1**: Build locally
-
-```bash
-pnpm run build
-```
-
-**Step 2**: Test with wrangler dev
-
-```bash
-ensemble wrangler dev --local-protocol http
-# or: npx wrangler dev --local-protocol http
-```
-
-**Step 3**: Verify all resources are discovered
-
-```bash
-# List all agents
-curl http://localhost:8787/api/v1/agents
-
-# Returns:
-{
-  "agents": [
-    { "name": "hello", "operation": "code" },
-    { "name": "greeter", "operation": "code" }
-  ]
-}
-
-# Test execution
-curl -X POST http://localhost:8787/api/v1/execute/ensemble/hello-world \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": { "name": "Production" }
-  }'
-```
-
-### Production URLs
-
-After deployment, your auto-discovered resources are available at:
+Conductor uses **Git tags** for deployment, integrated with Edgit's component versioning system:
 
 ```bash
-# Execute ensembles
-https://your-app.workers.dev/api/v1/execute/ensemble/{name}
+# 1. Create a version tag for your component
+edgit tag create my-prompt v1.0.0
+edgit push --tags
 
-# Execute agents (if enabled)
-https://your-app.workers.dev/api/v1/execute/agent/{name}
+# 2. Deploy to staging (mutable environment tag)
+edgit tag set my-prompt staging v1.0.0
+edgit push --tags --force
 
-# List agents
-https://your-app.workers.dev/api/v1/agents
-
-# List ensembles
-https://your-app.workers.dev/api/v1/ensembles
-
-# Health check
-https://your-app.workers.dev/health
+# 3. After testing, promote to production
+edgit tag set my-prompt production v1.0.0
+edgit push --tags --force
 ```
 
-### Troubleshooting
+**Version tags** (`v1.0.0`) are immutable snapshots.
+**Environment tags** (`staging`, `production`) are mutable pointers that can be moved between versions.
 
-<Accordion title="Agent not found in production">
-**Problem**: Agent works locally but not in production
+### Why Tags?
 
-**Fix**: Rebuild and redeploy
+- **Instant rollbacks** - Just move the environment tag back
+- **Audit trail** - Git history shows who deployed what, when
+- **Hot-swappable components** - Prompts and schemas update without rebuilds
+- **Multi-environment** - Different versions in staging vs production
+
+## CI/CD with GitHub Actions
+
+Copy the workflow templates to your project:
 
 ```bash
-pnpm run build
-pnpm run deploy
+# From the conductor catalog
+cp -r node_modules/@ensemble-edge/conductor/catalog/cloud/cloudflare/templates/.github .
+cp -r node_modules/@ensemble-edge/conductor/catalog/cloud/cloudflare/templates/scripts .
 ```
 
-Agents are discovered at build time. If you added a new agent, you must rebuild.
-</Accordion>
-
-<Accordion title="Cold start performance">
-**Problem**: Worried about auto-discovery impacting cold starts
-
-**Answer**: Auto-discovery happens at **build time**, not runtime!
-
-- Virtual modules are pre-compiled into your bundle
-- No file system scanning at runtime
-- Cold starts remain &lt;50ms
-- Zero performance impact
-</Accordion>
-
-<Accordion title="How many agents can I deploy?">
-**Answer**: Cloudflare Workers have a 1MB bundle limit
-
-- Each agent config: ~1-5 KB
-- Agent handlers: varies by complexity
-- Typical projects: 50-100 agents easily fit
-- Use code splitting for larger projects
-</Accordion>
-
-## Deployment Checklist
-
-### 1. Environment Secrets
-
-Never commit secrets to git. Use Wrangler secrets:
-
-```bash
-# API keys
-wrangler secret put OPENAI_API_KEY
-wrangler secret put ANTHROPIC_API_KEY
-
-# Authentication
-wrangler secret put JWT_SECRET
-wrangler secret put SESSION_SECRET
-
-# Webhooks
-wrangler secret put STRIPE_WEBHOOK_SECRET
-wrangler secret put GITHUB_WEBHOOK_SECRET
-```
-
-Enter the secret value when prompted.
-
-### 2. Create Resources
-
-Create required Cloudflare resources:
-
-```bash
-# KV namespace for caching
-wrangler kv:namespace create CACHE
-# Add 'id' from output to wrangler.toml
-
-# D1 database
-wrangler d1 create production-db
-# Add 'database_id' from output to wrangler.toml
-
-# R2 bucket
-wrangler r2 bucket create conductor-assets
-
-# Vectorize index
-wrangler vectorize create embeddings --dimensions=1536 --metric=cosine
-```
-
-Update `wrangler.toml` with the IDs:
-
-```toml
-[[kv_namespaces]]
-binding = "CACHE"
-id = "abc123..."  # From create command
-
-[[d1_databases]]
-binding = "DB"
-database_name = "production-db"
-database_id = "def456..."  # From create command
-
-[[r2_buckets]]
-binding = "ASSETS"
-bucket_name = "conductor-assets"
-
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "embeddings"
-```
-
-### 3. Run Database Migrations
-
-If using D1, run migrations:
-
-```bash
-# Create migration
-wrangler d1 migrations create production-db initial_schema
-
-# Write migration in migrations/0001_initial_schema.sql
-# Then apply:
-wrangler d1 migrations apply production-db --remote
-```
-
-Example migration:
-```sql
--- migrations/0001_initial_schema.sql
-CREATE TABLE IF NOT EXISTS documents (
-  id TEXT PRIMARY KEY,
-  content TEXT NOT NULL,
-  embedding BLOB,
-  created_at INTEGER NOT NULL
-);
-
-CREATE INDEX idx_documents_created ON documents(created_at);
-```
-
-### 4. Deploy Again
-
-```bash
-pnpm run deploy
-```
-
-Now your worker has access to all resources.
-
-## Custom Domains
-
-### Add Custom Domain
-
-```bash
-wrangler domains add api.example.com
-```
-
-Or add to `wrangler.toml`:
-
-```toml
-routes = [
-  { pattern = "api.example.com/*", custom_domain = true }
-]
-```
-
-### SSL Certificate
-
-Cloudflare automatically provisions SSL certificates. No configuration needed.
-
-## Multiple Environments
-
-### Configure Environments
-
-Edit `wrangler.toml`:
-
-```toml
-# Default (development)
-name = "conductor-dev"
-compatibility_date = "2024-01-01"
-
-[ai]
-binding = "AI"
-
-[[kv_namespaces]]
-binding = "CACHE"
-id = "dev-cache-id"
-
-# Staging
-[env.staging]
-name = "conductor-staging"
-vars = { ENVIRONMENT = "staging" }
-
-[[env.staging.kv_namespaces]]
-binding = "CACHE"
-id = "staging-cache-id"
-
-# Production
-[env.production]
-name = "conductor-production"
-vars = { ENVIRONMENT = "production" }
-
-[[env.production.kv_namespaces]]
-binding = "CACHE"
-id = "prod-cache-id"
-```
-
-### Deploy to Environments
-
-```bash
-# Deploy to staging
-pnpm run deploy -- --env staging
-
-# Deploy to production
-pnpm run deploy -- --env production
-```
-
-### Environment-Specific Secrets
-
-```bash
-# Set secrets per environment
-wrangler secret put OPENAI_API_KEY --env staging
-wrangler secret put OPENAI_API_KEY --env production
-```
-
-## CI/CD Integration
-
-### GitHub Actions
-
-Create `.github/workflows/deploy.yml`:
+Or create `.github/workflows/conductor.yaml`:
 
 ```yaml
-name: Deploy to Cloudflare
+name: Conductor Deployment
 
 on:
   push:
     branches: [main]
+    tags:
+      - 'components/**'
+      - 'logic/**'
   pull_request:
     branches: [main]
 
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -346,297 +154,352 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      - name: Deploy to Staging
-        if: github.event_name == 'pull_request'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env staging
+      - name: Validate component references
+        run: npx tsx scripts/validate-refs.ts
 
-      - name: Deploy to Production
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
+  deploy-main:
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env production
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Deploy to main
+        run: wrangler deploy
+
+      - name: Sync components to KV
+        run: |
+          # Sync component content for @main tags
+          edgit sync --env main --kv COMPONENTS_KV
+
+  deploy-tag:
+    needs: validate
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Parse tag
+        id: tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          # Extract prefix/type/name/slot from tag
+          PREFIX=$(echo $TAG | cut -d'/' -f1)
+          TYPE=$(echo $TAG | cut -d'/' -f2)
+          NAME=$(echo $TAG | cut -d'/' -f3)
+          SLOT=$(echo $TAG | cut -d'/' -f4)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "prefix=$PREFIX" >> $GITHUB_OUTPUT
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "slot=$SLOT" >> $GITHUB_OUTPUT
+
+      - name: Build and deploy
+        if: steps.tag.outputs.slot == 'staging' || steps.tag.outputs.slot == 'production'
+        run: |
+          pnpm run build
+          wrangler deploy --env ${{ steps.tag.outputs.slot }}
+
+      - name: Sync component to KV
+        run: |
+          edgit sync --tag ${{ steps.tag.outputs.tag }} --kv COMPONENTS_KV
 ```
 
-Add secrets to GitHub:
+### Required Secrets
+
+Add these to your repository secrets:
 - `CLOUDFLARE_API_TOKEN`: Create at https://dash.cloudflare.com/profile/api-tokens
 - `CLOUDFLARE_ACCOUNT_ID`: Find in Cloudflare dashboard
 
-### GitLab CI
+## Validation Script
 
-Create `.gitlab-ci.yml`:
+Create `scripts/validate-refs.ts` to ensure all component references exist before deployment:
+
+```typescript
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import { glob } from 'glob';
+
+async function validateRefs() {
+  // Get registered components
+  const result = execSync('npx edgit components list --format json', {
+    encoding: 'utf-8'
+  });
+  const components = JSON.parse(result);
+  const componentNames = new Set(components.map((c: any) => c.name));
+
+  // Find all YAML files
+  const yamlFiles = await glob('**/*.yaml', {
+    ignore: ['node_modules/**', 'dist/**']
+  });
+
+  let errors = 0;
+
+  for (const file of yamlFiles) {
+    const content = fs.readFileSync(file, 'utf-8');
+
+    // Find component references like prompts/extraction@staging
+    const refs = content.match(/[a-z]+\/[a-z-]+@[a-z0-9.]+/g) || [];
+
+    for (const ref of refs) {
+      const [, name] = ref.match(/([a-z-]+)@/) || [];
+      if (name && !componentNames.has(name)) {
+        console.error(`ERROR: ${file} references unregistered component: ${ref}`);
+        errors++;
+      }
+    }
+  }
+
+  if (errors > 0) {
+    console.error(`\n${errors} unregistered component reference(s) found`);
+    process.exit(1);
+  }
+
+  console.log('All component references are valid');
+}
+
+validateRefs();
+```
+
+## Environment Setup
+
+### wrangler.toml
+
+Configure environments in your `wrangler.toml`:
+
+```toml
+name = "my-conductor-app"
+main = "dist/index.js"
+compatibility_date = "2024-01-01"
+
+[ai]
+binding = "AI"
+
+[[kv_namespaces]]
+binding = "COMPONENTS_KV"
+id = "your-kv-id"
+
+# Staging environment
+[env.staging]
+name = "my-conductor-app-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "COMPONENTS_KV"
+id = "your-staging-kv-id"
+
+# Production environment
+[env.production]
+name = "my-conductor-app-production"
+
+[[env.production.kv_namespaces]]
+binding = "COMPONENTS_KV"
+id = "your-production-kv-id"
+```
+
+### Create KV Namespaces
+
+```bash
+# Create KV namespaces for each environment
+wrangler kv:namespace create COMPONENTS_KV
+wrangler kv:namespace create COMPONENTS_KV --env staging
+wrangler kv:namespace create COMPONENTS_KV --env production
+```
+
+Add the IDs to your `wrangler.toml`.
+
+## Component Sync to KV
+
+When tags are pushed, the workflow syncs component content to Cloudflare KV:
+
+```bash
+# Manual sync for testing
+edgit sync --tag components/prompts/extraction/staging --kv COMPONENTS_KV
+```
+
+This enables **hot-swappable components** - update a prompt without rebuilding your Worker:
 
 ```yaml
-stages:
-  - test
-  - deploy
-
-variables:
-  NODE_VERSION: "20"
-
-test:
-  stage: test
-  image: node:${NODE_VERSION}
-  script:
-    - pnpm install --frozen-lockfile
-    - pnpm test
-
-deploy_staging:
-  stage: deploy
-  image: node:${NODE_VERSION}
-  script:
-    - pnpm add -g wrangler
-    - wrangler deploy --env staging
-  only:
-    - merge_requests
-  environment:
-    name: staging
-
-deploy_production:
-  stage: deploy
-  image: node:${NODE_VERSION}
-  script:
-    - pnpm add -g wrangler
-    - wrangler deploy --env production
-  only:
-    - main
-  environment:
-    name: production
+# In your ensemble, reference by environment tag
+agents:
+  - name: analyzer
+    operation: think
+    prompt: prompts/extraction@staging  # Loaded from KV at runtime
 ```
 
-Add CI/CD variables:
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
+## Deployment Workflow
 
-## Monitoring Deployments
+### Complete Flow
 
-### View Logs
+```
+1. Develop locally
+   └─> pnpm run dev
 
-```bash
-# Tail logs in real-time
-wrangler tail
+2. Create version tag
+   └─> edgit tag create extraction v1.0.0
+   └─> edgit push --tags
 
-# Filter by status
-wrangler tail --status=error
+3. Deploy to staging
+   └─> edgit tag set extraction staging v1.0.0
+   └─> edgit push --tags --force
+   └─> GitHub Actions deploys to staging worker
+   └─> Components synced to staging KV
 
-# Filter by IP
-wrangler tail --ip=1.2.3.4
+4. Test in staging
+   └─> curl https://my-app-staging.workers.dev/api/v1/execute/...
+
+5. Promote to production
+   └─> edgit tag set extraction production v1.0.0
+   └─> edgit push --tags --force
+   └─> GitHub Actions deploys to production worker
+   └─> Components synced to production KV
+
+6. Rollback if needed
+   └─> edgit tag set extraction production v0.9.0
+   └─> edgit push --tags --force
+   └─> Instant rollback (just moves the tag)
 ```
 
-### Check Metrics
+### Tag Format
 
-```bash
-# List deployments
-wrangler deployments list
+Tags follow the 4-level hierarchy: `{prefix}/{type}/{name}/{slot}`
 
-# View specific deployment
-wrangler deployments view abc123-def456
+- **prefix**: `components` (hot-swappable) or `logic` (requires rebuild)
+- **type**: `prompts`, `agents`, `schemas`, etc.
+- **name**: Component name
+- **slot**: Version (`v1.0.0`) or environment (`staging`, `production`)
+
+Examples:
 ```
-
-### Cloudflare Dashboard
-
-Visit https://dash.cloudflare.com/
-
-- **Workers & Pages**  Your worker  **Metrics**
-- View:
-  - Requests per second
-  - Errors
-  - CPU time
-  - Duration
+components/prompts/extraction/v1.0.0      # Version tag (immutable)
+components/prompts/extraction/staging     # Environment tag (mutable)
+logic/agents/analyzer/production          # Logic requires rebuild
+```
 
 ## Rollback
 
-### Rollback to Previous Deployment
+### Instant Rollback
 
 ```bash
-# List deployments
-wrangler deployments list
+# Something's wrong? Roll back instantly
+edgit tag set extraction production v0.9.0
+edgit push --tags --force
 
-# Rollback to previous version
-wrangler rollback abc123-def456
+# Done in <50ms (just updates KV)
 ```
 
-### Version Control Rollback
+### View History
 
 ```bash
-# Revert to previous commit
-git revert HEAD
+# See all versions
+edgit tag list extraction
 
-# Push and deploy
-git push origin main
+# Output:
+# extraction@v0.9.0
+# extraction@v1.0.0
+# extraction@staging -> v1.0.0
+# extraction@production -> v1.0.0
 ```
-
-## Health Checks
-
-Add health check endpoint:
-
-```typescript
-// src/index.ts
-import { Conductor } from '@ensemble-edge/conductor';
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-
-    // Health check endpoint
-    if (url.pathname === '/health') {
-      return Response.json({
-        status: 'ok',
-        timestamp: Date.now(),
-        version: env.VERSION || 'unknown'
-      });
-    }
-
-    // Regular ensemble execution
-    const conductor = new Conductor({ env });
-    const result = await conductor.execute('my-ensemble', {});
-    return Response.json(result);
-  }
-};
-```
-
-Test health check:
-```bash
-curl https://my-conductor-app.workers.dev/health
-```
-
-## Performance Optimization
-
-### Enable Minification
-
-In `wrangler.toml`:
-
-```toml
-[build]
-command = "pnpm run build"
-
-[build.upload]
-format = "modules"
-minify = true
-```
-
-### Bundle Size
-
-Check bundle size:
-```bash
-wrangler deploy --dry-run --outdir=dist
-ls -lh dist/
-```
-
-Keep it under 1MB for fast cold starts.
-
-### Caching Headers
-
-Return proper cache headers:
-
-```typescript
-return new Response(JSON.stringify(result), {
-  headers: {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
-    'CDN-Cache-Control': 'public, max-age=3600'
-  }
-});
-```
-
-## Cost Monitoring
-
-### Free Tier Limits
-
-- **Requests**: 100,000/day
-- **Workers AI**: 10,000 neurons/day
-- **KV Reads**: 100,000/day
-- **KV Writes**: 1,000/day
-- **D1 Rows Read**: 5M/day
-- **D1 Rows Written**: 100k/day
-
-### Monitor Usage
-
-Check usage in Cloudflare dashboard:
-- **Workers & Pages**  **Analytics**
-- Set up billing alerts
-
-### Optimize Costs
-
-1. **Cache aggressively** - Reduce AI/API calls
-2. **Use KV for caching** - Faster and cheaper than D1
-3. **Batch operations** - Group D1 writes
-4. **Use Cloudflare AI** - Cheaper than OpenAI for simple tasks
-5. **Monitor and optimize** - Check analytics regularly
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Deployment fails with 'binding not found'">
-    Problem: Missing resource binding
+  <Accordion title="Component not found in production">
+    **Problem**: Component works locally but not in production
 
-    Fix: Create the resource and add ID to `wrangler.toml`
+    **Fix**: Ensure the component is registered and synced
+
     ```bash
-    # Create KV namespace
-    wrangler kv:namespace create CACHE
+    # Register component
+    edgit register path/to/component.yaml
 
-    # Add to wrangler.toml
-    [[kv_namespaces]]
-    binding = "CACHE"
-    id = "abc123..."
+    # Create and push tags
+    edgit tag create my-component v1.0.0
+    edgit tag set my-component production v1.0.0
+    edgit push --tags --force
     ```
   </Accordion>
 
-  <Accordion title="500 errors in production">
-    Problem: Runtime error in worker
+  <Accordion title="KV sync not working">
+    **Problem**: Components not updating in KV
 
-    Fix: Check logs
+    **Fix**: Check KV namespace binding
+
     ```bash
-    wrangler tail --status=error
-    ```
-    Look for stack traces and fix the issue.
-  </Accordion>
+    # Verify KV namespace exists
+    wrangler kv:namespace list
 
-  <Accordion title="Slow cold starts">
-    Problem: Large bundle size
-
-    Fix: Optimize bundle
-    ```bash
-    # Check bundle size
-    wrangler deploy --dry-run --outdir=dist
-
-    # Enable minification in wrangler.toml
-    [build.upload]
-    minify = true
+    # Check wrangler.toml has correct binding
+    # binding = "COMPONENTS_KV"
+    # id = "your-kv-id"
     ```
   </Accordion>
 
-  <Accordion title="AI operations failing">
-    Problem: Missing AI binding or quota exceeded
+  <Accordion title="Validation script failing">
+    **Problem**: CI fails with "unregistered component reference"
 
-    Fix:
-    1. Check `wrangler.toml` has `[ai] binding = "AI"`
-    2. Check usage in Cloudflare dashboard
-    3. Consider paid plan for higher limits
+    **Fix**: Register the component before referencing it
+
+    ```bash
+    # List registered components
+    edgit components list
+
+    # Register missing component
+    edgit register path/to/component.yaml
+    edgit push --tags
+    ```
+  </Accordion>
+
+  <Accordion title="Environment tag not triggering deploy">
+    **Problem**: Pushing environment tag doesn't deploy
+
+    **Fix**: Ensure tag format is correct and matches workflow triggers
+
+    ```bash
+    # Correct format
+    edgit tag set extraction staging v1.0.0
+
+    # Push with --force for environment tags
+    edgit push --tags --force
+    ```
   </Accordion>
 </AccordionGroup>
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Configuring Cloudflare" icon="cloud" href="/conductor/getting-started/configuring-cloudflare">
-    Complete Cloudflare setup guide
-  </Card>
-
-  <Card title="Testing & Observability" icon="microscope" href="/conductor/building/testing-observability">
-    Monitor your deployments
+  <Card title="Deployment Strategies" icon="rocket" href="/edgit/guides/deployment-strategies">
+    Progressive rollouts, canaries, blue-green
   </Card>
 
   <Card title="CI/CD Integration" icon="infinity" href="/edgit/getting-started/cicd-integration">
-    Automate deployments
+    Advanced automation with Edgit
   </Card>
 
-  <Card title="Core Concepts" icon="book" href="/conductor/core-concepts/operations">
-    Learn advanced features
+  <Card title="Rollback & Time Travel" icon="clock-rotate-left" href="/edgit/guides/rollback-time-travel">
+    Emergency rollbacks and debugging
+  </Card>
+
+  <Card title="Configuring Cloudflare" icon="cloud" href="/conductor/getting-started/configuring-cloudflare">
+    Complete Cloudflare setup guide
   </Card>
 </CardGroup>

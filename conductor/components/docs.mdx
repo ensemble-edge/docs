@@ -262,22 +262,22 @@ Follow semver for documentation changes:
 
 ```bash
 # Bug fix
-edgit version docs/getting-started v1.0.1
+edgit tag create getting-started v1.0.1
 
 # New section added
-edgit version docs/getting-started v1.1.0
+edgit tag create getting-started v1.1.0
 
 # Restructured guide
-edgit version docs/getting-started v2.0.0
+edgit tag create getting-started v2.0.0
 ```
 
 ### Tagging for Deployment
 
 ```bash
 # Tag for different environments
-edgit tag docs/api-guide@v2.0.0 canary
-edgit tag docs/api-guide@v2.0.0 staging
-edgit tag docs/api-guide@v2.0.0 production
+edgit tag set api-guide canary v2.0.0
+edgit tag set api-guide staging v2.0.0
+edgit tag set api-guide production v2.0.0
 ```
 
 ### Version-Specific Documentation
@@ -464,7 +464,7 @@ estimatedTime: 10 minutes
 
 ```bash
 # Version docs with meaningful messages
-edgit version docs/api-guide v2.0.0 -m "Updated to REST API v2"
+edgit tag create api-guide v2.0.0 -m "Updated to REST API v2"
 ```
 
 ### 4. Test with Real Variables

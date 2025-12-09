@@ -308,7 +308,7 @@ edgit tag create analyze-company v2.0.0
 Create stable version tags for production ensembles:
 
 ```bash
-edgit tag create analyze-company@v1.2.3 production
+edgit tag set analyze-company production v1.2.3
 ```
 
 ```yaml
@@ -483,7 +483,7 @@ ensemble: analyzer-staging
         prompt: "prompt://analyze-company@v1.1.0"
 
 # 3. Promote to production
-edgit tag create analyze-company@v1.1.0 production
+edgit tag set analyze-company production v1.1.0
 ```
 
 ### Rollback Strategy
@@ -618,8 +618,8 @@ export default async function analyze(ctx: AgentExecutionContext) {
 
 **Solution**:
 1. Check prompt exists: `edgit list prompts`
-2. Check version: `edgit versions analyze-company`
-3. Verify deployment: `edgit status analyze-company@v1.0.0`
+2. Check version: `edgit tag list analyze-company`
+3. Verify deployment: `edgit tag show analyze-company@v1.0.0`
 
 ### Inconsistent Results
 

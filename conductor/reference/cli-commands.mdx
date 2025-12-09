@@ -734,7 +734,7 @@ ensemble conductor component:create user-prompt --type prompt
 Initialize Edgit in project.
 
 ```bash
-ensemble edgit init
+edgit init
 ```
 
 ### edgit:info
@@ -742,11 +742,11 @@ ensemble edgit init
 Show Edgit project info.
 
 ```bash
-ensemble edgit info
+edgit info
 ```
 
 <Note>
-`ensemble edgit status` passes through to `git status` since Edgit is git-native. Use `info` for Edgit project information.
+`edgit status` passes through to `git status` since Edgit is git-native. Use `info` for Edgit project information.
 </Note>
 
 ### edgit:commit
@@ -754,7 +754,7 @@ ensemble edgit info
 Commit changes.
 
 ```bash
-ensemble edgit commit -m "message"
+edgit commit -m "message"
 ```
 
 ### edgit:tag
@@ -762,12 +762,12 @@ ensemble edgit commit -m "message"
 Create version tag.
 
 ```bash
-ensemble edgit tag create <version>
+edgit tag create <component> <version>
 ```
 
 Example:
 ```bash
-ensemble edgit tag create v1.2.0
+edgit tag create my-prompt v1.2.0
 ```
 
 ### edgit:log
@@ -775,7 +775,7 @@ ensemble edgit tag create v1.2.0
 Show commit history.
 
 ```bash
-ensemble edgit log [--limit <n>]
+edgit log [--limit <n>]
 ```
 
 ### edgit:diff
@@ -783,7 +783,7 @@ ensemble edgit log [--limit <n>]
 Show changes.
 
 ```bash
-ensemble edgit diff [commit1] [commit2]
+edgit diff [commit1] [commit2]
 ```
 
 ## Config Commands

@@ -63,10 +63,10 @@ agents:
 ### Gradual Rollouts
 ```bash
 # Start with canary
-edgit tag prompts/summarizer@v2.0.0 canary
+edgit tag set summarizer canary v2.0.0
 
 # Promote to production
-edgit tag prompts/summarizer@v2.0.0 production
+edgit tag set summarizer production v2.0.0
 ```
 
 ## Component References
@@ -156,10 +156,10 @@ my-project/
 ### Initialize Component
 ```bash
 # Version a component
-edgit version schemas/invoice v1.0.0
+edgit tag create invoice v1.0.0
 
 # Version with message
-edgit version prompts/summarizer v1.0.0 -m "Initial release"
+edgit tag create summarizer v1.0.0 -m "Initial release"
 ```
 
 ### Semantic Versioning
@@ -171,35 +171,35 @@ Follow semver for clear version meanings:
 
 ```bash
 # Bug fix
-edgit version schemas/invoice v1.0.1
+edgit tag create invoice v1.0.1
 
 # New optional field
-edgit version schemas/invoice v1.1.0
+edgit tag create invoice v1.1.0
 
 # Breaking change to schema structure
-edgit version schemas/invoice v2.0.0
+edgit tag create invoice v2.0.0
 ```
 
 ### Tagging
 Tag versions for deployment stages:
 ```bash
 # Tag for canary testing
-edgit tag schemas/invoice@v2.0.0 canary
+edgit tag set invoice canary v2.0.0
 
 # Promote to staging
-edgit tag schemas/invoice@v2.0.0 staging
+edgit tag set invoice staging v2.0.0
 
 # Promote to production
-edgit tag schemas/invoice@v2.0.0 production
+edgit tag set invoice production v2.0.0
 ```
 
 ### View Versions
 ```bash
 # List all versions
-edgit versions schemas/invoice
+edgit tag list invoice
 
 # Show version details
-edgit show schemas/invoice@v1.2.3
+edgit tag show invoice@v1.2.3
 ```
 
 ## A/B Testing Components
@@ -262,7 +262,7 @@ Markdown documentation with Handlebars template support.
 ### 1. Version Early and Often
 ```bash
 # Version from the start
-edgit version prompts/new-feature v0.1.0
+edgit tag create new-feature v0.1.0
 ```
 
 ### 2. Use Semantic Versioning
@@ -282,16 +282,16 @@ prompt: prompts/summarizer@production
 
 ### 4. Document Breaking Changes
 ```bash
-edgit version schemas/invoice v2.0.0 -m "BREAKING: Renamed 'total' to 'amount'"
+edgit tag create invoice v2.0.0 -m "BREAKING: Renamed 'total' to 'amount'"
 ```
 
 ### 5. Test Before Promoting
 ```bash
 # Test in canary
-edgit tag schemas/contact@v2.0.0 canary
+edgit tag set contact canary v2.0.0
 
 # If successful, promote
-edgit tag schemas/contact@v2.0.0 production
+edgit tag set contact production v2.0.0
 ```
 
 ### 6. Lock Production to Versions

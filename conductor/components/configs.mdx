@@ -459,7 +459,7 @@ edgit tag create anthropic-settings v1.1.0
 edgit tag create anthropic-settings v1.2.0
 
 # 3. Promote to production
-edgit tag create anthropic-settings@v1.2.0 production
+edgit tag set anthropic-settings production v1.2.0
 ```
 
 ### Staged Rollout
@@ -646,8 +646,8 @@ export default async function mergeConfigs(ctx: AgentExecutionContext) {
 
 **Solution**:
 1. Check config exists: `edgit list configs`
-2. Check version: `edgit versions anthropic-settings`
-3. Verify deployment: `edgit status anthropic-settings@v1.0.0`
+2. Check version: `edgit tag list anthropic-settings`
+3. Verify deployment: `edgit tag show anthropic-settings@v1.0.0`
 
 ### Invalid Configuration
 

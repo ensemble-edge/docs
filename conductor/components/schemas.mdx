@@ -315,13 +315,13 @@ Schema components follow semantic versioning:
 
 ```bash
 # Version a schema
-edgit version schemas/invoice v1.0.0
+edgit tag create invoice v1.0.0
 
 # Update schema
-edgit version schemas/invoice v1.1.0
+edgit tag create invoice v1.1.0
 
 # Tag as production
-edgit tag schemas/invoice@v1.1.0 production
+edgit tag set invoice production v1.1.0
 ```
 
 **In YAML**:
@@ -660,7 +660,7 @@ export default async function processContacts(ctx: AgentExecutionContext) {
 
 **Solution**:
 1. Check schema exists: `edgit list schemas`
-2. Verify version: `edgit versions schemas/invoice`
+2. Verify version: `edgit tag list invoice`
 3. Use local file path for testing: `./schemas/invoice.json`
 
 ### Invalid JSON Output

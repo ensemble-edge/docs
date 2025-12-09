@@ -510,7 +510,7 @@ edgit tag create get-customer-profile v1.0.0
 edgit tag create get-customer-profile v1.1.0
 
 # 3. Promote to production
-edgit tag create get-customer-profile@v1.1.0 production
+edgit tag set get-customer-profile production v1.1.0
 ```
 
 ### Staged Testing
@@ -737,8 +737,8 @@ export default async function processAnalytics(ctx: AgentExecutionContext) {
 
 **Solution**:
 1. Check query exists: `edgit list queries`
-2. Check version: `edgit versions get-customer-profile`
-3. Verify deployment: `edgit status get-customer-profile@v1.0.0`
+2. Check version: `edgit tag list get-customer-profile`
+3. Verify deployment: `edgit tag show get-customer-profile@v1.0.0`
 
 ### SQL Syntax Error
 

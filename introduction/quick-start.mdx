@@ -214,14 +214,14 @@ curl https://my-ai-workflow.your-subdomain.workers.dev/ensembles/company-intel \
 
 ```bash
 # Edgit is already included in the Ensemble CLI!
-ensemble edgit init
+edgit init
 
 # Version your prompt
-ensemble edgit tag create company-analysis-prompt v1.0.0
+edgit tag create company-analysis-prompt v1.0.0
 
 # Tag and push to production
-ensemble edgit tag set company-analysis-prompt prod v1.0.0
-ensemble edgit push --tags --force
+edgit tag set company-analysis-prompt prod v1.0.0
+edgit push --tags --force
 ```
 
 Now reference it in your ensemble:

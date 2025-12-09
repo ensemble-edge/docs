@@ -8,15 +8,11 @@ description: "Complete Edgit command reference with examples"
 No installation needed - use `npx` to run Edgit:
 
 ```bash
-# Via Ensemble CLI (recommended)
-npx @ensemble-edge/ensemble edgit init
-npx @ensemble-edge/ensemble edgit tag create my-prompt v1.0.0
-
-# Or direct
+# Using npx (no install needed)
 npx @ensemble-edge/edgit init
-edgit tag create my-prompt v1.0.0
+npx @ensemble-edge/edgit tag create my-prompt v1.0.0
 
-# Or if edgit is installed
+# Or if edgit is installed globally
 edgit init
 edgit tag create my-prompt v1.0.0
 ```
@@ -361,6 +357,67 @@ edgit tag create data-pipeline v1.0.0 -m "Added parallel processing"
 Version tags are immutable and don't require `--force` to push.
 </Note>
 
+### `edgit tag bump`
+
+Bump the version of a component based on semantic versioning:
+
+```bash
+edgit tag bump <component> <level> [--ref <ref>]
+```
+
+**Arguments:**
+- `component` - Component name
+- `level` - Bump level: `major`, `minor`, `patch`, or `prerelease`
+
+**Options:**
+- `--ref <ref>` - Git ref to tag (default: HEAD)
+
+**Bump Types:**
+
+| Level | Example |
+|-------|---------|
+| `major` | v1.2.3 → v2.0.0 |
+| `minor` | v1.2.3 → v1.3.0 |
+| `patch` | v1.2.3 → v1.2.4 |
+| `prerelease` | v1.2.3 → v1.2.4-0, v1.2.4-0 → v1.2.4-1 |
+
+**Examples:**
+
+```bash
+# Bump patch version (v1.2.3 → v1.2.4)
+edgit tag bump extraction patch
+
+# Bump minor version (v1.2.3 → v1.3.0)
+edgit tag bump extraction minor
+
+# Bump major version (v1.2.3 → v2.0.0)
+edgit tag bump extraction major
+
+# Create prerelease (v1.2.3 → v1.2.4-0)
+edgit tag bump extraction prerelease
+
+# Bump at specific commit
+edgit tag bump extraction patch --ref abc1234
+```
+
+**Output:**
+
+```
+Latest version: v1.2.3
+Bumping: patch
+
+✅ Created tag: extraction@v1.2.4
+   Git tag: components/prompts/extraction/v1.2.4
+   Points to: abc1234
+
+Push to deploy:
+  edgit push --tags
+```
+
+<Tip>
+Use `edgit tag bump` in CI/CD pipelines to automatically increment versions when components change.
+</Tip>
+
 ### `edgit tag set`
 
 Create or move a mutable environment tag:
@@ -655,32 +712,32 @@ edgit diff
 For standard git operations, you can also use `git` directly. The pass-through is convenient when you're already working with edgit commands.
 </Note>
 
-## Version Helpers
+## Version Management
 
-### `edgit version bump`
-
-Calculate next version:
+Edgit uses explicit Git tags for versioning. To get the latest version for a component:
 
 ```bash
-edgit version bump <version> <level>
+# List all versions for a component
+edgit tag list my-prompt
+
+# Show details for a specific version
+edgit tag show my-prompt@v1.2.3
 ```
 
-**Arguments:**
-- `version` - Current version (v1.2.3)
-- `level` - Bump level (major, minor, patch)
-
-**Examples:**
+<Tip>
+For CI/CD automation, use shell commands to calculate version bumps:
 
 ```bash
-edgit version bump v1.2.3 patch
-# Output: v1.2.4
+# Get latest version
+LATEST=$(edgit tag list my-prompt --format json | jq -r '.versions[-1] // "v0.0.0"')
 
-edgit version bump v1.2.3 minor
-# Output: v1.3.0
+# Bump patch version (v1.2.3 → v1.2.4)
+NEW=$(echo $LATEST | awk -F. '{$NF = $NF + 1;} 1' | sed 's/ /./g')
 
-edgit version bump v1.2.3 major
-# Output: v2.0.0
+# Create new version
+edgit tag create my-prompt $NEW
 ```
+</Tip>
 
 ## Environment Variables
 

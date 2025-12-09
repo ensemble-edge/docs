@@ -13,7 +13,7 @@ npx @ensemble-edge/ensemble
 
 # Or run specific commands directly
 npx @ensemble-edge/ensemble conductor init my-project   # Create Conductor projects
-npx @ensemble-edge/ensemble edgit tag create v1.0.0     # Version components
+edgit tag create component v1.0.0     # Version components
 ```
 
 ## Why a Unified CLI?
@@ -26,7 +26,7 @@ npx @ensemble-edge/ensemble
 
 # Or run specific commands directly
 npx @ensemble-edge/ensemble conductor init my-project
-npx @ensemble-edge/ensemble edgit tag create prompt v1.0.0
+edgit tag create prompt v1.0.0
 ```
 
 **Benefits:**
@@ -175,7 +175,7 @@ ensemble <tool> <command> [options]
 | Tool | Description | Example |
 |------|-------------|---------|
 | `conductor` | Edge orchestration framework | `ensemble conductor init my-app` |
-| `edgit` | Component versioning | `ensemble edgit tag create v1.0.0` |
+| `edgit` | Component versioning | `edgit tag create component v1.0.0` |
 | `cloud` | Ensemble Cloud management | `ensemble cloud deploy` |
 | `chamber` | Secrets management | `ensemble chamber set API_KEY` |
 | `wrangler` | Cloudflare Workers CLI (explicit passthrough) | `ensemble wrangler deploy` |
@@ -305,27 +305,27 @@ Version and deploy components:
 
 ```bash
 # Initialize Edgit in a repo
-ensemble edgit init
+edgit init
 
 # View Edgit project info
 ensemble edgit info
 ensemble edgit info --json
 
 # Register a component
-ensemble edgit components add prompt my-prompt prompts/my-prompt.md
+edgit components add prompt my-prompt prompts/my-prompt.md
 
 # Create a version tag
-ensemble edgit tag create my-prompt v1.0.0
+edgit tag create my-prompt v1.0.0
 
 # Tag to environment and push
-ensemble edgit tag set my-prompt prod v1.0.0
-ensemble edgit push --tags --force
+edgit tag set my-prompt prod v1.0.0
+edgit push --tags --force
 
 # List component tags
-ensemble edgit tag list my-prompt
+edgit tag list my-prompt
 
 # List all components
-ensemble edgit components list
+edgit components list
 
 # Git status passthrough
 ensemble edgit status  # Same as 'git status'
@@ -453,17 +453,17 @@ $ ensemble conductor init my-project
 ✓ Project created successfully!
 
 💡 Next steps:
-  • Run 'ensemble edgit init' to enable component versioning
+  • Run 'edgit init' to enable component versioning
   • Run 'ensemble wrangler dev' to start the development server
 ```
 
 ```bash
-$ ensemble edgit tag create my-prompt v1.0.0
+$ edgit tag create my-prompt v1.0.0
 ✓ Tag created: prompts/my-prompt/v1.0.0
 
 💡 Deploy this version:
-  • Run 'ensemble edgit tag set my-prompt staging v1.0.0'
-  • Then 'ensemble edgit push --tags --force'
+  • Run 'edgit tag set my-prompt staging v1.0.0'
+  • Then 'edgit push --tags --force'
 ```
 
 ## Environment Variables
