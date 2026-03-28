@@ -14,7 +14,7 @@
     "edgit",
     "conductor"
   ],
-  "author": "Higher Order Capital",
+  "author": "Ensemble Edge AI LLC",
   "license": "MIT",
   "devDependencies": {
     "mintlify": "^4.0.0"
